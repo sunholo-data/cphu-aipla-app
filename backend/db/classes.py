@@ -24,6 +24,7 @@ from db.firestore import (
     update_document,
 )
 from db.models.class_ import Class
+from db.models.last_edit import LastEdit
 
 logger = logging.getLogger(__name__)
 
@@ -149,6 +150,19 @@ def update_class(
     if cohort is not None:
         fields["cohort"] = cohort or None
     update_document(_COLLECTION, class_id, fields)
+
+
+def stamp_last_edit(class_id: str, uid: str) -> None:
+    """Record that ``uid`` — not the owner — wrote this class (1.1.123 M3).
+
+    Called by the write routes only when ``user.uid != owner_uid``; an owner's own
+    edit never stamps. Bumps ``updatedAt`` with it so the two agree."""
+    stamp = LastEdit.now(uid)
+    update_document(
+        _COLLECTION,
+        class_id,
+        {"lastEditedBy": stamp.model_dump(), "updatedAt": _utcnow().isoformat()},
+    )
 
 
 def update_class_voice_settings(

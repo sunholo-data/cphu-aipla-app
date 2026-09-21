@@ -42,6 +42,7 @@ from db.models.activity_config import (
     WorkbenchType,
     WritingElement,
 )
+from db.models.last_edit import LastEdit
 from db.models.taxonomy import MAX_SUBJECT_LEN, StxLevel, normalize_subject, normalize_tags
 
 # draft  — owner-only, not student-facing (the builder's "Save draft"; M3 surfaces it).
@@ -125,6 +126,9 @@ class Activity(BaseModel):
     created_at: datetime | None = Field(default=None, alias="createdAt")
     updated_at: datetime | None = Field(default=None, alias="updatedAt")
     deleted_at: datetime | None = Field(default=None, alias="deletedAt")
+    last_edited_by: LastEdit | None = Field(default=None, alias="lastEditedBy")
+    """1.1.123 M3 — the NON-owner (a researcher) who last wrote this activity, and
+    when. Never set by the owner's own edits."""
 
     model_config = ConfigDict(populate_by_name=True)
 

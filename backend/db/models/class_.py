@@ -24,6 +24,8 @@ from datetime import UTC, datetime
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
 
+from db.models.last_edit import LastEdit
+
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
@@ -120,6 +122,10 @@ class Class(BaseModel):
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
     revoked_at: datetime | None = Field(alias="revokedAt", default=None)
+    last_edited_by: LastEdit | None = Field(default=None, alias="lastEditedBy")
+    """1.1.123 M3 — the NON-owner (a researcher acting for the teacher) who last
+    wrote this class, and when. Never set by the owner's own edits; ``None`` means
+    nobody but the owner has touched it."""
 
     model_config = ConfigDict(populate_by_name=True)
 

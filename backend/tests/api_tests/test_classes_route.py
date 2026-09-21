@@ -595,3 +595,88 @@ class TestClassesActivity:
     def test_activity_is_not_captured_by_the_class_id_route(self, client):
         """`/activity` must be declared before `/{class_id}` or it 404s as an id."""
         assert client.get("/api/classes/activity").status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# 1.1.123 M2/M3 — a researcher may WRITE another teacher's class (not delete),
+# and every such write is attributed on the document
+# ---------------------------------------------------------------------------
+
+
+class TestResearcherActsForTeacher:
+    """RSCH-EDIT-1. JB, 2026-09-19: *"edit an activity if they're lost"*. The read
+    bypass (1.1.5) becomes an assistance bypass — every class write except
+    delete admits a researcher; a plain teacher still gets the enumeration-
+    resistant 404; the owner's own edits never stamp ``lastEditedBy``."""
+
+    @pytest.fixture()
+    def bobs_class(self, other_teacher_client):
+        return other_teacher_client.post("/api/classes", json={"name": "Bob's"}).json()["classId"]
+
+    def test_researcher_can_rename_and_it_is_attributed(self, monkeypatch, bobs_class, researcher_client):
+        monkeypatch.setattr(
+            "protocols.classes_routes.resolve_owner_labels",
+            lambda uids: {"researcher-rae": "Rae (researcher)"},
+        )
+        resp = researcher_client.patch(f"/api/classes/{bobs_class}", json={"name": "Bob's, fixed"})
+        assert resp.status_code == 200, resp.text
+        body = researcher_client.get(f"/api/classes/{bobs_class}").json()
+        assert body["name"] == "Bob's, fixed"
+        assert body["ownerUid"] == OTHER_TEACHER_UID  # never reassigned
+        assert body["lastEditedBy"]["uid"] == "researcher-rae"
+        assert body["lastEditedBy"]["at"]
+        assert body["lastEditedByLabel"] == "Rae (researcher)"
+
+    def test_owner_edit_does_not_stamp(self, bobs_class, other_teacher_client):
+        other_teacher_client.patch(f"/api/classes/{bobs_class}", json={"name": "Mine"})
+        body = other_teacher_client.get(f"/api/classes/{bobs_class}").json()
+        assert body["lastEditedBy"] is None
+        assert "lastEditedByLabel" not in body
+
+    def test_owner_edit_after_researcher_keeps_the_stamp(self, bobs_class, other_teacher_client, researcher_client):
+        """The field means "someone else touched this" — the owner editing later
+        does not erase that a researcher did."""
+        researcher_client.patch(f"/api/classes/{bobs_class}", json={"name": "By Rae"})
+        other_teacher_client.patch(f"/api/classes/{bobs_class}", json={"name": "By Bob"})
+        body = other_teacher_client.get(f"/api/classes/{bobs_class}").json()
+        assert body["name"] == "By Bob"
+        assert body["lastEditedBy"]["uid"] == "researcher-rae"
+
+    def test_researcher_can_mint_codes(self, bobs_class, researcher_client, other_teacher_client):
+        resp = researcher_client.post(f"/api/classes/{bobs_class}/groups", json={"count": 1})
+        assert resp.status_code == 201, resp.text
+        code = resp.json()["codes"][0]
+        assert code in other_teacher_client.get(f"/api/classes/{bobs_class}").json()["groupCodes"]
+
+    def test_researcher_can_revoke_code_and_reset_session(self, bobs_class, researcher_client):
+        code = researcher_client.post(f"/api/classes/{bobs_class}/groups", json={"count": 1}).json()["codes"][0]
+        assert researcher_client.post(f"/api/classes/{bobs_class}/groups/{code}/reset-session").status_code == 204
+        assert researcher_client.delete(f"/api/classes/{bobs_class}/groups/{code}").status_code == 200
+
+    def test_researcher_can_assign_the_owners_activity_but_not_their_own(
+        self, bobs_class, researcher_client, other_teacher_client
+    ):
+        """The assign rule is keyed on the CLASS OWNER, not the caller: a
+        researcher may assign Bob's activity into Bob's class, and may not
+        assign their own into it (cross-teacher stays adopt-by-copy)."""
+        from db.activities import create_activity
+        from db.models.activity import Activity
+
+        bobs = create_activity(Activity(activityId="", ownerUid=OTHER_TEACHER_UID, skillId="c", title="Bob's act"))
+        raes = create_activity(Activity(activityId="", ownerUid="researcher-rae", skillId="c", title="Rae's act"))
+        ok = researcher_client.patch(f"/api/classes/{bobs_class}/activities", json={"add": [bobs.activity_id]})
+        assert ok.status_code == 200, ok.text
+        assert bobs.activity_id in ok.json()["activityIds"]
+        no = researcher_client.patch(f"/api/classes/{bobs_class}/activities", json={"add": [raes.activity_id]})
+        assert no.status_code == 404
+
+    def test_plain_teacher_still_404s_on_every_write(self, bobs_class, client):
+        assert client.patch(f"/api/classes/{bobs_class}", json={"name": "hax"}).status_code == 404
+        assert client.post(f"/api/classes/{bobs_class}/groups", json={"count": 1}).status_code == 404
+        assert client.patch(f"/api/classes/{bobs_class}/activities", json={"add": []}).status_code == 404
+        assert client.patch(f"/api/classes/{bobs_class}/lessons", json={"add": []}).status_code == 404
+
+    def test_researcher_still_cannot_delete(self, bobs_class, researcher_client, other_teacher_client):
+        """Restated beside the writes it is the exception to."""
+        assert researcher_client.delete(f"/api/classes/{bobs_class}").status_code == 404
+        assert other_teacher_client.get(f"/api/classes/{bobs_class}").status_code == 200

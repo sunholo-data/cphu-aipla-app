@@ -4,7 +4,9 @@ Eight endpoints under ``/api/classes/*`` — CRUD + lessons + group codes
 + soft-delete. Every endpoint gates on ``user.is_teacher`` (set by M3
 in the Firebase + LOCAL_MODE auth paths). Ownership is enforced
 per-resource: a teacher can only read/write classes whose ``owner_uid``
-matches their own.
+matches their own. A ``role:researcher`` may read AND write any class
+(1.1.5 / 1.1.123) but never delete one — see ``_load_readable`` /
+``_load_editable`` / ``_load_owned``.
 
 The PATCH ``/lessons`` endpoint is the cross-collection operation: it
 both updates ``Class.lessons`` AND writes the class's ``tag_namespace``
@@ -43,6 +45,7 @@ from db.classes import (
     remove_lessons,
     revoke_class,
     revoke_group_code,
+    stamp_last_edit,
     update_class,
 )
 from db.concept_progress import clear_progress_for_group as clear_concept_progress
@@ -140,8 +143,52 @@ def _load_readable(class_id: str, user: User) -> Class:
     return cls
 
 
+def _load_editable(class_id: str, user: User) -> Class:
+    """Load a class the caller may WRITE — owner OR researcher (1.1.123 M2).
+
+    The write twin of ``_load_readable``: the assistance bypass, so a researcher
+    can fix a stuck teacher's class rather than publish-and-ask-them-to-adopt.
+    Same enumeration-resistant 404 for a non-owner non-researcher. A researcher
+    reaching another teacher's class tags the span exactly as the read does.
+
+    **Not used by ``DELETE /{class_id}``** — deleting a teacher's class is not
+    assistance; that route keeps ``_load_owned``.
+    """
+    cls = get_class(class_id)
+    if cls is None:
+        raise HTTPException(status_code=404, detail="class not found")
+    if cls.owner_uid != user.uid:
+        if not user.is_researcher:
+            raise HTTPException(status_code=404, detail="class not found")
+        span = trace.get_current_span()
+        if span.is_recording():
+            span.set_attribute("auth.researcher_bypass", True)
+            span.set_attribute("class_id", class_id)
+    return cls
+
+
+def _stamp_if_on_behalf(cls: Class, user: User) -> None:
+    """After a successful write: if the caller is not the owner, record who it
+    was (1.1.123 M3). An owner's own edit leaves ``lastEditedBy`` untouched."""
+    if cls.owner_uid != user.uid:
+        stamp_last_edit(cls.class_id, user.uid)
+        log.info("classes_route: class=%s edited on behalf of owner=%s by=%s", cls.class_id, cls.owner_uid, user.uid)
+
+
 def _serialize(cls: Class) -> dict:
     return cls.model_dump(by_alias=True, mode="json")
+
+
+def _serialize_with_edit_label(cls: Class) -> dict:
+    """``_serialize`` plus a friendly ``lastEditedByLabel`` when someone other
+    than the owner last wrote the class — so the page can say *"Last edited by
+    JB"* rather than show a uid. Best-effort, like ``ownerLabel``."""
+    row = _serialize(cls)
+    if cls.last_edited_by:
+        label = resolve_owner_labels({cls.last_edited_by.uid}).get(cls.last_edited_by.uid)
+        if label:
+            row["lastEditedByLabel"] = label
+    return row
 
 
 def _tag_span(class_id: str, teacher_uid: str) -> None:
@@ -328,7 +375,7 @@ async def get_one(
     _assert_teacher(user)
     cls = _load_readable(class_id, user)
     _tag_span(class_id, user.uid)
-    return _serialize(cls)
+    return _serialize_with_edit_label(cls)
 
 
 @router.patch("/{class_id}")
@@ -337,10 +384,11 @@ async def patch_class(
     class_id: str = Path(...),
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict:
-    """Update name, description and/or cohort of a class."""
+    """Update name, description and/or cohort of a class. Owner or researcher."""
     _assert_teacher(user)
-    _load_owned(class_id, user)
+    cls = _load_editable(class_id, user)
     update_class(class_id, name=body.name, description=body.description, cohort=body.cohort)
+    _stamp_if_on_behalf(cls, user)
     _tag_span(class_id, user.uid)
     reloaded = get_class(class_id)
     if reloaded is None:  # paranoia — update_class shouldn't drop the doc
@@ -353,7 +401,9 @@ async def delete_class(
     class_id: str = Path(...),
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict:
-    """Soft-delete (idempotent)."""
+    """Soft-delete (idempotent). **Owner-only** — the one class write the
+    researcher bypass does not cover (1.1.123): deleting a teacher's class is
+    not assistance."""
     _assert_teacher(user)
     _load_owned(class_id, user)
     revoke_class(class_id)
@@ -375,7 +425,7 @@ async def patch_lessons(
     existing tagged-access evaluator picks up the binding.
     """
     _assert_teacher(user)
-    cls = _load_owned(class_id, user)
+    cls = _load_editable(class_id, user)
 
     if body.add:
         for skill_id in body.add:
@@ -387,6 +437,7 @@ async def patch_lessons(
             _remove_namespace_from_skill_tags(skill_id, cls.tag_namespace)
         remove_lessons(class_id, body.remove)
 
+    _stamp_if_on_behalf(cls, user)
     _tag_span(class_id, user.uid)
     reloaded = get_class(class_id)
     if reloaded is None:
@@ -400,9 +451,13 @@ async def patch_activities(
     class_id: str = Path(...),
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict:
-    """Assign / unassign activities to a class (ALS-1 M1). Owner-only on both the
-    class AND every added activity — you can only assign activities you own (the
-    cross-teacher path is adopt-by-copy on the library page, never a direct assign).
+    """Assign / unassign activities to a class (ALS-1 M1). Every added activity
+    must belong to the CLASS OWNER — you can only assign activities the class's
+    teacher owns (the cross-teacher path is adopt-by-copy on the library page,
+    never a direct assign). The caller is the owner, or a researcher acting for
+    them (1.1.123 M2) — in which case the rule is the same, keyed on the owner
+    rather than the caller, so a researcher's own activity is not assignable
+    into a teacher's class either.
     Idempotent. No skill-tag mutation: the student lesson list resolves from
     ``Class.activity_ids`` (each activity carries its own running skill).
 
@@ -410,11 +465,11 @@ async def patch_activities(
     activity must be reviewed + saved (→ private) before it reaches students, so
     adding one returns 409. Removing is always allowed."""
     _assert_teacher(user)
-    _load_owned(class_id, user)
+    cls = _load_editable(class_id, user)
 
     for activity_id in body.add:
         activity = get_activity(activity_id)
-        if activity is None or activity.owner_uid != user.uid:
+        if activity is None or activity.owner_uid != cls.owner_uid:
             raise HTTPException(status_code=404, detail=f"activity not found: {activity_id}")
         if activity.visibility == "draft":
             raise HTTPException(
@@ -426,6 +481,7 @@ async def patch_activities(
     if body.remove:
         remove_activities(class_id, body.remove)
 
+    _stamp_if_on_behalf(cls, user)
     _tag_span(class_id, user.uid)
     reloaded = get_class(class_id)
     if reloaded is None:
@@ -439,10 +495,12 @@ async def post_groups(
     class_id: str = Path(...),
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict:
-    """Mint N group codes under this class. Returns the freshly-minted codes."""
+    """Mint N group codes under this class. Returns the freshly-minted codes.
+    Owner or researcher (1.1.123 M2)."""
     _assert_teacher(user)
-    _load_owned(class_id, user)
+    cls = _load_editable(class_id, user)
     codes = mint_group_codes_under_class(class_id, count=body.count)
+    _stamp_if_on_behalf(cls, user)
     _tag_span(class_id, user.uid)
     log.info(
         "classes_route: minted %d codes class=%s teacher=%s",
@@ -462,8 +520,9 @@ async def delete_group(
     """Revoke a single group code. Idempotent — calling on an already-
     revoked code is a no-op."""
     _assert_teacher(user)
-    _load_owned(class_id, user)
+    cls = _load_editable(class_id, user)
     revoke_group_code(class_id, code)
+    _stamp_if_on_behalf(cls, user)
     _tag_span(class_id, user.uid)
     log.info("classes_route: revoked code=%s class=%s teacher=%s", code, class_id, user.uid)
     return {"revoked": True, "code": code, "classId": class_id}
@@ -482,7 +541,7 @@ async def reset_group_session(
     with the same code and will receive a blank session.
     """
     _assert_teacher(user)
-    cls = _load_owned(class_id, user)
+    cls = _load_editable(class_id, user)
     if code not in cls.group_codes:
         raise HTTPException(status_code=404, detail="group code not found")
     archive_session_for_group(code)
@@ -499,6 +558,7 @@ async def reset_group_session(
     # without anyone having entered it. (writing_progress deliberately does NOT
     # clear — a student's prose is their own work, not a marker of a lesson.)
     cleared_tables = clear_table_progress(code)
+    _stamp_if_on_behalf(cls, user)
     _tag_span(class_id, user.uid)
     log.info(
         "classes_route: reset session for code=%s class=%s teacher=%s "

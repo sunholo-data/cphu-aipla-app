@@ -502,3 +502,86 @@ class TestEditVisibilityLifecycle:
         aid = c.post("/api/activities", json={"skillId": "c", "title": "A"}).json()["activityId"]  # private
         r = c.patch(f"/api/activities/{aid}", json={"skillId": "c", "title": "A2"})
         assert r.json()["visibility"] == "private"
+
+
+class TestResearcherActsForTeacher:
+    """1.1.123 M2/M3 (RSCH-EDIT-1) — *"make the first activity for them"*.
+
+    An activity a researcher creates INSIDE a teacher's class is owned by the
+    teacher: it must land in their library and be editable by them without any
+    bypass. And every researcher write on someone else's activity is attributed
+    on the document, never on the owner's own writes."""
+
+    def test_create_into_another_teachers_class_is_owned_by_the_teacher(self):
+        _make_class("cls-bob", owner=OTHER)
+        resp = _client(researcher=True).post(
+            "/api/activities",
+            json={"skillId": "c", "title": "First activity, by Rae", "teachingGoal": "g", "classId": "cls-bob"},
+        )
+        assert resp.status_code == 201, resp.text
+        body = resp.json()
+        assert body["ownerUid"] == OTHER
+        assert body["sourceOwnerUid"] is None  # authored FOR, not adapted FROM
+        assert body["lastEditedBy"]["uid"] == TEACHER  # _client(researcher=True) keeps the default uid
+        # In the teacher's own library, not the researcher's; assigned to the class.
+        assert body["activityId"] in {
+            a["activityId"] for a in _client(OTHER).get("/api/activities").json()["activities"]
+        }
+        assert body["activityId"] not in {
+            a["activityId"] for a in _client(researcher=True).get("/api/activities").json()["activities"]
+        }
+        assert body["activityId"] in _client(OTHER).get("/api/classes/cls-bob").json()["activityIds"]
+        # The teacher can edit it with no bypass at all.
+        assert (
+            _client(OTHER)
+            .patch(f"/api/activities/{body['activityId']}", json={"skillId": "c", "title": "Mine"})
+            .status_code
+            == 200
+        )
+
+    def test_create_into_another_teachers_class_404s_for_a_plain_teacher(self):
+        _make_class("cls-bob", owner=OTHER)
+        resp = _client().post("/api/activities", json={"skillId": "c", "title": "x", "classId": "cls-bob"})
+        assert resp.status_code == 404
+
+    def test_own_class_create_unchanged(self):
+        _make_class("cls-mine", owner=TEACHER)
+        body = _client().post("/api/activities", json={"skillId": "c", "title": "x", "classId": "cls-mine"}).json()
+        assert body["ownerUid"] == TEACHER
+        assert body["lastEditedBy"] is None
+
+    def test_researcher_patch_is_attributed_and_labelled(self, monkeypatch):
+        monkeypatch.setattr(
+            "protocols.activity_routes.resolve_owner_labels",
+            lambda uids: {TEACHER: "Rae (researcher)"},
+        )
+        aid = _client(OTHER).post("/api/activities", json={"skillId": "c", "title": "Theirs"}).json()["activityId"]
+        _client(researcher=True).patch(f"/api/activities/{aid}", json={"skillId": "c", "title": "Fixed"})
+        body = _client(OTHER).get(f"/api/activities/{aid}").json()
+        assert body["lastEditedBy"]["uid"] == TEACHER
+        assert body["lastEditedByLabel"] == "Rae (researcher)"
+        # The owner's own save afterwards keeps the stamp.
+        _client(OTHER).patch(f"/api/activities/{aid}", json={"skillId": "c", "title": "Mine again"})
+        assert _client(OTHER).get(f"/api/activities/{aid}").json()["lastEditedBy"]["uid"] == TEACHER
+
+    def test_visibility_and_facets_by_researcher_are_attributed(self):
+        aid = _client(OTHER).post("/api/activities", json={"skillId": "c", "title": "Theirs"}).json()["activityId"]
+        assert (
+            _client(researcher=True)
+            .post(f"/api/activities/{aid}/visibility", json={"visibility": "published"})
+            .status_code
+            == 200
+        )
+        assert _client(OTHER).get(f"/api/activities/{aid}").json()["lastEditedBy"]["uid"] == TEACHER
+        # facets — the second write path a researcher can take from the list
+        assert (
+            _client(researcher=True).patch(f"/api/activities/{aid}/facets", json={"addTags": ["x"]}).status_code == 200
+        )
+
+    def test_owner_writes_never_stamp(self):
+        aid = _client(OTHER).post("/api/activities", json={"skillId": "c", "title": "Theirs"}).json()["activityId"]
+        _client(OTHER).patch(f"/api/activities/{aid}", json={"skillId": "c", "title": "Edited"})
+        _client(OTHER).post(f"/api/activities/{aid}/visibility", json={"visibility": "published"})
+        body = _client(OTHER).get(f"/api/activities/{aid}").json()
+        assert body["lastEditedBy"] is None
+        assert "lastEditedByLabel" not in body

@@ -41,7 +41,7 @@ from db.activities import (
     save_activity,
     soft_delete_activity,
 )
-from db.classes import add_activities, get_class
+from db.classes import add_activities, get_class, stamp_last_edit
 from db.curriculum import list_curriculum_for_teacher
 from db.models.activity import Activity, Visibility
 from db.models.activity_config import (
@@ -61,6 +61,7 @@ from db.models.activity_config import (
     WritingElement,
 )
 from db.models.curriculum import CurriculumDoc
+from db.models.last_edit import LastEdit
 from db.models.taxonomy import MAX_SUBJECT_LEN, StxLevel, normalize_tags
 
 log = logging.getLogger(__name__)
@@ -140,6 +141,20 @@ def _load_for_modify(activity_id: str, user: User) -> Activity:
     return activity
 
 
+def _attributed(activity: Activity, user: User) -> Activity:
+    """Stamp ``last_edited_by`` when the writer is not the owner (1.1.123 M3).
+
+    Every write route passes its final model through here before ``save_activity``.
+    An owner's own edit preserves whatever stamp is already there — the field means
+    "someone other than the owner touched this", so the owner editing afterwards
+    does not erase the fact that a researcher did.
+    """
+    if activity.owner_uid == user.uid:
+        return activity
+    log.info("activity edited on behalf of owner=%s by=%s id=%s", activity.owner_uid, user.uid, activity.activity_id)
+    return activity.model_copy(update={"last_edited_by": LastEdit.now(user.uid)})
+
+
 def _serialize(activity: Activity, inherited: dict[str, dict[str, set[str]]] | None = None) -> dict:
     row = activity.model_dump(by_alias=True, mode="json")
     if inherited is not None:
@@ -210,17 +225,38 @@ async def post_activity(
     """Create a new activity (mints a fresh ``act-…`` id — never collides).
 
     When ``classId`` is given, the activity is also assigned to that class (the
-    builder's create-within-a-class flow), after an owner check on the class.
+    builder's create-within-a-class flow). The class must be the caller's — or,
+    for a **researcher**, any teacher's (1.1.123 M2: *"make the first activity
+    for them"*). In that case the activity is created **owned by the class's
+    teacher**, not by the researcher: it must land in the teacher's own library
+    and be editable by them without any bypass. This is the one place ownership
+    is assigned rather than checked. ``source_owner_uid`` is deliberately NOT
+    set — that field means *adapted from*, and this is *authored for*.
     """
     _assert_teacher(user)
     _assert_known_artefact(body.artefact_id)
-    activity = create_activity(_activity_from_body(body, owner_uid=user.uid))
+    owner_uid = user.uid
+    cls = None
     if body.class_id:
         cls = get_class(body.class_id)
-        if cls is None or cls.owner_uid != user.uid:
+        if cls is None or (cls.owner_uid != user.uid and not user.is_researcher):
             raise HTTPException(status_code=404, detail="class not found")
-        add_activities(body.class_id, [activity.activity_id])
-    log.info("activity created id=%s owner=%s class=%s", activity.activity_id, user.uid, body.class_id or "-")
+        owner_uid = cls.owner_uid
+    activity = create_activity(_attributed(_activity_from_body(body, owner_uid=owner_uid), user))
+    if cls is not None:
+        add_activities(cls.class_id, [activity.activity_id])
+        if cls.owner_uid != user.uid:
+            span = trace.get_current_span()
+            if span.is_recording():
+                span.set_attribute("auth.researcher_bypass", True)
+            stamp_last_edit(cls.class_id, user.uid)
+    log.info(
+        "activity created id=%s owner=%s by=%s class=%s",
+        activity.activity_id,
+        owner_uid,
+        user.uid,
+        body.class_id or "-",
+    )
     return _serialize(activity)
 
 
@@ -348,10 +384,13 @@ async def get_activity_route(
     _assert_teacher(user)
     activity = _load_for_modify(activity_id, user)
     row = _serialize(activity)
-    if activity.source_owner_uid:
-        label = resolve_owner_labels({activity.source_owner_uid}).get(activity.source_owner_uid)
-        if label:
-            row["sourceOwnerLabel"] = label
+    want = {u for u in (activity.source_owner_uid, activity.last_edited_by and activity.last_edited_by.uid) if u}
+    labels = resolve_owner_labels(want) if want else {}
+    if activity.source_owner_uid and labels.get(activity.source_owner_uid):
+        row["sourceOwnerLabel"] = labels[activity.source_owner_uid]
+    # 1.1.123 M3 — "Last edited by JB" on the History panel, never a raw uid.
+    if activity.last_edited_by and labels.get(activity.last_edited_by.uid):
+        row["lastEditedByLabel"] = labels[activity.last_edited_by.uid]
     return row
 
 
@@ -385,9 +424,10 @@ async def patch_activity(
             "source_activity_id": existing.source_activity_id,
             "source_owner_uid": existing.source_owner_uid,
             "visibility": preserved_visibility,
+            "last_edited_by": existing.last_edited_by,
         }
     )
-    return _serialize(save_activity(updated))
+    return _serialize(save_activity(_attributed(updated, user)))
 
 
 class _FacetPatch(BaseModel):
@@ -449,7 +489,7 @@ async def patch_activity_facets(
     # Activity's validator canonicalises tags/subject on construction.
     updated = existing.model_copy(update={"tags": tags, "subject": subject, "level": level})
     updated = Activity.model_validate(updated.model_dump(by_alias=True, mode="json"))
-    return _serialize(save_activity(updated))
+    return _serialize(save_activity(_attributed(updated, user)))
 
 
 @router.delete("/{activity_id}", status_code=204)
@@ -545,4 +585,4 @@ async def set_visibility_route(
         activity.owner_uid,
         user.uid,
     )
-    return _set_visibility(activity, body.visibility)
+    return _set_visibility(_attributed(activity, user), body.visibility)
