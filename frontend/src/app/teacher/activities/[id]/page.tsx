@@ -26,6 +26,7 @@ import {
   updateActivity,
 } from "@/lib/teacherApi";
 import type { ActivityPayload } from "@/lib/teacherApi";
+import { ActingForOwnerBanner, LastEditedLine } from "@/components/teacher/ActingForOwnerBanner";
 import { SettingsMap } from "@/components/teacher/SettingsMap";
 import { InheritedTutor } from "@/components/teacher/InheritedTutor";
 import { ActivityBuilderBody } from "@/components/teacher/ActivityBuilderBody";
@@ -221,6 +222,11 @@ export default function TeacherActivityConfigPage() {
           tutor the class uses.
         </p>
       </header>
+
+      {/* 1.1.123 M0 — a researcher editing another teacher's activity is told
+          so here; the owner sees nothing. `meta` is the saved payload, so a
+          not-yet-saved activity (no owner yet) shows no banner either. */}
+      {meta ? <ActingForOwnerBanner resource={meta} kind="activity" /> : null}
 
       <div
         role="tablist"
@@ -528,6 +534,12 @@ function HistoryPanel({ meta }: { meta: ActivityPayload | null }) {
         <div className="flex flex-col gap-0.5 bg-background p-3">
           <dt className="text-xs text-muted-foreground">Last updated</dt>
           <dd className="font-medium">{formatStamp(meta?.updatedAt)}</dd>
+          {/* 1.1.123 M3 — only when someone other than the owner wrote it. */}
+          {meta ? (
+            <dd>
+              <LastEditedLine resource={meta} />
+            </dd>
+          ) : null}
         </div>
       </dl>
 

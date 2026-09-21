@@ -851,22 +851,16 @@ function ClassRow({
             {activities.slice(0, 3).map((a) => (
               <li key={a.activityId} className="flex items-center gap-1.5">
                 <ClipboardList className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                {/* Own view: click a title to edit that activity. Research view
-                    (showOwner) is read-only — another teacher's activity isn't
-                    editable, so render plain text. */}
-                {showOwner ? (
-                  <span className="truncate" title={a.title}>
-                    {a.title}
-                  </span>
-                ) : (
-                  <Link
-                    href={`/teacher/activities/${encodeURIComponent(a.activityId)}?title=${encodeURIComponent(a.title)}`}
-                    className="truncate hover:text-foreground hover:underline"
-                    title={`Edit ${a.title}`}
-                  >
-                    {a.title}
-                  </Link>
-                )}
+                {/* Click a title to edit that activity — in the research view
+                    too (1.1.123): a researcher may edit any teacher's activity,
+                    and the editor says whose it is. */}
+                <Link
+                  href={`/teacher/activities/${encodeURIComponent(a.activityId)}?title=${encodeURIComponent(a.title)}`}
+                  className="truncate hover:text-foreground hover:underline"
+                  title={`Edit ${a.title}`}
+                >
+                  {a.title}
+                </Link>
               </li>
             ))}
             {activities.length > 3 ? (

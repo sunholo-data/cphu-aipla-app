@@ -65,6 +65,12 @@ vi.mock("next/navigation", () => ({
 // stub it so these detail-page tests stay focused on the class surface.
 vi.mock("../_ClassAnalyticsCopilot", () => ({ ClassAnalyticsCopilot: () => null }));
 
+// 1.1.123 — the page now asks who is looking (owner vs researcher acting for
+// them). These tests are the OWNER's view; page.onbehalf.test.tsx is the other.
+vi.mock("@/hooks/useTeacherAuth", () => ({
+  useTeacherAuth: () => ({ user: { uid: "teacher-1" }, loading: false }),
+}));
+
 // Importing after vi.mock so the mocked hook is wired before the page resolves.
 import TeacherClassDetailPage from "@/app/teacher/classes/[id]/page";
 

@@ -7,29 +7,35 @@ order: "1"
 lang: "en"
 status: "Current"
 owner: "AIPLA project team"
-reviewed: "2026-07-14"
-reviewBy: "2026-10-12"
+reviewed: "2026-09-21"
+reviewBy: "2026-12-21"
 ---
 ::: callout-note
 ## For researchers
 
-A researcher account layers **cross-teacher, read-only** views and a **rubric
-experimentation** workspace on top of the normal teacher surfaces. You observe
-across every teacher and class; you do not edit their work. Researcher access is
-a role an administrator grants to your account (see *Getting access* below).
+A researcher account layers **cross-teacher** views, the ability to **edit on a
+teacher's behalf**, and a **rubric experimentation** workspace on top of the
+normal teacher surfaces. Researcher access is a role an administrator grants to
+your account (see *Getting access* below).
 :::
 
 ## What a researcher can do
 
-Two capabilities beyond a normal teacher account:
+Three capabilities beyond a normal teacher account:
 
 1. **Observe across the whole cohort** — every teacher's classes, activities,
-   engagement and cost, read-only.
-2. **Experiment with rubrics** — author and version the judge prompts (lenses)
+   engagement and cost.
+2. **Help a teacher directly** — open any teacher's class or activity and change
+   it: rename the class, add or create an activity in it, mint a join code,
+   share or unshare an activity. An activity you create inside a teacher's
+   class belongs to *them* — it appears in their own library and they can edit
+   it without you. You cannot delete a teacher's class.
+3. **Experiment with rubrics** — author and version the judge prompts (lenses)
    used to score student sessions, and run a judge over a captured session.
 
-Everything a researcher sees across teachers is **observation only** — nothing
-in the cross-teacher views is editable.
+When you edit something you do not own, the page tells you whose it is, and the
+teacher's page afterwards says **who last edited it** and when. Every such edit
+is also recorded for audit.
 
 ## Getting access
 
@@ -41,20 +47,21 @@ show a "Researcher access required" message.
 
 ## Cross-teacher observation
 
-- **Research (activity scan)** — the **Research** sidebar item opens a read-only
-  scan of *every* teacher's activities, in every state (Draft / Private /
-  Shared), with the owner shown. Use it to see what is being built across the
-  cohort.
+- **Research (activity scan)** — the **Research** sidebar item opens a scan of
+  *every* teacher's activities, in every state (Draft / Private / Shared), with
+  the owner shown. Use it to see what is being built across the cohort. Open one
+  to see exactly what the teacher configured; from there, **Open in editor**
+  changes it on their behalf.
 - **Research view (classes)** — on **Classes**, a **My classes / Research view**
-  toggle switches the list to every teacher's classes; pick one to drill into
-  its sessions.
+  toggle switches the list to every teacher's classes; **Manage** opens any of
+  them with the same controls the teacher has.
 - **Insights across all teachers** — on **Insights**, a **My classes / All
   teachers** scope toggle widens the engagement comparison to the whole cohort.
 - **Cost** — a researcher-only **Cost** tab under Insights breaks cross-class
   spend down by cohort, model, voice (speech-to-text / text-to-speech) and
   class, over a period you choose.
 
-![The cross-teacher research surfaces are read-only — observation across every teacher and class.](/guides/assets/r1-01-research.png)
+![The cross-teacher research surfaces — every teacher and class, with the owner shown.](/guides/assets/r1-01-research.png)
 
 ## Rubric experimentation
 

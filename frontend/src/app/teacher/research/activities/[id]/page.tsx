@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, ClipboardList, ShieldAlert } from "lucide-react";
+import { ArrowLeft, ClipboardList, Lock, PenLine, Share2, ShieldAlert } from "lucide-react";
 
-import { type ActivityPayload, fetchActivity } from "@/lib/teacherApi";
+import { type ActivityPayload, fetchActivity, setActivityVisibility } from "@/lib/teacherApi";
 import { INTERACTION_STYLE_LABEL } from "@/lib/tutorDisplay";
-import { VisibilityBadge } from "@/components/teacher/activityDisplay";
+import { LastEditedLine } from "@/components/teacher/ActingForOwnerBanner";
+import { VISIBILITY_LABEL, VisibilityBadge } from "@/components/teacher/activityDisplay";
 import { ConceptMapView } from "@/components/workspace/ConceptMapView";
 import { EmptyState } from "@/components/teacher/ui/EmptyState";
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
@@ -15,19 +16,45 @@ import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 
 type Status = "loading" | "ok" | "forbidden" | "notfound" | "error";
 
+/** 1.1.108 M4 — copy lives here, never inline in JSX. */
+const copy = {
+  note: "Research view — exactly what the teacher configured. Open the editor to change it on their behalf; the teacher will see who did.",
+  openEditor: "Open in editor",
+  makeVisibility: (next: "private" | "published") => `Make ${VISIBILITY_LABEL[next]}`,
+  draftNotSettable: "A draft is reviewed and saved by its owner before it can be shared.",
+} as const;
+
 /**
- * Research view — read-only DETAIL of one activity (RVIEW-1 M1). The list
+ * Research view — DETAIL of one activity (RVIEW-1 M1). The list
  * (`/teacher/research/activities`) shows summary cards; this drills into
  * everything the teacher configured in the editor — identity, teaching goal,
- * every element in detail (incl. the concept-map graph), and materials — with
- * no edit affordances. Researcher-only: the single-activity GET allows the
- * owner OR a researcher (the `_load_for_modify` bypass); a plain teacher
- * reaching another teacher's activity 404s, surfaced here as not-found.
+ * every element in detail (incl. the concept-map graph), and materials.
+ *
+ * Since 1.1.123 M1 it also carries the two researcher writes the backend has
+ * allowed since ALS-SHARE M3b (2026-06-26) and nothing ever exposed: **Open in
+ * editor** (the ordinary editor works on any activity for a researcher and says
+ * whose it is) and the Private ↔ Shared toggle. Researcher-only: the
+ * single-activity GET allows the owner OR a researcher (`_load_for_modify`); a
+ * plain teacher reaching another teacher's activity 404s, surfaced here as
+ * not-found.
  */
 export default function ResearchActivityDetailPage() {
   const id = String(useParams().id ?? "");
   const [status, setStatus] = useState<Status>("loading");
   const [activity, setActivity] = useState<ActivityPayload | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function handleSetVisibility(next: "private" | "published") {
+    if (!activity) return;
+    setBusy(true);
+    try {
+      setActivity(await setActivityVisibility(activity.activityId, next));
+    } catch {
+      // Non-fatal; the badge keeps the last known state.
+    } finally {
+      setBusy(false);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -87,12 +114,42 @@ export default function ResearchActivityDetailPage() {
       title={a.title || a.activityId}
       subtitle={`Owner: ${a.ownerLabel ?? a.ownerUid}`}
       breadcrumb={backLink}
-      actions={<VisibilityBadge visibility={a.visibility} />}
+      actions={
+        <div className="flex flex-wrap items-center gap-2">
+          <VisibilityBadge visibility={a.visibility} />
+          {a.visibility === "draft" ? null : (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void handleSetVisibility(a.visibility === "published" ? "private" : "published")}
+              className="inline-flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
+            >
+              {a.visibility === "published" ? (
+                <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+              ) : (
+                <Share2 className="h-3.5 w-3.5" aria-hidden="true" />
+              )}
+              {copy.makeVisibility(a.visibility === "published" ? "private" : "published")}
+            </button>
+          )}
+          <Link
+            href={`/teacher/activities/${encodeURIComponent(a.activityId)}?title=${encodeURIComponent(a.title ?? "")}`}
+            className="inline-flex items-center gap-1 rounded bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:opacity-90"
+          >
+            <PenLine className="h-3.5 w-3.5" aria-hidden="true" />
+            {copy.openEditor}
+          </Link>
+        </div>
+      }
     >
-      <p className="mb-3 flex items-center gap-1.5 rounded border border-dashed border-border bg-muted/40 p-2 text-xs text-muted-foreground">
-        <ShieldAlert className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-        Research view — read-only. This is exactly what the teacher configured; nothing here is editable.
-      </p>
+      <div className="mb-3 flex flex-col gap-1 rounded border border-dashed border-border bg-muted/40 p-2 text-xs text-muted-foreground">
+        <p className="flex items-center gap-1.5">
+          <ShieldAlert className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          {copy.note}
+        </p>
+        {a.visibility === "draft" ? <p className="pl-5">{copy.draftNotSettable}</p> : null}
+        <LastEditedLine resource={a} />
+      </div>
 
       <div className="flex flex-col gap-3">
         <Section title="Setup">

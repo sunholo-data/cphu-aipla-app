@@ -8,6 +8,13 @@ const nav = vi.hoisted(() => ({
   search: new Map<string, string>(),
 }));
 
+// 1.1.123 — the editor asks who is looking (owner vs researcher acting for
+// them). Default: the owner; one test below flips it.
+const authState = { uid: "teacher-1" };
+vi.mock("@/hooks/useTeacherAuth", () => ({
+  useTeacherAuth: () => ({ user: { uid: authState.uid }, loading: false }),
+}));
+
 vi.mock("next/navigation", () => ({
   useParams: () => nav.params,
   useSearchParams: () => ({ get: (k: string) => nav.search.get(k) ?? null }),
@@ -180,6 +187,63 @@ describe("/teacher/activities/[id] — real activity editor", () => {
     expect(panel).toHaveTextContent("Bob Jensen");
     expect(panel).toHaveTextContent(/published/i);
     expect(panel).not.toHaveTextContent(/from scratch/i);
+  });
+
+  it("tells a researcher whose activity they are editing, and History says who last edited it (1.1.123)", async () => {
+    authState.uid = "researcher-rae";
+    fetchMock.mockResolvedValueOnce({
+      activityId: "act-real-123",
+      ownerUid: "teacher-1",
+      ownerLabel: "Bob Jensen",
+      skillId: "concept",
+      visibility: "private",
+      classId: "",
+      teacherUid: "teacher-1",
+      title: "Bob's",
+      teachingGoal: "Goal",
+      language: "da",
+      difficulty: "standard",
+      pairedWorkbench: null,
+      materials: [],
+      lastEditedBy: { uid: "researcher-rae", at: new Date().toISOString() },
+      lastEditedByLabel: "Rae",
+      createdAt: "2026-06-22T09:00:00Z",
+      updatedAt: "2026-06-24T10:00:00Z",
+    });
+    try {
+      render(<TeacherActivityConfigPage />);
+      await screen.findByRole("textbox", { name: /teaching goal/i });
+      expect(screen.getByTestId("acting-for-owner-banner")).toHaveTextContent(
+        "You are editing Bob Jensen’s activity as a researcher.",
+      );
+      fireEvent.click(screen.getByRole("tab", { name: /history/i }));
+      const panel = await screen.findByRole("tabpanel", { name: /history/i });
+      expect(panel).toHaveTextContent(/Last edited by Rae/);
+    } finally {
+      authState.uid = "teacher-1";
+    }
+  });
+
+  it("shows the owner no banner on their own activity", async () => {
+    fetchMock.mockResolvedValueOnce({
+      activityId: "act-real-123",
+      ownerUid: "teacher-1",
+      skillId: "concept",
+      visibility: "private",
+      classId: "",
+      teacherUid: "teacher-1",
+      title: "Mine",
+      teachingGoal: "Goal",
+      language: "da",
+      difficulty: "standard",
+      pairedWorkbench: null,
+      materials: [],
+      createdAt: "2026-06-22T09:00:00Z",
+      updatedAt: "2026-06-24T10:00:00Z",
+    });
+    render(<TeacherActivityConfigPage />);
+    await screen.findByRole("textbox", { name: /teaching goal/i });
+    expect(screen.queryByTestId("acting-for-owner-banner")).not.toBeInTheDocument();
   });
 
   it("History tab shows a from-scratch lifecycle (no provenance) for an original activity", async () => {

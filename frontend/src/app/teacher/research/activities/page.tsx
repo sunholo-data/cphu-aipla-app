@@ -13,8 +13,9 @@ import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 type Status = "loading" | "ok" | "forbidden" | "error";
 
 /**
- * Research view (1.1.5) — a researcher-only, read-only scan of EVERY teacher's
- * activities, in every state, with the owner shown. This is the cross-teacher
+ * Research view (1.1.5) — a researcher-only scan of EVERY teacher's
+ * activities, in every state, with the owner shown. Read-only on THIS page;
+ * the detail carries the researcher's edit affordances (1.1.123 M1). This is the cross-teacher
  * observation surface, deliberately separate from the teacher's own working
  * library (`/teacher/activities`): "what I see as a researcher" is a distinct
  * place, not a toggle hidden inside the teacher library.
@@ -79,8 +80,8 @@ export default function ResearchActivitiesPage() {
         <>
           <p className="mb-3 flex items-center gap-1.5 rounded border border-dashed border-border bg-muted/40 p-2 text-xs text-muted-foreground">
             <ShieldAlert className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            Research view — read-only · every teacher · all states (Draft / Private / Shared). Observation only; nothing
-            here is editable.
+            Research view · every teacher · all states (Draft / Private / Shared). Open one to see exactly what the
+            teacher configured — or to edit it on their behalf.
           </p>
           <ul className="grid gap-3 sm:grid-cols-2">
             {activities.map((a) => (
@@ -95,9 +96,9 @@ export default function ResearchActivitiesPage() {
   );
 }
 
-/** A read-only activity card for the research scan: composition, the owner, and
- *  the visibility state — no edit/assign/delete affordances. Clicking opens the
- *  full read-only detail (RVIEW-1 M1). */
+/** An activity card for the research scan: composition, the owner, and the
+ *  visibility state — no edit/assign/delete affordances on the card itself.
+ *  Clicking opens the detail (RVIEW-1 M1), which is where a researcher can act. */
 function ResearchCard({ activity }: { activity: ActivityPayload }) {
   return (
     <Link

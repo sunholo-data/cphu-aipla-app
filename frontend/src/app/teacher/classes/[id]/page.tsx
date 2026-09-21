@@ -32,6 +32,7 @@ import {
 } from "@/lib/teacherApi";
 import { ClassInsightsPanel } from "@/components/teacher/insights/ClassInsightsPanel";
 import { BudgetPanel } from "@/components/teacher/BudgetPanel";
+import { ActingForOwnerBanner, LastEditedLine } from "@/components/teacher/ActingForOwnerBanner";
 import { ClassDetailsPanel } from "@/components/teacher/ClassDetailsPanel";
 import { ClassVoiceSettingsPanel } from "@/components/teacher/ClassVoiceSettingsPanel";
 import { TutorPicker } from "@/components/teacher/TutorPicker";
@@ -43,6 +44,7 @@ import { handleExportSessions } from "./_exportHelpers";
 import { ClassAnalyticsCopilot } from "./_ClassAnalyticsCopilot";
 import { LiveClassView } from "./_LiveClassView";
 import { formatRelativeTime } from "@/lib/relativeTime";
+import { useTeacherAuth } from "@/hooks/useTeacherAuth";
 
 export default function TeacherClassDetailPage() {
   const params = useParams();
@@ -109,7 +111,14 @@ export default function TeacherClassDetailPage() {
       .catch(() => setRecentSessions([]));
   }, [id]);
 
-  // Load the teacher's activity library once on mount. Fire-and-forget — the
+  // 1.1.123 M0 — whose class this is. A researcher may open (and edit) any
+  // teacher's class; the picker below must then offer the OWNER's library, not
+  // the researcher's, because the assign rule is keyed on the class owner.
+  const { user: viewer } = useTeacherAuth({ redirectOnSignedOut: false });
+  const ownerUid = cls?.ownerUid ?? null;
+  const onBehalf = Boolean(viewer?.uid && ownerUid && viewer.uid !== ownerUid);
+
+  // Load the viewer's own activity library once on mount. Fire-and-forget — the
   // class itself loads independently; the picker shows an empty state on failure.
   useEffect(() => {
     // 1.1.61: paginated now — this is the assignment picker's full library, so
@@ -118,6 +127,16 @@ export default function TeacherClassDetailPage() {
       .then((page) => setLibraryActivities(page.activities))
       .catch(() => setLibraryActivities([]));
   }, []);
+
+  // …and, once the class and viewer are both known and differ, replace it with
+  // the OWNER's library: the researcher scan (scope=all) is the only list that
+  // includes another teacher's private activities; filter it down to theirs.
+  useEffect(() => {
+    if (!onBehalf || !ownerUid) return;
+    void listActivities("all", { limit: 200 })
+      .then((page) => setLibraryActivities(page.activities.filter((a) => a.ownerUid === ownerUid)))
+      .catch(() => setLibraryActivities([]));
+  }, [ownerUid, onBehalf]);
 
   // Derived views of the library split by whether they're assigned to this class.
   const assignedActivities = useMemo<ActivityPayload[]>(() => {
@@ -300,6 +319,7 @@ export default function TeacherClassDetailPage() {
         </>
       }
     >
+      <ActingForOwnerBanner resource={cls} kind="class" />
       <SettingsMap highlight="class" classId={cls.classId} />
       <LiveClassView classId={cls.classId} />
       <SettingsSection
@@ -437,6 +457,11 @@ export default function TeacherClassDetailPage() {
               initialDescription={cls.description ?? null}
               onSaved={refresh}
             />
+            {/* 1.1.123 M3 — present only when someone other than the owner
+                wrote this class; the owner's own edits never stamp it. */}
+            <div className="mt-2">
+              <LastEditedLine resource={cls} />
+            </div>
           </div>
           {/* 1.1.91 — ONE tutor choice: name, picture, voice, tone and
               teaching approach together. This REPLACES the separate persona

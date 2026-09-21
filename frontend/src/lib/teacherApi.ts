@@ -409,12 +409,23 @@ export interface ActivityUpsertBody {
 
 /** The persisted Activity (create/edit responses). Structurally a superset of
  *  ActivityConfigPayload for the fields `useActivityBuilder.hydrate` reads. */
+/** 1.1.123 M3 — who (not the owner) last wrote a class or activity, and when.
+ *  Stamped by the backend only on a researcher's edit of someone else's
+ *  document; `null`/absent means only the owner has ever touched it. */
+export interface LastEditPayload {
+  uid: string;
+  at: string;
+}
+
 export interface ActivityPayload extends ActivityConfigPayload {
   ownerUid: string;
   /** Friendly owner label (display name / email), present only in the
    *  researcher `scope=all` view and only when resolvable; clients fall back
    *  to `ownerUid`. */
   ownerLabel?: string;
+  lastEditedBy?: LastEditPayload | null;
+  /** Friendly label for `lastEditedBy.uid` — single-activity GET only. */
+  lastEditedByLabel?: string;
   skillId: string;
   visibility: "draft" | "private" | "published";
   /** Provenance (set when this activity was duplicated or adopted from another).
@@ -731,6 +742,9 @@ export interface ClassPayload {
    *  researcher `scope=all` view and only when resolvable; clients fall back
    *  to `ownerUid`. */
   ownerLabel?: string;
+  lastEditedBy?: LastEditPayload | null;
+  /** Friendly label for `lastEditedBy.uid` — single-class GET only. */
+  lastEditedByLabel?: string;
   name: string;
   description: string | null;
   tagNamespace: string;

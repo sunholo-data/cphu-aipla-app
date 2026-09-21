@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as teacherApi from "@/lib/teacherApi";
@@ -75,5 +75,42 @@ describe("ResearchActivityDetailPage (RVIEW-1 M1)", () => {
     vi.spyOn(teacherApi, "fetchActivity").mockRejectedValue(new Error("get activity: 403 forbidden"));
     render(<ResearchActivityDetailPage />);
     await waitFor(() => expect(screen.getByText("Researcher access required")).toBeInTheDocument());
+  });
+});
+
+/**
+ * 1.1.123 M1 — the two researcher writes the backend has allowed since
+ * ALS-SHARE M3b (June) and nothing exposed. The footgun was "a whole stack
+ * ships with the control unmounted": grep for the call site, not the function.
+ */
+describe("ResearchActivityDetailPage — researcher actions (1.1.123 M1)", () => {
+  it("links to the ordinary editor and toggles Shared → Private", async () => {
+    vi.spyOn(teacherApi, "fetchActivity").mockResolvedValue(makeActivity({ visibility: "published" }));
+    const setSpy = vi
+      .spyOn(teacherApi, "setActivityVisibility")
+      .mockResolvedValue(makeActivity({ visibility: "private" }));
+    render(<ResearchActivityDetailPage />);
+
+    const open = await screen.findByRole("link", { name: /Open in editor/ });
+    expect(open).toHaveAttribute("href", expect.stringContaining("/teacher/activities/act-x"));
+
+    fireEvent.click(screen.getByRole("button", { name: /Make Private/ }));
+    await waitFor(() => expect(setSpy).toHaveBeenCalledWith("act-x", "private"));
+    expect(await screen.findByRole("button", { name: /Make Shared/ })).toBeInTheDocument();
+  });
+
+  it("offers no visibility toggle on a draft — its owner reviews and saves it first", async () => {
+    vi.spyOn(teacherApi, "fetchActivity").mockResolvedValue(makeActivity({ visibility: "draft" }));
+    render(<ResearchActivityDetailPage />);
+    await screen.findByRole("link", { name: /Open in editor/ });
+    expect(screen.queryByRole("button", { name: /Make/ })).not.toBeInTheDocument();
+  });
+
+  it("shows who last edited it on the teacher's behalf", async () => {
+    vi.spyOn(teacherApi, "fetchActivity").mockResolvedValue(
+      makeActivity({ lastEditedBy: { uid: "r-1", at: new Date().toISOString() }, lastEditedByLabel: "JB" }),
+    );
+    render(<ResearchActivityDetailPage />);
+    expect(await screen.findByTestId("last-edited-line")).toHaveTextContent(/Last edited by JB/);
   });
 });
