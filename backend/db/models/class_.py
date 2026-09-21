@@ -119,6 +119,10 @@ class Class(BaseModel):
     recording_consent_attested_at: datetime | None = Field(alias="recordingConsentAttestedAt", default=None)
     """When the teacher last enabled recording (= attested the forms). Audit trail."""
     revoked: bool = False
+    demo: bool = False
+    """1.1.124 — the onboarding demo class the seed creates on a teacher's first
+    sign-in. Set by ``seed_demo_for_teacher`` only; the stage function also
+    recognises the pre-marker demo classes by name (``DEMO_CLASS_NAME``)."""
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
     revoked_at: datetime | None = Field(alias="revokedAt", default=None)

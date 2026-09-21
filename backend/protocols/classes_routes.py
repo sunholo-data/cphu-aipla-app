@@ -31,7 +31,7 @@ from analytics.auth import assert_can_read_class
 from auth import User, get_current_user
 from auth import assert_teacher as _assert_teacher
 from auth.owner_labels import resolve_owner_labels
-from db.activities import get_activity
+from db.activities import copy_activity, create_activity, get_activity
 from db.checklist_progress import clear_progress_for_group as clear_checklist_progress
 from db.classes import (
     add_activities,
@@ -52,6 +52,7 @@ from db.concept_progress import clear_progress_for_group as clear_concept_progre
 from db.firestore import get_document, set_document
 from db.group_sessions import archive_session_for_group
 from db.models.class_ import Class
+from db.models.last_edit import LastEdit
 from db.table_progress import clear_progress_for_group as clear_table_progress
 from skills import skill_config
 
@@ -71,6 +72,19 @@ class ClassCreate(BaseModel):
 
     name: str = Field(min_length=1, max_length=200)
     description: str | None = Field(default=None, max_length=2000)
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+class ClassForTeacher(BaseModel):
+    """Body for ``POST /api/classes/for-teacher`` (1.1.124 M2)."""
+
+    owner_uid: str = Field(alias="ownerUid", min_length=1, max_length=128)
+    name: str = Field(min_length=1, max_length=200)
+    description: str | None = Field(default=None, max_length=2000)
+    #: One of the RESEARCHER's own classes to copy activities from. Optional —
+    #: without it the teacher gets an empty class plus a code.
+    template_class_id: str | None = Field(default=None, alias="templateClassId", max_length=128)
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
@@ -297,6 +311,75 @@ async def post_class(
     _tag_span(cls.class_id, user.uid)
     log.info("classes_route: created class=%s teacher=%s", cls.class_id, user.uid)
     return _serialize(cls)
+
+
+@router.post("/for-teacher", status_code=201)
+async def post_class_for_teacher(
+    body: ClassForTeacher,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Set up a class FOR another teacher, ready to share (1.1.124 M2).
+
+    Researcher-only. The class is **owned by the teacher**; the template's
+    activities are copied into the teacher's library (owned by them, provenance
+    to the researcher's originals) and assigned; one join code is minted **if
+    the teacher may spend** — evaluated on the teacher's register tier, never the
+    researcher's, so a visitor-tier teacher gets the class and no code, exactly
+    as the demo seed does. Every row is stamped ``lastEditedBy`` the researcher.
+
+    Copies are saved ``private``, not ``draft``: the draft state exists so a
+    teacher reviews a copy before it can reach students, and here the researcher
+    choosing the template IS that review. Keeping them draft would hand the
+    teacher a class whose activities 409 on assignment.
+    """
+    from auth.access_tiers import can_spend
+    from db.teacher_access import grant_for_uid
+
+    _assert_teacher(user)
+    if not user.is_researcher:
+        raise HTTPException(status_code=403, detail="researcher access required")
+
+    template: Class | None = None
+    if body.template_class_id:
+        template = get_class(body.template_class_id)
+        if template is None or template.owner_uid != user.uid:
+            raise HTTPException(status_code=404, detail="template class not found")
+
+    cls = Class.create_for_teacher(owner_uid=body.owner_uid, name=body.name, description=body.description)
+    create_class(cls)
+
+    copied: list[str] = []
+    if template is not None:
+        for activity_id in template.activity_ids:
+            source = get_activity(activity_id)
+            if source is None:
+                continue
+            copy = copy_activity(source, new_owner_uid=body.owner_uid).model_copy(
+                update={"visibility": "private", "last_edited_by": LastEdit.now(user.uid)}
+            )
+            copied.append(create_activity(copy).activity_id)
+        if copied:
+            add_activities(cls.class_id, copied)
+
+    grant = grant_for_uid(body.owner_uid)
+    codes = mint_group_codes_under_class(cls.class_id, count=1) if grant and can_spend(grant.tier) else []
+
+    stamp_last_edit(cls.class_id, user.uid)
+    span = trace.get_current_span()
+    if span.is_recording():
+        span.set_attribute("auth.researcher_bypass", True)
+        span.set_attribute("class_id", cls.class_id)
+    log.info(
+        "classes_route: class=%s set up for owner=%s by=%s template=%s activities=%d code=%s",
+        cls.class_id,
+        body.owner_uid,
+        user.uid,
+        body.template_class_id or "-",
+        len(copied),
+        codes[0] if codes else "-(no spend authority)",
+    )
+    reloaded = get_class(cls.class_id)
+    return {**_serialize(reloaded or cls), "codes": codes, "copiedActivityIds": copied}
 
 
 @router.get("")

@@ -680,3 +680,68 @@ class TestResearcherActsForTeacher:
         """Restated beside the writes it is the exception to."""
         assert researcher_client.delete(f"/api/classes/{bobs_class}").status_code == 404
         assert other_teacher_client.get(f"/api/classes/{bobs_class}").status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# 1.1.124 M2 — a researcher hands a teacher a class that is ready to share
+# ---------------------------------------------------------------------------
+
+
+class TestClassForTeacher:
+    @pytest.fixture()
+    def _spendable_bob(self):
+        from db.teacher_access import grant_access, stamp_uid
+
+        grant_access("bob@ku.dk", granted_by="m@sunholo.com")  # pilot tier
+        stamp_uid("bob@ku.dk", OTHER_TEACHER_UID)
+
+    def _template(self, researcher_client) -> tuple[str, str]:
+        from db.activities import create_activity
+        from db.models.activity import Activity
+
+        act = create_activity(Activity(activityId="", ownerUid="researcher-rae", skillId="c", title="Starter"))
+        cid = researcher_client.post("/api/classes", json={"name": "Starter template"}).json()["classId"]
+        researcher_client.patch(f"/api/classes/{cid}/activities", json={"add": [act.activity_id]})
+        return cid, act.activity_id
+
+    def test_owned_by_the_teacher_with_copied_activities_and_a_code(
+        self, _spendable_bob, researcher_client, other_teacher_client
+    ):
+        tcid, src = self._template(researcher_client)
+        resp = researcher_client.post(
+            "/api/classes/for-teacher",
+            json={"ownerUid": OTHER_TEACHER_UID, "name": "Bob's first class", "templateClassId": tcid},
+        )
+        assert resp.status_code == 201, resp.text
+        body = resp.json()
+        assert body["ownerUid"] == OTHER_TEACHER_UID
+        assert len(body["codes"]) == 1
+        assert len(body["copiedActivityIds"]) == 1 and body["copiedActivityIds"][0] != src
+        assert body["activityIds"] == body["copiedActivityIds"]
+        assert body["lastEditedBy"]["uid"] == "researcher-rae"
+        # Bob sees it as his own — no bypass involved — with the activity in HIS library.
+        mine = other_teacher_client.get("/api/classes").json()["classes"]
+        assert any(c["classId"] == body["classId"] for c in mine)
+        from db.activities import get_activity
+
+        copy = get_activity(body["copiedActivityIds"][0])
+        assert copy.owner_uid == OTHER_TEACHER_UID
+        assert copy.visibility == "private"  # assignable, not a draft the teacher must review
+        assert copy.source_activity_id == src and copy.source_owner_uid == "researcher-rae"
+
+    def test_visitor_teacher_gets_the_class_but_no_code(self, researcher_client):
+        resp = researcher_client.post("/api/classes/for-teacher", json={"ownerUid": "u-visitor", "name": "V"})
+        assert resp.status_code == 201, resp.text
+        assert resp.json()["codes"] == []
+        assert resp.json()["groupCodes"] == []
+
+    def test_template_must_be_the_researchers_own(self, researcher_client, other_teacher_client):
+        bobs = other_teacher_client.post("/api/classes", json={"name": "Bob's"}).json()["classId"]
+        resp = researcher_client.post(
+            "/api/classes/for-teacher", json={"ownerUid": OTHER_TEACHER_UID, "name": "X", "templateClassId": bobs}
+        )
+        assert resp.status_code == 404
+
+    def test_plain_teacher_forbidden(self, client):
+        resp = client.post("/api/classes/for-teacher", json={"ownerUid": OTHER_TEACHER_UID, "name": "X"})
+        assert resp.status_code == 403

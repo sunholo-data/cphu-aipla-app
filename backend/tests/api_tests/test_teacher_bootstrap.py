@@ -103,3 +103,23 @@ def test_seed_defaults_to_visitor_when_no_tier_is_passed():
     result = seed_demo_for_teacher("defaulted-uid")
     assert result is not None
     assert result["joinCode"] is None
+
+
+# --- 1.1.124 M1: the caller's own stage, for the getting-started checklist ---
+
+
+def test_stage_is_demo_only_right_after_the_seed(monkeypatch):
+    monkeypatch.setattr(
+        "db.chat_sessions.summarize_activity_for_group_codes",
+        lambda codes: {"sessions": 0, "turns": 0, "activeGroups": 0, "lastMessageAt": None},
+    )
+    c = _client()
+    assert c.post("/api/teacher/bootstrap").status_code == 200
+    body = c.get("/api/teacher/stage").json()
+    assert body["stage"] == "demo_only"
+    assert body["nextStep"] == "Create the class"
+    assert len(body["classes"]) == 1 and body["classes"][0]["demo"] is True
+
+
+def test_stage_forbidden_for_non_teacher():
+    assert _client(is_teacher=False).get("/api/teacher/stage").status_code == 403

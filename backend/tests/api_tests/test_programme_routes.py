@@ -489,3 +489,77 @@ def test_roles_listing_failure_is_a_503_not_an_empty_list(monkeypatch):
     monkeypatch.setattr(fb_auth, "list_users", _boom)
     res = _client(RESEARCHER).get("/api/programme/roles")
     assert res.status_code == 503
+
+
+# --- 1.1.124 M0: where each granted teacher is on the way to a live lesson ---
+
+
+class TestOnboardingStages:
+    """JB, 2026-09-19: *"the teachers I am giving access need help getting
+    started."* The register read through that question — derived from stored
+    state, sorted stuck-longest first, same audience as the register."""
+
+    def _seed(self):
+        from datetime import UTC, datetime
+
+        from db.classes import create_class
+        from db.models.class_ import Class
+        from db.teacher_access import grant_access, stamp_uid
+
+        grant_access("never@ku.dk", granted_by="m@sunholo.com")  # invited, no uid
+        grant_access("demo@ku.dk", granted_by="m@sunholo.com")
+        stamp_uid("demo@ku.dk", "u-demo")
+        grant_access("ready@ku.dk", granted_by="m@sunholo.com")
+        stamp_uid("ready@ku.dk", "u-ready")
+        now = datetime.now(UTC)
+        create_class(
+            Class(
+                classId="c-demo",
+                ownerUid="u-demo",
+                name="Demo class",
+                demo=True,
+                tagNamespace="class:u-demo:c-demo",
+                groupCodes=["k"],
+                activityIds=["a"],
+                createdAt=now,
+                updatedAt=now,
+            )
+        )
+        create_class(
+            Class(
+                classId="c-ready",
+                ownerUid="u-ready",
+                name="Fysik 1.g",
+                tagNamespace="class:u-ready:c-ready",
+                groupCodes=["k2"],
+                activityIds=["a2"],
+                createdAt=now,
+                updatedAt=now,
+            )
+        )
+
+    def test_plain_teacher_404s(self):
+        assert _client(TEACHER).get("/api/programme/onboarding").status_code == 404
+
+    def test_researcher_sees_each_teachers_stage_stuck_longest_first(self, monkeypatch):
+        self._seed()
+        monkeypatch.setattr(
+            "db.chat_sessions.summarize_activity_for_group_codes",
+            lambda codes: {"sessions": 0, "turns": 0, "activeGroups": 0, "lastMessageAt": None},
+        )
+        body = _client(RESEARCHER).get("/api/programme/onboarding").json()
+        by_email = {r["email"]: r for r in body["teachers"]}
+        assert by_email["never@ku.dk"]["stage"] == "invited"
+        assert by_email["never@ku.dk"]["nextStep"]
+        assert by_email["demo@ku.dk"]["stage"] == "demo_only"
+        assert by_email["demo@ku.dk"]["classes"] == 1
+        assert by_email["ready@ku.dk"]["stage"] == "waiting"
+        assert [r["email"] for r in body["teachers"]] == ["never@ku.dk", "demo@ku.dk", "ready@ku.dk"]
+
+    def test_programme_admin_reads_it_too(self, monkeypatch):
+        self._seed()
+        monkeypatch.setattr(
+            "db.chat_sessions.summarize_activity_for_group_codes",
+            lambda codes: {"sessions": 0, "turns": 0, "activeGroups": 0, "lastMessageAt": None},
+        )
+        assert _client(PROG_ADMIN).get("/api/programme/onboarding").status_code == 200

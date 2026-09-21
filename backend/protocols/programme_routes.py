@@ -120,6 +120,53 @@ async def programme_access_list(
     }
 
 
+@router.get("/onboarding")
+async def programme_onboarding(
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """Every granted teacher and where they are on the way to a live lesson
+    (1.1.124 M0) — *invited, not signed in* · *demo only, 9 days* · … · *live*.
+
+    Same audience as the register (researcher or programme admin): this is the
+    register read through the question JB asked on 2026-09-19 — *"the teachers I
+    am giving access need help getting started"*. Derived entirely from stored
+    state: the grant, the classes the uid owns, and the per-class activity
+    summary the class list already fetches. Sorted stuck-longest first: earliest
+    stage, then most days in it.
+    """
+    from db.chat_sessions import summarize_activity_for_group_codes
+    from db.classes import list_all_classes
+    from db.teacher_access import list_grants
+    from onboarding.stage import STAGES, compute_stage
+
+    _assert_programme_reader(user)
+    grants = [g for g in list_grants() if g.is_active]
+    by_owner: dict[str, list] = {}
+    for c in list_all_classes():
+        by_owner.setdefault(c.owner_uid, []).append(c)
+
+    rows: list[dict[str, Any]] = []
+    for g in grants:
+        classes = by_owner.get(g.uid, []) if g.uid else []
+        # One summary per class the teacher owns — the same read the class list
+        # does, only for the teachers on the register.
+        activity = {c.class_id: summarize_activity_for_group_codes(list(c.group_codes)) for c in classes}
+        stage = compute_stage(uid=g.uid, granted_at=g.granted_at, classes=classes, activity_by_class=activity)
+        rows.append(
+            {
+                "email": g.email,
+                "uid": g.uid,
+                "tier": g.tier,
+                "grantedAt": g.granted_at,
+                "classes": len(classes),
+                **stage.to_dict(),
+            }
+        )
+    order = {s: i for i, s in enumerate(STAGES)}
+    rows.sort(key=lambda r: (order[r["stage"]], -(r["days"] or 0), r["email"]))
+    return {"count": len(rows), "teachers": rows}
+
+
 @router.get("/access/requests")
 async def programme_access_requests(
     status: str = "pending",

@@ -531,7 +531,7 @@ def seed_demo_for_teacher(owner_uid: str, *, access_tier: str = DEFAULT_ACCESS_T
     activities = _demo_activities(owner_uid, concept_skill)
     activity_ids = [create_activity(a).activity_id for a in activities]
 
-    demo_class = Class.create_for_teacher(owner_uid=owner_uid, name=DEMO_CLASS_NAME)
+    demo_class = Class.create_for_teacher(owner_uid=owner_uid, name=DEMO_CLASS_NAME).model_copy(update={"demo": True})
     create_class(demo_class)
     add_activities(demo_class.class_id, activity_ids)
 

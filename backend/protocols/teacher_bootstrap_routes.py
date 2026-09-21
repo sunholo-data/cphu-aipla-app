@@ -136,6 +136,43 @@ class AccessRequestBody(BaseModel):
     model_config = {"extra": "forbid"}
 
 
+@router.get("/stage")
+async def teacher_stage(user: User = Depends(get_current_user)) -> dict:  # noqa: B008
+    """The caller's own onboarding stage (1.1.124 M1) — what the getting-started
+    checklist ticks off. The same ``compute_stage`` the Programme page uses for
+    every teacher, so the two views cannot disagree about where someone is.
+    """
+    from db.chat_sessions import summarize_activity_for_group_codes
+    from db.classes import list_classes_for_owner
+    from db.teacher_access import grant_for_uid
+    from onboarding.stage import compute_stage
+
+    assert_teacher(user)
+    classes = list_classes_for_owner(user.uid)
+    activity = {c.class_id: summarize_activity_for_group_codes(list(c.group_codes)) for c in classes}
+    grant = grant_for_uid(user.uid)
+    stage = compute_stage(
+        uid=user.uid,
+        granted_at=grant.granted_at if grant else None,
+        classes=classes,
+        activity_by_class=activity,
+    )
+    return {
+        **stage.to_dict(),
+        # What the checklist needs to link each step to its control.
+        "classes": [
+            {
+                "classId": c.class_id,
+                "name": c.name,
+                "demo": c.demo,
+                "groupCodes": list(c.group_codes),
+                "activityIds": list(c.activity_ids),
+            }
+            for c in classes
+        ],
+    }
+
+
 @router.post("/access-request")
 async def access_request(
     body: AccessRequestBody,
