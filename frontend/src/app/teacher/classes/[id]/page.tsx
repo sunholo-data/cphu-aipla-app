@@ -473,7 +473,19 @@ export default function TeacherClassDetailPage() {
               unconfigured. Choosing anything writes `tutorId`, which supersedes
               `persona` at resolution time. */}
           <div>
-            <h3 className="mb-2 text-sm font-medium">Tutor</h3>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h3 className="text-sm font-medium">Tutor</h3>
+              {/* 1.1.125 M0 — Approaches left the nav; this is where a teacher
+                  meets one (the tutor's teaching approach), so it is linked
+                  from here. Decision 1 in the design doc picks between this
+                  and the account-menu entry; both ship until then. */}
+              <Link
+                href="/teacher/research/frameworks"
+                className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+              >
+                Teaching approaches
+              </Link>
+            </div>
             <TutorPicker
               classId={cls.classId}
               selectedTutorId={cls.tutorId ?? cls.persona ?? null}

@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
-import { FlaskConical, HelpCircle, LogOut } from "lucide-react";
+import { FlaskConical, HelpCircle } from "lucide-react";
 
 import { SiteFooter } from "@/components/site/SiteFooter";
+import { AccountMenu } from "@/components/teacher/ui/AccountMenu";
 import { TeacherNav } from "@/components/teacher/ui/TeacherNav";
 import { VisitorAccessBanner } from "@/components/teacher/VisitorAccessBanner";
 import { BRANDING } from "@/lib/branding";
@@ -133,51 +134,40 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
                 <span>Researcher</span>
               </div>
             ) : null}
-            <div className="flex min-w-0 items-center gap-2" title={accountLabel}>
-              {photoURL && !avatarFailed ? (
-                /* The Google account photo. Decorative (alt="") — the email
-                   beside it is the accessible identity. `no-referrer` because
-                   lh3.googleusercontent.com refuses some cross-origin
-                   referrers and answers 403. */
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img
-                  src={photoURL}
-                  alt=""
-                  referrerPolicy="no-referrer"
-                  onError={() => setAvatarFailed(true)}
-                  className="h-7 w-7 shrink-0 rounded-full object-cover"
-                />
-              ) : (
-                <div
-                  // `text-foreground` rather than `text-primary`: brand-coloured
-                  // TEXT on a low-alpha tint cannot clear WCAG AA on the dark
-                  // background at any brand lightness that also works as a button
-                  // fill. The tint carries the brand; the glyph stays legible.
-                  aria-hidden="true"
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-foreground"
-                >
-                  {initials}
-                </div>
-              )}
-              {/* Announced at every width; shown from md up, where the header
-                  has room for it. The wrapper's `title` carries the full string
-                  when the truncation bites. */}
-              <span className="sr-only">Signed in as {accountLabel}</span>
-              <span
-                aria-hidden="true"
-                className="hidden max-w-[14rem] truncate text-[11px] text-muted-foreground md:block"
-              >
-                {accountLabel}
-              </span>
-            </div>
-            <button
-              type="button"
-              onClick={() => void signOut()}
-              className="flex items-center gap-1 rounded border border-border px-2 py-1 text-[11px] text-muted-foreground hover:bg-accent"
-            >
-              <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Sign out</span>
-            </button>
+            {/* 1.1.125 M0 — Settings, Approaches and Sign out live behind the
+                account, not in the nav: a nav slot is for the places a teacher
+                goes every session. */}
+            <AccountMenu
+              label={accountLabel}
+              onSignOut={() => void signOut()}
+              avatar={
+                photoURL && !avatarFailed ? (
+                  /* The Google account photo. Decorative (alt="") — the email
+                     beside it is the accessible identity. `no-referrer` because
+                     lh3.googleusercontent.com refuses some cross-origin
+                     referrers and answers 403. */
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={photoURL}
+                    alt=""
+                    referrerPolicy="no-referrer"
+                    onError={() => setAvatarFailed(true)}
+                    className="h-7 w-7 shrink-0 rounded-full object-cover"
+                  />
+                ) : (
+                  <div
+                    // `text-foreground` rather than `text-primary`: brand-coloured
+                    // TEXT on a low-alpha tint cannot clear WCAG AA on the dark
+                    // background at any brand lightness that also works as a button
+                    // fill. The tint carries the brand; the glyph stays legible.
+                    aria-hidden="true"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-[11px] font-semibold text-foreground"
+                  >
+                    {initials}
+                  </div>
+                )
+              }
+            />
           </div>
         </div>
       </header>

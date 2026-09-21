@@ -3,7 +3,7 @@
 import { type ComponentType, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, BookOpen, ClipboardList, Library, Microscope, MessagesSquare, PanelLeftClose, PanelLeftOpen, Settings, ShieldCheck, Users } from "lucide-react";
+import { BarChart3, BookOpen, ClipboardList, Library, Microscope, MessagesSquare, PanelLeftClose, PanelLeftOpen, ShieldCheck, Users } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useIsProgrammeAdmin } from "@/hooks/useIsProgrammeAdmin";
@@ -49,7 +49,9 @@ const DESTINATIONS: Destination[] = [
     icon: BarChart3,
     match: ["/teacher/insights", "/teacher/reports"],
   },
-  { href: "/teacher/settings", label: "Settings", icon: Settings, match: ["/teacher/settings"] },
+  // Settings left the nav in 1.1.125 M0 — it is a defaults card and a signpost,
+  // reached from the account menu. Approaches went with it (both entries: the
+  // account menu and the class page's Tutor setting; JB/AR prune one).
   { href: "/guides", label: "Guides", icon: BookOpen, match: ["/guides"] },
 ];
 
@@ -65,26 +67,6 @@ const RESEARCH_DESTINATION: Destination = {
   // Narrowed from "/teacher/research" when Frameworks joined the area (1.1.91):
   // the broader prefix highlighted BOTH entries on the frameworks page.
   match: ["/teacher/research/activities"],
-};
-
-/**
- * Teaching approaches (1.1.91 M1; opened to teachers 1.1.110).
- *
- * Two tiers on one screen. A RESEARCHER maintains the seven approaches drawn
- * from the literature. A TEACHER cannot edit those, but owns their own custom
- * approaches — free text they write themselves, which is the one editable thing
- * on this screen for them and the reason the destination is no longer
- * researcher-gated.
- *
- * Labelled "Approaches" rather than "Frameworks": a teacher writing one in
- * their own words is not authoring a framework, and calling it one would make
- * the same overclaim the removed free-text editor did.
- */
-const FRAMEWORKS_DESTINATION: Destination = {
-  href: "/teacher/research/frameworks",
-  label: "Approaches",
-  icon: BookOpen,
-  match: ["/teacher/research/frameworks"],
 };
 
 /**
@@ -138,10 +120,9 @@ export function TeacherNav() {
   const isProgrammeAdmin = useIsProgrammeAdmin();
   const destinations = [
     ...DESTINATIONS,
-    // Approaches is for EVERY teacher (1.1.110) — they own the custom tier.
     // Research and Conversations stay researcher-only: both are cross-teacher
-    // reads of other people's classes.
-    FRAMEWORKS_DESTINATION,
+    // reads of other people's classes. (Approaches — every teacher's since
+    // 1.1.110 — moved to the account menu in 1.1.125 M0.)
     ...(isResearcher ? [RESEARCH_DESTINATION, CHAT_LOGS_DESTINATION] : []),
     ...(isResearcher || isProgrammeAdmin ? [PROGRAMME_DESTINATION] : []),
   ];

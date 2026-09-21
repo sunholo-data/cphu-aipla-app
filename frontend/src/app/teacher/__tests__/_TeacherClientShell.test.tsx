@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/teacher/classes" }));
@@ -49,8 +49,10 @@ describe("TeacherClientShell", () => {
     expect(screen.getAllByRole("link", { name: /Classes/ }).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByRole("link", { name: /Insights/ }).length).toBeGreaterThanOrEqual(1);
 
-    // account control preserved
-    expect(screen.getByRole("button", { name: /Sign out/ })).toBeInTheDocument();
+    // account control preserved — behind the account menu since 1.1.125 M0
+    fireEvent.click(screen.getByRole("button", { name: /account menu/i }));
+    expect(screen.getByRole("menuitem", { name: /Sign out/ })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Settings/ })).toBeInTheDocument();
   });
 
   it("hides the researcher badge for a plain teacher", () => {

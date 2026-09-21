@@ -18,10 +18,13 @@ describe("TeacherNav", () => {
   it("renders the core destinations (no Research) for a non-researcher", () => {
     mockPathname.mockReturnValue("/teacher/classes");
     render(<TeacherNav />);
-    for (const label of ["Classes", "Activities", "Materials", "Insights", "Settings"]) {
+    for (const label of ["Classes", "Activities", "Materials", "Insights", "Guides"]) {
       expect(screen.getAllByRole("link", { name: new RegExp(label) })).toHaveLength(2);
     }
     expect(screen.queryByRole("link", { name: /Research/ })).not.toBeInTheDocument();
+    // 1.1.125 M0 — Settings and Approaches live in the account menu now.
+    expect(screen.queryByRole("link", { name: /Settings/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Approaches/ })).not.toBeInTheDocument();
   });
 
   // 1.1.61 — Materials is a destination in its own right; before it existed the
@@ -81,5 +84,23 @@ describe("TeacherNav", () => {
     const classes = navs.map((n) => n.className);
     expect(classes.some((c) => c.includes("hidden") && c.includes("md:flex"))).toBe(true);
     expect(classes.some((c) => c.includes("md:hidden"))).toBe(true);
+  });
+});
+
+// 1.1.125 M0 — the structural version of the narrowing hack: two destinations
+// whose match prefixes nest would BOTH highlight on the nested page. Rendering
+// every prefix as a pathname and counting aria-current is the outcome check.
+describe("TeacherNav — no two destinations claim the same page", () => {
+  it("exactly one destination is current on every destination's own href, for a researcher", () => {
+    researcherRef.current = true;
+    const hrefs = ["/teacher/classes", "/teacher/activities", "/teacher/materials", "/teacher/insights", "/guides", "/teacher/research/activities", "/teacher/research/logs", "/teacher/programme"];
+    for (const href of hrefs) {
+      mockPathname.mockReturnValue(href);
+      const { unmount } = render(<TeacherNav />);
+      const current = screen.getAllByRole("link").filter((l) => l.getAttribute("aria-current") === "page");
+      // Rail + bottom bar render each destination twice.
+      expect(current.map((l) => l.getAttribute("href")), href).toEqual([href, href]);
+      unmount();
+    }
   });
 });
