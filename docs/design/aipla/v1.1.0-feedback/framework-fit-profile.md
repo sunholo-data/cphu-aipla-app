@@ -1,6 +1,6 @@
 # Framework fit — what did this conversation actually resemble?
 
-**Status**: **Design (OPEN)** — **1.1.107**. New 2026-09-09 from M's steer
+**Status**: **M0 + M5 SHIPPED (dev) 2026-09-21** — `analytics/framework_fidelity.py`; M1–M4 (the seven-lens radar, the profile view, the training surface) still OPEN. **1.1.107**. New 2026-09-09 from M's steer
 **Priority**: **P1** — it is the piece that turns the seven-tutor library from a *configuration* into an *instrument*, and it is the only item in the tutor workstream that produces research output from **existing** data with no classroom and no legal gate
 **Estimated**: ~3.5–4.5d (M0 dialogue-unit evidence ~1d · M1 seven framework lenses ~1d · M2 fan-out + profile ~0.75d · M3 the profile view ~0.75d · M4 teacher-training surface ~0.5d · **M5 real-session single-framework case ~0.5d, new 2026-09-16**)
 **Scope**: Backend — a **third evidence rule** (dialogue units, not the student-initiated partition), seven framework rubric definitions, and a fan-out runner over the shipped scorer; frontend — a profile view, and the same profile behind a teacher-facing preview. **No new scoring engine and no new store**
@@ -87,7 +87,12 @@ says. See M4.
 
 ## Milestones
 
-### M0 — dialogue-unit evidence ~1d
+### M0 — dialogue-unit evidence ~1d — ✅ SHIPPED 2026-09-21
+
+`analytics.framework_fidelity.dialogue_units`: the ordered tutor+student
+sequence, original turn ids preserved, windowed to the last 80 turns with
+`truncated_from` reported. `partition_evidence` is not used — a test asserts
+it. The evidence summary rides every result.
 
 A second partitioner beside `partition_evidence`, selected by
 `LensConfig.family`, producing ordered tutor/student sequences with turn ids
@@ -165,7 +170,46 @@ in the teacher UI in rubric vocabulary stays R1-gated"* — plus the trust quest
 in the third finding above. **M4 is the preview case only.** The real-session
 case wants JB's view before it is designed, not after.
 
-### M5 — the real-session case, scoped 2026-09-16 ~0.5d
+### M5 — the real-session case, scoped 2026-09-16 ~0.5d — ✅ SHIPPED 2026-09-21
+
+What shipped, and where it departs from the sketch below:
+
+- **The criteria are generated from the framework YAML**, not hand-authored
+  `rubric_defs` (M1's route). `criteria_block` renders each construct's
+  summary, behaviours (*look for*), `avoid` (*counts against*) and
+  `evaluationHint` (*the question*) verbatim — the same structure that
+  instructs the tutor, read the other way, so instruction and judge cannot
+  drift. A test holds every behaviour/avoid/hint line against the prompt.
+- **One run per session**, against `SessionSummary.framework_id` (now read
+  from the chat-turn log's TUTOR-5 stamp; the LAST stamped tutor turn wins).
+  Stored in the RUBRIC-2 run store as `lens_id = "fidelity:<framework_id>"`,
+  `prompt_version = fidelity-r1`; cached from there and regenerated when the
+  session grows or on the report's *Refresh*.
+- **Blind to the arm** (open question 5): the prompt names the criteria and
+  says not to assume configuration; the tutor id never appears.
+- **Bands, not percentages** (open question 1): `absent | partial | strong`
+  per construct and overall, the 0–2 number kept in the store only.
+- **The spoken transcript is evidence** where the class recorded — labelled,
+  speakers unidentified, and scoped by the approach's `setting`: for a
+  `group_talk` approach it is where the community exists; for every other
+  approach it is context for student-side criteria, and tutor moves are
+  evidenced from the chat alone. This is the answer to the 2026-09-21
+  question *"do the class reports grade the class chat/audio on the criteria
+  the approach was supposed to cover?"* — they did not; now they do, for the
+  one approach the session ran.
+- **Abstains** without a stamped framework, on a placeholder framework, on
+  fewer than 3 tutor turns, or on a non-Gemini judge — and the report says
+  *Not assessed — <reason>*.
+- **Surface: the session report's "Teaching approach" section**
+  (`TeachingApproachSection`, between Summary and At a glance). Teachers get
+  prose + *Where it drifted* + a link to the public approach page; a
+  researcher's payload additionally carries the bands and a per-construct
+  table with rationale and cited turn ids (`GET /api/reports/…` splits on
+  `is_researcher`). This is 1.1.65's teacher band, delivered here rather than
+  there.
+
+Not done: episode-level scoring (open question 2 — session-level only), and
+any cross-framework view (deliberately, per the 09-16 steer).
 
 **The view this doc was waiting for, from the 2026-09-16 meeting:** the session
 report should include an analysis of how faithfully the tutor followed its

@@ -249,3 +249,55 @@ def test_anon_owner_uid_match_brackets_both_schemes():
     # The new exact uid is NOT inside the legacy range — that's the original
     # bug, and exactly why callers must ALSO query `ownerUid == exact`.
     assert not (lo <= exact < hi)
+
+
+@pytest.mark.asyncio
+async def test_bq_summary_carries_the_last_framework_stamp():
+    """1.1.107 M5 — the report needs to know which approach the session ran.
+    The LAST stamped tutor turn wins (a class can change tutor mid-session)."""
+    from datetime import UTC, datetime
+
+    from reports.session_summary import summarize_session_bq
+
+    ts = datetime(2026, 9, 21, 10, 0, tzinfo=UTC)
+    rows = [
+        {
+            "ts": ts,
+            "group_id": "g",
+            "skill_id": "act",
+            "role": "student",
+            "content": "hej",
+            "turn_index": 0,
+            "framework_id": None,
+            "tutor_id": None,
+        },
+        {
+            "ts": ts,
+            "group_id": "g",
+            "skill_id": "act",
+            "role": "tutor",
+            "content": "Hej",
+            "turn_index": 1,
+            "framework_id": "poe",
+            "tutor_id": "sofie-poe",
+        },
+        {
+            "ts": ts,
+            "group_id": "g",
+            "skill_id": "act",
+            "role": "tutor",
+            "content": "Så",
+            "turn_index": 2,
+            "framework_id": "esru",
+            "tutor_id": "sofie-esru",
+        },
+    ]
+
+    def _q(sql, params=None):
+        return rows if "session_id = @session_id" in sql and "framework_id" in sql else []
+
+    with patch("db.bigquery.run_query", side_effect=_q):
+        s = await summarize_session_bq("s-1")
+    assert s is not None
+    assert s.framework_id == "esru"
+    assert s.tutor_id == "sofie-esru"

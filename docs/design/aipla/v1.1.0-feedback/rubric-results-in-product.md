@@ -8,6 +8,8 @@
 **Source:** Aswin, 2026-08-06 — *"I have been acting as a student and then turned into researcher role to evaluate MAPS and SAAR. The evaluation does not come up."* Follow-up: *"For the teachers, I think it should be enough with the description of those skills in the report. However, for researcher, detail of each construct and scores would be great."* M's reply: *"it should help shape the 'session summary report' text — what would be the best way to surface it for you?"* — **Aswin answered that question**, and this doc is his answer.
 **Created:** 2026-08-06 (M)
 **Last Updated:** 2026-08-06 (M)
+**✅ 2026-09-21:** the fidelity band is live in the session report — see [1.1.107](framework-fit-profile.md) M5 (shipped). The competency band (this doc's M2) remains open.
+
 **⚠️ Note added 2026-09-16, sharpened 2026-09-16:** the meeting's ask turned out to be **two things**, not one. (1) Open Question 2 already anticipated "which rubric when several are promoted" for MAPS/SAAR-style competency lenses — unaffected. (2) The framework-**fidelity** ask — *"an analysis of how the teaching framework was used and how much it was stuck to... only report on the teaching framework that tutor used"* — is a genuinely different instrument, now designed at [1.1.107](framework-fit-profile.md) M5, which this doc's M2 teacher band is the consumer of. See Open Question 5.
 
 ## Problem Statement

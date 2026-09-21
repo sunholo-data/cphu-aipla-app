@@ -14,6 +14,7 @@ import {
 } from "@/lib/teacherApi";
 import { downloadCsv, downloadJson } from "@/lib/download";
 import { GroupTranscriptSection } from "@/components/teacher/GroupTranscriptSection";
+import { TeachingApproachSection } from "@/components/teacher/TeachingApproachSection";
 import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
 
 const TRANSCRIPT_OPEN_KEY = "aipla.report.transcriptOpen";
@@ -303,6 +304,9 @@ export default function TeacherGroupReportPage() {
           </p>
         ) : null}
       </section>
+
+      {/* 1.1.107 M5 — how the session's ONE teaching approach was used. */}
+      <TeachingApproachSection fidelity={state.kind === "live" ? state.data.fidelity : null} />
 
       <section
         aria-labelledby="summary-label"

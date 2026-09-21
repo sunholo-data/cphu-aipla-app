@@ -17,6 +17,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 
+from analytics.framework_fidelity import resolve_fidelity
 from auth import User, get_current_user
 from config.models import default_model
 from reports.narrative import resolve_narrative
@@ -84,11 +85,25 @@ def _report_inputs(summary: SessionSummary) -> dict:
     }
 
 
-def _serialize(summary: SessionSummary) -> dict:
+def _serialize(summary: SessionSummary, *, fidelity: dict | None = None) -> dict:
     data = summary.model_dump(by_alias=True, mode="json")
     data.update(_report_labels(summary))
     data["inputs"] = _report_inputs(summary)
+    # 1.1.107 M5 — the "Teaching approach" section: how the ONE approach this
+    # session ran under was used, and where it drifted. None = no read (the
+    # page omits the section), never a broken page.
+    data["fidelity"] = fidelity
     return data
+
+
+async def _fidelity_for(summary: SessionSummary, user: User, *, force: bool = False) -> dict | None:
+    """The fidelity read shaped for the caller. Prose for everyone; bands and
+    per-construct scores only for a researcher — fit is not quality, and a
+    number about a teacher's own tutor must not read as a grade (1.1.65 R1)."""
+    result = await resolve_fidelity(summary, force=force)
+    if result is None:
+        return None
+    return result.researcher_view() if getattr(user, "is_researcher", False) else result.teacher_view()
 
 
 @router.get("/sessions/{session_id}")
@@ -115,9 +130,11 @@ async def get_session_report(
         summary = await resolve_session_summary(session_id)
     if summary is None:
         raise HTTPException(status_code=404, detail="session not found")
+    fidelity = None
     if narrative and source != "bq":
         await resolve_narrative(summary)
-    return _serialize(summary)
+        fidelity = await _fidelity_for(summary, _user)
+    return _serialize(summary, fidelity=fidelity)
 
 
 @router.get("/groups/{group_code}")
@@ -149,7 +166,7 @@ async def get_group_latest_report(
         if summary.group_code and summary.group_code != group_code:
             raise HTTPException(status_code=404, detail="session not found for this group")
         await resolve_narrative(summary, force=refresh)
-        return _serialize(summary)
+        return _serialize(summary, fidelity=await _fidelity_for(summary, _user, force=refresh))
 
     # Prefer the chat-turn log (BigQuery) as the source of truth for the
     # group's latest *real* session. The Firestore chat_sessions index is
@@ -161,7 +178,7 @@ async def get_group_latest_report(
         summary = await resolve_session_summary(bq_session_id)
         if summary is not None:
             await resolve_narrative(summary, force=refresh)
-            return _serialize(summary)
+            return _serialize(summary, fidelity=await _fidelity_for(summary, _user, force=refresh))
 
     idx = find_latest_session_for_group(group_code)
     if idx is None:
@@ -171,4 +188,4 @@ async def get_group_latest_report(
         # Race: index existed, ADK session gone. Same UX as "no sessions".
         raise HTTPException(status_code=404, detail="no sessions for this group yet")
     await resolve_narrative(summary, force=refresh)
-    return _serialize(summary)
+    return _serialize(summary, fidelity=await _fidelity_for(summary, _user, force=refresh))

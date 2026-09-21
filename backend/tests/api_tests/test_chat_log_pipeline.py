@@ -148,7 +148,7 @@ async def test_report_source_bq_returns_when_present():
 async def test_report_source_auto_uses_resolve():
     with (
         patch.object(reports_routes, "resolve_session_summary", AsyncMock(return_value=MagicMock())) as resolve,
-        patch.object(reports_routes, "_serialize", lambda s: {"ok": True}),
+        patch.object(reports_routes, "_serialize", lambda s, **kw: {"ok": True}),
     ):
         result = await reports_routes.get_session_report(session_id="s", source="auto", _user=MagicMock())
     assert result == {"ok": True}

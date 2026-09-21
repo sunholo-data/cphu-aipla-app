@@ -301,6 +301,26 @@ export interface SessionSummaryPayload {
     generatedAt: string | null;
     state: "ready" | "none";
   };
+  /** 1.1.107 M5 — how the ONE teaching approach this session ran under was
+   *  used, and where it drifted. Prose for teachers; a researcher's payload
+   *  also carries the bands + per-construct detail. Null = no read. */
+  fidelity?: FidelityPayload | null;
+}
+
+export interface FidelityPayload {
+  frameworkId: string | null;
+  frameworkLabel: string | null;
+  abstained: boolean;
+  abstainReason: string;
+  summary: string;
+  drift: string[];
+  spokenIncluded: boolean;
+  promptVersion: string;
+  /** Researcher-only — absent for a teacher (fit is not quality; 1.1.65 R1). */
+  overallBand?: "absent" | "partial" | "strong" | null;
+  constructs?: Record<string, { band: string; score: number; rationale: string; evidence: number[] }>;
+  evidenceSummary?: Record<string, number>;
+  model?: string;
 }
 
 export class NotFoundError extends Error {

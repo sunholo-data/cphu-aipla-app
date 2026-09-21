@@ -78,6 +78,14 @@ class SessionSummary(BaseModel):
     voice_minutes: float = Field(default=0.0, alias="voiceMinutes")
     """1.1.36 — total recorded audio minutes for the group (the "what's included" line)."""
     voice_segments: int = Field(default=0, alias="voiceSegments")
+    """1.1.36 — how many transcribed segments the transcript above is built from."""
+    framework_id: str | None = Field(default=None, alias="frameworkId")
+    """1.1.107 M5 — the teaching approach the tutor ran under, read from the
+    chat-turn log's TUTOR-5 stamp (the last tutor turn that carries one). None
+    for a session before the stamp existed, or read from live state — and the
+    fidelity section then says so rather than guessing."""
+    tutor_id: str | None = Field(default=None, alias="tutorId")
+    """1.1.107 M5 — the tutor the session ran, from the same stamp."""
     """1.1.36 — recorded segment count for the group."""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -211,7 +219,8 @@ async def summarize_session_bq(session_id: str) -> SessionSummary | None:
         turn_rows = run_query(
             "SELECT timestamp AS ts, jsonPayload.group_id AS group_id, "
             "jsonPayload.skill_id AS skill_id, jsonPayload.role AS role, "
-            "jsonPayload.content AS content, CAST(jsonPayload.turn_index AS INT64) AS turn_index "
+            "jsonPayload.content AS content, CAST(jsonPayload.turn_index AS INT64) AS turn_index, "
+            "jsonPayload.framework_id AS framework_id, jsonPayload.tutor_id AS tutor_id "
             f"FROM {table_ref(CHAT_TURN_TABLE)} "
             "WHERE jsonPayload.session_id = @session_id "
             "ORDER BY turn_index",
@@ -264,6 +273,12 @@ async def summarize_session_bq(session_id: str) -> SessionSummary | None:
     ended = max(timestamps)
     duration = max(0, int((ended - started).total_seconds()))
 
+    # 1.1.107 M5 — the approach the session ran under. The LAST stamped tutor
+    # turn wins: a class can change tutor mid-session and the report should
+    # describe what was actually taught at the end, not at the start.
+    framework_id = next((r.get("framework_id") for r in reversed(turn_rows) if r.get("framework_id")), None)
+    tutor_id = next((r.get("tutor_id") for r in reversed(turn_rows) if r.get("tutor_id")), None)
+
     return SessionSummary(
         sessionId=session_id,
         groupCode=turn_rows[0]["group_id"],
@@ -275,6 +290,8 @@ async def summarize_session_bq(session_id: str) -> SessionSummary | None:
         simRunCount=sim_runs,
         conversation=conversation,
         workbenchEvents=workbench_events,
+        frameworkId=framework_id,
+        tutorId=tutor_id,
     )
 
 

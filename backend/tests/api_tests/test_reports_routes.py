@@ -203,3 +203,125 @@ def test_group_report_enriches_class_link_and_activity_name(client):
     assert body["classId"] == "cls-xyz"
     assert body["className"] == "My class 1"
     assert body["activityName"] == "Boldkast Projectile"  # resolved, not the UUID
+
+
+# ── 1.1.107 M5: the "Teaching approach" section, role-split ──────────────────
+
+
+def _fidelity_result(**over):
+    from analytics.framework_fidelity import FidelityResult
+
+    return FidelityResult(
+        sessionId="s-9",
+        frameworkId="esru",
+        frameworkLabel="Question-and-use cycle (ESRU)",
+        model="gemini-x",
+        summary="The tutor elicited and recognised, but rarely used the answers.",
+        drift=["Use phase missing in the second half."],
+        overallBand="partial",
+        constructs={"elicit": {"band": "strong", "score": 2, "rationale": "r", "evidence": [0]}},
+        evidenceSummary={"units": 8, "tutor": 4, "student": 4},
+        basedOnMessageCount=8,
+        **over,
+    )
+
+
+def _summary_for_fidelity():
+    from reports.session_summary import SessionSummary, SessionTurn
+
+    return SessionSummary(
+        sessionId="s-9",
+        groupCode="bold-kazoo-87",
+        activityId="boldkast",
+        startedAt=datetime(2026, 9, 21, 10, 0, tzinfo=UTC),
+        endedAt=datetime(2026, 9, 21, 10, 20, tzinfo=UTC),
+        durationSeconds=1200,
+        messageCount=8,
+        simRunCount=0,
+        conversation=[SessionTurn(timestamp="2026-09-21T10:00:00+00:00", role="student", content="hej")],
+        frameworkId="esru",
+    )
+
+
+def _client_as(user: User) -> TestClient:
+    app = FastAPI()
+    app.include_router(router)
+
+    async def _override(request: Request) -> User:
+        request.state.access = build_access_context(user)
+        return user
+
+    app.dependency_overrides[get_current_user] = _override
+    return TestClient(app)
+
+
+def test_teacher_gets_the_prose_but_no_bands():
+    """Fit is not quality: a teacher reads what the approach looked like and
+    where it drifted, never a score about their own tutor (1.1.65 R1)."""
+
+    async def _resolve(session_id: str):
+        return _summary_for_fidelity()
+
+    with (
+        patch("protocols.reports_routes.resolve_session_summary", side_effect=_resolve),
+        patch("protocols.reports_routes.resolve_narrative", new=AsyncMock()),
+        patch("protocols.reports_routes.resolve_fidelity", new=AsyncMock(return_value=_fidelity_result())),
+    ):
+        resp = _client_as(User(uid="t-1", email="t@x.dk", is_teacher=True)).get("/api/reports/sessions/s-9")
+    assert resp.status_code == 200, resp.text
+    fid = resp.json()["fidelity"]
+    assert fid["frameworkLabel"] == "Question-and-use cycle (ESRU)"
+    assert fid["summary"].startswith("The tutor elicited")
+    assert fid["drift"] == ["Use phase missing in the second half."]
+    assert "constructs" not in fid and "overallBand" not in fid
+
+
+def test_researcher_gets_the_construct_detail():
+    async def _resolve(session_id: str):
+        return _summary_for_fidelity()
+
+    with (
+        patch("protocols.reports_routes.resolve_session_summary", side_effect=_resolve),
+        patch("protocols.reports_routes.resolve_narrative", new=AsyncMock()),
+        patch("protocols.reports_routes.resolve_fidelity", new=AsyncMock(return_value=_fidelity_result())),
+    ):
+        resp = _client_as(User(uid="r-1", email="r@x.dk", is_teacher=True, is_researcher=True)).get(
+            "/api/reports/sessions/s-9"
+        )
+    fid = resp.json()["fidelity"]
+    assert fid["overallBand"] == "partial"
+    assert fid["constructs"]["elicit"]["score"] == 2
+    assert fid["evidenceSummary"]["tutor"] == 4
+
+
+def test_verify_path_stays_llm_free(client):
+    """`narrative=false` (the pipeline-verify path) runs neither the narrative
+    nor the fidelity judge."""
+
+    async def _resolve(session_id: str):
+        return _summary_for_fidelity()
+
+    with (
+        patch("protocols.reports_routes.resolve_session_summary", side_effect=_resolve),
+        patch("protocols.reports_routes.resolve_narrative", new=AsyncMock()) as narr,
+        patch("protocols.reports_routes.resolve_fidelity", new=AsyncMock()) as fid,
+    ):
+        resp = client.get("/api/reports/sessions/s-9?narrative=false")
+    assert resp.status_code == 200
+    assert resp.json()["fidelity"] is None
+    narr.assert_not_called()
+    fid.assert_not_called()
+
+
+def test_a_failed_fidelity_read_never_breaks_the_report(client):
+    async def _resolve(session_id: str):
+        return _summary_for_fidelity()
+
+    with (
+        patch("protocols.reports_routes.resolve_session_summary", side_effect=_resolve),
+        patch("protocols.reports_routes.resolve_narrative", new=AsyncMock()),
+        patch("protocols.reports_routes.resolve_fidelity", new=AsyncMock(return_value=None)),
+    ):
+        resp = client.get("/api/reports/sessions/s-9")
+    assert resp.status_code == 200
+    assert resp.json()["fidelity"] is None
