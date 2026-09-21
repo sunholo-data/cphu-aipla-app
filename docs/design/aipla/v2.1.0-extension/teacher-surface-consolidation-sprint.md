@@ -7,7 +7,8 @@ parallel `/research/*` tree that drifted. This sprint applies the one rule —
 **one surface per resource, scaled by scope and privilege** — mostly by
 removal, now that 1.1.123 and 1.1.124 have made the removals possible.
 
-**Duration:** ~2.5–3d · **Scope:** Frontend IA · **Design doc:** [1.1.125](teacher-surface-consolidation.md)
+**Status:** ✅ **SHIPPED dev 2026-09-21** — M0–M3, ~1d actual. M3 fit: `FloatingCopilot` registers with a shell-owned context and drops its pill; no page changed its copilot config.
+**Duration:** ~2.5–3d (actual ~1d) · **Scope:** Frontend IA · **Design doc:** [1.1.125](teacher-surface-consolidation.md)
 **Builds on:** RSCH-EDIT-1 (the editor works for a researcher on any activity — so the read-only research detail is redundant) and RSCH-ONBOARD-1 (the checklist gives `/teacher/classes` its landing job).
 
 ## The two open decisions, and how this sprint proceeds without waiting

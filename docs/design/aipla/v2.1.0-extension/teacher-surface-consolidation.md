@@ -1,6 +1,6 @@
 # The teacher surface, reviewed — fewer places, one rule for who sees what
 
-**Status**: **DESIGN (OPEN) — a review with a proposed target map**, 1.1.125, written 2026-09-21
+**Status**: **SHIPPED dev 2026-09-21** — 1.1.125, M0–M3 in sprint [TEACHER-IA-1](teacher-surface-consolidation-sprint.md) (`b9d911da` nav + account menu · `39503946` research tree retired, Conversations under Insights · `d799db95` one copilot entry). The two decisions below are still open — Approaches ships with BOTH entries until JB/AR prune one; the demo-class content is AR's
 **Priority**: **P1** — the same signal three times in a month (*"teachers find the UI difficult"*), and the surface has grown by accretion: every feature since June added a page, a tab, a scope toggle or a copilot where it was convenient. Nothing was ever removed
 **Estimated**: **~2.5–3d after 1.1.123 + 1.1.124**, mostly removals (M0 nav ~0.5d · M1 retire the parallel research tree ~0.5d · M2 Insights absorbs Conversations + Cost ~0.5d · M3 one copilot entry ~1d · guides + tests ~0.5d). Two decisions needed first, below
 **Scope**: Frontend information architecture — `TeacherNav`, the `/teacher/research/*` tree, `/teacher/settings`, the five copilot mounts. Backend — nothing required; one optional tidy noted
@@ -77,6 +77,7 @@ One "Ask AIPLA" entry, page-aware (M3)
 Pages: 16 → **13** (retire the two Research → Activities pages; Conversations
 moves under Insights; Settings leaves the nav but keeps its URL). Nav: 7/10 →
 **5/6**. Copilot entry points: 5 → **1**, still five skills underneath.
+**All three numbers are what shipped on 2026-09-21.**
 
 ### What moves where, and why
 
@@ -98,7 +99,7 @@ moves under Insights; Settings leaves the nav but keeps its URL). Nav: 7/10 →
 - **Home stops being a redirect.** 1.1.124's checklist gives it a job; once
   the teacher is live it collapses to a one-line status above Classes.
 
-### M3 — One way to ask for help · ~1d
+### M3 — One way to ask for help · ~1d · ✅ shipped
 
 The five copilots stay five skills — each is prompt-engineered for its
 surface, and `analytics-chat`'s tools are not `activity-authoring-assistant`'s.
