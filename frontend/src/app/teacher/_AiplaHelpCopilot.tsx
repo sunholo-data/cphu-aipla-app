@@ -1,6 +1,28 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 import { TeacherCopilot } from "@/components/teacher/copilot";
+import { type StagePayload } from "@/lib/onboardingStage";
+import { fetchTeacherStage } from "@/lib/teacherApi";
+
+// 1.1.124 M3 — the teacher's onboarding stage rides along as hidden context, so
+// "how do I start?" is answered with the NEXT step rather than the whole guide.
+// Machine-readable delimiters, stripped from the rendered bubble; same shape as
+// the authoring co-pilot's [[activity_draft]] block.
+const STAGE_OPEN = "[[stage]]";
+const STAGE_CLOSE = "[[/stage]]";
+
+function stageBlock(stage: StagePayload | null): string {
+  if (!stage) return "";
+  return `${STAGE_OPEN}${JSON.stringify({ stage: stage.stage, nextStep: stage.nextStep })}${STAGE_CLOSE}\n`;
+}
+
+export function stripStagePrefix(content: string): string {
+  if (!content.startsWith(STAGE_OPEN)) return content;
+  const close = content.indexOf(STAGE_CLOSE);
+  return close === -1 ? content : content.slice(close + STAGE_CLOSE.length).replace(/^\s+/, "");
+}
 
 // A "how do I…" question belongs in chat (the skill answers it); an actual bug
 // belongs in an inbox someone reads. mailto: rather than a chat tool: outbound
@@ -23,9 +45,25 @@ const FEEDBACK_MAILTO =
  * the conversation resumes on reopen (thread id persisted).
  */
 export function AiplaHelpCopilot({ onClose }: { onClose: () => void }) {
+  const [stage, setStage] = useState<StagePayload | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetchTeacherStage()
+      .then((s) => {
+        if (!cancelled) setStage(s);
+      })
+      .catch(() => {
+        /* no context is fine — the skill answers from the guides alone */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   return (
     <TeacherCopilot
       skillName="aipla-help"
+      scopePrefix={stageBlock(stage)}
+      stripPrefix={stripStagePrefix}
       title="AIPLA Hjælp"
       persistKey="aipla-help"
       align="left"
