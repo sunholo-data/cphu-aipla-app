@@ -1,14 +1,22 @@
 # Follow-up — password-reset email deliverability
 
-**Status:** **Open, ticket sent 2026-09-14.** Deferred to the week of 2026-08-24 to
+**Status:** **Open — first ticket CLOSED unactioned, resubmit via the SPF/DKIM
+form.** Deferred to the week of 2026-08-24 to
 clear the first pilot session (Fri 2026-08-21); that week passed with nothing
 sent. Re-raised independently at the 2026-09-01 meeting (items 27 + 34 of
 [meeting-2026-09-01-triage.md](../design/aipla/v1.1.0-feedback/meeting-2026-09-01-triage.md),
 *"email login banned — IT must add DNS records; M may initiate"*). Verified
 2026-09-09 via `dig`: `aipla.ku.dk` still carried only the original
 `v=spf1 -all` and neither DKIM CNAME existed. **2026-09-14: M sent the support
-ticket to UCPH IT with the four DNS records below.** Awaiting IT action —
-re-run the `dig` checks in step 2 once they confirm.
+ticket to UCPH IT with the four DNS records below** (ticket **577638**).
+**2026-09-21: verified via `dig @ns1.ku.dk` — nothing changed.** Same day, IT
+replied and **closed 577638 without acting**: SPF/DKIM changes authorise
+senders and need approval, so they must go through the dedicated
+**"KUmail SPF DKIM"** request form, not a general ticket:
+<https://ku-prd-ism.ivanticloud.com/Modules/SelfService/?NoDefaultProvider=True#serviceCatalog/request/82010B7CAFD44DA3980898FAAEB15B49>
+(KU SSO; M must submit it). → **Next action: M submits that form** with the
+text in "Form text" below, then re-run the `dig` checks in step 2 once they
+confirm.
 
 **Owner:** M. **Raised:** 2026-08-17/18, from a real send.
 
@@ -77,9 +85,49 @@ Firebase dialog says "add the following records", which is wrong for this one.
 Checked 2026-08-18: `aipla.ku.dk` has no MX and no current mail flow, and neither
 DKIM CNAME exists. `ku.dk`'s own SPF is separate and must not be touched.
 
+## Form text — for the "KUmail SPF DKIM" request
+
+Paste-ready. The form will presumably ask for domain, sender/service, and
+records; if it has a "which SPF include" field, the include is
+`_spf.firebasemail.com`.
+
+```
+Domain: aipla.ku.dk (subdomain of ku.dk; no MX, no existing mail flow — ku.dk's own SPF is NOT affected)
+Service: Firebase Authentication (Google) — transactional password-reset /
+email-verification mail for the AIPLA research platform, https://aipla.ku.dk
+(Institut for Naturfagenes Didaktik). GCP project aipla-prod-2026.
+Contact: mark.edmondson@ind.ku.dk (reply-to on the mails); jbruun@ind.ku.dk
+
+Requested records:
+
+1. REPLACE the existing TXT on aipla.ku.dk
+   from: v=spf1 -all
+   to:   v=spf1 include:_spf.firebasemail.com ~all
+   (A domain may hold only one SPF record; adding a second one alongside
+   "-all" produces a permerror.)
+
+2. ADD  TXT    aipla.ku.dk
+   firebase=aipla-prod-2026
+
+3. ADD  CNAME  firebase1._domainkey.aipla.ku.dk
+   mail-aipla-ku-dk.dkim1._domainkey.firebasemail.com.
+
+4. ADD  CNAME  firebase2._domainkey.aipla.ku.dk
+   mail-aipla-ku-dk.dkim2._domainkey.firebasemail.com.
+
+Reason: the mails currently go out as aipla@aipla-prod-2026.firebaseapp.com
+and land in spam for the gymnasium teachers (several are Microsoft 365
+tenants). A verified sending domain lets them go out from aipla.ku.dk with
+SPF+DKIM and lets the links point at https://aipla.ku.dk instead of
+firebaseapp.com.
+
+Previous ticket 577638 was closed with the instruction to use this form.
+```
+
 ## Steps, in order
 
-1. UCPH IT applies the four records above (the SPF one as a **replacement**).
+1. UCPH IT applies the four records above (the SPF one as a **replacement**)
+   — requested via the SPF/DKIM form, not a general ticket.
 2. Confirm propagation:
    ```bash
    dig +short TXT aipla.ku.dk                          # expect ONE spf1 record, firebasemail
