@@ -1,6 +1,6 @@
 # Teachers need help getting started — a scaffold, and a way to see who is stuck
 
-**Status**: **SHIPPED dev 2026-09-21** — 1.1.124, M0–M3 in sprint [RSCH-ONBOARD-1](teacher-onboarding-scaffold-sprint.md) (`1b1e3dda` backend, `078bbc03` frontend, `2951e17c` copilot). The checklist mounts at the top of `/teacher/classes` rather than on a new `/teacher` home — see the sprint plan's decisions; 1.1.125 decides what Home becomes
+**Status**: **SHIPPED prod v0.1.60, 2026-09-21** (dev the same morning) — 1.1.124, M0–M3 in sprint [RSCH-ONBOARD-1](teacher-onboarding-scaffold-sprint.md) (`1b1e3dda` backend, `078bbc03` frontend, `2951e17c` copilot). The checklist mounts at the top of `/teacher/classes` rather than on a new `/teacher` home — see the sprint plan's decisions; 1.1.125 decides what Home becomes
 **Priority**: **P1** — third occurrence of the same signal (21-Aug triage, 1-Sep meeting *"teachers find the UI difficult"*, now JB's 19-Sep mail). The previous response was [1.1.96 friction telemetry](../v1.1.0-feedback/teacher-ui-friction-telemetry.md), M0–M2 still open. This doc is what to do *while* that instrumentation is missing, using state we already store
 **Estimated**: **~2d** (M0 stuck-teacher column ~0.5d · M1 first-run checklist ~0.75d · M2 hand a teacher a ready class ~0.5d · M3 guide + copilot alignment ~0.25d)
 **Scope**: Frontend — `/teacher/classes` (both scopes), one new component on the teacher home; Backend — one derived field on the class-activity summary, one route (M2). **Sits inside extension workstream C**

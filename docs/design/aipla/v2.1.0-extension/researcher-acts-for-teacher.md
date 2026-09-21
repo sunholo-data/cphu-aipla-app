@@ -1,6 +1,6 @@
 # A researcher acts for a teacher — from moderation to assistance
 
-**Status**: **SHIPPED dev 2026-09-21** — 1.1.123, M0–M3 in sprint [RSCH-EDIT-1](researcher-acts-for-teacher-sprint.md) (`221a41e3` backend, `e5191518` frontend). M3 shipped as option 1 (the passive line); the notice question below is still JB's to answer
+**Status**: **SHIPPED prod v0.1.60, 2026-09-21** (dev the same morning) — 1.1.123, M0–M3 in sprint [RSCH-EDIT-1](researcher-acts-for-teacher-sprint.md) (`221a41e3` backend, `e5191518` frontend). M3 shipped as option 1 (the passive line); the notice question below is still JB's to answer
 **Priority**: **P1** — a researcher asked to help a stuck teacher and the answer today is "publish something and ask them to adopt it". The backend half of the write path has existed since June with no UI on it
 **Estimated**: **~1.5–2d** (M0 ownership-aware pages ~0.5d · M1 wire the shipped M3b writes ~0.25d · M2 class writes on behalf ~0.5d · M3 attribution + notice ~0.5d · tests throughout). M3 is gated on one JB/AR answer, below
 **Scope**: Backend — `classes_routes.py` write guards, one attribution field; Frontend — `/teacher/classes/[id]`, `/teacher/activities/[id]`, the research views. **No new claim, no new role**
