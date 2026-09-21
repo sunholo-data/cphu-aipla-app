@@ -296,8 +296,9 @@ Two more the same evening:
    on the wire = order in memory), and `stream_agui_events` drains it before
    the response ends (Cloud Run throttles CPU after that). Request-scoped,
    `user` author only.
-4. **`--min-instances=1` on every env**, in both pipelines. Follow-up 1 above
-   was applied to dev by hand in April and reached no pipeline, so prod ran
+4. **`--min-instances=1` on prod only** (M's call), stated on every promote;
+   dev and test are pinned to 0 in `cloudbuild.yaml`. Follow-up 1 above had
+   been applied to dev by hand in April and reached no pipeline, so prod ran
    cold until 2026-09-21: the first turn after an idle spell paid ~12 s.
 
 What remains of the gap — one fetch, ~0.6 s —

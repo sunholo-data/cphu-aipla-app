@@ -218,13 +218,11 @@ steps:
       - '--platform=managed'
       - '--allow-unauthenticated'
       - '--max-instances=3'
-      # One warm instance. Prod ran with none until 2026-09-21: the first
-      # student turn after an idle spell paid a ~12 s cold start (p90 of first
-      # turns, 30 days of ttft rows) on top of a 4.8 s median. Dev had this
-      # set BY HAND (`services update`) since April and no pipeline carried
-      # it, so test and prod never got it — the same shape as the missing
-      # promote twin. Twin in cloudbuild.promote.yaml; keep them together.
-      - '--min-instances=1'
+      # No warm instance on dev or test (M, 2026-09-21: prod only). Explicit
+      # because `run deploy` PRESERVES an unmentioned minScale, and dev had
+      # been carrying a hand-set 1 since April that no pipeline knew about.
+      # Prod's 1 lives in cloudbuild.promote.yaml, gated on the target project.
+      - '--min-instances=0'
       - '--session-affinity'
       # AIPLA v0.1 — both containers run as the dedicated runtime SA
       # (which has roles/aiplatform.user for Vertex calls, storage.admin
