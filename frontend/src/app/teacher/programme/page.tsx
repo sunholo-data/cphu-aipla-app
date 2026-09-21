@@ -16,7 +16,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
@@ -27,8 +27,10 @@ import { useIsResearcher } from "@/hooks/useIsResearcher";
 import {
   type AccessRequestRow,
   type RegisterRow,
+  type OnboardingRow,
   type RoleRow,
   fetchAccessRequests,
+  fetchOnboarding,
   fetchRegister,
   fetchRoles,
   formatCap,
@@ -38,6 +40,8 @@ import {
   revokeAccess,
   spendState,
 } from "@/lib/programmeApi";
+import { STAGE_ORDER, copy as stageCopy, describeStage } from "@/lib/onboardingStage";
+import { StageChip } from "@/components/teacher/StageChip";
 
 /** Mirrors the server default (`PROGRAMME_ADMIN_MAX_CAP_USD`). A convenience
  *  for the input's `max`; the server re-checks and names the real bound if this
@@ -50,6 +54,12 @@ type Tab = "register" | "requests" | "roles";
 // rule: a translator reaches an object without a code change, and not JSX.
 // The rest of this page predates the rule and is extracted with M2.
 const copy = {
+  // 1.1.124 M0 — the Stage column: where each granted teacher is on the way to
+  // a live lesson, and a sort that puts the stuck-longest first.
+  colStage: "Getting started",
+  sortByStage: "Stuck longest first",
+  sortByGrant: "Newest grant first",
+  stageUnavailable: "—",
   rolesTab: "Roles",
   rolesIntro:
     "A role is a claim on the account (researcher, programme admin, platform admin). It is separate from a spend grant on purpose — a role must never silently become a budget — so a person can hold a role and still be a visitor. This list joins the two.",
@@ -278,11 +288,27 @@ function RegisterTable({
   rows,
   canWrite,
   onChanged,
+  stages,
 }: {
   rows: RegisterRow[];
   canWrite: boolean;
   onChanged: () => void;
+  /** Onboarding stage by email (1.1.124 M0); absent while loading or on a
+   *  read failure — the column then shows a dash, never a guessed stage. */
+  stages?: Map<string, OnboardingRow>;
 }) {
+  const [sortByStage, setSortByStage] = useState(false);
+  const sorted = useMemo(() => {
+    if (!sortByStage || !stages) return rows;
+    const order = new Map(STAGE_ORDER.map((st, i) => [st, i]));
+    return [...rows].sort((a, b) => {
+      const sa = stages.get(a.email);
+      const sb = stages.get(b.email);
+      // Rows without a stage (lapsed, unreadable) sink to the bottom.
+      if (!sa || !sb) return sa ? -1 : sb ? 1 : 0;
+      return (order.get(sa.stage) ?? 0) - (order.get(sb.stage) ?? 0) || (sb.days ?? 0) - (sa.days ?? 0);
+    });
+  }, [rows, stages, sortByStage]);
   if (rows.length === 0) {
     return (
       <p className="rounded border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
@@ -294,11 +320,24 @@ function RegisterTable({
   }
   return (
     <div className="overflow-x-auto">
+      {stages ? (
+        <div className="mb-2 flex justify-end">
+          <button
+            type="button"
+            aria-pressed={sortByStage}
+            onClick={() => setSortByStage((v) => !v)}
+            className="rounded border border-border px-2 py-1 text-xs hover:bg-accent"
+          >
+            {sortByStage ? copy.sortByGrant : copy.sortByStage}
+          </button>
+        </div>
+      ) : null}
       <table className="w-full min-w-[52rem] border-collapse text-sm">
         <thead>
           <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
             <th className="py-2 pr-3 font-medium">Email</th>
             <th className="py-2 pr-3 font-medium">Tier</th>
+            <th className="py-2 pr-3 font-medium">{copy.colStage}</th>
             <th className="py-2 pr-3 font-medium">Cap / month</th>
             <th className="py-2 pr-3 font-medium">Expires</th>
             <th className="py-2 pr-3 font-medium">Granted by</th>
@@ -307,7 +346,7 @@ function RegisterTable({
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
+          {sorted.map((row) => (
             <tr key={row.email} className="border-b border-border/60 align-top">
               <td className="py-2 pr-3 font-medium">
                 {row.email}
@@ -318,6 +357,20 @@ function RegisterTable({
                 ) : null}
               </td>
               <td className="py-2 pr-3">{row.tier}</td>
+              <td className="py-2 pr-3" data-testid="stage-cell">
+                {(() => {
+                  const st = stages?.get(row.email);
+                  if (!st) return <span className="text-muted-foreground">{copy.stageUnavailable}</span>;
+                  return (
+                    <div className="flex flex-col gap-0.5">
+                      <StageChip stage={st.stage} label={describeStage(st)} title={st.since ?? undefined} />
+                      {st.nextStep ? (
+                        <span className="text-xs text-muted-foreground">{stageCopy.next(st.nextStep)}</span>
+                      ) : null}
+                    </div>
+                  );
+                })()}
+              </td>
               <td className="py-2 pr-3">
                 {isUncapped(row) ? (
                   // An alarm, not a blank: cap<0 disables the per-teacher gate
@@ -405,6 +458,9 @@ export default function TeacherProgrammePage() {
   const [register, setRegister] = useState<RegisterRow[] | null>(null);
   const [requests, setRequests] = useState<AccessRequestRow[] | null>(null);
   const [roles, setRoles] = useState<RoleRow[] | null>(null);
+  // 1.1.124 M0 — by email. Undefined while loading OR when the read failed:
+  // the column must show "—" rather than a stage it did not read.
+  const [stages, setStages] = useState<Map<string, OnboardingRow> | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -435,6 +491,24 @@ export default function TeacherProgrammePage() {
   }, [mayRead]);
 
   useEffect(() => load(), [load]);
+
+  // The stage column loads beside the register, not inside it: it is a slower
+  // read (one activity summary per class) and a failure must not take the
+  // register down with it.
+  useEffect(() => {
+    if (!mayRead) return;
+    let cancelled = false;
+    fetchOnboarding()
+      .then((r) => {
+        if (!cancelled) setStages(new Map(r.teachers.map((t) => [t.email, t])));
+      })
+      .catch(() => {
+        if (!cancelled) setStages(undefined);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [mayRead]);
 
   return (
     <TeacherPage
@@ -503,7 +577,7 @@ export default function TeacherProgrammePage() {
           ) : loading ? (
             <p className="text-sm text-muted-foreground">Loading…</p>
           ) : tab === "register" ? (
-            <RegisterTable rows={register ?? []} canWrite={isProgrammeAdmin} onChanged={load} />
+            <RegisterTable rows={register ?? []} canWrite={isProgrammeAdmin} onChanged={load} stages={stages} />
           ) : tab === "requests" ? (
             <RequestsTable rows={requests ?? []} />
           ) : (

@@ -29,6 +29,7 @@ const revokeAccess = vi.fn();
 const fetchProgrammeBudget = vi.fn();
 const setProgrammeBudget = vi.fn();
 const fetchRoles = vi.fn();
+const fetchOnboarding = vi.fn();
 
 vi.mock("@/lib/programmeApi", async () => {
   const actual = await vi.importActual<typeof import("@/lib/programmeApi")>("@/lib/programmeApi");
@@ -41,6 +42,7 @@ vi.mock("@/lib/programmeApi", async () => {
     fetchProgrammeBudget: (...a: unknown[]) => fetchProgrammeBudget(...a),
     setProgrammeBudget: (...a: unknown[]) => setProgrammeBudget(...a),
     fetchRoles: (...a: unknown[]) => fetchRoles(...a),
+    fetchOnboarding: (...a: unknown[]) => fetchOnboarding(...a),
   };
 });
 
@@ -127,6 +129,8 @@ const BUDGET: ProgrammeBudgetPayload = {
 
 beforeEach(() => {
   fetchRegister.mockReset().mockResolvedValue(REGISTER);
+  // 1.1.124 — stage per email. Default: unreadable, so the column shows "—".
+  fetchOnboarding.mockReset().mockRejectedValue(new Error("no stages"));
   fetchAccessRequests.mockReset().mockResolvedValue(REQUESTS);
   grantAccess.mockReset().mockResolvedValue(REGISTER.grants[0]);
   revokeAccess.mockReset().mockResolvedValue({ email: "lb@toerring-gym.dk", revoked: true });
@@ -385,5 +389,37 @@ describe("the roles tab (2026-09-11)", () => {
     render(<TeacherProgrammePage />);
     await screen.findByRole("alert");
     expect(fetchRoles).not.toHaveBeenCalled();
+  });
+});
+
+describe("the stage column (1.1.124 M0)", () => {
+  it("shows each teacher's stage with the next step, and sorts stuck-longest first", async () => {
+    isResearcher = true;
+    fetchOnboarding.mockResolvedValue({
+      count: 2,
+      teachers: [
+        { email: "risky@ku.dk", uid: "u2", tier: "pilot", grantedAt: "", classes: 1, stage: "demo_only", since: null, days: 9, nextStep: "Create the class" },
+        { email: "lb@toerring-gym.dk", uid: "u1", tier: "pilot", grantedAt: "", classes: 2, stage: "live", since: null, days: 0, nextStep: null },
+      ],
+    });
+    render(<TeacherProgrammePage />);
+    const chips = await screen.findAllByTestId("stage-chip");
+    expect(chips.map((c) => c.textContent)).toEqual(expect.arrayContaining(["Demo only — 9 days", "Live"]));
+    expect(screen.getByText("Next: Create the class")).toBeInTheDocument();
+
+    // Register order first (lb is first in REGISTER); sort flips the stuck one to the top.
+    const emailsBefore = screen.getAllByTestId("stage-cell").map((td) => td.closest("tr")?.textContent?.includes("risky") ? "risky" : "lb");
+    expect(emailsBefore[0]).toBe("lb");
+    fireEvent.click(screen.getByRole("button", { name: /stuck longest first/i }));
+    const emailsAfter = screen.getAllByTestId("stage-cell").map((td) => td.closest("tr")?.textContent?.includes("risky") ? "risky" : "lb");
+    expect(emailsAfter[0]).toBe("risky");
+  });
+
+  it("shows a dash, never a guessed stage, when the stages cannot be read", async () => {
+    isResearcher = true;
+    render(<TeacherProgrammePage />);
+    await screen.findByText("lb@toerring-gym.dk");
+    expect(screen.queryAllByTestId("stage-chip")).toHaveLength(0);
+    expect(screen.queryByRole("button", { name: /stuck longest first/i })).not.toBeInTheDocument();
   });
 });

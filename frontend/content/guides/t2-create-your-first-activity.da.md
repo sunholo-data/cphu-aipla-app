@@ -7,8 +7,8 @@ order: "2"
 lang: "da"
 status: "Current"
 owner: "AIPLA project team"
-reviewed: "2026-07-14"
-reviewBy: "2026-10-12"
+reviewed: "2026-09-21"
+reviewBy: "2026-12-21"
 ---
 ::: callout-note
 ## Før du går i gang
@@ -16,6 +16,10 @@ reviewBy: "2026-10-12"
 En aktivitet hører altid til en **klasse**. Hvis du ikke har oprettet en
 klasse endnu, så følg vejledning *T1 — Opret en klasse og del den* først, og
 kom så tilbage hertil. Denne vejledning tager cirka fem minutter.
+
+Har du travlt? Kortet **Kom i gang** på *Klasser* tilbyder **Overtag fra
+biblioteket** — en kollegas delte aktivitet kopieret ind i din klasse med ét
+klik, uden byggeren. Kom tilbage hertil, når du vil lave din egen.
 :::
 
 ## Hvad en aktivitet er

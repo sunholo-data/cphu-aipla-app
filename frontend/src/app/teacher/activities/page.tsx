@@ -363,7 +363,9 @@ function SharedActivitiesSection({
     groups.get(key)!.items.push(a);
   }
   return (
-    <section className="mt-8">
+    // `id="shared"` — the getting-started checklist (1.1.124) deep-links here
+    // as "Adopt from the library", the no-builder path to a first lesson.
+    <section id="shared" className="mt-8 scroll-mt-4">
       <h2 className="text-sm font-semibold">Shared activities</h2>
       <p className="mb-3 text-xs text-muted-foreground">
         Published by other teachers. <span className="font-medium">Use / adapt</span> copies one into your library as

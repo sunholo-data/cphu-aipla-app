@@ -87,5 +87,11 @@ describe("/teacher/classes — Research view (1.1.5)", () => {
     expect(screen.getAllByTestId("class-owner").length).toBeGreaterThan(0);
     expect(screen.getByText(/Owner: Bob Jensen/)).toBeInTheDocument();
     expect(screen.getByText(/Owner: me/)).toBeInTheDocument();
+    // 1.1.124 M0 — each class carries its stage in the research view (both
+    // fixtures have no codes → "No join code"), and the researcher's shortcut
+    // to set a class up for a teacher replaces "New class" here.
+    expect(screen.getAllByTestId("stage-chip").map((c) => c.getAttribute("data-stage"))).toEqual(["no_code", "no_code"]);
+    expect(screen.getByRole("button", { name: /set up a class for a teacher/i })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "New class" })).not.toBeInTheDocument();
   });
 });

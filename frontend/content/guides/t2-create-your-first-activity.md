@@ -7,8 +7,8 @@ order: "2"
 lang: "en"
 status: "Current"
 owner: "AIPLA project team"
-reviewed: "2026-07-14"
-reviewBy: "2026-10-12"
+reviewed: "2026-09-21"
+reviewBy: "2026-12-21"
 ---
 ::: callout-note
 ## Before you start
@@ -16,6 +16,10 @@ reviewBy: "2026-10-12"
 An activity always belongs to a **class**. If you have not created a class
 yet, follow guide *T1 — Set up a class and share it* first, then come back
 here. This guide takes about five minutes.
+
+Short on time? The **Getting started** card on *Classes* offers **Adopt from
+the library** — a colleague's shared activity copied into your class in one
+click, no builder needed. Come back here when you want to make your own.
 :::
 
 ## What an activity is

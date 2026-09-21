@@ -51,6 +51,10 @@ import {
 import { CrossClassTable } from "@/components/teacher/insights/CrossClassTable";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
 import { ManageClassCopilot } from "./_ManageClassCopilot";
+import { GettingStartedCard } from "./_GettingStartedCard";
+import { SetUpForTeacherDialog, setUpForTeacherCopy } from "./_SetUpForTeacherDialog";
+import { StageChip } from "@/components/teacher/StageChip";
+import { classStage } from "@/lib/onboardingStage";
 import { formatRelativeTime } from "@/lib/relativeTime";
 import { TutorFace } from "@/components/teacher/research/TutorFace";
 
@@ -107,6 +111,8 @@ export default function TeacherClassesPage() {
   const [catalogue, setCatalogue] = useState<SkillSummary[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showNewClassForm, setShowNewClassForm] = useState(false);
+  // 1.1.124 M2 — the researcher's "set up a class for a teacher" dialog.
+  const [showSetUpForTeacher, setShowSetUpForTeacher] = useState(false);
   const [insightsSummary, setInsightsSummary] = useState<Map<string, InsightsClassSummary>>(new Map());
   const [insightsCompare, setInsightsCompare] = useState<InsightsComparePayload | null>(null);
   // BigQuery-backed insights (per-card KPIs + cross-class compare) are
@@ -476,7 +482,16 @@ export default function TeacherClassesPage() {
               </button>
             </div>
           ) : null}
-          {researchView ? null : (
+          {researchView ? (
+            <button
+              type="button"
+              onClick={() => setShowSetUpForTeacher(true)}
+              className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent"
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              {setUpForTeacherCopy.button}
+            </button>
+          ) : (
             <button
               type="button"
               onClick={() => setShowNewClassForm((v) => !v)}
@@ -488,6 +503,18 @@ export default function TeacherClassesPage() {
           )}
         </div>
       </header>
+
+      {/* 1.1.124 M1 — the teacher's own checklist, at the top of the page they
+          land on. Not in the research view: a researcher's stage is not the
+          question there. */}
+      {researchView ? null : <GettingStartedCard onCreateClass={() => setShowNewClassForm(true)} />}
+
+      {showSetUpForTeacher ? (
+        <SetUpForTeacherDialog
+          onCreated={() => void refresh()}
+          onCancel={() => setShowSetUpForTeacher(false)}
+        />
+      ) : null}
 
       {showNewClassForm ? (
         <NewClassForm
@@ -812,6 +839,14 @@ function ClassRow({
             title={cls.ownerLabel ?? cls.ownerUid}
           >
             Owner: {cls.ownerLabel ?? cls.ownerUid}
+          </div>
+        ) : null}
+        {/* 1.1.124 M0 — where this class is on the way to a live lesson,
+            derived from what the row already holds. Research view only: the
+            owner's own page carries the checklist instead. */}
+        {showOwner ? (
+          <div className="mt-1">
+            <StageChip stage={classStage(cls, activity)} />
           </div>
         ) : null}
       </td>

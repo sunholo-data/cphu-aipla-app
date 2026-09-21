@@ -7,8 +7,8 @@ order: "1"
 lang: "da"
 status: "Current"
 owner: "AIPLA project team"
-reviewed: "2026-09-15"
-reviewBy: "2026-12-14"
+reviewed: "2026-09-21"
+reviewBy: "2026-12-21"
 ---
 ::: callout-note
 ## Hvor dette passer ind
@@ -17,6 +17,10 @@ En **klasse** er udgangspunktet for alt det øvrige. Den rummer dine elever
 (som anonyme grupper, uden personlige konti) og de aktiviteter, du bygger til
 dem. Dette gør du én gang pr. klasse; det tager cirka tre minutter. Bagefter
 følger du *T2 — Opret din første aktivitet*.
+
+Kortet **Kom i gang** øverst på *Klasser* afkrydser trinnene, efterhånden som
+du tager dem, og linker hvert trin til den rigtige knap — denne vejledning er
+den samme tur, skrevet ud.
 :::
 
 ## Hvad en klasse er

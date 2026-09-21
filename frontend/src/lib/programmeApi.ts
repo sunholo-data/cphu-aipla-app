@@ -15,6 +15,7 @@
  * dual-auth footgun in CLAUDE.md.
  */
 
+import type { StagePayload } from "@/lib/onboardingStage";
 import { fetchWithTeacherAuth } from "@/lib/apiClient";
 import { readJson } from "@/lib/apiResponse";
 
@@ -61,6 +62,21 @@ export interface RequestsPayload {
   count: number;
   canWrite: boolean;
   requests: AccessRequestRow[];
+}
+
+/** 1.1.124 M0 — one granted teacher and where they are on the way to a live
+ *  lesson. Sorted by the backend stuck-longest first. */
+export interface OnboardingRow extends StagePayload {
+  email: string;
+  uid: string | null;
+  tier: string;
+  grantedAt: string;
+  classes: number;
+}
+
+export async function fetchOnboarding(): Promise<{ count: number; teachers: OnboardingRow[] }> {
+  const res = await fetchWithTeacherAuth("/api/proxy/api/programme/onboarding");
+  return readJson(res, "Could not load the onboarding stages");
 }
 
 export async function fetchRegister(includeRevoked = false): Promise<RegisterPayload> {

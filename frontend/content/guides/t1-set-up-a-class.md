@@ -7,8 +7,8 @@ order: "1"
 lang: "en"
 status: "Current"
 owner: "AIPLA project team"
-reviewed: "2026-09-15"
-reviewBy: "2026-12-14"
+reviewed: "2026-09-21"
+reviewBy: "2026-12-21"
 ---
 ::: callout-note
 ## Where this fits
@@ -17,6 +17,10 @@ A **class** is the starting point for everything else. It holds your students
 (as anonymous groups, no personal accounts) and the activities you build for
 them. Do this once per class; it takes about three minutes. Afterwards, follow
 *T2 — Create your first activity*.
+
+The **Getting started** card at the top of *Classes* ticks these steps off as
+you go and links each one to the right control — this guide is the same walk,
+written out.
 :::
 
 ## What a class is

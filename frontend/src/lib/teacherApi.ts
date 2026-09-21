@@ -15,6 +15,7 @@
  */
 
 import { fetchWithTeacherAuth as fetchWithAuth } from "@/lib/apiClient";
+import type { StagePayload } from "@/lib/onboardingStage";
 import { readJson as sharedReadJson } from "@/lib/apiResponse";
 // TYPE-ONLY, and it must stay that way: curriculumApi imports StxLevel from
 // here, so a value import would close a runtime cycle. Types are erased.
@@ -738,6 +739,10 @@ export interface ClassVoiceSettingsPayload {
 export interface ClassPayload {
   classId: string;
   ownerUid: string;
+  /** 1.1.124 — the seeded onboarding demo class. Optional: older rows omit it
+   *  (the seed stamped it only from 2026-09-21); the name "Demo class" is the
+   *  fallback tell. */
+  demo?: boolean;
   /** Friendly owner label (display name / email), present only in the
    *  researcher `scope=all` view and only when resolvable; clients fall back
    *  to `ownerUid`. */
@@ -1743,4 +1748,39 @@ export interface TutorCrossview {
 export async function fetchTutorCrossview(): Promise<TutorCrossview> {
   const resp = await fetchWithAuth("/api/proxy/api/research/frameworks/crossview");
   return readJson<TutorCrossview>(resp, "read tutor cross-view");
+}
+
+// ---------------------------------------------------------------------------
+// 1.1.124 — onboarding stage + a class set up for a teacher
+// ---------------------------------------------------------------------------
+
+/** The caller's own onboarding stage, plus the classes the checklist links to. */
+export interface TeacherStagePayload extends StagePayload {
+  classes: { classId: string; name: string; demo: boolean; groupCodes: string[]; activityIds: string[] }[];
+}
+
+export async function fetchTeacherStage(): Promise<TeacherStagePayload> {
+  const resp = await fetchWithAuth("/api/proxy/api/teacher/stage");
+  return readJson<TeacherStagePayload>(resp, "load onboarding stage");
+}
+
+export interface ClassForTeacherBody {
+  ownerUid: string;
+  name: string;
+  description?: string | null;
+  templateClassId?: string | null;
+}
+
+/** Researcher-only: a class OWNED BY THE TEACHER, the researcher's template
+ *  activities copied into their library and assigned, a code minted if the
+ *  teacher may spend. The teacher's checklist then opens at "share the link". */
+export async function createClassForTeacher(
+  body: ClassForTeacherBody,
+): Promise<ClassPayload & { codes: string[]; copiedActivityIds: string[] }> {
+  const resp = await fetchWithAuth("/api/proxy/api/classes/for-teacher", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return readJson(resp, "set up class for teacher");
 }
