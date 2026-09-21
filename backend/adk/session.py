@@ -354,9 +354,10 @@ _pending_writes: ContextVar[list[asyncio.Task[Any]] | None] = ContextVar("sessio
 async def drain_pending_session_writes() -> None:
     """Wait for every background session write started in this request.
 
-    Called by the stream when the run is over (and before any later append,
-    so order on the wire matches order in memory). A failed write is logged,
-    not raised: the reply it belongs to has already reached the student.
+    Called by the stream when the run is over. Order between writes is kept
+    by the chain itself (each waits for the previous), so nothing else needs
+    to call this mid-turn. A failed write is logged, not raised: the reply it
+    belongs to has already reached the student.
     """
     pending = _pending_writes.get()
     if not pending:
@@ -365,7 +366,7 @@ async def drain_pending_session_writes() -> None:
     results = await asyncio.gather(*tasks, return_exceptions=True)
     for task, result in zip(tasks, results, strict=True):
         if isinstance(result, BaseException):
-            logger.error("session: background write of the student's message failed (%s): %r", task.get_name(), result)
+            logger.error("session: background session write failed (%s): %r", task.get_name(), result)
 
 
 @contextlib.contextmanager
@@ -508,37 +509,45 @@ class _LegacyAnonOwnerSessionService(BaseSessionService):
         await self._inner.delete_session(app_name=app_name, user_id=user_id, session_id=session_id)
 
     async def append_event(self, session: Session, event: Event) -> Event:
-        """Append — and for the student's own message, do not wait for the wire.
+        """Append in memory now; ship the bytes in the background, in order.
 
-        Measured on prod 2026-09-21 (Cloud Trace): the Runner's ``append_event``
-        of the student's message took ~0.6 s and blocked everything after it —
-        the agent does not start until it returns — yet nothing downstream
-        reads its RESULT. Only its in-memory half matters (the event in
-        ``session.events``, the state delta applied), and Vertex's wire half
-        reads nothing from the session but ``app_name`` and ``id``. So: apply
-        the in-memory half to the real object now, ship the bytes from a
-        shadow copy in the background, and make every later append in the
-        request wait for it first, so order on the wire matches memory.
+        Measured on prod 2026-09-21 (Cloud Trace): every ``append_event`` in a
+        turn is a ~0.6 s round trip to Agent Engine, and the Runner awaits each
+        one before it continues — the student's message before the agent
+        starts, the before-agent state delta before the model is asked. Nothing
+        downstream reads the RESULT of a write: the in-memory half (the event
+        in ``session.events``, the state delta applied) is what the rest of the
+        turn consumes, and Vertex's wire half reads nothing from the session but
+        ``app_name`` and ``id``.
 
-        Only inside a request (``session_read_memo`` open) and only for the
-        ``user`` author: a model event carries usage metadata that the
-        chat-log hook and compaction read back, and it is written after the
-        reply is already on its way, where 0.6 s costs nobody anything.
+        So, inside a request (``session_read_memo`` open): apply the in-memory
+        half to the real object and return; queue the wire write behind the
+        previous one, so order on the wire matches order in memory; and drain
+        the chain before the response ends (``stream_agui_events``), because
+        Cloud Run throttles the CPU after that. Backgrounding the student's
+        message alone moved the 0.6 s rather than removing it — the next
+        append paid it on the drain.
+
+        Outside a request every append is synchronous, as before.
         """
         pending = _pending_writes.get()
-        if pending is None or getattr(event, "author", None) != "user" or getattr(event, "partial", False):
-            await drain_pending_session_writes()
+        if pending is None or getattr(event, "partial", False):
             return await self._inner.append_event(session=session, event=event)
 
         applied = await BaseSessionService.append_event(self, session=session, event=event)
         # The inner service repeats the in-memory half before it writes; give it
         # a copy with its own lists so the real object is not appended to twice.
         shadow = session.model_copy(update={"events": [], "state": dict(session.state)})
-        task = asyncio.create_task(
-            self._inner.append_event(session=shadow, event=event),
-            name=f"session-write:{session.id}",
-        )
-        pending.append(task)
+        previous = pending[-1] if pending else None
+
+        async def _write_in_order() -> Event:
+            if previous is not None:
+                # Order, not success: a failed earlier write is logged by the
+                # drain; this one must still go out.
+                await asyncio.gather(previous, return_exceptions=True)
+            return await self._inner.append_event(session=shadow, event=event)
+
+        pending.append(asyncio.create_task(_write_in_order(), name=f"session-write:{session.id}:{event.author}"))
         return applied
 
     async def _read_owner_uid(self, app_name: str, session_id: str) -> str | None:

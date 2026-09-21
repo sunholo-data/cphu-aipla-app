@@ -528,11 +528,14 @@ class TestSessionReadMemo:
 
 
 class TestStudentMessageWriteDoesNotBlockTheTurn:
-    """The Runner's ``append_event`` of the student's message took ~0.6 s on
-    prod and the agent did not start until it returned (Cloud Trace,
-    2026-09-21). Nothing downstream reads its result - only the in-memory
-    half - so the wire half runs in the background, ordered before any
-    later write, and drained before the request ends."""
+    """Every ``append_event`` in a turn is a ~0.6 s round trip to Agent Engine
+    that the Runner awaits before continuing (Cloud Trace, 2026-09-21): the
+    student's message before the agent starts, the before-agent state delta
+    before the model is asked. Nothing downstream reads a write's result -
+    only the in-memory half - so inside a request every write runs in the
+    background, chained in order, and drained before the request ends.
+    Backgrounding the student's message ALONE was measured on dev to move the
+    0.6 s to the next append's drain rather than remove it."""
 
     @staticmethod
     def _build(*, delay: float = 0.0, fail: bool = False):
@@ -613,18 +616,47 @@ class TestStudentMessageWriteDoesNotBlockTheTurn:
         assert shadow.id == session.id and shadow.app_name == session.app_name
 
     @pytest.mark.asyncio
-    async def test_a_later_write_waits_for_the_students_message_first(self):
+    async def test_later_writes_do_not_block_either_and_land_in_order(self):
         """Order on the wire must match order in memory: the model's reply
-        cannot reach Agent Engine before the message it answers."""
-        from adk.session import session_read_memo
+        cannot reach Agent Engine before the message it answers - but the
+        agent must not wait for either."""
+        from adk.session import drain_pending_session_writes, session_read_memo
 
         svc, inner = self._build(delay=0.05)
         with session_read_memo():
             session = await svc.get_session(app_name="app", user_id="anon-x", session_id="s1")
             await svc.append_event(session, self._event("user"))
             await svc.append_event(session, self._event("tutor"))
+            await svc.append_event(session, self._event("tutor"))
+            assert inner.finished == []  # none of the three blocked
+            assert [e.author for e in session.events] == ["user", "tutor", "tutor"]
+            await drain_pending_session_writes()
 
-        assert inner.finished == ["user", "tutor"]
+        assert inner.finished == ["user", "tutor", "tutor"]
+        assert inner.started == ["user", "tutor", "tutor"]  # chained, not raced
+
+    @pytest.mark.asyncio
+    async def test_a_failed_write_does_not_stop_the_ones_behind_it(self):
+        from adk.session import drain_pending_session_writes, session_read_memo
+
+        calls = {"n": 0}
+        svc, inner = self._build()
+        real = inner.append_event
+
+        async def flaky(session, event):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise RuntimeError("wire down")
+            return await real(session, event)
+
+        inner.append_event = flaky
+        with session_read_memo():
+            session = await svc.get_session(app_name="app", user_id="anon-x", session_id="s1")
+            await svc.append_event(session, self._event("user"))
+            await svc.append_event(session, self._event("tutor"))
+            await drain_pending_session_writes()
+
+        assert inner.finished == ["tutor"]
 
     @pytest.mark.asyncio
     async def test_outside_a_request_the_write_is_synchronous_as_before(self):
@@ -649,7 +681,7 @@ class TestStudentMessageWriteDoesNotBlockTheTurn:
             await svc.append_event(session, self._event("user"))
             await drain_pending_session_writes()
 
-        assert any("background write" in r.message for r in caplog.records)
+        assert any("background session write failed" in r.message for r in caplog.records)
 
     @pytest.mark.asyncio
     async def test_the_stream_drains_before_it_ends(self):

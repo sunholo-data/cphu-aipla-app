@@ -288,14 +288,17 @@ Two things shipped the same day:
 
 Two more the same evening:
 
-3. **The student's message is written in the background.** The Runner's
-   `append_event` of it blocked the agent for ~0.6 s and nothing downstream
-   reads its result. `_LegacyAnonOwnerSessionService.append_event` now applies
-   the in-memory half to the real object and ships the bytes from a shadow
-   copy in a task; any later append in the request waits for it first (order
-   on the wire = order in memory), and `stream_agui_events` drains it before
-   the response ends (Cloud Run throttles CPU after that). Request-scoped,
-   `user` author only.
+3. **Every in-request session write runs in the background, chained in
+   order.** The Runner awaits each `append_event` (~0.6 s) before it
+   continues, and nothing downstream reads a write's result — only the
+   in-memory half. `_LegacyAnonOwnerSessionService.append_event` now applies
+   that half to the real object, queues the wire write behind the previous one
+   (shadow copy, so the inner service's own in-memory half hits nothing), and
+   `stream_agui_events` drains the chain before the response ends (Cloud Run
+   throttles CPU after that). **Measured on dev, first cut (student message
+   only):** setup gap 3.05 → 1.5 s but the callbacks window 0.37 → 0.9 s —
+   ADK appends the before-agent state delta before the model is asked, and
+   that append drained the student write and paid its own. Hence the chain.
 4. **`--min-instances=1` on prod only** (M's call), stated on every promote;
    dev and test are pinned to 0 in `cloudbuild.yaml`. Follow-up 1 above had
    been applied to dev by hand in April and reached no pipeline, so prod ran
