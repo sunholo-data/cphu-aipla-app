@@ -1,6 +1,6 @@
 # Teachers need help getting started — a scaffold, and a way to see who is stuck
 
-**Status**: **DESIGN (OPEN)** — 1.1.124, written 2026-09-21
+**Status**: **SHIPPED dev 2026-09-21** — 1.1.124, M0–M3 in sprint [RSCH-ONBOARD-1](teacher-onboarding-scaffold-sprint.md) (`1b1e3dda` backend, `078bbc03` frontend, `2951e17c` copilot). The checklist mounts at the top of `/teacher/classes` rather than on a new `/teacher` home — see the sprint plan's decisions; 1.1.125 decides what Home becomes
 **Priority**: **P1** — third occurrence of the same signal (21-Aug triage, 1-Sep meeting *"teachers find the UI difficult"*, now JB's 19-Sep mail). The previous response was [1.1.96 friction telemetry](../v1.1.0-feedback/teacher-ui-friction-telemetry.md), M0–M2 still open. This doc is what to do *while* that instrumentation is missing, using state we already store
 **Estimated**: **~2d** (M0 stuck-teacher column ~0.5d · M1 first-run checklist ~0.75d · M2 hand a teacher a ready class ~0.5d · M3 guide + copilot alignment ~0.25d)
 **Scope**: Frontend — `/teacher/classes` (both scopes), one new component on the teacher home; Backend — one derived field on the class-activity summary, one route (M2). **Sits inside extension workstream C**
@@ -43,7 +43,7 @@ Two facts from the codebase constrain the design:
 
 ## Milestones
 
-### M0 — See who is stuck · ~0.5d · the researcher's view
+### M0 — See who is stuck · ~0.5d · the researcher's view · ✅ shipped
 
 On `/teacher/classes` in scope **All**, and on `/teacher/programme` beside each
 granted row, a derived **stage** per teacher:
@@ -66,7 +66,7 @@ message to the teacher writes itself.
 **Acceptance:** JB can answer *"which of the teachers I granted this month
 have not got past the demo class?"* from one screen.
 
-### M1 — The first-run checklist · ~0.75d · the teacher's view
+### M1 — The first-run checklist · ~0.75d · the teacher's view · ✅ shipped
 
 The teacher home (`/teacher`, today a bare redirect to `/teacher/classes`)
 becomes a **progress card** driven by the same stage function, shown until
@@ -95,7 +95,7 @@ the class's subject, one click, no builder. The builder is the second offer.
 the demo seed; each step's link lands on the control it names; the card
 disappears on its own once students are talking.
 
-### M2 — Hand a teacher a ready class · ~0.5d · the researcher's shortcut
+### M2 — Hand a teacher a ready class · ~0.5d · the researcher's shortcut · ✅ shipped
 
 With [1.1.123](researcher-acts-for-teacher.md) M2 in place a researcher can
 build inside a teacher's class. This milestone makes the common case one
@@ -116,7 +116,7 @@ row stamps `last_edited_by` from 1.1.123 M3.
 students"* without the teacher doing anything, and the teacher owns the
 result outright.
 
-### M3 — Make the guides and copilots say the same thing · ~0.25d
+### M3 — Make the guides and copilots say the same thing · ~0.25d · ✅ shipped
 
 - `t1`/`t2` (both languages) reference the checklist instead of restating the
   steps; `guide-maintenance` staleness check covers this.

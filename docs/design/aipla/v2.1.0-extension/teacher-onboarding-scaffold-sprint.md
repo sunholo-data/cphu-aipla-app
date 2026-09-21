@@ -8,7 +8,8 @@ from state we already store, shows it to the researcher (sortable) and to the
 teacher (as a checklist whose steps link to the control), and gives a researcher
 one action to hand a teacher a class that is ready to share.
 
-**Duration:** ~2d · **Scope:** Fullstack · **Design doc:** [1.1.124](teacher-onboarding-scaffold.md)
+**Status:** ✅ **SHIPPED dev 2026-09-21** — all four milestones, ~1d actual. M3's copilot half landed too: `scopePrefix` was the mechanism, no new plumbing.
+**Duration:** ~2d (actual ~1d) · **Scope:** Fullstack · **Design doc:** [1.1.124](teacher-onboarding-scaffold.md)
 **Builds on:** [RSCH-EDIT-1](researcher-acts-for-teacher-sprint.md) (shipped dev 2026-09-21) — M2 here creates activities *owned by the teacher* the way 1.1.123 M2 does.
 
 ## Decisions taken in planning
