@@ -575,7 +575,7 @@ Any local workflow that requires more than one manual step — setting env vars,
 | **Check the literature corpus stays out of student turns** (after touching RAG or agent wiring) | `make check-literature-isolation` (same `scripts/check-literature-corpus-isolation.sh` the CI `local-mode-safety` job runs) |
 | **Check every Next.js route is actually tracked by git** (after adding a route directory) | `make check-routes-tracked` (same `scripts/check-app-routes-tracked.sh` the CI `local-mode-safety` job runs) |
 | **Run the brand-drift gate locally** (after touching /project or any brand colour) | `make check-brand-literals` (same `scripts/check-brand-literals.sh` the CI `local-mode-safety` job runs) |
-| **Check the published guides still link back into the app** | `make check-guide-nav` (`make guides-publish` runs it automatically) |
+| **Check the how-to guides** (front matter, stranded translations, missing screenshots; CI-gated) and whether a documented surface changed under them | `make check-guides` · `make guide-staleness` (the `check-guide-nav` / `guides-publish` targets this row once named were retired with the Quarto guides in 1.1.116) |
 | **Republish the sim authoring prompt** (after editing `.claude/skills/mcp-app-artefact/resources/authoring-prompt.md`) — the `/project/build-a-simulation` page and `/sim-authoring-prompt.txt` are generated from it | `make sim-prompt` (`make check-sim-prompt` is the CI gate) |
 
 When adding a new workflow, add it to `scripts/` and the root `Makefile` in the same PR.

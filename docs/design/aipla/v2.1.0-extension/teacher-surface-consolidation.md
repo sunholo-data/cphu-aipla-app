@@ -146,7 +146,7 @@ bounded, mostly deletion, and every step is verifiable in the browser.
 
 ## Guards
 
-- `route-chrome-coverage.test.ts` and `check-guide-nav` already fail on a
+- `route-chrome-coverage.test.ts` and `make check-guides` already fail on a
   moved page that loses its chrome or its guide link; M1/M2 add redirects
   from the retired URLs (the guides and JB's mail both link them).
 - **New:** a test that every `TeacherNav` destination's `match` prefixes are

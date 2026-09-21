@@ -42,7 +42,7 @@ removal, now that 1.1.123 and 1.1.124 have made the removals possible.
 
 ## Guards
 - `route-chrome-coverage.test.ts` (existing) — every surviving page keeps its chrome.
-- `check-guide-nav` — guides still link into the app; r1/t1–t4 updated for the moved routes.
+- `make check-guides` + `make guide-staleness` — r1/t1–t4 updated for the moved routes; **screenshots r1-01 and t4-01 still show the old nav and the pill — `make guide-screens` after the dev build lands.**
 - Redirect test for each retired URL.
 
 ## Out of scope
