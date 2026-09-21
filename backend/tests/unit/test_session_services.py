@@ -525,3 +525,149 @@ class TestSessionReadMemo:
             pass
         assert seen == [True]
         assert session_mod._read_memo.get() is None
+
+
+class TestStudentMessageWriteDoesNotBlockTheTurn:
+    """The Runner's ``append_event`` of the student's message took ~0.6 s on
+    prod and the agent did not start until it returned (Cloud Trace,
+    2026-09-21). Nothing downstream reads its result - only the in-memory
+    half - so the wire half runs in the background, ordered before any
+    later write, and drained before the request ends."""
+
+    @staticmethod
+    def _build(*, delay: float = 0.0, fail: bool = False):
+        import asyncio
+
+        from google.adk.sessions import Session
+
+        from adk.session import _LegacyAnonOwnerSessionService
+
+        class Inner:
+            def __init__(self):
+                self.started: list[str] = []
+                self.finished: list[str] = []
+                self.seen_sessions: list[Session] = []
+
+            async def get_session(self, *, app_name, user_id, session_id, config=None):
+                return Session(app_name=app_name, user_id=user_id, id=session_id)
+
+            async def append_event(self, session, event):
+                self.started.append(event.author)
+                self.seen_sessions.append(session)
+                # what the real Vertex service does first: the in-memory half
+                session.events.append(event)
+                if delay:
+                    await asyncio.sleep(delay)
+                if fail:
+                    raise RuntimeError("wire down")
+                self.finished.append(event.author)
+                return event
+
+        inner = Inner()
+        return _LegacyAnonOwnerSessionService(inner), inner
+
+    @staticmethod
+    def _event(author: str):
+        from google.adk.events import Event
+        from google.genai import types
+
+        return Event(
+            author=author,
+            content=types.Content(
+                role="user" if author == "user" else "model", parts=[types.Part.from_text(text="hej")]
+            ),
+        )
+
+    @pytest.mark.asyncio
+    async def test_the_students_message_returns_before_the_wire_write_finishes(self):
+        from adk import session as session_mod
+        from adk.session import drain_pending_session_writes, session_read_memo
+
+        svc, inner = self._build(delay=0.05)
+        with session_read_memo():
+            session = await svc.get_session(app_name="app", user_id="anon-x", session_id="s1")
+            await svc.append_event(session, self._event("user"))
+            # Returned: the event is in memory; the write is scheduled, not done.
+            assert [e.author for e in session.events] == ["user"]
+            assert inner.finished == []
+            assert len(session_mod._pending_writes.get() or []) == 1
+            await drain_pending_session_writes()
+            assert inner.finished == ["user"]
+
+    @pytest.mark.asyncio
+    async def test_the_real_session_is_not_appended_to_twice(self):
+        """The inner service repeats the in-memory half before writing; it
+        must do so on a shadow, or the student's message appears twice in the
+        history the model sees."""
+        from adk.session import drain_pending_session_writes, session_read_memo
+
+        svc, inner = self._build()
+        with session_read_memo():
+            session = await svc.get_session(app_name="app", user_id="anon-x", session_id="s1")
+            await svc.append_event(session, self._event("user"))
+            await drain_pending_session_writes()
+
+        assert len(session.events) == 1
+        shadow = inner.seen_sessions[0]
+        assert shadow is not session
+        assert shadow.id == session.id and shadow.app_name == session.app_name
+
+    @pytest.mark.asyncio
+    async def test_a_later_write_waits_for_the_students_message_first(self):
+        """Order on the wire must match order in memory: the model's reply
+        cannot reach Agent Engine before the message it answers."""
+        from adk.session import session_read_memo
+
+        svc, inner = self._build(delay=0.05)
+        with session_read_memo():
+            session = await svc.get_session(app_name="app", user_id="anon-x", session_id="s1")
+            await svc.append_event(session, self._event("user"))
+            await svc.append_event(session, self._event("tutor"))
+
+        assert inner.finished == ["user", "tutor"]
+
+    @pytest.mark.asyncio
+    async def test_outside_a_request_the_write_is_synchronous_as_before(self):
+        svc, inner = self._build(delay=0.01)
+        from google.adk.sessions import Session
+
+        session = Session(app_name="app", user_id="anon-x", id="s1")
+        await svc.append_event(session, self._event("user"))
+        assert inner.finished == ["user"]
+
+    @pytest.mark.asyncio
+    async def test_a_failed_background_write_is_logged_not_raised(self, caplog):
+        """The reply it belongs to has already reached the student; raising
+        here would turn a lost history row into a broken stream."""
+        import logging
+
+        from adk.session import drain_pending_session_writes, session_read_memo
+
+        svc, _ = self._build(fail=True)
+        with session_read_memo(), caplog.at_level(logging.ERROR, logger="adk.session"):
+            session = await svc.get_session(app_name="app", user_id="anon-x", session_id="s1")
+            await svc.append_event(session, self._event("user"))
+            await drain_pending_session_writes()
+
+        assert any("background write" in r.message for r in caplog.records)
+
+    @pytest.mark.asyncio
+    async def test_the_stream_drains_before_it_ends(self):
+        """Wiring guard: Cloud Run throttles the CPU once the response is done,
+        so a write still in flight at the end of the stream may never land."""
+        from adk import session as session_mod
+        from adk.agui import stream_agui_events
+
+        svc, inner = self._build(delay=0.02)
+
+        class FakeAgent:
+            async def run(self, run_input):
+                session = await svc.get_session(app_name="app", user_id="anon-x", session_id="s1")
+                await svc.append_event(session, TestStudentMessageWriteDoesNotBlockTheTurn._event("user"))
+                if False:  # pragma: no cover
+                    yield None
+
+        async for _ in stream_agui_events(FakeAgent(), run_input=None):  # type: ignore[arg-type]
+            pass
+        assert inner.finished == ["user"]
+        assert session_mod._pending_writes.get() is None

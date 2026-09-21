@@ -12,11 +12,13 @@ Direct service constructors are available for testing and custom wiring.
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import logging
 import os
 from collections.abc import Iterator
 from contextvars import ContextVar
+from typing import Any
 
 from google.adk.apps.app import EventsCompactionConfig
 from google.adk.artifacts import GcsArtifactService, InMemoryArtifactService
@@ -344,6 +346,27 @@ def _is_deterministic_anon_uid(uid: str) -> bool:
 #: Per-request memo of ``get_session`` reads — see ``session_read_memo``.
 _read_memo: ContextVar[dict[tuple[str, str, str], Session] | None] = ContextVar("session_read_memo", default=None)
 
+#: Per-request list of student-message writes still in flight — see
+#: ``_LegacyAnonOwnerSessionService.append_event`` and ``drain_pending_session_writes``.
+_pending_writes: ContextVar[list[asyncio.Task[Any]] | None] = ContextVar("session_pending_writes", default=None)
+
+
+async def drain_pending_session_writes() -> None:
+    """Wait for every background session write started in this request.
+
+    Called by the stream when the run is over (and before any later append,
+    so order on the wire matches order in memory). A failed write is logged,
+    not raised: the reply it belongs to has already reached the student.
+    """
+    pending = _pending_writes.get()
+    if not pending:
+        return
+    tasks, pending[:] = list(pending), []
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    for task, result in zip(tasks, results, strict=True):
+        if isinstance(result, BaseException):
+            logger.error("session: background write of the student's message failed (%s): %r", task.get_name(), result)
+
 
 @contextlib.contextmanager
 def session_read_memo() -> Iterator[None]:
@@ -366,10 +389,12 @@ def session_read_memo() -> Iterator[None]:
     the first reader's object has become. Nothing is served after the block ends.
     """
     token = _read_memo.set({})
+    writes_token = _pending_writes.set([])
     try:
         yield
     finally:
         try:
+            _pending_writes.reset(writes_token)
             _read_memo.reset(token)
         except ValueError:
             # The stream route pulls the first event in the request's context
@@ -378,6 +403,7 @@ def session_read_memo() -> Iterator[None]:
             # (the latency tracker tolerates the same split). Clear it here
             # instead; the opening context ends with the request.
             _read_memo.set(None)
+            _pending_writes.set(None)
 
 
 class _LegacyAnonOwnerSessionService(BaseSessionService):
@@ -482,7 +508,38 @@ class _LegacyAnonOwnerSessionService(BaseSessionService):
         await self._inner.delete_session(app_name=app_name, user_id=user_id, session_id=session_id)
 
     async def append_event(self, session: Session, event: Event) -> Event:
-        return await self._inner.append_event(session=session, event=event)
+        """Append — and for the student's own message, do not wait for the wire.
+
+        Measured on prod 2026-09-21 (Cloud Trace): the Runner's ``append_event``
+        of the student's message took ~0.6 s and blocked everything after it —
+        the agent does not start until it returns — yet nothing downstream
+        reads its RESULT. Only its in-memory half matters (the event in
+        ``session.events``, the state delta applied), and Vertex's wire half
+        reads nothing from the session but ``app_name`` and ``id``. So: apply
+        the in-memory half to the real object now, ship the bytes from a
+        shadow copy in the background, and make every later append in the
+        request wait for it first, so order on the wire matches memory.
+
+        Only inside a request (``session_read_memo`` open) and only for the
+        ``user`` author: a model event carries usage metadata that the
+        chat-log hook and compaction read back, and it is written after the
+        reply is already on its way, where 0.6 s costs nobody anything.
+        """
+        pending = _pending_writes.get()
+        if pending is None or getattr(event, "author", None) != "user" or getattr(event, "partial", False):
+            await drain_pending_session_writes()
+            return await self._inner.append_event(session=session, event=event)
+
+        applied = await BaseSessionService.append_event(self, session=session, event=event)
+        # The inner service repeats the in-memory half before it writes; give it
+        # a copy with its own lists so the real object is not appended to twice.
+        shadow = session.model_copy(update={"events": [], "state": dict(session.state)})
+        task = asyncio.create_task(
+            self._inner.append_event(session=shadow, event=event),
+            name=f"session-write:{session.id}",
+        )
+        pending.append(task)
+        return applied
 
     async def _read_owner_uid(self, app_name: str, session_id: str) -> str | None:
         """Read a session's true owner uid via the inner Vertex client.

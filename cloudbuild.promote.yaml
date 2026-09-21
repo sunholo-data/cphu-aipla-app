@@ -203,12 +203,16 @@ steps:
         DIGEST=$$(cat /workspace/backend_digest)
         gcloud run services update ${_SERVICE_NAME} \
           --project=${_TARGET_PROJECT} --region=${_REGION} \
+          --min-instances=1 \
           --container=main \
           --image=${_REGION}-docker.pkg.dev/${_TARGET_PROJECT}/${_REPO}/${_SERVICE_NAME}/ui:${_VERSION} \
           --container=sidecar \
           --image=${_REGION}-docker.pkg.dev/${_TARGET_PROJECT}/${_REPO}/${_SERVICE_NAME}/backend@$$DIGEST \
           "--update-env-vars=^|^APP_VERSION=${_VERSION}|MCP_WIDGET_DOMAIN=${_MCP_WIDGET_DOMAIN}|MCP_SANDBOX_URL=${_MCP_SANDBOX_URL}|DOCUMENTS_BUCKET=${_TARGET_PROJECT}-documents|PROGRAMME_ADMIN_MAX_CAP_USD=${_PROGRAMME_ADMIN_MAX_CAP_USD}|PROGRAMME_ADMIN_EMAIL_DOMAINS=${_PROGRAMME_ADMIN_EMAIL_DOMAINS}" \
           --update-secrets=LITERATURE_RAG_CORPUS_NAME=LITERATURE_RAG_CORPUS_NAME:latest
+        # --min-instances=1 is the twin of cloudbuild.yaml's; `services update`
+        # PRESERVES an unmentioned minScale, so prod would keep 0 forever without
+        # it here. Cost: one warm instance per env (~EUR 10-25/month).
         # ^ THE QUOTES ARE LOAD-BEARING. This step is a BASH SCRIPT, unlike
         # cloudbuild.yaml's deploy step where every flag is its own quoted YAML
         # list item and never reaches a shell. The `^|^` custom-delimiter form

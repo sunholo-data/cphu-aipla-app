@@ -286,7 +286,21 @@ Two things shipped the same day:
    calls only). Six turns in 30 days sat 48–105 s on a request Vertex had
    accepted and gone quiet on; the client abandons a silent stream at 30 s.
 
-What remains of the gap — one fetch plus the `append_event` write, ~1.2 s —
+Two more the same evening:
+
+3. **The student's message is written in the background.** The Runner's
+   `append_event` of it blocked the agent for ~0.6 s and nothing downstream
+   reads its result. `_LegacyAnonOwnerSessionService.append_event` now applies
+   the in-memory half to the real object and ships the bytes from a shadow
+   copy in a task; any later append in the request waits for it first (order
+   on the wire = order in memory), and `stream_agui_events` drains it before
+   the response ends (Cloud Run throttles CPU after that). Request-scoped,
+   `user` author only.
+4. **`--min-instances=1` on every env**, in both pipelines. Follow-up 1 above
+   was applied to dev by hand in April and reached no pipeline, so prod ran
+   cold until 2026-09-21: the first turn after an idle spell paid ~12 s.
+
+What remains of the gap — one fetch, ~0.6 s —
 is Agent Engine's per-call cost, and no memo removes it. The next step, if
 the target still matters, is a same-region session store (Firestore-backed
 `BaseSessionService` in europe-north1: ~20–50 ms a call). That is a session
