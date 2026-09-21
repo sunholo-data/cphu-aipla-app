@@ -253,3 +253,42 @@ Sprint shipped end-to-end against real data — empirical measurements drove eve
 The original concern was "chat is slow". The empirical answer turned out to be: **chat is slow on laptops because of laptop-to-cloud round-trips, but production is already fast.** Without the instrumentation track from TTFT-INSTR (1.20) we'd have shipped a complex caching layer or framework escalation to "fix" a non-problem. With the data, the right answer was a 30-line escape hatch and a follow-up note about cold starts.
 
 The sprint shipped in <2 hours of clock time end-to-end (M1 + M2 + M3), against an estimate of 1.5 days. The estimate was conservative because we didn't know which candidate would land — once the data was in, the work was small.
+
+### Revisited on prod, 2026-09-21 — "production is already fast" no longer held
+
+Thirty days of prod `ttft` rows (v0.1.49+, gemini-3.5-flash-lite) put the
+student-perceived first token at **p50 4.8 s, p90 8.6 s**, against the <1 s
+target. The per-stage marks from M1 — deployed since — attributed it:
+
+| stage | p50 | p90 |
+|---|---|---|
+| request → `runner_setup_done` (our callbacks fire) | **2.8 s** | 3.9 s |
+| `before_model_done` → first model token | 1.0 s | ~4 s |
+
+The 2.8 s is flat regardless of session length, which rules out "the session
+got long". Cloud Trace on the same turns showed only ~0.7 s of it inside ADK's
+`invocation` span (the `append_event` of the student's message). The other
+~2 s sits before the invocation starts: **the same Agent Engine session was
+fetched three times in ~100 ms** — ag_ui_adk's cache-hit check, its
+`pending_tool_calls` state read, and the Runner's own read — at ~0.6 s each
+(a fetch is two HTTP calls to europe-west1: get + list events; benchmarked
+from a laptop at 0.61–0.73 s per fetch).
+
+Two things shipped the same day:
+
+1. **`adk.session.session_read_memo`** — a request-scoped `ContextVar` memo
+   in `_LegacyAnonOwnerSessionService.get_session`, opened by
+   `stream_agui_events` around the run. Three fetches → one. Not the "cache +
+   write-back" pattern de-scoped above: nothing outlives the request, and it
+   is correct because ADK mutates the Session object in place. Expected
+   saving ~1.2 s per turn.
+2. **A first-token deadline** in `adk.quota_retry` (10 s, one retry, streamed
+   calls only). Six turns in 30 days sat 48–105 s on a request Vertex had
+   accepted and gone quiet on; the client abandons a silent stream at 30 s.
+
+What remains of the gap — one fetch plus the `append_event` write, ~1.2 s —
+is Agent Engine's per-call cost, and no memo removes it. The next step, if
+the target still matters, is a same-region session store (Firestore-backed
+`BaseSessionService` in europe-north1: ~20–50 ms a call). That is a session
+storage migration with its own resumability questions, and it is the
+decision the two items above were cheap enough to defer.

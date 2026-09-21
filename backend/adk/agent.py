@@ -78,7 +78,7 @@ from adk.proactive_greet import inject_opening_guidance
 from adk.proactive_reactive import inject_reactive_guidance
 from adk.proactive_telemetry import tag_proactive_span_from_callback_context
 from adk.progress_context import compose_progress_context
-from adk.quota_retry import retry_on_quota_exhaustion
+from adk.quota_retry import first_token_deadline, retry_on_quota_exhaustion
 from adk.teacher_focus import build_ilo_precedence_block, inject_teacher_focus, resolve_active_config
 from adk.tools import resolve_mcp_tools, resolve_tools
 from adk.tutor_framework import inject_framework_preamble
@@ -128,6 +128,13 @@ class _QuotaTolerantGemini(Gemini):
     call ONLY when nothing has been yielded yet, because ADK wraps its whole
     streaming loop in one `try` and a mid-stream retry would emit a second copy
     of text the student can already read. See `adk/quota_retry.py`.
+
+    The same seam carries the first-token deadline (2026-09-21): a streamed
+    request that has produced nothing after `FIRST_TOKEN_DEADLINE_S` is dropped
+    and made once more. Six prod turns in 30 days sat 48-105 s waiting on a
+    request Vertex had accepted and gone quiet on; the student's browser had
+    given up at 30 s. Streaming only — a non-streamed call's single "chunk" is
+    the whole answer, and its length is not a stall.
     """
 
     async def generate_content_async(self, llm_request, stream: bool = False):
@@ -135,7 +142,10 @@ class _QuotaTolerantGemini(Gemini):
             # A fresh generator per attempt — a consumed one has nothing to replay.
             return super(_QuotaTolerantGemini, self).generate_content_async(llm_request, stream)
 
-        async for response in retry_on_quota_exhaustion(_attempt):
+        async for response in retry_on_quota_exhaustion(
+            _attempt,
+            first_token_deadline_s=first_token_deadline() if stream else None,
+        ):
             yield response
 
 

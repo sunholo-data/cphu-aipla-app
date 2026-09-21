@@ -23,9 +23,18 @@ That is precisely why the client has to absorb them.
 
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
-from adk.quota_retry import QUOTA_RETRY_ATTEMPTS, retry_on_quota_exhaustion
+from adk.quota_retry import (
+    FIRST_TOKEN_ATTEMPTS,
+    FIRST_TOKEN_DEADLINE_ENV,
+    QUOTA_RETRY_ATTEMPTS,
+    FirstTokenTimeoutError,
+    first_token_deadline,
+    retry_on_quota_exhaustion,
+)
 
 
 class _Exhausted(Exception):
@@ -173,3 +182,158 @@ class TestItIsActuallyWiredIn:
         from adk.agent import _QuotaTolerantGemini, resolve_model
 
         assert not isinstance(resolve_model("claude-sonnet-5"), _QuotaTolerantGemini)
+
+    @pytest.mark.asyncio
+    async def test_a_streamed_call_carries_the_deadline_and_a_blocking_one_does_not(self, monkeypatch):
+        """Same footgun, second guard: the deadline only exists if the wrapper
+        hands it to the seam — and only for streams, where a first chunk means
+        a first token rather than the whole answer."""
+        from google.adk.models.base_llm import BaseLlm
+
+        from adk import agent as agent_mod
+
+        seen: list[float | None] = []
+
+        async def _fake_retry(make_stream, **kw):
+            seen.append(kw.get("first_token_deadline_s"))
+            yield "x"
+
+        async def _fake_super(self, llm_request, stream=False):
+            yield "x"
+
+        monkeypatch.setattr(agent_mod, "retry_on_quota_exhaustion", _fake_retry)
+        monkeypatch.setattr(BaseLlm, "generate_content_async", _fake_super)
+        model = agent_mod._QuotaTolerantGemini(model="gemini-3.5-flash-lite")
+
+        await _drain(model.generate_content_async(None, stream=True))
+        await _drain(model.generate_content_async(None, stream=False))
+
+        assert seen == [10.0, None]
+
+
+# --- The first-token deadline (2026-09-21) ---
+#
+# Thirty days of prod timing logs held six turns whose first token took 48-105 s:
+# ``Sending out request`` and then silence, no error, no 429. The student's
+# browser gave up at ~38 s; the backend was still waiting. The turns either side
+# of each stall ran in 1-3 s, so a fresh request is the fix — under the SAME
+# rule as the 429: only ever before the first chunk.
+
+
+class _Stall(Exception):
+    """Raised by a scripted stream to mark 'this attempt would hang here'."""
+
+
+def _stalling_stream(*scripts):
+    """Like ``_stream`` but a ``_Stall`` marker sleeps forever instead of raising,
+    and records whether the abandoned generator was closed."""
+    attempts = {"n": 0, "closed": 0}
+
+    async def factory():
+        script = scripts[min(attempts["n"], len(scripts) - 1)]
+        attempts["n"] += 1
+        try:
+            for chunk in script:
+                if isinstance(chunk, _Stall):
+                    await asyncio.sleep(3600)
+                elif isinstance(chunk, BaseException):
+                    raise chunk
+                yield chunk
+        finally:
+            attempts["closed"] += 1
+
+    return factory, attempts
+
+
+class TestFirstTokenDeadline:
+    @pytest.mark.asyncio
+    async def test_a_stalled_first_attempt_is_dropped_and_the_retry_answers(self):
+        factory, attempts = _stalling_stream([_Stall()], ["Bølgelængden er ", "5 m"])
+
+        out = await _drain(
+            retry_on_quota_exhaustion(factory, is_quota_error=_classify, sleep=_no_sleep, first_token_deadline_s=0.05)
+        )
+
+        assert out == ["Bølgelængden er ", "5 m"]
+        assert attempts["n"] == 2
+        # The abandoned request must actually be torn down, not left streaming
+        # into nowhere on a connection nobody is reading.
+        assert attempts["closed"] == 2
+
+    @pytest.mark.asyncio
+    async def test_two_stalls_give_up_with_a_named_error(self):
+        factory, attempts = _stalling_stream([_Stall()])
+
+        with pytest.raises(FirstTokenTimeoutError):
+            await _drain(
+                retry_on_quota_exhaustion(
+                    factory, is_quota_error=_classify, sleep=_no_sleep, first_token_deadline_s=0.05
+                )
+            )
+
+        assert attempts["n"] == FIRST_TOKEN_ATTEMPTS
+
+    @pytest.mark.asyncio
+    async def test_the_deadline_never_applies_once_output_has_started(self):
+        """A slow tail is not a stall. Once the student can read text, the
+        stream runs to completion however long the rest takes."""
+
+        async def factory():
+            yield "first"
+            await asyncio.sleep(0.2)  # well past the 0.05 s deadline below
+            yield "second"
+
+        out = await _drain(
+            retry_on_quota_exhaustion(factory, is_quota_error=_classify, sleep=_no_sleep, first_token_deadline_s=0.05)
+        )
+
+        assert out == ["first", "second"]
+
+    @pytest.mark.asyncio
+    async def test_no_deadline_means_no_deadline(self):
+        """Non-streaming callers pass ``None``: their single chunk IS the whole
+        answer, and a long answer is not a stall."""
+
+        async def factory():
+            await asyncio.sleep(0.1)
+            yield "the whole answer"
+
+        out = await _drain(retry_on_quota_exhaustion(factory, is_quota_error=_classify, sleep=_no_sleep))
+        assert out == ["the whole answer"]
+
+    @pytest.mark.asyncio
+    async def test_a_stream_that_ends_with_no_chunks_is_not_a_stall(self):
+        async def factory():
+            return
+            yield  # pragma: no cover — makes this an async generator
+
+        out = await _drain(
+            retry_on_quota_exhaustion(factory, is_quota_error=_classify, sleep=_no_sleep, first_token_deadline_s=0.05)
+        )
+        assert out == []
+
+    @pytest.mark.asyncio
+    async def test_a_429_after_a_stall_still_gets_its_own_retry(self):
+        """The two failure shapes share the rule, not the budget."""
+        factory, attempts = _stalling_stream([_Stall()], [_Exhausted("429")], ["ok"])
+
+        out = await _drain(
+            retry_on_quota_exhaustion(factory, is_quota_error=_classify, sleep=_no_sleep, first_token_deadline_s=0.05)
+        )
+
+        assert out == ["ok"]
+        assert attempts["n"] == 3
+
+
+class TestDeadlineConfig:
+    def test_default_is_ten_seconds(self, monkeypatch):
+        monkeypatch.delenv(FIRST_TOKEN_DEADLINE_ENV, raising=False)
+        assert first_token_deadline() == 10.0
+
+    def test_zero_disables_it(self, monkeypatch):
+        monkeypatch.setenv(FIRST_TOKEN_DEADLINE_ENV, "0")
+        assert first_token_deadline() is None
+
+    def test_garbage_falls_back_to_the_default_rather_than_crashing_a_turn(self, monkeypatch):
+        monkeypatch.setenv(FIRST_TOKEN_DEADLINE_ENV, "soon")
+        assert first_token_deadline() == 10.0

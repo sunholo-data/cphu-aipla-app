@@ -194,28 +194,31 @@ async def stream_agui_events(
     for stage_event in tracker.drain_stage_events():
         yield stage_event.model_dump(by_alias=True, exclude_none=True)
 
-    async for event in agui_agent.run(run_input):
-        if not first_agui_event_seen:
-            tracker.mark(STAGE_FIRST_AGUI_EVENT)
-            first_agui_event_seen = True
+    from adk.session import session_read_memo
 
-        # First TEXT_MESSAGE_CONTENT == first model-emitted token reaching
-        # the wire. Earlier signals (RUN_STARTED, TEXT_MESSAGE_START) are
-        # handshake events ag_ui_adk emits before the model speaks.
-        event_type = getattr(event, "type", None)
-        if not first_model_token_seen and event_type is not None:
-            type_value = getattr(event_type, "value", str(event_type))
-            if type_value == "TEXT_MESSAGE_CONTENT":
-                tracker.mark(STAGE_FIRST_MODEL_TOKEN)
-                first_model_token_seen = True
-            elif type_value == "TOOL_CALL_START":
-                tracker.increment_tool_invocations()
+    with session_read_memo():
+        async for event in agui_agent.run(run_input):
+            if not first_agui_event_seen:
+                tracker.mark(STAGE_FIRST_AGUI_EVENT)
+                first_agui_event_seen = True
 
-        yield event.model_dump(by_alias=True, exclude_none=True)
+            # First TEXT_MESSAGE_CONTENT == first model-emitted token reaching
+            # the wire. Earlier signals (RUN_STARTED, TEXT_MESSAGE_START) are
+            # handshake events ag_ui_adk emits before the model speaks.
+            event_type = getattr(event, "type", None)
+            if not first_model_token_seen and event_type is not None:
+                type_value = getattr(event_type, "value", str(event_type))
+                if type_value == "TEXT_MESSAGE_CONTENT":
+                    tracker.mark(STAGE_FIRST_MODEL_TOKEN)
+                    first_model_token_seen = True
+                elif type_value == "TOOL_CALL_START":
+                    tracker.increment_tool_invocations()
 
-        # After each ADK event, flush any STAGE_PROGRESS that fired during
-        # callback execution (e.g. before_model_callback marks
-        # ``before_model_done`` with label "Thinking…"). Done in-loop so
-        # the order on the wire matches the order marks fired.
-        for stage_event in tracker.drain_stage_events():
-            yield stage_event.model_dump(by_alias=True, exclude_none=True)
+            yield event.model_dump(by_alias=True, exclude_none=True)
+
+            # After each ADK event, flush any STAGE_PROGRESS that fired during
+            # callback execution (e.g. before_model_callback marks
+            # ``before_model_done`` with label "Thinking…"). Done in-loop so
+            # the order on the wire matches the order marks fired.
+            for stage_event in tracker.drain_stage_events():
+                yield stage_event.model_dump(by_alias=True, exclude_none=True)

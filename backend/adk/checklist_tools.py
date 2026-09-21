@@ -136,7 +136,10 @@ def build_checklist_tools(cfg: ActivityConfig | None, user: User) -> list[Functi
         Use this when the conversation gives you real evidence that a step is
         finished — the student described the measurement they took, or worked
         through the calculation. Do NOT tick a step just because the student
-        says "done"; tick it when you have seen the substance.
+        says "done"; tick it when you have seen the substance. A check-in
+        ("er du gået i stå?", "er du der?"), a "videre", or a bare "ok" after
+        your question is not an answer and never evidence — the mark you make
+        here is read by the teacher as what the student demonstrated.
 
         The student sees every mark you make, with your reason, and can undo it.
         Say in the conversation what you have marked and why — a step that

@@ -12,8 +12,11 @@ Direct service constructors are available for testing and custom wiring.
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
+from collections.abc import Iterator
+from contextvars import ContextVar
 
 from google.adk.apps.app import EventsCompactionConfig
 from google.adk.artifacts import GcsArtifactService, InMemoryArtifactService
@@ -338,6 +341,45 @@ def _is_deterministic_anon_uid(uid: str) -> bool:
     return uid.startswith("anon-") and uid.count("-") == 1
 
 
+#: Per-request memo of ``get_session`` reads — see ``session_read_memo``.
+_read_memo: ContextVar[dict[tuple[str, str, str], Session] | None] = ContextVar("session_read_memo", default=None)
+
+
+@contextlib.contextmanager
+def session_read_memo() -> Iterator[None]:
+    """Serve repeated ``get_session`` reads of ONE session from one fetch, for
+    the duration of one request.
+
+    Measured on prod 2026-09-21 (Cloud Trace + the ttft tracker): a student's
+    turn fetched the same Agent Engine session THREE times in ~100 ms of wall
+    time before the model was asked anything - ag_ui_adk's cache-hit check, its
+    ``pending_tool_calls`` state read, and the ADK Runner's own read - at ~0.6 s
+    each (every fetch is two HTTP calls to europe-west1: get + list events). That
+    was 1.2 s of a 4.8 s median first token, spent re-reading what we already
+    held.
+
+    This is a memo, not a cache: it lives only inside the ``with`` block (a
+    ``ContextVar``, so one request's memo is invisible to every other task), and
+    it is safe because ADK mutates the Session object IN PLACE - ``append_event``
+    appends to ``session.events`` and applies the state delta on the same object
+    before writing through - so the second and third readers see exactly what
+    the first reader's object has become. Nothing is served after the block ends.
+    """
+    token = _read_memo.set({})
+    try:
+        yield
+    finally:
+        try:
+            _read_memo.reset(token)
+        except ValueError:
+            # The stream route pulls the first event in the request's context
+            # and iterates the rest inside Starlette's response task, so the
+            # block can close in a different Context from the one it opened in
+            # (the latency tracker tolerates the same split). Clear it here
+            # instead; the opening context ends with the request.
+            _read_memo.set(None)
+
+
 class _LegacyAnonOwnerSessionService(BaseSessionService):
     """Let a deterministic anon-group uid open sessions owned by a LEGACY uid.
 
@@ -384,6 +426,27 @@ class _LegacyAnonOwnerSessionService(BaseSessionService):
         session_id: str,
         config: GetSessionConfig | None = None,
     ) -> Session | None:
+        # A config-shaped read (recent-N, after-timestamp) is a different view
+        # of the session and never served from, or stored in, the memo.
+        memo = _read_memo.get() if config is None else None
+        key = (app_name, user_id, session_id)
+        if memo is not None and key in memo:
+            return memo[key]
+        session = await self._get_session_uncached(
+            app_name=app_name, user_id=user_id, session_id=session_id, config=config
+        )
+        if memo is not None and session is not None:
+            memo[key] = session
+        return session
+
+    async def _get_session_uncached(
+        self,
+        *,
+        app_name: str,
+        user_id: str,
+        session_id: str,
+        config: GetSessionConfig | None = None,
+    ) -> Session | None:
         try:
             return await self._inner.get_session(
                 app_name=app_name, user_id=user_id, session_id=session_id, config=config
@@ -413,6 +476,9 @@ class _LegacyAnonOwnerSessionService(BaseSessionService):
         return await self._inner.list_sessions(app_name=app_name, user_id=user_id)
 
     async def delete_session(self, *, app_name: str, user_id: str, session_id: str) -> None:
+        memo = _read_memo.get()
+        if memo is not None:
+            memo.pop((app_name, user_id, session_id), None)
         await self._inner.delete_session(app_name=app_name, user_id=user_id, session_id=session_id)
 
     async def append_event(self, session: Session, event: Event) -> Event:

@@ -378,3 +378,150 @@ class TestLegacyResumeThroughRealSessionManager:
             if mgr._cleanup_task:
                 mgr._cleanup_task.cancel()
             type(mgr)._instance = None
+
+
+class TestSessionReadMemo:
+    """One fetch per session per request (2026-09-21).
+
+    Cloud Trace on prod showed a student's turn reading the SAME Agent Engine
+    session three times in ~100 ms - ag_ui_adk's cache-hit check, its
+    ``pending_tool_calls`` state read, and the Runner's own read - at ~0.6 s
+    each, before the model was asked anything. 1.2 s of a 4.8 s median first
+    token. The memo collapses those into one fetch, for one request only.
+    """
+
+    @staticmethod
+    def _build():
+        from google.adk.sessions import Session
+
+        from adk.session import _LegacyAnonOwnerSessionService
+
+        class CountingInner:
+            calls = 0
+
+            async def get_session(self, *, app_name, user_id, session_id, config=None):
+                self.calls += 1
+                return Session(app_name=app_name, user_id=user_id, id=session_id)
+
+            async def delete_session(self, *, app_name, user_id, session_id):
+                return None
+
+        inner = CountingInner()
+        return _LegacyAnonOwnerSessionService(inner), inner
+
+    @pytest.mark.asyncio
+    async def test_repeated_reads_inside_one_request_hit_the_backend_once_and_share_the_object(self):
+        from adk.session import session_read_memo
+
+        svc, inner = self._build()
+        with session_read_memo():
+            a = await svc.get_session(app_name="app", user_id="anon-x", session_id="s1")
+            b = await svc.get_session(app_name="app", user_id="anon-x", session_id="s1")
+            c = await svc.get_session(app_name="app", user_id="anon-x", session_id="s1")
+
+        assert inner.calls == 1
+        # The SAME object, not an equal copy - ADK appends the student's event
+        # to it in place, so every later reader must be holding that object.
+        assert a is b is c
+
+    @pytest.mark.asyncio
+    async def test_without_an_active_memo_every_read_reaches_the_backend(self):
+        """The memo is opt-in per request. A caller outside a stream (the
+        messages route, a CLI) keeps the old always-fresh behaviour."""
+        svc, inner = self._build()
+        await svc.get_session(app_name="app", user_id="anon-x", session_id="s1")
+        await svc.get_session(app_name="app", user_id="anon-x", session_id="s1")
+        assert inner.calls == 2
+
+    @pytest.mark.asyncio
+    async def test_nothing_survives_the_request(self):
+        from adk.session import session_read_memo
+
+        svc, inner = self._build()
+        with session_read_memo():
+            await svc.get_session(app_name="app", user_id="anon-x", session_id="s1")
+        with session_read_memo():
+            await svc.get_session(app_name="app", user_id="anon-x", session_id="s1")
+        assert inner.calls == 2
+
+    @pytest.mark.asyncio
+    async def test_a_different_session_or_user_is_its_own_fetch(self):
+        from adk.session import session_read_memo
+
+        svc, inner = self._build()
+        with session_read_memo():
+            await svc.get_session(app_name="app", user_id="anon-x", session_id="s1")
+            await svc.get_session(app_name="app", user_id="anon-x", session_id="s2")
+            await svc.get_session(app_name="app", user_id="anon-y", session_id="s1")
+        assert inner.calls == 3
+
+    @pytest.mark.asyncio
+    async def test_a_config_shaped_read_bypasses_the_memo(self):
+        """``GetSessionConfig(num_recent_events=…)`` is a different VIEW of the
+        session; serving the full object for it, or memoising the partial one,
+        would both be wrong."""
+        from google.adk.sessions.base_session_service import GetSessionConfig
+
+        from adk.session import session_read_memo
+
+        svc, inner = self._build()
+        with session_read_memo():
+            await svc.get_session(app_name="app", user_id="anon-x", session_id="s1")
+            await svc.get_session(
+                app_name="app", user_id="anon-x", session_id="s1", config=GetSessionConfig(num_recent_events=2)
+            )
+            await svc.get_session(app_name="app", user_id="anon-x", session_id="s1")
+        assert inner.calls == 2
+
+    @pytest.mark.asyncio
+    async def test_delete_evicts(self):
+        from adk.session import session_read_memo
+
+        svc, inner = self._build()
+        with session_read_memo():
+            await svc.get_session(app_name="app", user_id="anon-x", session_id="s1")
+            await svc.delete_session(app_name="app", user_id="anon-x", session_id="s1")
+            await svc.get_session(app_name="app", user_id="anon-x", session_id="s1")
+        assert inner.calls == 2
+
+    @pytest.mark.asyncio
+    async def test_a_background_task_started_inside_the_request_shares_the_memo(self):
+        """ag_ui_adk runs the ADK Runner in a task it creates inside ``run()``.
+        A task copies the context it was created in, so the Runner's read must
+        land in the SAME memo as the reads made before the task existed."""
+        import asyncio
+
+        from adk.session import session_read_memo
+
+        svc, inner = self._build()
+        with session_read_memo():
+            first = await svc.get_session(app_name="app", user_id="anon-x", session_id="s1")
+
+            async def runner_side():
+                return await svc.get_session(app_name="app", user_id="anon-x", session_id="s1")
+
+            second = await asyncio.create_task(runner_side())
+
+        assert inner.calls == 1
+        assert first is second
+
+    @pytest.mark.asyncio
+    async def test_the_stream_activates_it(self):
+        """The wiring guard: the memo is worthless if ``stream_agui_events`` does
+        not open it around the run."""
+        from adk import session as session_mod
+        from adk.agui import stream_agui_events
+
+        seen: list[bool] = []
+
+        class FakeAgent:
+            async def run(self, run_input):
+                seen.append(session_mod._read_memo.get() is not None)
+                if False:  # pragma: no cover - keeps this an async generator
+                    yield None
+
+        assert session_mod._read_memo.get() is None
+        async for _ in stream_agui_events(FakeAgent(), run_input=None):  # type: ignore[arg-type]
+            pass
+        assert seen == [True]
+        assert session_mod._read_memo.get() is None
