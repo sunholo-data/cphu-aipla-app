@@ -106,6 +106,9 @@ def build_curriculum_retrieval_tool(materials: list[MaterialRef]) -> object | No
     # multimodal Parts (see adk/activity_images.py), not via retrieval.
     materials = [m for m in materials if m.kind == "curriculum"]
     if not materials:
+        # 1.1.132: say so. This path was silent, so "no notes attached" and
+        # "retrieval never ran" were indistinguishable in the logs.
+        log.info("curriculum: no curriculum materials attached — no retrieval tool")
         return None
 
     corpus_name = os.environ.get(_CORPUS_ENV, "").strip()
@@ -185,6 +188,53 @@ def build_curriculum_grounding_preamble(materials: list[MaterialRef]) -> str:
         origin_list = "\n".join(f"- {label}" for label in labels)
 
     return _GROUNDING_PREAMBLE_TEMPLATE.format(origin_list=origin_list)
+
+
+# 1.1.132 — the tutor states what it can read, and only that.
+#
+# 2026-09-22: a maths activity's teacher text said "det vedlagte dokument"; no
+# material was attached, nothing told the tutor so, and it described "what the
+# notes say" for an hour until the student caught it. A later session with RAG
+# attached answered "what does page 1 say?" from top-5 semantic excerpts that
+# carry no page numbers. Both are the same failure: claiming a source, or a
+# position in one, that the tutor cannot see.
+_NO_MATERIALS_BLOCK = """
+
+## What you can read
+You have NO written notes or documents for this activity{images}. If the \
+teacher's text or the student mentions notes, a document, a page or a handout, \
+say plainly that you cannot see it and suggest they ask their teacher. Never \
+describe what notes say when you have not been given them.
+"""
+
+_EXCERPTS_ONLY_BLOCK = """
+
+## What you can read
+You see the curriculum material only as short excerpts found by topic — not the \
+whole document, and without page numbers. Never name a page, section or theorem \
+number unless it appears in an excerpt you were given. If the student asks what \
+a particular page or section says, explain that you can only search the material \
+by topic, and ask what the topic is.
+"""
+
+
+def build_sources_honesty_block(materials: list[MaterialRef], *, has_activity: bool) -> str:
+    """Tell the tutor what it can actually read for this activity.
+
+    - no activity                → ``""`` (nothing activity-shaped is added)
+    - whole-document ``context`` → ``""`` (it has the full text)
+    - curriculum (RAG) only      → excerpts, no pages
+    - nothing written            → it has no notes; never paraphrase any
+    """
+    if not has_activity:
+        return ""
+    kinds = [getattr(m, "kind", "curriculum") for m in materials or []]
+    if "context" in kinds:
+        return ""
+    if "curriculum" in kinds:
+        return _EXCERPTS_ONLY_BLOCK
+    images = " (apart from the images shown to you)" if "image" in kinds else ""
+    return _NO_MATERIALS_BLOCK.format(images=images)
 
 
 def _source_label(material: MaterialRef) -> str:

@@ -63,6 +63,7 @@ from adk.citation_markers import make_marker_strip_callback
 from adk.curriculum_retrieval import (
     build_curriculum_grounding_preamble,
     build_curriculum_retrieval_tool,
+    build_sources_honesty_block,
 )
 from adk.element_state import make_element_state_wrapper
 from adk.iframe_context import wrap_with_iframe_context
@@ -831,6 +832,8 @@ def create_agent(
                                 # the curriculum preamble held the last word.
                                 skill_config.instructions
                                 + build_curriculum_grounding_preamble(_materials)
+                                # 1.1.132 — what the tutor can actually read.
+                                + build_sources_honesty_block(_materials, has_activity=_active_cfg is not None)
                                 + build_ilo_precedence_block(_active_cfg)
                                 # 1.1.70 M1 — what this GROUP has already been
                                 # recorded as doing. Both summaries were

@@ -792,3 +792,17 @@ def test_create_agent_opening_guidance_only_on_the_opening_turn(
     assert ("OPENING GUIDANCE" in resolved) is expect_opening
     assert ("FIRST MESSAGE" in resolved) is expect_first_message
     assert "Do the thing." in resolved
+
+
+def test_an_activity_without_notes_tells_the_tutor_it_has_none(_activity_env):
+    """1.1.132 — the merry-grove-47 shape, through the real agent build: an
+    activity whose goal mentions a document, with nothing attached."""
+    import asyncio
+    from unittest.mock import MagicMock
+
+    _seed_activity("act-reelle-tal", teaching_goal="Læs det vedlagte dokument om de reelle tal.")
+    agent = create_agent(_skill(), _student(), activity_id="act-reelle-tal")
+    ctx = MagicMock()
+    ctx.state = {}
+    out = asyncio.run(agent.instruction(ctx))
+    assert "NO written notes or documents" in out

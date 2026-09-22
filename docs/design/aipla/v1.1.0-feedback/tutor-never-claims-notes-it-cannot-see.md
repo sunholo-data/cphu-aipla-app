@@ -1,6 +1,6 @@
 # The tutor never claims notes it cannot see
 
-**Status:** Design (OPEN) — **1.1.132**
+**Status:** **M0 SHIPPED (dev) 2026-09-22** — M1–M3, eval and the join-link fix open — **1.1.132**
 **Priority:** **P1** — the tutor invented the content of a teacher's notes, repeatedly, to a student who then caught it. That is the Axiom 2 (Earned Trust) failure in its plainest form, and the first maths activity hit it within an hour
 **Estimated:** ~1–1.25d (M0 honest-absence block ~0.25d · M1 log what the tutor could read ~0.2d · M2 authoring warns on a referenced-but-missing doc ~0.3d · M3 "notes" as context, not curriculum ~0.25d · eval ~0.2d)
 **Scope:** Backend — `adk/curriculum_retrieval.py`, `adk/callbacks/activity_documents.py`, `adk/teacher_focus.py`, `adk/agent.py`, chat-log stamp. Frontend — activity builder materials step
@@ -124,3 +124,24 @@ the correct page's content.
    before treating its complaints as student feedback.
 2. For M3: keep page markers through AILANG Parse into the context text?
    Needs a check of what the parser emits for PDFs.
+
+## What shipped — M0, 2026-09-22
+
+- `adk/curriculum_retrieval.build_sources_honesty_block`, appended right after
+  the curriculum grounding preamble, **for any saved activity**:
+  - nothing written attached → "you have NO written notes… never describe what
+    notes say", with an extra clause when images are attached;
+  - curriculum (RAG) only → "excerpts by topic, no page numbers; never name a
+    page, section or theorem number unless it appears in an excerpt";
+  - a whole-document `context` material → no caveat, since it has the full text.
+  - No activity → nothing, so the no-activity passthrough test is untouched.
+- The silent `None` return when no curriculum is attached now logs
+  `curriculum: no curriculum materials attached`.
+- The block is in English like the rest of the instruction. The reply language
+  comes from the activity directive.
+- **Tests:** `tests/unit/test_sources_honesty_block.py`, plus a `merry-grove-47`
+  shaped wiring test in `test_create_agent.py`. The wiring test fails with the
+  wiring removed.
+- **Not done:** M1 (log what the tutor could read / `grounding_metadata`), M2
+  (authoring warning), M3 (notes as `context` by default), the eval, and the
+  pasted-join-link fix.
