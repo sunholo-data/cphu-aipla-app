@@ -83,6 +83,7 @@ from adk.quota_retry import first_token_deadline, retry_on_quota_exhaustion
 from adk.teacher_focus import build_ilo_precedence_block, inject_teacher_focus, resolve_active_config
 from adk.tools import resolve_mcp_tools, resolve_tools
 from adk.tutor_framework import inject_framework_preamble
+from adk.tutor_identity import build_identity_block
 from adk.tutor_resolution import resolve_teaching_context
 from auth.access_context import AccessContext
 from auth.firebase_auth import User
@@ -861,7 +862,13 @@ def create_agent(
                                 # "later instruction wins" convention — it is a
                                 # formatting rule and must not be overridden by
                                 # a body that predates it.
-                                + build_math_notation_block(),
+                                + build_math_notation_block()
+                                # 1.1.126 — the name the student SEES, from the
+                                # same resolution the chat log stamps. Students
+                                # only: the persona renders in the anonymous-group
+                                # chat, and a teacher co-pilot must not be told
+                                # it is "Sofie".
+                                + (build_identity_block(_teaching_ctx.persona_id) if user.group_id else ""),
                                 skill_config.multimodal_input,
                             ),
                             _activity_id,

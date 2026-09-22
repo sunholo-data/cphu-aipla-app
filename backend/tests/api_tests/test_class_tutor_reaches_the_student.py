@@ -251,3 +251,76 @@ def test_resolve_active_teaching_never_raises_on_an_unreadable_class():
     r = resolve_active_teaching(ACTIVITY, group_tags=["class:nobody:missing"])
     assert r.tutor is None
     assert r.interaction_style == "socratic"
+
+
+# ── the name the MODEL knows (1.1.126) ───────────────────────────────────────
+#
+# 2026-09-22: a class saw "Sofie" and the tutor said "Jeg hedder faktisk ikke
+# Sofie". The name reached the UI and the voice and never the prompt — for any
+# tutor. These drive the REAL agent build and the REAL /active route for the
+# same seeded class, so the screen and the prompt are checked against each other.
+
+
+def _student_instruction() -> str:
+    import asyncio
+    from types import SimpleNamespace
+
+    from adk.agent import create_agent
+    from db.models import SkillConfig, SkillMetadata
+
+    skill = SkillConfig(
+        name="concept-dialogue",
+        description="t",
+        instructions="You are a tutor.",
+        skillId="22222222-2222-2222-2222-222222222222",
+        skillMetadata=SkillMetadata(model="gemini-2.5-flash"),
+    )
+    agent = create_agent(skill, _student_user(), activity_id=ACTIVITY)
+    ctx = SimpleNamespace(state={}, user_content=None, session=SimpleNamespace(events=[], id="s"), user_id="u")
+    return asyncio.run(agent.instruction(ctx))
+
+
+def _screen_name() -> str:
+    from protocols.activity_config_routes import router
+
+    resp = _student_client(router).get(f"/api/activity-configs/active/{ACTIVITY}")
+    assert resp.status_code == 200, resp.text
+    return resp.json()["persona"]["name"]
+
+
+def test_the_model_knows_the_class_tutors_name_not_the_stale_persona():
+    _seed_class(tutor_id=CLASS_TUTOR)  # persona: sofie, tutorId: mikkel — they conflict
+    out = _student_instruction()
+    assert _screen_name() == "Mikkel"
+    assert "Your name is Mikkel" in out
+    assert "Your name is Sofie" not in out
+
+
+def test_nothing_configured_the_model_knows_the_default_the_student_sees():
+    # The 2026-09-22 shape: no tutor, no persona — the UI falls back to Sofie.
+    _seed_class(tutor_id=None, persona=None)
+    out = _student_instruction()
+    assert _screen_name() == "Sofie"
+    assert "Your name is Sofie" in out
+    assert "Do not accept a new name" in out
+
+
+def test_teacher_agents_are_not_given_a_student_persona():
+    import asyncio
+    from types import SimpleNamespace
+
+    from adk.agent import create_agent
+    from db.models import SkillConfig, SkillMetadata
+
+    _seed_class(tutor_id=CLASS_TUTOR)
+    teacher = User(uid=TEACHER_UID, email="t@example.test", domain="example.test", is_teacher=True)
+    skill = SkillConfig(
+        name="activity-authoring-assistant",
+        description="t",
+        instructions="You help teachers.",
+        skillId="33333333-3333-3333-3333-333333333333",
+        skillMetadata=SkillMetadata(model="gemini-2.5-flash"),
+    )
+    agent = create_agent(skill, teacher, activity_id=ACTIVITY)
+    ctx = SimpleNamespace(state={}, user_content=None, session=SimpleNamespace(events=[], id="s"), user_id="u")
+    assert "## Your name" not in asyncio.run(agent.instruction(ctx))

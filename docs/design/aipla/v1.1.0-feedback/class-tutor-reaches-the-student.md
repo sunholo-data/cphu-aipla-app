@@ -83,6 +83,14 @@ passthrough test beside its bug test for this reason, and
 `resolve_active_teaching` never raises (Axiom 5: a failed read costs the tutor's
 clothes, not the lesson).
 
+> **One deliberate exception, 2026-09-22 ([1.1.126](tutor-knows-its-own-name.md)).**
+> A student's prompt now carries a short `## Your name` block naming the
+> persona the student sees, including the global default when nothing is
+> configured. So the no-tutor path is no longer byte-identical for students.
+> The rule protects the *pedagogy* from drifting. A name tag the student
+> already reads on screen is the prompt catching up with the screen, not drift.
+> Tone, framework and voice passthrough are unchanged.
+
 ### A second, quieter bug found on the way
 
 `update_class_tutor` cleared the stale per-class voice override by writing

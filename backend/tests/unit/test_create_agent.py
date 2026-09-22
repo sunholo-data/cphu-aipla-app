@@ -596,14 +596,23 @@ def test_no_activity_composes_exactly_as_before(_activity_env):
     guard's point is unchanged and is the reason it stays exact rather than
     becoming a substring check: with no activity, the curriculum-grounding,
     ILO-precedence and progress-context blocks must each contribute the empty
-    string, and any one of them leaking in still fails here."""
+    string, and any one of them leaking in still fails here.
+
+    1.1.126 (2026-09-22) adds the identity block for students. It is not
+    activity-shaped: ``/api/activity-configs/active`` returns the resolved
+    persona even when there is no config, so a student with no activity still
+    sees the default persona's name — and the model must know it."""
     import asyncio
     from unittest.mock import MagicMock
+
+    from adk.tutor_identity import build_identity_block
 
     agent = create_agent(_skill(), _student())
     ctx = MagicMock()
     ctx.state = {}
-    assert asyncio.run(agent.instruction(ctx)) == "Do the thing." + build_math_notation_block()
+    assert asyncio.run(agent.instruction(ctx)) == (
+        "Do the thing." + build_math_notation_block() + build_identity_block(None)
+    )
 
 
 def test_inherited_checklist_progress_reaches_the_model(_activity_env):

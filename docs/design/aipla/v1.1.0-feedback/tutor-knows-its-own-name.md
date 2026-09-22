@@ -1,6 +1,6 @@
 # The tutor does not know its own name — the name axis has no reader in the prompt
 
-**Status:** Design (OPEN) — **1.1.126**
+**Status:** **M0-lite + M1 + M3 SHIPPED (dev) 2026-09-22** — M2 (log the displayed persona) open — **1.1.126**
 **Priority:** **P1** — a student-visible trust defect, cheap to fix, and it affects *every* tutor, not only the unconfigured case where it surfaced
 **Estimated:** ~0.5–0.75d (M0 one derivation ~0.2d · M1 identity block in the prompt ~0.2d · M2 log what the student saw ~0.1d · M3 tests ~0.2d)
 **Scope:** Backend — `adk/tutor_resolution.py`, `adk/agent.py` instruction chain, `protocols/activity_config_routes.py`, `protocols/voice_routes.py`, `adk/callbacks/session.py`
@@ -130,3 +130,25 @@ configured tutors keep the gap. Acceptable as a stop-gap if M1 slips past the
    Today's activity was built by a teacher who never chose one.
 2. Is there a class of harmless renaming a teacher *wants* (a class nickname for
    the tutor)? If so it belongs in teacher config, not in a student's request.
+
+## What shipped — 2026-09-22
+
+- **M1:** `adk/tutor_identity.build_identity_block`, appended after the maths
+  notation block **for anonymous-group students only**. Teacher co-pilots are
+  not told they are "Sofie". The block is in English like the rest of the
+  instruction, since the reply language comes from the activity directive.
+- **M0, reduced:** no new resolver. The block takes `TeachingContext.persona_id`,
+  which the agent already resolves for the chat-log stamp, and passes it through
+  the same `resolve_persona_chain` default the UI uses. So a fourth derivation
+  was not added. The UI route's `get_class_for_group` versus the teaching join's
+  `class_id_from_group_tags` still differ, and that is still open.
+- **M3:** `test_class_tutor_reaches_the_student.py` now checks the **screen**
+  (`/active`) and the **prompt** against each other for the conflicting class
+  (Mikkel) and the nothing-configured class (Sofie). Both fail with the wiring
+  removed. There is also a teacher-agent negative test and
+  `tests/unit/test_tutor_identity.py`.
+- **1.1.112 rule 1:** the exception is recorded in its doc.
+  `test_no_activity_composes_exactly_as_before` now expects the identity block,
+  because `/active` returns a persona even with no activity config.
+- **Not done:** M2 (`displayed_persona_id` on the chat log needs a BigQuery
+  column), and the "rename me" eval case.
