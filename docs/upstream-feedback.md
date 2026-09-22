@@ -1520,6 +1520,37 @@ saved upstream and every sibling fork the same incidents:
 carry them parameterised — which is also the honest reason they had not gone up
 by accident: porting them is authoring, not copying.
 
+## 50. Every turn pays five Agent Engine round trips before the model is asked; a silent provider stall is invisible to `ResilientLlm`
+
+**Where:** `backend/adk/session.py` (`get_session_service`), `adk/agui.py`
+(`stream_agui_events`), `adk/resilient_llm.py`, `adk/model_errors.py`.
+
+**Measured on AIPLA prod, 2026-09-21** (the ttft tracker's per-stage marks +
+Cloud Trace): request → `before_agent` fires p50 **2.8 s**, flat regardless of
+session length, of which ~2.4 s was five round trips on the SAME session at
+~0.6 s each — ag_ui_adk's cache check, its `pending_tool_calls` read, the
+Runner's read, the user-message `append_event` awaited before the agent starts,
+the before-agent state-delta `append_event` awaited before the model is asked.
+Gemini's own first token ~1 s. Student-perceived first token p50 4.8 s against
+the template's <1 s target. Separately, six turns in thirty days sat 48–105 s
+on requests logged as sent and then silent — no exception, so the classifier
+never fired and the client abandoned the stream at 30 s.
+
+**Fixed on AIPLA 2026-09-21** (`6033cf84`, `86991be3`, `c085b38d`; prod as
+v0.1.62): a request-scoped read memo + chained background writes on the session
+wrapper, and a 10 s first-token deadline with one retry in `quota_retry.py`.
+First token measured 4.2 → ~2.1 s on dev.
+
+> **Ported 2026-09-22** as
+> [platform-source#14](https://github.com/sunholo-data/platform-source/pull/14)
+> — **authored, not copied**: upstream has no `_LegacyAnonOwnerSessionService`
+> to hang the memo on (→ a generic `ReadMemoSessionService`), and it has
+> `ResilientLlm` where we have `quota_retry.py`, so the deadline went in as a
+> `SilentStallError` / `MODEL_SILENT_STALL` class that rides its existing
+> retry-then-fallback loop. Upstream fast suite 3426 passed. ⚠️ When
+> workstream F ports `ResilientLlm` DOWN, the deadline should come with it and
+> `adk/quota_retry.py` retire — two implementations of one seam otherwise.
+
 ## Backlog (likely additions as v0.1 sprint continues)
 
 - M5 may surface IAM bindings the bootstrap script should add
