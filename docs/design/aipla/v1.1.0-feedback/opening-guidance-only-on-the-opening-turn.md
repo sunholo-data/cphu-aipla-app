@@ -1,6 +1,6 @@
 # Opening guidance only on the opening turn — the greeting re-emitted mid-conversation
 
-**Status:** Design (OPEN) — **1.1.127**
+**Status:** **M0 + M1 SHIPPED (dev) 2026-09-22** — M2 (frontend skip races), M3 (model eval), M4 (authored opening) open — **1.1.127**
 **Priority:** **P1** — student-visible in 2 of 6 active groups on 2026-09-22; also the likely explanation for the September "greeting regression" (item 11) that [opening-knows-the-lesson](opening-knows-the-lesson.md) was marked SHIPPED against
 **Estimated:** ~1–1.5d (M0 greet-turn-only injection ~0.3d · M1 first-turn-without-greet block ~0.2d · M2 frontend races ~0.3d · M3 eval owed since item 11 ~0.3d · M4 authored opening message, optional ~0.5d)
 **Scope:** Backend — `adk/agent.py` (~862), `adk/proactive_greet.py`, `adk/teacher_focus.py`, `protocols/proactive_routes.py`. Frontend — `app/chat/[...path]/page.tsx` (~753), `lib/proactiveGreet.ts`, composer gating
@@ -142,3 +142,25 @@ the cause. Keep it only if M0 is delayed past the 28 September session.
    next owns compaction (`adk/compaction_summarizer.py`, upstream sprint
    COMPACTION-WIRE) — and the summarizer's 500 today
    needs to be confirmed as either retried or a clean no-op, not a silent loss.
+
+## What shipped — M0 + M1, 2026-09-22
+
+- `adk/proactive_greet.py`: `wrap_opening_guidance_per_turn`, placed right after
+  `wrap_with_iframe_context` in the provider chain. The iframe wrapper must
+  receive the base string; this one resolves either a string or a provider.
+  - On the `[session_start]` turn the block is kept.
+  - On the first student turn with no stored tutor event, it is replaced by a
+    short `FIRST MESSAGE` block that is true.
+  - Otherwise it is removed.
+  - "Has the tutor spoken" reads the **stored** events, so a compacted
+    conversation is not mistaken for a new one.
+- `inject_opening_guidance` is unchanged; the transform happens after it, so
+  its tests and the greet route are untouched.
+- **Tests:** `tests/unit/test_opening_guidance_per_turn.py` (the transform
+  against the real composed block, all three turn kinds, and the compacted
+  `bold-kazoo-64` shape) and a wiring test in `test_create_agent.py` that
+  resolves a real agent's instruction. The wiring test fails with the wrapper
+  removed.
+- **Not done:** M3's model-level eval. The unit tests prove the model is no
+  longer *told* it is speaking first; they do not prove how flash-lite behaves.
+  Also not done: the M2 frontend races, and M4.

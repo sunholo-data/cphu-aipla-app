@@ -22,6 +22,8 @@ should be distinguishable via OTel ``tutor.proactive_kind`` span tags.
 from __future__ import annotations
 
 import logging
+import re
+from typing import Any
 
 from adk.prompt_budget import clip, fit_lines
 from db.models.activity_config import ELEMENT_REGISTRY, ActivityConfig
@@ -180,4 +182,95 @@ def inject_opening_guidance(
     return f"{instructions.rstrip()}\n\n{block}"
 
 
-__all__ = ["OPENING_ACTIVITY_CAP", "inject_opening_guidance"]
+# ---------------------------------------------------------------------------
+# 1.1.127 — the opening block belongs to the OPENING turn only.
+#
+# ``inject_opening_guidance`` runs at agent build time, and the agent is built
+# per request, so the block ("They have NOT yet sent a message. You are
+# speaking first") used to sit in EVERY turn's instruction, held back only by a
+# request to ignore it later. On 2026-09-22 it won: once compaction had removed
+# the tutor's real greeting from view, a reply twenty exchanges in opened with
+# the teacher's greeting again; and a group whose greet never fired got the
+# greeting in front of the answer to its first question.
+#
+# This wrapper runs per TURN, first in the instruction-provider chain:
+#   - ``[session_start]`` turn        → the block, as before
+#   - first student turn, no greet    → a short, TRUE first-message block
+#   - every other turn                → no block
+# ---------------------------------------------------------------------------
+
+GREET_SENTINEL = "[session_start]"
+
+_RULE = "=" * 60
+_OPENING_BLOCK_RE = re.compile(
+    r"\n*"
+    + re.escape(_RULE)
+    + r"\nOPENING GUIDANCE \(system context, not student input\)\.[\s\S]*?\n"
+    + re.escape(_RULE)
+)
+
+_FIRST_MESSAGE_BLOCK = f"""{_RULE}
+FIRST MESSAGE (system context, not student input).
+
+This is the student's first message in this conversation; there was no
+opening turn from you. If a greeting is natural, keep it to a few words, then
+answer what they actually asked. Do not introduce the activity or the
+workbench at length.
+{_RULE}"""
+
+
+def _user_text(ctx: Any) -> str:
+    content = getattr(ctx, "user_content", None)
+    parts = getattr(content, "parts", None) or []
+    return " ".join(getattr(p, "text", "") or "" for p in parts).strip()
+
+
+def _has_prior_model_turn(ctx: Any) -> bool:
+    """True once the tutor has said anything in this session.
+
+    Reads the STORED events, not what the model sees — compaction replaces
+    history in the prompt but leaves the events, which is the point: a
+    compacted conversation is not a new one.
+    """
+    session = getattr(ctx, "session", None)
+    for event in getattr(session, "events", None) or []:
+        if getattr(event, "author", "user") == "user":
+            continue
+        content = getattr(event, "content", None)
+        if any((getattr(p, "text", "") or "").strip() for p in (getattr(content, "parts", None) or [])):
+            return True
+    return False
+
+
+def render_opening_guidance_for_turn(instruction: str, *, opening_turn: bool, first_student_turn: bool) -> str:
+    """Keep, replace or drop the OPENING GUIDANCE block for this turn.
+
+    Pure string transform, exposed for tests. An instruction with no block
+    (skill without proactive greet) comes back unchanged on every turn.
+    """
+    if opening_turn or not _OPENING_BLOCK_RE.search(instruction):
+        return instruction
+    if first_student_turn:
+        return _OPENING_BLOCK_RE.sub("\n\n" + _FIRST_MESSAGE_BLOCK, instruction, count=1)
+    return _OPENING_BLOCK_RE.sub("", instruction, count=1)
+
+
+def wrap_opening_guidance_per_turn(upstream: Any) -> Any:
+    """InstructionProvider wrapper — see the section comment above."""
+
+    async def _provider(ctx: Any) -> str:
+        base = await upstream(ctx) if callable(upstream) else upstream
+        opening_turn = _user_text(ctx) == GREET_SENTINEL
+        first_student_turn = not opening_turn and not _has_prior_model_turn(ctx)
+        return render_opening_guidance_for_turn(base, opening_turn=opening_turn, first_student_turn=first_student_turn)
+
+    return _provider
+
+
+__all__ = [
+    "GREET_SENTINEL",
+    "OPENING_ACTIVITY_CAP",
+    "inject_opening_guidance",
+    "render_opening_guidance_for_turn",
+    "wrap_opening_guidance_per_turn",
+]

@@ -75,7 +75,7 @@ from adk.mcp_observability import (
     make_mcp_before_tool_callback,
 )
 from adk.multimodal import inject_image_input_preamble
-from adk.proactive_greet import inject_opening_guidance
+from adk.proactive_greet import inject_opening_guidance, wrap_opening_guidance_per_turn
 from adk.proactive_reactive import inject_reactive_guidance
 from adk.proactive_telemetry import tag_proactive_span_from_callback_context
 from adk.progress_context import compose_progress_context
@@ -887,6 +887,10 @@ def create_agent(
                 group_tags=user.group_tags,
             ),
             wrap_with_iframe_context,
+            # 1.1.127 — the opening block is kept only on the [session_start]
+            # turn (see adk/proactive_greet.py). After the iframe wrapper, which
+            # must receive the base STRING; this one resolves either form.
+            wrap_opening_guidance_per_turn,
             # 1.1.69 M1+M2 — the server's own reading of what the student has
             # actually FILLED IN, composed per TURN from the same session state
             # the iframe-context block above dumps raw.

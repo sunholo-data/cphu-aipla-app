@@ -740,3 +740,46 @@ def test_no_progress_summary_is_left_defined_but_unwired():
         "only works if it reaches the instruction — add it to compose_progress_context in "
         "adk/progress_context.py."
     )
+
+
+# --- 1.1.127: the opening block is wired per TURN, not per build ---
+
+
+def _greet_ctx(user_text: str, *, tutor_has_spoken: bool):
+    from types import SimpleNamespace
+
+    events = []
+    if tutor_has_spoken:
+        events = [
+            SimpleNamespace(author="user", content=SimpleNamespace(parts=[SimpleNamespace(text="[session_start]")])),
+            SimpleNamespace(author="tutor", content=SimpleNamespace(parts=[SimpleNamespace(text="Hej med jer!")])),
+        ]
+    return SimpleNamespace(
+        state={},
+        user_content=SimpleNamespace(parts=[SimpleNamespace(text=user_text)]),
+        session=SimpleNamespace(events=events, id="s1"),
+        user_id="u1",
+    )
+
+
+@pytest.mark.parametrize(
+    ("user_text", "tutor_has_spoken", "expect_opening", "expect_first_message"),
+    [
+        ("[session_start]", False, True, False),
+        ("hvad skal vi undersøge?", False, False, True),  # greet never fired
+        ("er det fint nok?", True, False, False),  # any later turn
+    ],
+)
+def test_create_agent_opening_guidance_only_on_the_opening_turn(
+    user_text, tutor_has_spoken, expect_opening, expect_first_message
+):
+    import asyncio
+
+    skill = _skill()
+    skill.proactive_greet = True
+    skill.opening_template = "Greet them briefly, then ask one question."
+    agent = create_agent(skill, _user())
+    resolved = asyncio.run(agent.instruction(_greet_ctx(user_text, tutor_has_spoken=tutor_has_spoken)))
+    assert ("OPENING GUIDANCE" in resolved) is expect_opening
+    assert ("FIRST MESSAGE" in resolved) is expect_first_message
+    assert "Do the thing." in resolved
