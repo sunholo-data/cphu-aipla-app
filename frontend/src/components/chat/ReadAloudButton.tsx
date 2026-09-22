@@ -30,6 +30,7 @@ import { Volume2, VolumeX } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { fetchWithAuth } from "@/lib/apiClient";
 import { rulesForLang } from "@/lib/voice-pronunciation";
+import { stripCitationMarkers } from "@/lib/citationMarkers";
 
 interface ReadAloudButtonProps {
   /** Text to speak. Stripped of markdown / HTML before utterance. */
@@ -126,7 +127,8 @@ function applyUnitRules(text: string, lang: string): string {
  *  enough to keep math VALUES readable.
  */
 function plainTextForSpeech(text: string, lang: string = "en"): string {
-  const stripped = text
+  // 0. Vertex RAG chunk labels (1.1.122) — TTS was reading them aloud.
+  const stripped = stripCitationMarkers(text)
     // 1. Block LaTeX: $$...$$ and \[ ... \]
     .replace(/\$\$[\s\S]*?\$\$/g, " ")
     .replace(/\\\[[\s\S]*?\\\]/g, " ")

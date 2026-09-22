@@ -18,6 +18,7 @@ import {
 import { InlineImage } from "@/components/chat/media/InlineImage";
 import { PDFCard } from "@/components/chat/media/PDFCard";
 import type { Components } from "react-markdown";
+import { stripCitationMarkers } from "@/lib/citationMarkers";
 
 interface ChatMarkdownProps {
   content: string;
@@ -82,7 +83,8 @@ export const ChatMarkdown = memo(function ChatMarkdown({ content, navigateToBloc
     const blocks = new Map<number, string>();
     let idx = 0;
     // 1. ```svg fenced blocks
-    let processed = content.replace(SVG_FENCE_RE, (_match, svgCode: string) => {
+    // 0. Vertex RAG chunk labels never reach a student (1.1.122).
+    let processed = stripCitationMarkers(content).replace(SVG_FENCE_RE, (_match, svgCode: string) => {
       blocks.set(idx, svgCode.trim());
       return `${SVG_SENTINEL_PREFIX}${idx++}${SVG_SENTINEL_SUFFIX}`;
     });

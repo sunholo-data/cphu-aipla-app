@@ -1,6 +1,6 @@
 # Raw citation markers leaking into chat — suppress, or resolve into a real workbench reference
 
-**Status:** Design (OPEN) — **1.1.122**. **Root cause established 2026-09-22** (see *M0 findings* below); option (a) is now un-blocked
+**Status:** **Option (a) SHIPPED (dev) 2026-09-22** — root cause established the same day; option (b) open — **1.1.122**
 **Priority:** **P1** (upgraded from *to investigate*, 2026-09-22 — 13% of tutor turns in a live class carried the marker) (a raw internal token in a student-facing chat is a trust defect on its face, in the same family as the citation-voice problem 1.1.63 already fixed once); **build priority depends on which of the two options below is chosen**
 **Estimated:** Investigation ~0.5d (confirm mechanism against `busy-garden-11` logs and `grounding_metadata` handling). Then either: (a) suppress ~0.5d, or (b) resolve into a workbench reference ~1.5–2d (extends `DocumentsPanel`)
 **Scope:** Backend — wherever Vertex AI RAG grounding metadata / citation markers reach the model's output text (`backend/adk/curriculum_retrieval.py`, `backend/adk/agent.py`'s grounding wiring). Frontend, if (b) is chosen — `DocumentsPanel.tsx` gains a way to jump to a cited source.
@@ -91,3 +91,21 @@ building (b).
 
 Option (b) stays open. It becomes cheaper once
 [1.1.132](tutor-never-claims-notes-it-cannot-see.md) M1 logs `grounding_metadata`.
+
+## What shipped — option (a), 2026-09-22
+
+- **Backend:** `adk/citation_markers.py`, wired first in `_composed_after_model`.
+  It strips streamed chunks through a small stateful filter that holds back a
+  trailing `[rag-…` fragment (and trailing spaces) until the next chunk, and it
+  strips the final aggregated response whole. The final response is what the
+  session store and `chat_turns` keep, so new logs are clean too.
+- **Frontend backstop:** `lib/citationMarkers.ts` in `ChatMarkdown` and
+  `ReadAloudButton`, so the ~50 turns already stored render and speak clean.
+- **Preamble:** one clause added ("never write bracketed labels such as
+  [rag-source-1]"). This is belt-and-braces; the strip is the fix.
+- **Tests:** `tests/unit/test_citation_markers.py` (real prod strings, markers
+  split across chunks, look-alikes left alone) and
+  `lib/__tests__/citationMarkers.test.tsx`.
+- **Monitor:** re-run the frequency query in *M0 findings* after the next class.
+  It should read 0.
+- Option (b) is still open.

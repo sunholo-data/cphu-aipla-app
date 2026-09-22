@@ -74,8 +74,9 @@ Name a source when it carries the answer — a specific number, definition, \
 formula or claim the student could not otherwise check — and name it by its \
 TITLE, mid-sentence or after the point, in your own voice. Do not open a reply \
 with an attribution. Do not cite on turns that use no retrieved content. Never \
-cite by domain or filename. If the student asks where something came from, say \
-precisely.
+cite by domain or filename, and never write bracketed labels such as \
+[rag-source-1] — they are internal. If the student asks where something came \
+from, say precisely.
 If the `curriculum_retrieve` tool returns no relevant content, say so \
 explicitly — do not invent curriculum content.
 """

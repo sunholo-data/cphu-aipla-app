@@ -59,6 +59,7 @@ from adk.callbacks import (
 )
 from adk.checklist_tools import build_checklist_tools
 from adk.checkpoint_tools import build_checkpoint_tools
+from adk.citation_markers import make_marker_strip_callback
 from adk.curriculum_retrieval import (
     build_curriculum_grounding_preamble,
     build_curriculum_retrieval_tool,
@@ -704,7 +705,12 @@ def create_agent(
                 logger.info("stripped %d grounding tool(s) for an image turn (Gemini non-text incompat)", removed)
         await _budget_before(callback_context, llm_request)
 
+    # 1.1.122 — strip Vertex's [rag-source-N] chunk labels from what the
+    # student sees AND from what is stored/logged (see adk/citation_markers.py).
+    _strip_markers_after = make_marker_strip_callback()
+
     async def _composed_after_model(callback_context: object, llm_response: object) -> None:
+        await _strip_markers_after(callback_context, llm_response)
         await _budget_after(callback_context, llm_response)
 
     # M2B-BACKEND (MCP-APP-INTEGRATIONS): tag OTel spans on every MCP tool
