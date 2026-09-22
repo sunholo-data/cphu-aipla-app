@@ -33,6 +33,7 @@ or an email address — no separate lookup step needed.
 
 from __future__ import annotations
 
+import datetime as _dt
 import json as _json
 
 import click
@@ -348,6 +349,58 @@ def list_access(ctx: click.Context, include_revoked: bool, as_json: bool) -> Non
             "account\n(Google auto-selects when the browser holds exactly one "
             "session). Ask them what address\nthe app shows in the banner."
         )
+
+
+@users.command("list-unregistered")
+@click.option("--json", "as_json", is_flag=True, help="Raw JSON instead of the table.")
+@click.pass_context
+def list_unregistered(ctx: click.Context, as_json: bool) -> None:
+    """Accounts that HAVE signed in but hold no active register row.
+
+    `list-access` answers "who did we invite?". This answers "who is in the
+    product right now being refused?" — and the two sets drift apart silently,
+    because the register is keyed by email and Google decides which email comes
+    back. A teacher invited as x@school.dk whose browser hands over a personal
+    Gmail shows up here and nowhere else.
+
+    Run it after every onboarding round. On 2026-09-22 the first run found six
+    teachers refused since 2026-08-21, four of them with real classes built.
+    """
+    result = _client(ctx).get("/api/admin/access/unregistered")
+    if as_json:
+        click.echo(_json.dumps(result, indent=2))
+        return
+
+    accounts = result.get("accounts", [])
+    if not accounts:
+        click.echo("Every signed-in account holds an active register row. Nothing to do.")
+        return
+
+    def _day(ms: int | None) -> str:
+        if not ms:
+            return "-"
+        return _dt.datetime.fromtimestamp(ms / 1000, tz=_dt.UTC).strftime("%Y-%m-%d")
+
+    click.echo(f"{'EMAIL':<36} {'NAME':<26} {'CREATED':<11} {'LAST SIGN-IN':<13} WHY")
+    for a in accounts:
+        why = "row is revoked/expired" if a.get("hasInactiveRow") else "NOT ON THE REGISTER"
+        click.echo(
+            f"{a.get('email', ''):<36} "
+            f"{(a.get('displayName') or '?'):<26} "
+            f"{_day(a.get('createdAt')):<11} "
+            f"{_day(a.get('lastSignInAt')):<13} "
+            f"{why}"
+        )
+    click.echo(f"\n{result.get('count', len(accounts))} account(s) being refused.")
+    if result.get("truncated"):
+        click.echo("WARNING: the identity store had more pages than were read — this list is PARTIAL.")
+    click.echo(
+        "\nEach of these is someone who reached the product and cannot use it.\n"
+        "Before granting, check whether they are an existing invitee under a\n"
+        "DIFFERENT address (`list-access` and look for a SEEN=NEVER row with a\n"
+        "matching name or school) — then grant this address as an ALIAS and say\n"
+        "so in the note, rather than minting a second unexplained grant."
+    )
 
 
 @users.command("invite-password")

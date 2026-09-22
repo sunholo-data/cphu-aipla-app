@@ -846,3 +846,134 @@ def test_grant_researcher_re_registers_a_revoked_row(client, allow_env):
     resp, mock_grant = _grant_researcher(client, fake_user, existing=revoked)
     assert resp.status_code == 200, resp.text
     mock_grant.assert_called_once()
+
+
+# -----------------------------------------------------------------------------
+# /api/admin/access/unregistered — who is being REFUSED right now (1.1.124)
+# -----------------------------------------------------------------------------
+#
+# The register answers "who did we invite?". These tests pin the other question,
+# which is the one that cost a month: a teacher invited as x@school.dk whose
+# browser hands Google a personal Gmail is refused on every paid surface and
+# appears in no listing anywhere. Six of them had accumulated on prod.
+
+
+class _StubMeta:
+    def __init__(self, created: int, last: int) -> None:
+        self.creation_timestamp = created
+        self.last_sign_in_timestamp = last
+
+
+class _StubUser:
+    def __init__(self, email: str, uid: str, name: str, created: int, last: int) -> None:
+        self.email = email
+        self.uid = uid
+        self.display_name = name
+        self.user_metadata = _StubMeta(created, last)
+
+
+class _StubPage:
+    def __init__(self, users, next_page_token=None) -> None:
+        self.users = users
+        self.next_page_token = next_page_token
+
+
+def _sa_token():
+    return {
+        "email": "cloudbuild-sa@multivac-deploy-aitana.iam.gserviceaccount.com",
+        "email_verified": True,
+    }
+
+
+def test_unregistered_lists_only_accounts_without_an_active_grant(client, allow_env):
+    """The invited-and-working teacher is omitted; the refused one is named."""
+    users = [
+        _StubUser("ok@school.dk", "uid-ok", "Registered Teacher", 1_000, 2_000),
+        _StubUser("stray@gmail.com", "uid-stray", "Refused Teacher", 3_000, 4_000),
+    ]
+
+    class _Grant:
+        is_active = True
+
+    def fake_get_grant(email):
+        return _Grant() if email == "ok@school.dk" else None
+
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token", return_value=_sa_token()),
+        patch.object(fb_auth, "list_users", return_value=_StubPage(users)),
+        patch("db.teacher_access.get_grant", side_effect=fake_get_grant),
+    ):
+        resp = client.get(
+            "/api/admin/access/unregistered",
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["count"] == 1
+    assert [a["email"] for a in body["accounts"]] == ["stray@gmail.com"]
+    assert body["accounts"][0]["displayName"] == "Refused Teacher"
+    # No row at all is an OVERSIGHT; a revoked row is a DECISION. Keep them apart.
+    assert body["accounts"][0]["hasInactiveRow"] is False
+
+
+def test_unregistered_distinguishes_a_revoked_row_from_no_row(client, allow_env):
+    """A revoked teacher is listed but flagged — re-granting undoes a choice."""
+    users = [_StubUser("revoked@school.dk", "uid-r", "Revoked", 1, 2)]
+
+    class _Inactive:
+        is_active = False
+
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token", return_value=_sa_token()),
+        patch.object(fb_auth, "list_users", return_value=_StubPage(users)),
+        patch("db.teacher_access.get_grant", return_value=_Inactive()),
+    ):
+        resp = client.get(
+            "/api/admin/access/unregistered",
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+
+    assert resp.status_code == 200
+    assert resp.json()["accounts"][0]["hasInactiveRow"] is True
+
+
+def test_unregistered_503s_rather_than_reporting_an_empty_list(client, allow_env):
+    """A failed read must NEVER look like "nobody is refused".
+
+    The reassuring answer is exactly the one a broken read produces — the same
+    footgun as deploy-status.sh reporting parity it never checked.
+    """
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token", return_value=_sa_token()),
+        patch.object(fb_auth, "list_users", side_effect=RuntimeError("identity store down")),
+    ):
+        resp = client.get(
+            "/api/admin/access/unregistered",
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+
+    assert resp.status_code == 503
+    assert "could not read" in resp.json()["detail"].lower()
+
+
+def test_unregistered_flags_a_truncated_page(client, allow_env):
+    """A partial list must say so, or it understates who is locked out."""
+    users = [_StubUser("a@b.dk", "uid-a", "A", 1, 2)]
+
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token", return_value=_sa_token()),
+        patch.object(fb_auth, "list_users", return_value=_StubPage(users, next_page_token="more")),
+        patch("db.teacher_access.get_grant", return_value=None),
+    ):
+        resp = client.get(
+            "/api/admin/access/unregistered",
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+
+    assert resp.json()["truncated"] is True
+
+
+def test_unregistered_requires_the_service_account_allowlist(client, allow_env):
+    resp = client.get("/api/admin/access/unregistered")
+    assert resp.status_code == 403

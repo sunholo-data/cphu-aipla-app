@@ -799,11 +799,80 @@ def access_list(request: Request, include_revoked: bool = False) -> dict[str, An
                 "active": g.is_active,
                 "revoked": g.revoked,
                 "uid": g.uid,
+                # 1.1.124 — has anyone ever actually ARRIVED under this address?
+                # A row can be flawless and still confer nothing, because the
+                # teacher is signed in as someone else. See `access_unregistered`.
+                "firstSeenAt": g.first_seen_at,
                 "note": g.note,
             }
             for g in grants
         ],
     }
+
+
+@router.get(
+    "/access/unregistered",
+    responses={403: {"description": "Caller is not in ADMIN_SEED_ALLOWED_SAS"}},
+)
+def access_unregistered(request: Request) -> dict[str, Any]:
+    """Accounts that HAVE signed in but hold no ACTIVE register row.
+
+    `access_list` answers "who did we invite?". This answers the question that
+    actually bites: **who is in the product right now being refused?** The two
+    sets drift apart silently, because the register is keyed by EMAIL and the
+    identity provider decides which email comes back. A teacher invited as
+    `x@school.dk` whose browser hands Google a personal Gmail appears here and
+    nowhere else — not in the register, not in any log anyone reads.
+
+    That gap ran for a month before anyone enumerated it. Run by hand across
+    three APIs on 2026-09-22, it found six teachers refused since 2026-08-21,
+    four of whom had built real classes and real lessons that could never run,
+    and one never invited under any address at all. Three ALIAS rows dated
+    2026-08-21 show the same collision was spotted and hand-patched that
+    morning; everyone who signed in later that day was missed, because nothing
+    enumerated it. Hence this endpoint.
+    """
+    from firebase_admin import auth as fb_auth
+
+    from db.teacher_access import get_grant, normalise_email
+
+    _assert_caller_is_service_account(request)
+
+    try:
+        page = fb_auth.list_users(max_results=1000)
+        listed = list(page.users)
+        truncated = bool(page.next_page_token)
+    except Exception as exc:
+        # NEVER let a failed read look like "nobody is refused". The reassuring
+        # answer must not be what a broken read produces — same rule as
+        # `deploy-status.sh` and `auth.spend_authority`.
+        logger.exception("admin: could not list Firebase accounts")
+        raise HTTPException(status_code=503, detail=f"could not read the identity store: {exc}") from None
+
+    accounts: list[dict[str, Any]] = []
+    for account in listed:
+        email = normalise_email(account.email or "")
+        if not email:
+            continue
+        grant = get_grant(email)
+        if grant is not None and grant.is_active:
+            continue
+        meta = account.user_metadata
+        accounts.append(
+            {
+                "email": email,
+                "uid": account.uid,
+                "displayName": account.display_name or "",
+                "createdAt": getattr(meta, "creation_timestamp", None),
+                "lastSignInAt": getattr(meta, "last_sign_in_timestamp", None),
+                # A revoked/expired row is a DECISION; no row at all is an
+                # OVERSIGHT. Re-granting the first would undo someone's choice.
+                "hasInactiveRow": grant is not None,
+            }
+        )
+
+    accounts.sort(key=lambda a: a.get("lastSignInAt") or 0, reverse=True)
+    return {"count": len(accounts), "truncated": truncated, "accounts": accounts}
 
 
 class PasswordInviteRequest(BaseModel):
