@@ -177,8 +177,21 @@ if [ "${PATHS_ONLY:-0}" = 1 ]; then
 fi
 
 count() { [ -z "${1:-}" ] && echo 0 || echo "$1" | wc -l | tr -d ' '; }
-show() { echo "$1" | head -"${2:-15}" | sed 's/^/    /'
-         n="$(count "$1")"; [ "$n" -gt "${2:-15}" ] && echo "    … and $((n - ${2:-15})) more"; }
+# NOTE the `if` rather than `[ … ] && echo`. Under `set -e` (line 48) a function
+# whose LAST statement is a failing test returns non-zero, and the shell then
+# kills the script — so `show` aborted the whole report on every bucket with 15
+# or fewer paths, which is the ordinary case. The symptom was a report that
+# stopped mid-sentence: buckets B and D never printed, the port-up commands
+# never printed, and `make check-upstream-routing` exited 1 directly beneath the
+# line claiming "(Advisory only — this never blocks.)". A pre-push check that
+# cries failure on every clean run is a check people learn to ignore.
+show() {
+  echo "$1" | head -"${2:-15}" | sed 's/^/    /'
+  n="$(count "$1")"
+  if [ "$n" -gt "${2:-15}" ]; then
+    echo "    … and $((n - ${2:-15})) more"
+  fi
+}
 
 echo
 echo "Upstream routing — $( [ "$ALL" = 1 ] && echo "full reconcile against $UREF" || echo "$RANGE" )"
@@ -200,7 +213,7 @@ if [ -n "$C" ]; then
 fi
 if [ -n "$B" ]; then
   echo "B. AIPLA-owned — $(count "$B") path(s); the change names the customer. Stays here."
-  [ "${VERBOSE:-0}" = 1 ] && show "$B"
+  if [ "${VERBOSE:-0}" = 1 ]; then show "$B"; fi
   echo
 fi
 if [ -n "$D" ]; then
