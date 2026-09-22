@@ -127,6 +127,32 @@ export async function getIdToken(): Promise<string | null> {
 }
 
 /**
+ * Always show Google's account chooser, never sign straight through.
+ *
+ * Without this, Google auto-selects when the browser holds exactly ONE session
+ * — so a teacher who is signed into a personal Gmail clicks "Sign in with
+ * Google", sees no chooser, and lands back in the app under the wrong address.
+ * There is then no affordance anywhere in the product to switch: signing out
+ * and clicking sign-in again reruns the same silent auto-select.
+ *
+ * That is not hypothetical. A KU professor was invited to the register as
+ * `<name>@ind.ku.dk`, was auto-signed-in as a personal Gmail that carries no
+ * grant, and hit 402 on every paid surface. From his side the app simply
+ * refused to believe who he was — he reported "I tried to log in under my KU
+ * address but the old name comes up as email", which is precisely what silent
+ * auto-select looks like from the outside.
+ *
+ * The cost is one extra click for everyone whose only Google session is
+ * already the right one. Worth it: the alternative failure is invisible,
+ * self-inflicted-looking, and unrecoverable without clearing browser state.
+ */
+function googleProvider(): GoogleAuthProvider {
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: "select_account" });
+  return provider;
+}
+
+/**
  * Sign in with Google. Prefers a popup; on Safari (which blocks third-party
  * storage the popup flow relies on unless the user clicks very recently), the
  * caller can fall back to `signInWithGoogleRedirect`. We do NOT try to detect
@@ -136,15 +162,13 @@ export async function getIdToken(): Promise<string | null> {
 export async function signInWithGoogle(): Promise<void> {
   const auth = getFirebaseAuth();
   if (!auth) throw new Error("firebase not configured");
-  const provider = new GoogleAuthProvider();
-  await signInWithPopup(auth, provider);
+  await signInWithPopup(auth, googleProvider());
 }
 
 export async function signInWithGoogleRedirect(): Promise<void> {
   const auth = getFirebaseAuth();
   if (!auth) throw new Error("firebase not configured");
-  const provider = new GoogleAuthProvider();
-  await signInWithRedirect(auth, provider);
+  await signInWithRedirect(auth, googleProvider());
 }
 
 export async function signInWithEmail(email: string, password: string): Promise<void> {
@@ -234,6 +258,20 @@ export async function signOut(): Promise<void> {
   const auth = getFirebaseAuth();
   if (!auth) return;
   await fbSignOut(auth);
+}
+
+/**
+ * Sign out and immediately re-open Google's chooser, so a teacher who landed
+ * under the wrong account can correct it from inside the product.
+ *
+ * Signing out of AIPLA does NOT sign anyone out of Google — that is the whole
+ * trap. Before this existed the only recoveries were a private window or
+ * clearing browser state, neither of which is discoverable from an error
+ * message, so the affordance has to be a button next to the refusal.
+ */
+export async function switchGoogleAccount(): Promise<void> {
+  await signOut();
+  await signInWithGoogle();
 }
 
 /**

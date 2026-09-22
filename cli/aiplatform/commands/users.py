@@ -315,17 +315,39 @@ def list_access(ctx: click.Context, include_revoked: bool, as_json: bool) -> Non
         click.echo("No one is on the access register — every account is a visitor.")
         return
 
-    click.echo(f"{'EMAIL':<34} {'TIER':<8} {'CAP':>8}  {'ACTIVE':<7} {'EXPIRES':<26} NOTE")
+    click.echo(
+        f"{'EMAIL':<34} {'TIER':<8} {'CAP':>8}  {'ACTIVE':<7} {'SEEN':<11} "
+        f"{'EXPIRES':<26} NOTE"
+    )
+    never_seen = 0
     for g in grants:
+        # A grant is only half the story. The other half is whether anyone has
+        # ever signed in AS this address — because the register is keyed by
+        # email and the identity provider decides what email comes back. A row
+        # reading "active: yes, seen: never" is the signature of a teacher who
+        # is sitting in the product RIGHT NOW under a different Google account
+        # and being refused on every paid surface.
+        seen = (g.get("firstSeenAt") or "")[:10] or ("yes" if g.get("uid") else "NEVER")
+        if seen == "NEVER":
+            never_seen += 1
         click.echo(
             f"{g.get('email', ''):<34} "
             f"{g.get('tier', ''):<8} "
             f"{g.get('monthlyCapUsd', 0):>8.2f}  "
             f"{'yes' if g.get('active') else 'NO':<7} "
+            f"{seen:<11} "
             f"{(g.get('expiresAt') or 'never'):<26} "
             f"{g.get('note', '')}"
         )
     click.echo(f"\n{result.get('count', len(grants))} row(s).")
+    if never_seen:
+        click.echo(
+            f"\n{never_seen} row(s) marked NEVER: invited, but nobody has ever "
+            "signed in under that address.\nIf one of them says the product is "
+            "refusing them, they are almost certainly signed in as a DIFFERENT "
+            "account\n(Google auto-selects when the browser holds exactly one "
+            "session). Ask them what address\nthe app shows in the banner."
+        )
 
 
 @users.command("invite-password")

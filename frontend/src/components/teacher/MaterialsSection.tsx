@@ -29,6 +29,8 @@ import type { MaterialRef } from "@/lib/teacherApi";
 // 1.1.61 — the chip idiom moved out so the activity library shares it verbatim
 // rather than growing a lookalike. Behaviour here is unchanged.
 import { ALL, ActiveChip, FacetRow } from "@/components/teacher/ui/FacetRow";
+import { SpendDeniedNotice } from "@/components/teacher/SpendDeniedNotice";
+import { isSpendDenied } from "@/lib/accessTier";
 
 type ViewState =
   | { kind: "loading" }
@@ -1011,6 +1013,9 @@ function UploadButton({
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  // 1.1.124 — the spend gate is not an ordinary error. It needs the account
+  // named and a way out, so it renders as its own notice rather than red text.
+  const [spendDenied, setSpendDenied] = useState<string | null>(null);
   // Reset after every upload (success or failure) — sharing is a deliberate,
   // per-file choice, never a sticky default a researcher could forget is on.
   const [shareToLibrary, setShareToLibrary] = useState(false);
@@ -1021,6 +1026,7 @@ function UploadButton({
     if (!file) return;
     setBusy(true);
     setErr(null);
+    setSpendDenied(null);
     try {
       // 1.1.44 — route by type: an image becomes a material the tutor SEES
       // (stored in the activity artifact slot); anything else is text-extracted
@@ -1052,6 +1058,13 @@ function UploadButton({
       if ((e instanceof CurriculumApiError || e instanceof ActivityImageApiError) && e.status === 422) {
         // 422 = a genuinely unsupported type (PDFs/images are supported).
         setErr(e.message || "Unsupported file type.");
+      } else if (
+        (e instanceof CurriculumApiError || e instanceof ActivityImageApiError) &&
+        isSpendDenied(e)
+      ) {
+        // 402 = the spend gate. Checked by status, never by message text —
+        // that is the reason the backend does not overload 403.
+        setSpendDenied(e.message || "");
       } else {
         setErr(e instanceof Error ? e.message : "Upload failed.");
       }
@@ -1105,6 +1118,9 @@ function UploadButton({
         </span>
       ) : null}
       {err ? <span className="text-xs text-destructive">{err}</span> : null}
+      {spendDenied !== null ? (
+        <SpendDeniedNotice message={spendDenied || undefined} />
+      ) : null}
     </div>
   );
 }

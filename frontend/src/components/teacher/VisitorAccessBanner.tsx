@@ -10,6 +10,8 @@ import {
   subscribeAccessTier,
   TIER_PILOT,
 } from "@/lib/accessTier";
+import { switchGoogleAccount } from "@/lib/firebase";
+import { useSignedInEmail } from "@/hooks/useSignedInEmail";
 
 /**
  * The visitor nudge (ACCESS-1 M4).
@@ -25,6 +27,7 @@ import {
  */
 export function VisitorAccessBanner() {
   const [tier, setTier] = useState(getAccessTier);
+  const email = useSignedInEmail();
 
   useEffect(() => subscribeAccessTier(setTier), []);
 
@@ -43,12 +46,33 @@ export function VisitorAccessBanner() {
           You&rsquo;re exploring AIPLA with a recorded demonstration.
         </span>
       </span>
+      {/* 1.1.124 — NAME THE ACCOUNT. A teacher who IS on the register, signed
+          in under a second Google account they did not choose, sees this banner
+          and has no way to tell that is what happened. The address is the whole
+          diagnosis, and the browser has known it all along. */}
+      {email ? (
+        <span className="opacity-80">
+          Logget ind som / signed in as{" "}
+          <strong className="font-semibold">{email}</strong>.
+        </span>
+      ) : null}
       <Link
         href={ACCESS_REQUEST_PATH}
         className="font-medium underline underline-offset-2 hover:no-underline"
       >
         Bliv en del af programmet / Join the programme
       </Link>
+      {email ? (
+        <button
+          type="button"
+          onClick={() => {
+            void switchGoogleAccount().catch(() => {});
+          }}
+          className="font-medium underline underline-offset-2 hover:no-underline"
+        >
+          Skift konto / Switch account
+        </button>
+      ) : null}
     </div>
   );
 }

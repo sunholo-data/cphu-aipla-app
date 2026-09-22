@@ -112,6 +112,13 @@ async def programme_access_list(
                 "active": g.is_active,
                 "revoked": g.revoked,
                 "uid": g.uid,
+                # 1.1.124 — "invited, but has this person ever actually ARRIVED
+                # under this address?" A row can be perfectly correct and still
+                # confer nothing, because the teacher is signed in as someone
+                # else. null here is that state, and it was previously visible
+                # nowhere: diagnosing one took a Firestore read, a Cloud Logging
+                # trawl for the refused uid, and an Identity Toolkit lookup.
+                "firstSeenAt": g.first_seen_at,
                 "note": g.note,
                 "spentThisPeriodUsd": spend.get(g.email),
             }
