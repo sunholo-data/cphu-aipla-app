@@ -1551,6 +1551,82 @@ First token measured 4.2 → ~2.1 s on dev.
 > workstream F ports `ResilientLlm` DOWN, the deadline should come with it and
 > `adk/quota_retry.py` retire — two implementations of one seam otherwise.
 
+## 51. Google sign-in auto-selects the wrong account, and nothing in the product names which account you are
+
+**Where:** `frontend/src/lib/firebase.ts` (`signInWithGoogle`,
+`signInWithGoogleRedirect`), plus any surface that gates on a register keyed by
+email.
+
+`new GoogleAuthProvider()` with no `prompt` parameter signs **straight through**
+when the browser holds exactly one Google session — no chooser, no
+confirmation. Signing out of the app does not sign anyone out of Google, so the
+only recoveries are a private window or clearing browser state, neither of which
+is discoverable from an error message.
+
+That is latent in the template and fatal in any fork whose authorisation is
+keyed by email address, because the identity provider — not the invitation —
+decides which email comes back.
+
+**What it cost on AIPLA (2026-09-21/22).** A KU professor was invited to the
+access register as `<name>@ind.ku.dk` and refused on every paid surface anyway;
+Google had silently returned the personal Gmail already open in his browser. His
+report was *"I tried to log in under my KU address but the old name comes up as
+email"* — precisely what silent auto-select looks like from outside. Because no
+surface named the signed-in address, the product looked broken by an admin who
+had in fact registered him correctly, and diagnosing it took a Firestore read, a
+Cloud Logging trawl to recover the refused uid, and an Identity Toolkit lookup
+to map that uid back to an email — for a fact the browser had all along.
+
+He was not the first. An audit that afternoon found **six** teachers in this
+state, refused since 2026-08-21, four with real classes and real lessons built
+that could never run, and one never invited under any address. Three
+`ALIAS of …` register rows dated 2026-08-21 07:29–07:33 show the same collision
+was spotted and hand-patched that morning; everyone who signed in later that day
+was missed. Hand-patching does not enumerate.
+
+**Fixed on AIPLA 2026-09-22** (`4ade4b49`, `bd579c57`):
+
+| Change | Generic? |
+|---|---|
+| `prompt: select_account` on both Google entry points | ✅ pure template fix |
+| `switchGoogleAccount()` — sign out, reopen the chooser | ✅ |
+| `useSignedInEmail()` — identity without `useRouter`, so page chrome can name the account without gaining the power to redirect | ✅ |
+| `SpendDeniedNotice` — the refusal names the account and offers the switch | ✅ shape; AIPLA copy is bilingual |
+| `GET /api/admin/access/unregistered` — who has signed in and holds no active grant | ✅ mechanism; the register itself is ACCESS-1 |
+| `SEEN` column + `firstSeenAt` in the register listing | ✅ mechanism |
+
+**Upstream fix:** take the first three verbatim — `prompt: select_account` is a
+one-line change with no local content in it at all, and the `useRouter`-free
+identity hook is the reason the banner is testable. The notice and the
+unregistered-accounts endpoint are the right *shape* for any template shipping
+an invite register; AIPLA's copy is Danish/English and its register is ACCESS-1,
+so those go up parameterised or as a pattern, not as a copy.
+
+> **Not yet ported.** `make check-upstream-routing` puts
+> `SpendDeniedNotice.tsx`, its test, `useSignedInEmail.ts`,
+> `firebase.google-provider.test.ts` and `programme_routes.py` in bucket C.
+> `firebase.ts` itself is shared with upstream. Worth doing before the next
+> engagement forks — this is exactly the class of bug a new fork would
+> re-discover from scratch.
+
+**Related, found while checking routing for this very port — and NOT an
+upstream issue:** `scripts/check-upstream-routing.sh` exited 1 and truncated its
+own report on every ordinary run. `show()` ended on
+`[ "$n" -gt 15 ] && echo …`; inside a function that &&-list is exempt from
+`set -e`, but its failure becomes the FUNCTION'S return value, and the call
+`show "$C"` is an ordinary simple command that `set -e` dies on. Buckets B and D
+and the `port-up` commands never printed, under a closing line reading
+"(Advisory only — this never blocks.)". Fixed here in `e60b61da`.
+
+Checked against `upstream/main` @ `b322f55d` before writing this: **upstream is
+not affected.** Its version is a different 95-line script with no `show()` at
+all — its equivalent `[ "$count" -gt 20 ] && echo …` sits at top level, where
+&&-lists genuinely are exempt, and is followed by further `echo`s so it is never
+the script's final command. The bug was born in this fork's 221-line rewrite,
+so nothing to port. Recorded because the *shape* is worth knowing: a guard whose
+last statement is a test reports failure on its own success, and this one did it
+directly beneath a line promising it never blocks.
+
 ## Backlog (likely additions as v0.1 sprint continues)
 
 - M5 may surface IAM bindings the bootstrap script should add
