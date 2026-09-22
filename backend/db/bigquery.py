@@ -13,6 +13,7 @@ session-state fallback rather than erroring.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -68,6 +69,26 @@ def jsonpayload_columns(table: str) -> set[str]:
     return set()
 
 
+def _warn_if_on_event_loop() -> None:
+    """Log loudly when a query runs on the asyncio event loop's own thread.
+
+    1.1.131 — ``run_query`` blocks until BigQuery answers (seconds, sometimes a
+    minute). Called from an ``async def`` route without ``asyncio.to_thread`` it
+    froze the only uvicorn worker on 2026-09-22 and stalled every student's
+    tutor stream on the instance for 59 s. The query still runs — refusing would
+    turn a slow dashboard into a broken one — but the log line names the caller
+    so a missed offload shows up in Cloud Logging, not in a classroom.
+    """
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        return  # a worker thread or a script: fine
+    import traceback
+
+    caller = "".join(traceback.format_stack(limit=6)[:-2]).strip()
+    log.error("bigquery.run_query on the event loop — offload with asyncio.to_thread (1.1.131)\n%s", caller)
+
+
 def run_query(sql: str, params: dict[str, Any] | None = None) -> list[Any]:
     """Run a parameterised query and return the rows.
 
@@ -88,6 +109,7 @@ def run_query(sql: str, params: dict[str, Any] | None = None) -> list[Any]:
 
     from google.cloud import bigquery
 
+    _warn_if_on_event_loop()
     client = _get_client()
     qparams: list[Any] = []
     for name, value in (params or {}).items():

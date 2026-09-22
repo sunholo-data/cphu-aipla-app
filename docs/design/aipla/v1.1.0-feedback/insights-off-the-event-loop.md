@@ -1,6 +1,6 @@
 # A researcher's dashboard froze a student's tutor for a minute — insights off the event loop
 
-**Status:** Design (OPEN) — **1.1.131**
+**Status:** **M0 + guard SHIPPED (dev) 2026-09-22** — M2 (visible stall) open — **1.1.131**
 **Priority:** **P0** — any researcher or teacher opening a cold insights view during a lesson stalls **every** student stream on that instance, and the class sees a dead tutor with no error
 **Estimated:** ~0.5d (M0 thread-offload every blocking route ~0.25d · M1 guard ~0.15d · M2 client stall message ~0.1d)
 **Scope:** Backend — `protocols/insights_routes.py`, `insights/cache.py`, any other `async def` route doing blocking I/O; a CI guard script. Frontend — `hooks/useSkillAgent.ts` watchdog
@@ -96,3 +96,21 @@ re-sending doubles the turn.
 - **Scaling knob, not the fix:** `--workers 1` and Cloud Run concurrency are
   reasonable once nothing blocks the loop. Raising workers would hide M0, not
   solve it.
+
+## What shipped — 2026-09-22
+
+- **M0.** `CACHE.aget_or_compute` runs a miss in `asyncio.to_thread`. Every
+  BigQuery-backed `async` path now offloads: `insights_routes` (summary, compare,
+  the four per-class routes, both cost routes), `research_logs_routes` (`_read`),
+  `classes_routes.get_class_spend`, `analytics/tools.py` (the four query tools and
+  both session listings, shared with the teacher analytics chat agent), and
+  `analytics/summarise.py`'s sample fetch.
+- **M1, changed from the design:** a **runtime** guard rather than a grep script.
+  Every BigQuery call goes through `db.bigquery.run_query`, which now logs
+  `run_query on the event loop` with the caller's stack when called on the loop
+  thread. It catches indirect callers a static grep would miss. It does not
+  cover long synchronous Firestore work, which the footgun row in CLAUDE.md says.
+- **Test:** `test_blocking_queries_off_the_loop.py` drives the real routes via
+  ASGI beside a `/ping`. On the pre-fix code `/ping` waited 0.91 s behind a
+  0.8 s query; on the fix it answers at once.
+- **M2 (visible stall in the client) is still open.**

@@ -18,6 +18,7 @@ up to 60 seconds.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import threading
 import time
@@ -93,6 +94,23 @@ class InsightsCache:
             return cached
         log.debug("insights_cache: MISS key=%s", key)
         value = compute()
+        self.set(key, value)
+        return value
+
+    async def aget_or_compute(self, key: CacheKey, compute: Callable[[], Any]) -> Any:
+        """``get_or_compute`` for ``async`` routes: a miss runs ``compute`` in a
+        worker thread, never on the event loop.
+
+        1.1.131 — ``compute`` is synchronous BigQuery. Run inline from an
+        ``async def`` route it blocked the only uvicorn worker's loop for 59 s
+        (2026-09-22) and froze every student's tutor stream on the instance.
+        """
+        cached = self.get(key)
+        if cached is not None:
+            log.debug("insights_cache: HIT key=%s", key)
+            return cached
+        log.debug("insights_cache: MISS key=%s", key)
+        value = await asyncio.to_thread(compute)
         self.set(key, value)
         return value
 

@@ -29,6 +29,7 @@ taxonomy hierarchies. Those are 2.5.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from datetime import datetime
@@ -272,7 +273,8 @@ async def summarise_chat_excerpts(
     since_dt = _parse_since(since)
     until_dt = _parse_until(until)
 
-    sample = _fetch_sample(
+    sample = await asyncio.to_thread(
+        _fetch_sample,
         since=since_dt,
         until=until_dt,
         allowed_group_codes=allowed,

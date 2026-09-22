@@ -23,6 +23,7 @@ Registered into ``backend/adk/tools.py::TOOL_REGISTRY`` so the
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timedelta
 from typing import Any
@@ -113,7 +114,8 @@ async def count_messages(
     class_codes = _class_group_codes(class_id)
     since_dt = _parse_since(since)
     until_dt = _parse_until(until)
-    return queries.count_messages(
+    return await asyncio.to_thread(
+        queries.count_messages,
         since=since_dt,
         until=until_dt,
         allowed_group_codes=allowed,
@@ -144,7 +146,8 @@ async def time_on_task(
     class_codes = _class_group_codes(class_id)
     since_dt = _parse_since(since)
     until_dt = _parse_until(until)
-    return queries.time_on_task(
+    return await asyncio.to_thread(
+        queries.time_on_task,
         since=since_dt,
         until=until_dt,
         allowed_group_codes=allowed,
@@ -175,7 +178,8 @@ async def sim_runs_per_skill(
     class_codes = _class_group_codes(class_id)
     since_dt = _parse_since(since)
     until_dt = _parse_until(until)
-    return queries.sim_runs_per_skill(
+    return await asyncio.to_thread(
+        queries.sim_runs_per_skill,
         since=since_dt,
         until=until_dt,
         allowed_group_codes=allowed,
@@ -208,7 +212,8 @@ async def most_active_groups(
     since_dt = _parse_since(since)
     until_dt = _parse_until(until)
     bounded = max(1, min(int(limit), 100))
-    return queries.most_active_groups(
+    return await asyncio.to_thread(
+        queries.most_active_groups,
         since=since_dt,
         until=until_dt,
         allowed_group_codes=allowed,
@@ -244,7 +249,7 @@ async def group_summary(
     if group_code not in class_codes:
         # group_code is not part of this class — same refusal shape.
         raise PermissionError(PERMISSION_ERROR_MESSAGE)
-    sessions = list_sessions_for_group_codes([group_code])
+    sessions = await asyncio.to_thread(list_sessions_for_group_codes, [group_code])
     return {
         "sessions": [
             {
@@ -299,7 +304,7 @@ async def group_report(
     if group_code not in _class_group_codes(class_id):
         raise PermissionError(PERMISSION_ERROR_MESSAGE)
 
-    sessions = list_sessions_for_group_codes([group_code])
+    sessions = await asyncio.to_thread(list_sessions_for_group_codes, [group_code])
     if not sessions:
         return {"found": False, "group_code": group_code}
     # Newest session with actual turns; a bare 0-turn join can otherwise win

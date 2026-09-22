@@ -20,6 +20,7 @@ queries can filter teacher operations by class.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
@@ -722,7 +723,8 @@ async def get_class_spend(
     _tag_span(class_id, user.uid)
     if period not in ("this_month", "last_month", "all_time"):
         raise HTTPException(status_code=400, detail=f"invalid period {period!r}")
-    return cost_queries.class_spend(class_id, period)  # type: ignore[arg-type]
+    # 1.1.131: synchronous BigQuery — off the event loop.
+    return await asyncio.to_thread(cost_queries.class_spend, class_id, period)  # type: ignore[arg-type]
 
 
 class RaisedHandRow(BaseModel):

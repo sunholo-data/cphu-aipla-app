@@ -22,6 +22,7 @@ returns instantly on cache hit.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -144,7 +145,7 @@ async def summary(
             _attach_owner_labels(res.get("classes", []))
         return res
 
-    result = CACHE.get_or_compute(key, _compute)
+    result = await CACHE.aget_or_compute(key, _compute)
     # M10 observability — `dashboard_load` fires on the canonical
     # first request /teacher/classes makes; `insights_query` covers
     # every /api/insights/* route. Filter Cloud Logging via
@@ -185,12 +186,12 @@ async def compare(
             _attach_owner_labels(res.get("rows", []))
         return res
 
-    result = CACHE.get_or_compute(key, _compute)
+    result = await CACHE.aget_or_compute(key, _compute)
     log.info("insights_query route=compare teacher_uid=%s since=%s", user.uid, since)
     return result
 
 
-def _per_class(
+async def _per_class(
     *,
     surface: str,
     fn,
@@ -226,7 +227,7 @@ def _per_class(
                 detail=str(exc) or PERMISSION_ERROR_MESSAGE,
             ) from exc
 
-    result = CACHE.get_or_compute(key, _compute)
+    result = await CACHE.aget_or_compute(key, _compute)
     log.info(
         "insights_query route=%s class_id=%s teacher_uid=%s since=%s",
         surface,
@@ -245,7 +246,7 @@ async def class_kpis(
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict[str, Any]:
     """Six-card KPI grid for one class."""
-    return _per_class(
+    return await _per_class(
         surface="class_kpis",
         fn=aggregates.class_kpis,
         user=user,
@@ -263,7 +264,7 @@ async def class_groups(
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict[str, Any]:
     """Per-group bar data for one class."""
-    return _per_class(
+    return await _per_class(
         surface="class_groups",
         fn=aggregates.class_groups,
         user=user,
@@ -281,7 +282,7 @@ async def class_activities(
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict[str, Any]:
     """Per-activity bar data for one class."""
-    return _per_class(
+    return await _per_class(
         surface="class_activities",
         fn=aggregates.class_activities,
         user=user,
@@ -299,7 +300,7 @@ async def class_trend(
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict[str, Any]:
     """Dense per-day messages-per-day series for the panel sparkline."""
-    return _per_class(
+    return await _per_class(
         surface="class_trend",
         fn=aggregates.class_trend,
         user=user,
@@ -328,7 +329,7 @@ async def cost_overview(
     if period not in ("this_month", "last_month", "all_time"):
         raise HTTPException(status_code=400, detail=f"invalid period {period!r}")
     log.info("insights_query route=cost researcher_uid=%s period=%s", user.uid, period)
-    return cost_queries.cohort_spend(period)  # type: ignore[arg-type]
+    return await asyncio.to_thread(cost_queries.cohort_spend, period)  # type: ignore[arg-type]
 
 
 @router.get("/cost/mine")
@@ -351,4 +352,4 @@ async def my_cost_overview(
     classes = list_classes_for_owner(user.uid)
     mapping = {c.class_id: list(c.group_codes) for c in classes}
     log.info("insights_query route=cost/mine uid=%s classes=%d period=%s", user.uid, len(mapping), period)
-    return cost_queries.classes_spend(mapping, period)  # type: ignore[arg-type]
+    return await asyncio.to_thread(cost_queries.classes_spend, mapping, period)  # type: ignore[arg-type]

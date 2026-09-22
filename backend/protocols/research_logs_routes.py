@@ -17,6 +17,7 @@ right for a spend dashboard and wrong for evidence.
 
 from __future__ import annotations
 
+import asyncio
 import csv
 import io
 import json
@@ -47,14 +48,16 @@ def _rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
     return [{k: _jsonable(v) for k, v in row.items()} for row in rows]
 
 
-def _read(fn, *args, **kwargs):
+async def _read(fn, *args, **kwargs):
     """Run a query-layer call, converting a BQ failure into a loud 503.
 
     Never returns an empty result to stand in for an unreadable one — see the
-    module docstring.
+    module docstring. Runs in a worker thread: the query layer is synchronous
+    BigQuery, and on the event loop it would stall every student stream on the
+    instance (1.1.131).
     """
     try:
-        return fn(*args, **kwargs)
+        return await asyncio.to_thread(fn, *args, **kwargs)
     except Exception as exc:
         log.warning("research_logs: query failed (%s): %s", type(exc).__name__, exc)
         raise HTTPException(
@@ -73,12 +76,12 @@ async def tabs_route(user: User = Depends(get_current_user)) -> dict:  # noqa: B
     """
     assert_researcher(user)
     return {
-        "tabs": _rows(_read(research_logs.framework_tabs)),
+        "tabs": _rows(await _read(research_logs.framework_tabs)),
         "unassignedKey": research_logs.UNASSIGNED,
         # What the lens is NOT showing. Reported so the totals here can be
         # reconciled against the raw table — a quietly filtered lens is one
         # whose numbers nobody can explain.
-        "excluded": _read(research_logs.excluded_counts),
+        "excluded": await _read(research_logs.excluded_counts),
     }
 
 
@@ -93,7 +96,7 @@ async def sessions_route(
 ) -> dict:
     """Session rollup for one tab."""
     assert_researcher(user)
-    rows = _read(
+    rows = await _read(
         research_logs.list_sessions,
         framework=framework,
         class_id=classId,
@@ -111,7 +114,7 @@ async def transcript_route(
 ) -> dict:
     """The full transcript of one conversation."""
     assert_researcher(user)
-    turns = _read(research_logs.session_transcript, session_id)
+    turns = await _read(research_logs.session_transcript, session_id)
     if not turns:
         raise HTTPException(status_code=404, detail="no turns recorded for that session")
     return {"sessionId": session_id, "turns": _rows(turns)}
@@ -132,7 +135,7 @@ async def export_route(
     """
     assert_researcher(user)
     rows = _rows(
-        _read(
+        await _read(
             research_logs.export_turns,
             framework=framework,
             class_id=classId,
