@@ -15,6 +15,12 @@ with no error message**, so these are not style preferences:
 - **No nested `<iframe>`** — `frame-src 'none'`.
 - **No frameworks.** React/Vue/Svelte blow the size cap several times over.
   Vanilla JS, `requestAnimationFrame`, `<canvas>`.
+- **One exception: vendored libraries** (three.js r128), loaded by absolute
+  `/vendor/…` path with SRI. They do not count toward the 200 KB. See
+  `vendored-libraries.md`.
+- **No messaging of your own.** No `window.parent.postMessage`, no `message`
+  listener. The bridge is the only channel.
+- **No `localStorage`.** The origin is shared by every student on a machine.
 - Same-origin `fetch("./data.json")` **is** allowed and is how a sim ships a
   static data bank (KineBot's quiz questions).
 

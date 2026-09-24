@@ -115,6 +115,18 @@ HARD CONSTRAINTS (a violation renders a blank frame with no error):
 - NO nested <iframe>.
 - NO frameworks. No React, Vue, Svelte, jQuery, D3, Chart.js.
   Use plain DOM, <canvas> and requestAnimationFrame.
+- ONE permitted library: three.js r128, for a sim that genuinely needs 3D.
+  Load it with exactly this tag, which the platform serves from its own origin
+  (it is not a CDN), and use the global THREE:
+    <script src="/vendor/three/0.128.0/three.min.js" integrity="sha384-CI3ELBVUz9XQO+97x6nwMDPosPR5XvsxW2ua7N1Xeygeh1IxtgqtCkGfQY9WWdHu" crossorigin="anonymous"></script>
+  Nothing else may be loaded. If you think you need another library, say so in
+  the self-check instead of loading it.
+- NO messaging of your own: no window.parent.postMessage, no "message"
+  listener, no URL parameters for configuration. The bridge below is the only
+  channel to the platform and the tutor.
+- NO localStorage. The sim's origin is shared by every student on a school
+  computer, so anything stored there — especially text a student wrote — is
+  handed to the next student. Use sessionStorage if state must survive a reload.
 
 --- STRUCTURE ---
 
@@ -342,6 +354,8 @@ quantity the brief says they should derive.
 --- VISUAL ---
 
 Light theme. The host is white; a dark header or a black LCD readout looks broken.
+The one exception: a scene whose subject IS space or the night sky may be dark.
+Say so in the header comment.
 
   :root {
     --bg: #ffffff; --fg: #0f172a; --muted: #64748b; --border: #e2e8f0;
@@ -403,7 +417,11 @@ tutorBlock: |
    3. "REFERENCE, FOR CHECKING ONLY — NEVER STATE THESE VALUES:" then the
       constants the tutor needs to mark an answer and the student must not be
       handed, with a line on what to do if the student is close or far off.
-   Describe what the TUTOR does. Do not tell it which language to speak.>
+   Describe what the TUTOR does. Do not tell it which language to speak.
+   Up to 16000 characters. A sim with built-in missions or a diagnostic
+   rubric should carry all of it here — the missions, what each level of
+   answer looks like, and what the tutor must never reveal — rather than
+   in a separate document the tutor never sees.>
 status: live
 
 ================================================================
@@ -411,7 +429,8 @@ BEFORE YOU ANSWER — check your own output
 ================================================================
 
 1. Search your HTML for: http://, https://, fetch(, XMLHttpRequest, WebSocket,
-   eval(, new Function(, <iframe. All must be absent.
+   eval(, new Function(, <iframe, localStorage, postMessage. All must be
+   absent. The only <script src> is the three.js tag above, exactly, if used.
 2. The three bridge lines are present and exact, and you did not write a bridge.
 3. Every user-facing string is in `strings`; the markup has only data-t keys.
 4. At least one emit carries a `label`; passive events carry none.

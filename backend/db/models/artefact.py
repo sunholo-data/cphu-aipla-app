@@ -38,7 +38,9 @@ class ArtefactMeta(BaseModel):
     # Artefact-intrinsic tutor instructions (NOT the per-activity lesson goal).
     # Injected into the sim-activity tutor at session-start; SERVER-SIDE ONLY —
     # excluded from the public catalogue view.
-    tutor_block: str = Field(default="", alias="tutorBlock", max_length=2000)
+    # 2,000 -> 16,000 on 2026-09-24: an author-supplied sim can ship a whole
+    # activity module (missions + construct map); see teacher_focus._TOTAL_FOCUS_CAP.
+    tutor_block: str = Field(default="", alias="tutorBlock", max_length=16000)
     # Optional preview image (a path/URL the picker renders to help a teacher
     # identify the sim at a glance). Unset → the frontend draws an icon/monogram
     # tile. Supply a screenshot here per sim as they're produced.

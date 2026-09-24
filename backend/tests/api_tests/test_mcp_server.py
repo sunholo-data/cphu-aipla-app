@@ -291,6 +291,18 @@ async def test_register_sim_apps_registers_ui_linked_tools(_fresh_mcp):
     assert bold.inputSchema.get("properties") == {}
 
 
+async def test_sims_needing_a_vendored_library_are_not_offered_externally(_fresh_mcp):
+    """sol-jord-maane loads three.js from the sandbox's /vendor/ path. An external
+    host renders the HTML on its own origin, where that path is a 404 and the
+    frame is blank — so the sim stays in the app and off /mcp until the library
+    can travel with it."""
+    from protocols.sim_apps import register_sim_apps
+
+    added = register_sim_apps(_fresh_mcp)
+    assert "show_sol_jord_maane" not in added
+    assert "show_boldkast" in added
+
+
 async def test_sim_resource_read_returns_mcp_app_html(_fresh_mcp):
     from protocols.sim_apps import register_sim_apps
 

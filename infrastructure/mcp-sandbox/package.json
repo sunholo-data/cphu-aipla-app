@@ -15,7 +15,8 @@
   },
   "dependencies": {
     "cors": "^2.8.5",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "three": "0.128.0"
   },
   "//": "@modelcontextprotocol/ext-apps used to live here; src/sandbox.ts now inlines the small bits we use (RESOURCE_READY method name + buildAllowAttribute helper) to keep the browser bundle tiny (~3.5 KB instead of ~350 KB). serve.ts uses a structural import-equivalent (McpUiResourceCsp) and pulls types only via a local .d.ts shim — see McpUiResourceCsp type below if/when one is added.",
   "devDependencies": {

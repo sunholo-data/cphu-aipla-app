@@ -167,3 +167,24 @@ def test_the_two_wave_sims_are_separate_artefacts() -> None:
         assert a is not None, artefact_id
         assert a.status == "live", artefact_id
         assert a.artefact_path == f"{artefact_id}/v1", artefact_id
+
+
+def test_sol_jord_maane_keeps_the_construct_map_server_side() -> None:
+    """sol-jord-maane (author I, 2026-09-24) arrived with a 13 KB activity module
+    whose construct map describes, level by level, what a target answer looks
+    like. The module says never to show a student their level — so the map lives
+    in the tutorBlock and must not reach ``public()``. It is the reason the cap
+    went 2,000 -> 16,000 (2026-09-24); this pins that it fits.
+    """
+    a = load_artefact("sol-jord-maane")
+    assert a is not None
+    assert a.status == "live"
+    assert "CONSTRUCT MAP" in a.tutor_block
+    assert len(a.tutor_block) <= 16000
+    pub = str(a.public())
+    assert "CONSTRUCT MAP" not in pub
+    assert "coherent model" not in pub
+    # The labelled commits that carry the student's own words are proactive
+    # (`commit`); mission start and a finished step deliberately are not.
+    for verb in ("prediction-commit", "answer-commit", "quiz-record", "view-record"):
+        assert verb in a.event_vocabulary, verb

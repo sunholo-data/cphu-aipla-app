@@ -1,0 +1,15 @@
+{
+  "//": "Shared libraries a sim artefact may load, served same-origin at /vendor/<lib>/<version>/<file>. Admission policy: .claude/skills/mcp-app-artefact/resources/vendored-libraries.md. Every file comes from a pinned npm dependency in package.json (so npm audit + dependabot see it), is hash-checked at server start (a mismatch refuses to serve), and must be referenced with the same sha384 as an SRI integrity attribute (audit_artefact.sh enforces it).",
+  "libraries": {
+    "three": {
+      "version": "0.128.0",
+      "why": "WebGL 3D scenes (sol-jord-maane). r128 is the last release line whose build/three.min.js exposes the global THREE the sim is written against; it is byte-identical to cdnjs three.js/r128.",
+      "files": {
+        "three.min.js": {
+          "from": "node_modules/three/build/three.min.js",
+          "sha384": "CI3ELBVUz9XQO+97x6nwMDPosPR5XvsxW2ua7N1Xeygeh1IxtgqtCkGfQY9WWdHu"
+        }
+      }
+    }
+  }
+}

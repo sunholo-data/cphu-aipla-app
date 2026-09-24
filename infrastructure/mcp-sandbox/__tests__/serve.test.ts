@@ -222,3 +222,79 @@ describe("createSandboxApp HTTP routes", () => {
     }
   });
 });
+
+// Vendored sim libraries (vendor.json). The route is a lookup table, not a
+// static mount — these tests pin that, plus the startup hash check that makes
+// a tampered or drifted file unservable.
+describe("/vendor/* — hash-checked shared sim libraries", () => {
+  it("every manifest file verifies against its sha384 (a drifted npm install fails here, not in a student's browser)", async () => {
+    const { loadVendorTable } = await import("../serve");
+    const table = loadVendorTable();
+    expect(table.errors).toEqual([]);
+    expect([...table.files.keys()]).toContain("three/0.128.0/three.min.js");
+  });
+
+  it("serves a manifest file immutable, nosniff, CORS-open, with the SRI digest", async () => {
+    const { createSandboxApp } = await import("../serve");
+    const { default: request } = await import("supertest");
+    const { createHash } = await import("node:crypto");
+    const res = await request(createSandboxApp()).get("/vendor/three/0.128.0/three.min.js");
+    expect(res.status).toBe(200);
+    expect(res.headers["content-type"]).toMatch(/^text\/javascript/);
+    expect(res.headers["cache-control"]).toContain("immutable");
+    expect(res.headers["x-content-type-options"]).toBe("nosniff");
+    expect(res.headers["access-control-allow-origin"]).toBe("*");
+    const body = Buffer.from(res.text ?? "", "utf8");
+    const digest = createHash("sha384").update(body).digest("base64");
+    expect(res.headers["digest"]).toBe(`sha-384=${digest}`);
+  });
+
+  it.each([
+    "/vendor/three/0.129.0/three.min.js", // unpinned version
+    "/vendor/three/0.128.0/three.js", // file of a pinned lib that is not in the manifest
+    "/vendor/three/0.128.0/..%2F..%2Fpackage.json", // traversal
+    "/vendor/express/5.1.0/index.js", // any other node_module
+  ])("404s anything not in the manifest: %s", async (path) => {
+    const { createSandboxApp } = await import("../serve");
+    const { default: request } = await import("supertest");
+    const res = await request(createSandboxApp()).get(path);
+    expect(res.status).toBe(404);
+  });
+
+  it("refuses a file whose bytes do not match the manifest", async () => {
+    const { mkdtempSync, writeFileSync, mkdirSync } = await import("node:fs");
+    const { tmpdir } = await import("node:os");
+    const { join: pjoin } = await import("node:path");
+    const { loadVendorTable } = await import("../serve");
+    const dir = mkdtempSync(pjoin(tmpdir(), "vendor-"));
+    mkdirSync(pjoin(dir, "lib"));
+    writeFileSync(pjoin(dir, "lib", "x.js"), "tampered()");
+    writeFileSync(pjoin(dir, "vendor.json"), JSON.stringify({
+      libraries: { x: { version: "1.0.0", files: { "x.js": { from: "lib/x.js", sha384: "AAAA" } } } },
+    }));
+    const table = loadVendorTable(dir);
+    expect(table.files.size).toBe(0);
+    expect(table.errors[0]).toMatch(/sha384 mismatch/);
+  });
+
+  it("artefact CSP admits same-origin scripts (the vendor files) and still no external origin", async () => {
+    const { mkdirSync, writeFileSync, rmSync } = await import("node:fs");
+    const { dirname, join: pjoin } = await import("node:path");
+    const { fileURLToPath } = await import("node:url");
+    const here = dirname(fileURLToPath(import.meta.url));
+    const dir = pjoin(here, "..", "artefacts", "__vendor_test", "v1");
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(pjoin(dir, "index.html"), "<!doctype html>");
+    try {
+      const { createSandboxApp } = await import("../serve");
+      const { default: request } = await import("supertest");
+      const res = await request(createSandboxApp()).get("/artefacts/__vendor_test/v1/index.html");
+      const csp = res.headers["content-security-policy"];
+      expect(csp).toContain("script-src 'self' 'unsafe-inline'");
+      expect(csp).toContain("connect-src 'none'");
+      expect(csp).not.toMatch(/script-src[^;]*https?:/);
+    } finally {
+      rmSync(pjoin(here, "..", "artefacts", "__vendor_test"), { recursive: true, force: true });
+    }
+  });
+});

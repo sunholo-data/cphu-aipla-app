@@ -23,11 +23,19 @@
  *   node verify_sim.mjs <id> [--drive] [--headed] [--out <dir>]
  *   node verify_sim.mjs --path /abs/path/to/index.html [--drive]
  *
+ * The artefact is served over HTTP, not file://, with the CSP it really runs
+ * under in the app (sandbox.html's, from serve.ts buildCspHeader({})) and with
+ * /vendor/* resolved from infrastructure/mcp-sandbox/vendor.json — so a CDN
+ * import, a blocked font or a missing vendored library fails here instead of
+ * rendering fine from disk and blank in the product.
+ *
  * Exit codes: 0 all checks passed · 1 a check failed · 2 could not run.
  * A check that could not run is NEVER reported as a pass.
  */
 
-import { existsSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { createServer } from "node:http";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -146,9 +154,13 @@ if (!chromium) {
   process.exit(2);
 }
 
+// WebGL sims (three.js) need a GPU; headless Chromium only offers the software
+// one when asked.
+const GL_ARGS = ["--enable-unsafe-swiftshader", "--use-angle=swiftshader", "--ignore-gpu-blocklist"];
+
 let browser;
 try {
-  browser = await chromium.launch({ headless: !headed });
+  browser = await chromium.launch({ headless: !headed, args: GL_ARGS });
 } catch (err) {
   const exe = cachedChromePath();
   if (!exe) {
@@ -156,11 +168,73 @@ try {
     console.error("  npx playwright install chromium");
     process.exit(2);
   }
-  browser = await chromium.launch({ headless: !headed, executablePath: exe });
+  browser = await chromium.launch({ headless: !headed, executablePath: exe, args: GL_ARGS });
 }
 
 mkdirSync(outDir, { recursive: true });
-const url = `file://${artefactFile}`;
+
+// ---------------------------------------------------------------- local sandbox
+// The runtime CSP: what sandbox.html is served with when the host passes no
+// resource domains (serve.ts buildCspHeader({})). The artefact is written into
+// a frame under THAT policy, so it is the one that decides blank-or-not.
+const RUNTIME_CSP = [
+  "default-src 'self' 'unsafe-inline'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: data:",
+  "style-src 'self' 'unsafe-inline' blob: data:",
+  "img-src 'self' data: blob:",
+  "font-src 'self' data: blob:",
+  "media-src 'self' data: blob:",
+  "connect-src 'self'",
+  "worker-src 'self' blob:",
+  "frame-src 'none'",
+  "object-src 'none'",
+  "base-uri 'none'",
+].join("; ");
+const SANDBOX_DIR = join(REPO_ROOT, "infrastructure/mcp-sandbox");
+const vendorFiles = new Map();
+try {
+  const libs = JSON.parse(readFileSync(join(SANDBOX_DIR, "vendor.json"), "utf8")).libraries ?? {};
+  for (const [lib, e] of Object.entries(libs)) {
+    for (const [name, spec] of Object.entries(e.files)) {
+      vendorFiles.set(`/vendor/${lib}/${e.version}/${name}`, { path: join(SANDBOX_DIR, spec.from), sha384: spec.sha384 });
+    }
+  }
+} catch { /* no manifest: any /vendor/ request 404s and the page error says so */ }
+
+const artefactDir = dirname(artefactFile);
+const vendorProblems = [];
+const server = createServer((req, res) => {
+  const path = decodeURIComponent(new URL(req.url, "http://x").pathname);
+  // A top-level page asks for a favicon; the in-app frame never does.
+  if (path === "/favicon.ico") { res.writeHead(204).end(); return; }
+  const v = vendorFiles.get(path);
+  if (v) {
+    if (!existsSync(v.path)) {
+      vendorProblems.push(`${path}: ${v.path} missing — run \`npm ci\` in infrastructure/mcp-sandbox`);
+      res.writeHead(404).end();
+      return;
+    }
+    const body = readFileSync(v.path);
+    if (createHash("sha384").update(body).digest("base64") !== v.sha384) {
+      vendorProblems.push(`${path}: bytes do not match vendor.json`);
+      res.writeHead(404).end();
+      return;
+    }
+    res.writeHead(200, { "Content-Type": "text/javascript", "Access-Control-Allow-Origin": "*" }).end(body);
+    return;
+  }
+  if (path.startsWith("/artefact/") && !path.includes("..")) {
+    const file = join(artefactDir, path.slice("/artefact/".length));
+    if (existsSync(file)) {
+      const type = file.endsWith(".html") ? "text/html; charset=utf-8" : file.endsWith(".json") ? "application/json" : "application/octet-stream";
+      res.writeHead(200, { "Content-Type": type, "Content-Security-Policy": RUNTIME_CSP }).end(readFileSync(file));
+      return;
+    }
+  }
+  res.writeHead(404).end();
+});
+await new Promise((r) => server.listen(0, "127.0.0.1", r));
+const url = `http://127.0.0.1:${server.address().port}/artefact/index.html`;
 let failures = 0;
 const fail = (msg) => { failures++; console.log(`  FAIL  ${msg}`); };
 const pass = (msg) => console.log(`  OK    ${msg}`);
@@ -181,6 +255,7 @@ console.log(`\nVerifying ${artefactId}\n  ${artefactFile}\n`);
   else if (title.startsWith("TEST FAIL")) fail(`self-test: ${title}`);
   else fail(`self-test did not run — title is "${title}". Implement the ?test=1 block.`);
 
+  if (vendorProblems.length) fail(`vendored library: ${vendorProblems.join(" | ")}`);
   if (errors.length) fail(`page errors: ${errors.join(" | ")}`);
   else pass("no page or console errors");
   await page.close();
@@ -241,7 +316,15 @@ if (drive) {
   const isDestructive = (el) =>
     /reset|nulstil|clear|ryd|slet/i.test(`${el.id} ${el.textContent || ""}`);
 
-  for (const destructivePass of [false, true]) {
+  // Non-destructive rounds repeat until a round clicks nothing: a click can
+  // reveal or unblock buttons that were earlier in DOM order (closing a modal
+  // makes the whole toolbar behind it clickable), and one pass would miss them.
+  const rounds = [false, false, false, false, true];
+  let clickedThisRound = 0;
+  for (let r = 0; r < rounds.length; r++) {
+    const destructivePass = rounds[r];
+    if (!destructivePass && r > 0 && clickedThisRound === 0) { r = rounds.length - 2; continue; }
+    clickedThisRound = 0;
     // Re-query each pass: clicking can replace nodes.
     for (const b of await page.$$("button")) {
       const role = await b.evaluate((el, src) => {
@@ -253,12 +336,29 @@ if (drive) {
         .evaluate((el, src) => new Function("el", `return (${src})(el)`)(el), isDestructive.toString())
         .catch(() => false);
       if (destructive !== destructivePass) continue;
-      if (await b.isDisabled()) continue;
-      await b.click().catch(() => {});
-      await page.waitForTimeout(700);
+      // A node re-rendered by an earlier click is detached: skip it, the
+      // next round re-queries.
+      if (await b.isDisabled().catch(() => true)) continue;
+      if (!(await b.isVisible().catch(() => false))) continue;
+      // A written-answer step cannot commit empty; give every visible, empty
+      // text box something to send before the button that submits it.
+      for (const box of await page.$$("textarea, input[type=text]:not([readonly])")) {
+        if ((await box.isVisible().catch(() => false)) && !(await box.inputValue().catch(() => "x"))) {
+          await box.fill("Svar fra verify_sim").catch(() => {});
+        }
+      }
+      // Short timeout: a click blocked by an overlay (a modal the sweep itself
+      // opened) should cost a second, not Playwright's default 30.
+      if (await b.click({ timeout: 1000 }).then(() => true).catch(() => false)) clickedThisRound++;
+      await page.waitForTimeout(400);
     }
   }
   await page.waitForTimeout(400);
+  // The host sends chat-flush before every student message. A commit-on-submit
+  // sim holds exploration locally until then, so without this the sweep reports
+  // "emitted nothing" for a sim that is doing exactly the right thing.
+  await page.evaluate(() => window.postMessage({ jsonrpc: "2.0", method: "ui/notifications/chat-flush", params: {} }, "*"));
+  await page.waitForTimeout(300);
 
   const events = await page.evaluate(() => window.__simEvents);
   await page.screenshot({ path: join(outDir, `${artefactId}-driven.png`), fullPage: true });
@@ -308,6 +408,7 @@ if (drive) {
 }
 
 await browser.close();
+server.close();
 
 console.log(
   failures

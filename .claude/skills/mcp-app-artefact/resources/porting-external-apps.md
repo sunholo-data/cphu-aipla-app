@@ -95,6 +95,39 @@ is allowed as a recorded decision comment.
 `audit_artefact.sh`, `make sim-build-check`, the catalogue test, and
 `verify_sim.mjs`. Drive it as a student before you merge.
 
+## Author packages — a sim that arrives with its own integration design
+
+`sol-jord-maane` (2026-09-24) was the first of these: a 146 KB validated sim, an
+`INTEGRATION.md` defining the author's own postMessage protocol, URL parameters
+and tutor-command lines, and an `aktivitetsmodul.md` tutor brief. It was not
+built from the authoring prompt. Expect more like it, and expect **revisions**
+from the author. That changes the method in four ways:
+
+1. **Transform, don't rewrite.** The physics is the author's and validated, so
+   keep the file and apply a *scripted* set of replacements, each asserting it
+   matched exactly once (`docs/design/mockups/sol-jord-maane.port.py`). When the
+   author sends v5, re-run it: it either ports cleanly or fails at the line that
+   moved. A hand rewrite of 2,000 lines would diverge from the author forever.
+2. **Find the author's seam and adapt it.** Most such sims funnel every outbound
+   message through one function (`emit`/`post`). Replace *that* with a bridge
+   adapter: a table of the deliberate acts → labelled emits with vocabulary
+   verbs, and everything else → `pendingChanges`, flushed on the next commit or
+   `onChatFlush`. Drop any periodic state stream: commit-on-submit replaces it.
+   Map inbound commands to `onHostNotification("<id>.cmd-<command>")`.
+3. **The marker pair must wrap a `<script>`.** `make sim-build` refuses an empty
+   `<!-- @aipla-bridge:start --><!-- @aipla-bridge:end -->`; insert
+   `<script></script>` between them and let the build fill it.
+4. **The activity module becomes the tutorBlock**: in English, up to 16,000
+   characters, keeping the construct map and level descriptors, which are the
+   point. **Strip anything asking the tutor to emit markup the host does not
+   parse** (`<sim>…</sim>`, `<vurdering>…</vurdering>`). The student would
+   see it. List it under Known gaps instead.
+
+Also check for: a CDN library (→ `vendored-libraries.md`), web fonts (→ delete;
+the author's fallback stack usually exists), `localStorage` (→
+`sessionStorage`), and configuration by URL parameter, which does not reach the
+sim in the app (see Known gaps in SKILL.md).
+
 ## Anti-patterns
 
 - Fixing the source in place instead of porting the sim core out of it.

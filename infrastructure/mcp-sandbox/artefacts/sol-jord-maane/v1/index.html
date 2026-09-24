@@ -1,0 +1,2744 @@
+<!doctype html><html lang="da"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Sol, Jord og Måne</title>
+<!--
+  Sol, Jord og Måne — 3D model of the Sun–Earth–Moon system (stx).
+
+  Author I's sim, ported from docs/design/mockups/sol-jord-maane-standalone_4.html
+  (package: docs/design/mockups/I_sim_for_AIPLA.zip, INTEGRATION.md,
+  aktivitetsmodul.md). The astronomy (Meeus ch. 25/47, validated against NASA's
+  2025–2028 eclipse catalogues) is the author's and is untouched. What the port
+  changed, and why a later reader should not undo it:
+
+  - three.js r128 loads SAME-ORIGIN from /vendor/three/0.128.0/three.min.js with
+    an SRI hash, not from cdnjs. The sandbox serves only hash-checked files named
+    in infrastructure/mcp-sandbox/vendor.json; an external CDN would leak the
+    student's IP and widen the CSP. Policy: the mcp-app-artefact skill,
+    resources/vendored-libraries.md.
+  - Google Fonts removed; the author's own system-font fallbacks now apply.
+  - The author's postMessage protocol (target aipla-sim) is replaced by the
+    AIPLA guest bridge. The author's single emit() seam is kept and now feeds an
+    adapter: the five deliberate acts (mission start, prediction, step done,
+    answer, quiz done) plus "send my view" become LABELLED emits, and all
+    exploration (views, camera, time jumps, toggles) accumulates locally and is
+    flushed as one `state-change` when the student commits or sends a chat
+    message. No periodic state stream.
+  - Mission progress, INCLUDING THE STUDENT'S WRITTEN ANSWERS, is kept in
+    sessionStorage, not localStorage: the sandbox origin is shared by every
+    student on a lab computer, and localStorage would hand one student's
+    answers to the next.
+  - The brand mark and title are removed (the host's frame header names the sim).
+
+  Deliberate exceptions to the visual standard / scope rules, recorded:
+  - DARK THEME: this is a view of space and of the night sky; the dark canvas is
+    the physics, not a style. Panels keep the author's glass styling.
+  - MISSIONS + DIAGNOSTIC QUIZ STAY IN THE IFRAME: a mission reconfigures the
+    simulation itself (date, view, scale, toggles) and the quiz levels map onto
+    the author's construct map; both are the author's design and the tutor
+    brief (catalogue tutorBlock) is written against them.
+  - locale: da-only, by decision — an author-supplied sim with ~2000 lines of
+    Danish UI; a strings-object extraction is a follow-up, not part of import.
+
+  Not ported (need host-side work, see the import notes): the tutor issuing
+  <sim>{command}</sim> lines, <vurdering> assessment lines, and snapshot IMAGES.
+  The host CAN already drive the sim: every command in INTEGRATION.md is
+  registered as the host notification `sol-jord-maane.cmd-<command>`.
+-->
+<style>
+  :root {
+    color-scheme: dark;
+    --space: #04060b;
+    --panel: rgba(11, 14, 25, 0.84);
+    --panel-solid: #0b0e19;
+    --raise: rgba(150, 168, 214, 0.08);
+    --raise-2: rgba(150, 168, 214, 0.15);
+    --line: rgba(150, 168, 214, 0.16);
+    --text: #e9ecf4;
+    --muted: #8f98b2;
+    --faint: #5e6781;
+    --sun: #f3b340;
+    --sun-ink: #1d1404;
+    --earth: #6aa6f2;
+    --moon: #cfd3dc;
+    --alert: #ff8a5c;
+    --ok: #7fd4a4;
+    --ui: system-ui, -apple-system, "Segoe UI", sans-serif;
+    --display: Georgia, "Times New Roman", serif;
+    --mono: ui-monospace, "SFMono-Regular", Menlo, monospace;
+    --gut: 16px;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { height: 100%; margin: 0; }
+  dl { margin: 0; }
+  body { background: var(--space); color: var(--text); font: 13px/1.45 var(--ui); overflow: hidden; }
+  button, input, select { font: inherit; color: inherit; }
+  #app { position: fixed; inset: 0; overflow: hidden; }
+  #scene { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; outline: none; }
+  #scene:active { cursor: grabbing; }
+  #labels { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+  .blabel { position: absolute; left: 0; top: 0; font: 500 11.5px/1 var(--ui); letter-spacing: .02em; white-space: nowrap; color: var(--text); text-shadow: 0 1px 3px #000, 0 0 8px #000; will-change: transform; }
+  .blabel .ring { position: absolute; width: 14px; height: 14px; border: 1.5px solid currentColor; border-radius: 50%; left: -7px; top: -7px; opacity: .85; }
+  .blabel .txt { position: absolute; left: 10px; top: 8px; }
+  .blabel.sun { color: #ffd07a; } .blabel.earth { color: #9cc5ff; } .blabel.moon { color: #e2e5ec; }
+  .blabel.compass { color: #f0e6cf; font: 600 12px/1 var(--mono); }
+  .blabel.compass .txt { left: -5px; top: -18px; }
+  .blabel.node { color: #b9a4f5; font-size: 11px; }
+
+  .glass { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; backdrop-filter: blur(12px) saturate(1.2); -webkit-backdrop-filter: blur(12px) saturate(1.2); }
+
+  /* Masthead */
+  .masthead { position: absolute; left: var(--gut); top: calc(var(--gut) + env(safe-area-inset-top, 0px)); display: grid; gap: 6px; max-width: min(360px, calc(100% - 2 * var(--gut))); pointer-events: none; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand svg { flex: none; }
+  .brand h1 { margin: 0; font: italic 400 26px/1 var(--display); letter-spacing: .01em; }
+  .clock { font-family: var(--mono); pointer-events: auto; background: none; border: 0; padding: 2px 4px; margin: -2px -4px; border-radius: 6px; text-align: left; cursor: pointer; display: grid; grid-template-columns: auto auto; justify-content: start; align-items: center; column-gap: 7px; }
+  .clock:hover { background: var(--raise); }
+  .clock .pen { color: var(--muted); }
+  .clock:hover .pen { color: var(--sun); }
+  #clockSub { grid-column: 1 / -1; }
+  .dateform { margin: 0; gap: 5px; }
+  .dlabel { font: 600 10px/1.15 var(--ui); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); display: grid; }
+  .dlabel span { font-weight: 500; letter-spacing: .02em; text-transform: none; color: var(--faint); }
+  .tb.go { background: var(--raise-2); }
+  .dateform.dirty .tb.go { background: var(--sun); color: var(--sun-ink); }
+  .dateform.bad input { outline: 1.5px solid var(--alert); }
+  #clockMain { font-size: 15px; font-weight: 500; font-variant-numeric: tabular-nums; }
+  #clockSub { font-size: 11.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .hint { color: var(--muted); font-size: 12px; max-width: 34ch; text-wrap: pretty; }
+
+  /* Readouts */
+  #leftStack { position: absolute; left: var(--gut); top: calc(132px + env(safe-area-inset-top, 0px)); bottom: calc(var(--gut) + 124px + env(safe-area-inset-bottom, 0px)); width: 330px; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+  #leftStack > * { pointer-events: auto; }
+  #readouts { flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; overflow: hidden; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 12px; background: none; border: 0; width: 100%; cursor: pointer; text-align: left; }
+  .card-head .lbl { font: 600 10.5px/1 var(--ui); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .chev { transition: transform .2s; color: var(--muted); }
+  [aria-expanded="false"] .chev { transform: rotate(-90deg); }
+  .ro-body { overflow: auto; padding: 0 12px 10px; display: grid; gap: 10px; }
+  .ro-group { display: grid; gap: 3px; }
+  .ro-group h3 { margin: 0 0 2px; font: 600 10px/1.2 var(--ui); letter-spacing: .12em; text-transform: uppercase; }
+  .ro-group.g-sun h3 { color: var(--sun); } .ro-group.g-moon h3 { color: var(--moon); } .ro-group.g-obs h3 { color: var(--earth); } .ro-group.g-ecl h3 { color: var(--alert); }
+  .ro { display: flex; justify-content: space-between; gap: 10px; font-size: 12px; }
+  .ro dt { color: var(--muted); }
+  .ro dd { margin: 0; font-family: var(--mono); font-size: 11.5px; font-variant-numeric: tabular-nums; text-align: right; }
+  .pill { display: inline-block; padding: 2px 7px; border-radius: 99px; font: 600 10.5px/1.4 var(--ui); letter-spacing: .04em; }
+  .pill.alert { background: rgba(255,138,92,.16); color: var(--alert); }
+  .pill.calm { background: var(--raise); color: var(--muted); }
+  .pill.good { background: rgba(127,212,164,.14); color: var(--ok); }
+  .moonphase { display: flex; align-items: center; gap: 10px; }
+  .moonphase canvas { width: 34px; height: 34px; flex: none; }
+
+  /* Panel */
+  #panel { position: absolute; right: var(--gut); top: calc(var(--gut) + env(safe-area-inset-top, 0px)); width: 300px; max-height: calc(100% - var(--gut) - 108px - env(safe-area-inset-top, 0px)); overflow: auto; padding: 4px 0; overscroll-behavior: contain; }
+  .sec { padding: 10px 14px 12px; border-top: 1px solid var(--line); display: grid; gap: 8px; }
+  .sec:first-child { border-top: 0; }
+  .sec > h2 { margin: 0; font: 600 10.5px/1 var(--ui); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
+  .sec.locked { opacity: .45; pointer-events: none; }
+  .sec.locked > h2::after { content: "Låst af tutor"; letter-spacing: .04em; text-transform: none; font-weight: 500; color: var(--faint); }
+  .views { display: grid; gap: 2px; }
+  .vbtn { display: grid; grid-template-columns: 22px 1fr; gap: 1px 8px; align-items: center; text-align: left; padding: 7px 8px; border-radius: 7px; border: 1px solid transparent; background: none; cursor: pointer; }
+  .vbtn:hover { background: var(--raise); }
+  .vbtn .ico { grid-row: span 2; width: 22px; height: 22px; opacity: .7; }
+  .vbtn .nm { font-weight: 500; font-size: 13px; }
+  .vbtn .ds { color: var(--muted); font-size: 11.5px; line-height: 1.3; }
+  .vbtn[aria-pressed="true"] { background: var(--raise-2); border-color: var(--line); }
+  .vbtn[aria-pressed="true"] .ico { opacity: 1; }
+  .vbtn[aria-pressed="true"] .nm { color: #fff; }
+  .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--raise); border-radius: 8px; padding: 3px; gap: 3px; }
+  .seg button { border: 0; background: none; padding: 6px 6px; border-radius: 6px; cursor: pointer; font-weight: 500; font-size: 12.5px; color: var(--muted); }
+  .seg button:hover { color: var(--text); }
+  .seg button[aria-pressed="true"] { background: var(--sun); color: var(--sun-ink); }
+  .scale-big button { padding: 9px 6px; font-size: 13px; }
+  .note { color: var(--muted); font-size: 11.5px; line-height: 1.4; margin: 0; text-wrap: pretty; }
+  .sub { font: 600 10px/1 var(--ui); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); margin-top: 2px; }
+  .toggles { display: grid; gap: 1px; }
+  .tg { display: flex; align-items: center; gap: 9px; padding: 5px 2px; cursor: pointer; font-size: 12.5px; }
+  .tg input { appearance: none; -webkit-appearance: none; width: 28px; height: 16px; border-radius: 99px; background: var(--raise-2); position: relative; flex: none; cursor: pointer; transition: background .15s; margin: 0; }
+  .tg input::after { content: ""; position: absolute; left: 2px; top: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--muted); transition: transform .15s, background .15s; }
+  .tg input:checked { background: rgba(243,179,64,.35); }
+  .tg input:checked::after { transform: translateX(12px); background: var(--sun); }
+  .tg .x { color: var(--faint); font-size: 11px; margin-left: auto; }
+  .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .field { display: grid; gap: 3px; flex: 1 1 100px; min-width: 0; }
+  .field label { font-size: 11px; color: var(--muted); }
+  input[type="number"], input[type="datetime-local"], select { background: var(--raise); border: 1px solid var(--line); border-radius: 6px; padding: 5px 7px; min-width: 0; width: 100%; font-family: var(--mono); font-size: 12px; }
+  select { font-family: var(--ui); font-size: 12.5px; cursor: pointer; }
+  select option { background: var(--panel-solid); color: var(--text); }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chip { border: 1px solid var(--line); background: none; border-radius: 99px; padding: 3px 9px; font-size: 11.5px; cursor: pointer; color: var(--muted); }
+  .chip:hover { color: var(--text); border-color: var(--raise-2); }
+  .chip[aria-pressed="true"] { color: var(--sun-ink); background: var(--sun); border-color: var(--sun); }
+  .btn { border: 1px solid var(--line); background: var(--raise); border-radius: 7px; padding: 6px 10px; cursor: pointer; font-weight: 500; font-size: 12.5px; }
+  .btn:hover { background: var(--raise-2); }
+  .btn.primary { background: var(--sun); color: var(--sun-ink); border-color: var(--sun); }
+  :focus-visible { outline: 2px solid var(--sun); outline-offset: 2px; }
+
+  /* Timebar */
+  #timebar { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--gut) + env(safe-area-inset-bottom, 0px)); display: flex; align-items: center; gap: 6px; padding: 7px; flex-wrap: wrap; justify-content: center; max-width: calc(100% - 2 * var(--gut)); }
+  .tgrp { display: flex; align-items: center; gap: 3px; }
+  .tb { border: 0; background: var(--raise); border-radius: 7px; height: 32px; min-width: 32px; padding: 0 9px; cursor: pointer; font: 500 12px/1 var(--mono); color: var(--text); display: inline-flex; align-items: center; justify-content: center; gap: 5px; white-space: nowrap; }
+  .tb:hover { background: var(--raise-2); }
+  .tb.play { background: var(--sun); color: var(--sun-ink); width: 42px; }
+  .tb svg { width: 14px; height: 14px; }
+  .tsep { width: 1px; height: 22px; background: var(--line); margin: 0 3px; }
+  #timebar select { width: auto; height: 32px; border: 0; background: var(--raise); }
+  #timebar input[type="datetime-local"] { width: 188px; height: 32px; border: 0; }
+
+  #zoomCtl { position: absolute; right: calc(var(--gut) + 312px); top: 50%; transform: translateY(-50%); display: grid; gap: 4px; }
+  #zoomCtl button { width: 34px; height: 34px; font-size: 18px; line-height: 1; cursor: pointer; border-radius: 8px; }
+
+  #panelToggle { display: none; }
+
+  #topStack { position: absolute; left: 50%; transform: translateX(-50%); top: calc(var(--gut) + env(safe-area-inset-top, 0px)); width: min(440px, calc(100% - 2 * var(--gut))); display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; z-index: 4; }
+  #topStack > * { pointer-events: auto; }
+  #missionPill { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px; cursor: pointer; font-weight: 600; font-size: 13px; color: var(--text); border-color: rgba(243,179,64,.45); }
+  #missionPill:hover { background: rgba(243,179,64,.12); }
+  #missionPillCount { font: 500 11px/1 var(--mono); color: var(--muted); }
+  #scaleChip { padding: 7px 8px 7px 12px; display: flex; gap: 10px; align-items: center; font-size: 12px; width: 100%; }
+  .meyebrow { font: 600 10px/1.2 var(--ui); letter-spacing: .12em; text-transform: uppercase; color: var(--sun); }
+  #mcard { flex: 0 1 auto; min-height: 120px; border-color: rgba(243,179,64,.38); display: flex; flex-direction: column; overflow: hidden; }
+  #mcard:not([hidden]) ~ #readouts { flex: 0 0 auto; }
+  .mhead { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; padding: 11px 12px 9px 14px; }
+  .mtitle { display: grid; gap: 3px; min-width: 0; }
+  .mtitle b { font: italic 400 21px/1.1 var(--display); text-wrap: balance; }
+  .mbtns { display: flex; gap: 4px; flex: none; }
+  .btn.icon { width: 30px; padding: 0; display: inline-flex; align-items: center; justify-content: center; height: 30px; }
+  .mbtns .btn { height: 30px; }
+  #mMin[aria-expanded="false"] svg { transform: rotate(180deg); }
+  .mbody { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 0 14px 13px; display: grid; gap: 10px; overscroll-behavior: contain; }
+  .mintro { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text); }
+  .mq { border-left: 2px solid var(--sun); padding: 2px 0 2px 10px; display: grid; gap: 2px; }
+  .mq p { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.4; text-wrap: pretty; }
+  .msteps { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; counter-reset: st; }
+  .mstep { display: grid; grid-template-columns: 22px 1fr; gap: 2px 9px; align-items: start; font-size: 12.5px; line-height: 1.45; color: var(--faint); counter-increment: st; }
+  .mstep .dot { width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--line); display: grid; place-items: center; font: 600 10.5px/1 var(--mono); color: var(--faint); margin-top: 1px; }
+  .mstep .dot::before { content: counter(st); }
+  .mstep.done { color: var(--muted); }
+  .mstep.done .dot { background: rgba(127,212,164,.16); border-color: transparent; color: var(--ok); }
+  .mstep.done .dot::before { content: "✓"; }
+  .mstep.cur { color: var(--text); }
+  .mstep.cur .dot { border-color: var(--sun); color: var(--sun); }
+  .mstep .kind { font: 600 10px/1.3 var(--ui); letter-spacing: .1em; text-transform: uppercase; color: var(--sun); display: block; margin-bottom: 1px; }
+  .mstep.done .kind, .mstep.todo .kind { color: inherit; }
+  .mstep .act { grid-column: 2; display: grid; gap: 6px; margin-top: 4px; }
+  .mstep textarea { width: 100%; min-height: 66px; resize: vertical; background: var(--raise); border: 1px solid var(--line); border-radius: 7px; padding: 7px 9px; font: 13px/1.45 var(--ui); color: var(--text); }
+  .mstep textarea:focus { border-color: rgba(243,179,64,.6); outline: none; }
+  .mstep .row { justify-content: space-between; }
+  .mstep .said { grid-column: 2; font-style: italic; color: var(--muted); border-left: 2px solid var(--line); padding-left: 8px; margin-top: 2px; white-space: pre-wrap; }
+  .charcount { font: 11px/1 var(--mono); color: var(--faint); }
+  .mdone { display: grid; gap: 8px; font-size: 13px; background: rgba(127,212,164,.1); border-radius: 8px; padding: 10px 12px; }
+  .mdone .row { gap: 6px; }
+  #mcard.min .mbody { display: none; }
+  #task { width: 100%; padding: 11px 14px; display: grid; gap: 5px; border-color: rgba(106,166,242,.45); }
+  #task .th { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  #task .th .meyebrow { color: var(--earth); }
+  #task > b { font: italic 400 18px/1.15 var(--display); }
+  #task .ttx { font-size: 13px; line-height: 1.5; }
+  #task ol { margin: 0; padding-left: 18px; display: grid; gap: 2px; font-size: 12.5px; color: var(--muted); }
+  #task.min .ttx, #task.min ol, #task.min > b { display: none; }
+  #timeLockNote { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(var(--gut) + 104px + env(safe-area-inset-bottom, 0px)); background: var(--sun); color: var(--sun-ink); font-weight: 600; font-size: 12.5px; padding: 6px 12px; border-radius: 99px; white-space: nowrap; max-width: calc(100% - 2 * var(--gut)); overflow: hidden; text-overflow: ellipsis; z-index: 3; }
+  .overlay { position: absolute; inset: 0; background: rgba(2,3,7,.62); display: grid; place-items: center; padding: 16px; z-index: 10; }
+  .sheet { width: min(560px, 100%); max-height: 100%; overflow: auto; padding: 16px 18px 18px; display: grid; gap: 12px; background: rgba(11,14,25,.95); }
+  .sheet-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+  .sheet-head h2 { margin: 3px 0 0; font: italic 400 28px/1.05 var(--display); }
+  .mlist { display: grid; gap: 6px; }
+  .mitem { display: grid; grid-template-columns: 34px 1fr auto; gap: 12px; align-items: center; text-align: left; padding: 10px 12px; border-radius: 9px; border: 1px solid var(--line); background: var(--raise); cursor: pointer; }
+  .mitem:hover { background: var(--raise-2); border-color: rgba(243,179,64,.45); }
+  .mnum { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font: 500 13px/1 var(--mono); background: var(--raise-2); color: var(--sun); }
+  .mtxt { display: grid; gap: 2px; min-width: 0; }
+  .mtxt b { font-size: 14px; font-weight: 600; }
+  .mtxt span { color: var(--muted); font-size: 12px; }
+  .mtxt .emne { font: 600 10px/1.2 var(--ui); letter-spacing: .1em; text-transform: uppercase; color: var(--faint); }
+  .mstat { font: 600 10.5px/1.4 var(--ui); letter-spacing: .04em; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+  .mstat.done { background: rgba(127,212,164,.14); color: var(--ok); }
+  .mstat.going { background: rgba(243,179,64,.16); color: var(--sun); }
+  .quizitem { border-style: dashed; }
+  .quizitem .mnum { color: var(--earth); }
+  .qsheet h2 { margin: 0; font: 500 18px/1.35 var(--ui); text-wrap: pretty; }
+  .qopts { display: grid; gap: 6px; }
+  .qopt { display: grid; grid-template-columns: 26px 1fr; gap: 10px; align-items: start; text-align: left; padding: 10px 12px; border-radius: 9px; border: 1px solid var(--line); background: var(--raise); cursor: pointer; font-size: 13.5px; line-height: 1.45; }
+  .qopt:hover { background: var(--raise-2); border-color: rgba(243,179,64,.45); }
+  .qopt .l { font: 600 12px/26px var(--mono); color: var(--sun); text-align: center; width: 26px; height: 26px; border-radius: 50%; background: var(--raise-2); }
+  .qend { display: grid; gap: 10px; justify-items: start; font-size: 14px; }
+  .qend p { margin: 0; }
+  #toast { position: absolute; left: 50%; transform: translateX(-50%); z-index: 6; bottom: calc(var(--gut) + 104px + env(safe-area-inset-bottom, 0px)); padding: 10px 12px; display: flex; gap: 10px; align-items: center; max-width: min(520px, calc(100% - 2 * var(--gut))); font-size: 12.5px; }
+  #toast .tt { text-wrap: pretty; }
+
+  @media (max-width: 860px) {
+    :root { --gut: 12px; }
+    .brand h1 { font-size: 21px; }
+    #leftStack { display: contents; }
+    #mcard { position: absolute; left: var(--gut); right: var(--gut); top: calc(var(--gut) + 84px + env(safe-area-inset-top, 0px)); max-height: 40vh; z-index: 4; }
+    #readouts { position: absolute; left: var(--gut); top: auto; bottom: calc(var(--gut) + 172px + env(safe-area-inset-bottom, 0px)); width: min(290px, calc(100% - 2 * var(--gut))); max-height: 45%; }
+    #panel { display: none; left: var(--gut); right: var(--gut); width: auto; top: auto; bottom: calc(var(--gut) + 172px + env(safe-area-inset-bottom, 0px)); max-height: 58%; z-index: 5; }
+    #panel.open { display: block; }
+    #panelToggle { display: inline-flex; position: absolute; right: var(--gut); top: calc(var(--gut) + env(safe-area-inset-top, 0px)); height: 34px; align-items: center; gap: 6px; padding: 0 12px; cursor: pointer; font-weight: 500; }
+    #zoomCtl { right: var(--gut); top: 42%; }
+    #timebar { width: calc(100% - 2 * var(--gut)); gap: 4px; }
+    #timebar .dateform { flex: 1 1 260px; }
+    #timebar input[type="datetime-local"] { flex: 1 1 150px; width: auto; }
+    .dlabel span { display: none; }
+    .tb { height: 30px; min-width: 30px; padding: 0 7px; }
+    .tsep { display: none; }
+    #topStack { top: calc(var(--gut) + 84px + env(safe-area-inset-top, 0px)); }
+    #timeLockNote { bottom: calc(var(--gut) + 180px + env(safe-area-inset-bottom, 0px)); }
+    .hint { display: none; }
+  }
+  @media (max-width: 520px) { .tb .lg { display: none; } }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head><body>
+
+<div id="app">
+  <canvas id="scene" tabindex="0" aria-label="3D-model af Solen, Jorden og Månen. Træk for at dreje, rul for at zoome."></canvas>
+  <div id="labels" aria-hidden="true"></div>
+
+  <header class="masthead">
+    <button class="clock" id="clockBtn" title="Indtast et tidspunkt"><span id="clockMain">–</span><svg class="pen" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M8.5 1.5l2 2L4 10H2v-2z" fill="none" stroke="currentColor" stroke-width="1.2"/></svg><span id="clockSub">–</span></button>
+    <div id="viewHint" class="hint"></div>
+  </header>
+
+  <div id="leftStack">
+    <section id="mcard" class="glass" hidden aria-live="polite" aria-labelledby="mTitle">
+    <header class="mhead">
+      <div class="mtitle"><span class="meyebrow" id="mEyebrow"></span><b id="mTitle"></b></div>
+      <div class="mbtns">
+        <button class="btn icon" id="mMin" aria-label="Fold opgaven sammen" aria-expanded="true"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 7.5 6 4l3.5 3.5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
+        <button class="btn icon" id="mClose" aria-label="Til missionsoversigten"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2 2.5h8M2 6h8M2 9.5h5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg></button>
+      </div>
+    </header>
+    <div class="mbody" id="mBody">
+      <p class="mintro" id="mIntro"></p>
+      <div class="mq"><span class="meyebrow">Missionens spørgsmål</span><p id="mQtext"></p></div>
+      <ol class="msteps" id="mSteps"></ol>
+      <div class="mdone" id="mDone" hidden></div>
+    </div>
+  </section>
+  <section id="readouts" class="glass" aria-label="Målinger">
+    <button class="card-head" id="roToggle" aria-expanded="true" aria-controls="roBody"><span class="lbl">Målinger</span><svg class="chev" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 4.5 6 8l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.5"/></svg></button>
+    <div class="ro-body" id="roBody">
+      <div class="ro-group g-sun"><h3>Jorden og Solen</h3>
+        <dl class="ro"><dt>Afstand Jord–Sol</dt><dd id="r_es">–</dd></dl>
+        <dl class="ro"><dt>Solens deklination</dt><dd id="r_decl">–</dd></dl>
+        <dl class="ro"><dt>Årstid (nordlige halvkugle)</dt><dd id="r_season">–</dd></dl>
+      </div>
+      <div class="ro-group g-moon"><h3>Månen</h3>
+        <div class="moonphase"><canvas id="phaseIcon" width="68" height="68" aria-hidden="true"></canvas><div><div id="r_phase" style="font-weight:500">–</div><div id="r_illum" style="color:var(--muted);font-size:11.5px">–</div></div></div>
+        <dl class="ro"><dt>Afstand Jord–Måne</dt><dd id="r_em">–</dd></dl>
+        <dl class="ro"><dt>Over/under Jordens baneplan</dt><dd id="r_beta">–</dd></dl>
+      </div>
+      <div class="ro-group g-obs" id="g_obs"><h3 id="r_obsname">Observatør</h3>
+        <dl class="ro"><dt>Solens højde</dt><dd id="r_salt">–</dd></dl>
+        <dl class="ro"><dt>Månens højde</dt><dd id="r_malt">–</dd></dl>
+        <dl class="ro"><dt>Dagens længde</dt><dd id="r_day">–</dd></dl>
+        <dl class="ro"><dt>Solens højde ved middag</dt><dd id="r_noon">–</dd></dl>
+      </div>
+      <div class="ro-group g-ecl"><h3>Formørkelser</h3>
+        <dl class="ro"><dt>Status</dt><dd id="r_ecl"><span class="pill calm">Ingen</span></dd></dl>
+        <dl class="ro"><dt>Solretning vs. knudelinje</dt><dd id="r_node">–</dd></dl>
+      </div>
+    </div>
+  </section>
+  </div>
+
+  <button id="panelToggle" class="glass" aria-expanded="false" aria-controls="panel">
+    <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2 4h10M2 10h10" stroke="currentColor" stroke-width="1.5"/><circle cx="5" cy="4" r="1.8" fill="var(--panel-solid)" stroke="currentColor" stroke-width="1.3"/><circle cx="9" cy="10" r="1.8" fill="var(--panel-solid)" stroke="currentColor" stroke-width="1.3"/></svg>
+    Indstillinger
+  </button>
+
+  <aside id="panel" class="glass" aria-label="Indstillinger">
+    <div class="sec" data-lock="view">
+      <h2>Udsigtspunkt</h2>
+      <div class="views" id="viewList"></div>
+      <div id="camCtl" style="display:grid;gap:6px"></div>
+    </div>
+    <div class="sec" data-lock="observer" id="obsSec">
+      <h2>Observatør på Jorden</h2>
+      <div class="chips" id="obsPresets"></div>
+      <div class="row">
+        <div class="field"><label for="obsLat">Bredde (°N)</label><input type="number" id="obsLat" min="-90" max="90" step="0.01"></div>
+        <div class="field"><label for="obsLon">Længde (°Ø)</label><input type="number" id="obsLon" min="-180" max="180" step="0.01"></div>
+      </div>
+    </div>
+    <div class="sec" data-lock="scale">
+      <h2>Størrelser og afstande</h2>
+      <div class="seg scale-big" role="group" aria-label="Skala">
+        <button id="scaleExag" aria-pressed="true">Overdrevne</button>
+        <button id="scaleReal" aria-pressed="false">Korrekte</button>
+      </div>
+      <p class="note" id="scaleNote"></p>
+    </div>
+    <div class="sec" data-lock="show">
+      <h2>Vis</h2>
+      <div class="toggles">
+        <label class="tg"><input type="checkbox" id="t_orbits" checked>Baner</label>
+        <label class="tg"><input type="checkbox" id="t_planes">Baneplaner og knudelinje</label>
+        <label class="tg"><input type="checkbox" id="t_axis" checked>Jordens akse</label>
+        <label class="tg"><input type="checkbox" id="t_grid">Ækvator, vendekredse, polarcirkler</label>
+        <label class="tg"><input type="checkbox" id="t_labels" checked>Navne</label>
+        <label class="tg"><input type="checkbox" id="t_paths" checked>Sol- og månebane på himlen<span class="x">observatør</span></label>
+        <label class="tg"><input type="checkbox" id="t_atmo" checked>Atmosfære (blå himmel)<span class="x">observatør</span></label>
+      </div>
+    </div>
+    <div class="sec" id="aiplaSec">
+      <h2>Tutoren</h2>
+      <p class="note">Forbundet til tutoren. Del det, du ser, når du vil have feedback.</p>
+      <button class="btn primary" id="shareBtn">Send min visning til tutoren</button>
+    </div>
+  </aside>
+
+  <div id="zoomCtl">
+    <button class="glass" id="zoomIn" aria-label="Zoom ind">+</button>
+    <button class="glass" id="zoomOut" aria-label="Zoom ud">−</button>
+  </div>
+
+  <div id="timebar" class="glass" data-lock="time" role="group" aria-label="Tid">
+    <div class="tgrp">
+      <button class="tb" data-step="-29.530589" title="1 synodisk måned tilbage">−1 md</button>
+      <button class="tb" data-step="-1" title="1 døgn tilbage">−1 d</button>
+      <button class="tb" data-step="-0.0416667" title="1 time tilbage">−1 t</button>
+    </div>
+    <button class="tb play" id="playBtn" aria-label="Pause"></button>
+    <div class="tgrp">
+      <button class="tb" data-step="0.0416667" title="1 time frem">+1 t</button>
+      <button class="tb" data-step="1" title="1 døgn frem">+1 d</button>
+      <button class="tb" data-step="29.530589" title="1 synodisk måned frem">+1 md</button>
+    </div>
+    <span class="tsep"></span>
+    <div class="tgrp">
+      <button class="tb" id="dirBtn" title="Skift tidens retning" aria-label="Tiden går fremad">▶▶</button>
+      <select id="speedSel" aria-label="Hastighed"></select>
+    </div>
+    <span class="tsep"></span>
+    <form class="tgrp dateform" id="dateForm" autocomplete="off">
+      <label class="dlabel" for="dateInput">Tidspunkt <span>dansk tid</span></label>
+      <input type="datetime-local" id="dateInput" min="1900-01-01T00:00" max="2100-12-31T23:59" step="60">
+      <button class="tb go" type="submit" id="dateGo">Gå</button>
+    </form>
+    <button class="tb" id="nowBtn">Nu</button>
+    <select id="jumpSel" aria-label="Spring til begivenhed">
+      <option value="">Spring til …</option>
+      <optgroup label="Månen">
+        <option value="nymaane">Næste nymåne</option>
+        <option value="foerste">Næste første kvarter</option>
+        <option value="fuldmaane">Næste fuldmåne</option>
+        <option value="sidste">Næste sidste kvarter</option>
+      </optgroup>
+      <optgroup label="Året">
+        <option value="foraar">Forårsjævndøgn</option>
+        <option value="sommer">Sommersolhverv</option>
+        <option value="efteraar">Efterårsjævndøgn</option>
+        <option value="vinter">Vintersolhverv</option>
+        <option value="perihel">Perihel (Jorden nærmest Solen)</option>
+        <option value="aphel">Aphel (Jorden fjernest fra Solen)</option>
+      </optgroup>
+      <optgroup label="Døgnet (observatør)">
+        <option value="middag">Næste middag (Solen højest)</option>
+        <option value="midnat">Næste midnat (Solen lavest)</option>
+      </optgroup>
+      <optgroup label="Formørkelser">
+        <option value="solform">Næste solformørkelse</option>
+        <option value="maaneform">Næste måneformørkelse</option>
+      </optgroup>
+    </select>
+  </div>
+
+  <div id="topStack">
+    <button id="missionPill" class="glass"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M2 2.5h10M2 7h10M2 11.5h6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>Missioner<span id="missionPillCount"></span></button>
+    <div id="scaleChip" class="glass" hidden><span>Overdrevne størrelser forvrænger himlen set fra overfladen.</span><button class="btn primary" id="chipReal">Brug korrekte</button></div>
+
+
+    <div id="task" class="glass" hidden aria-live="polite">
+      <div class="th"><span class="meyebrow">Fra tutoren</span><button class="btn" id="taskMin">Skjul</button></div>
+      <b id="taskTitle"></b>
+      <div class="ttx" id="taskText"></div>
+      <ol id="taskSteps"></ol>
+    </div>
+  </div>
+
+  <div id="timeLockNote" hidden>Tiden starter, når du har sendt din forudsigelse</div>
+
+  <div id="picker" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="pickTitle">
+    <div class="sheet glass">
+      <header class="sheet-head">
+        <div><span class="meyebrow">Sol · Jord · Måne</span><h2 id="pickTitle">Vælg en mission</h2></div>
+        <button class="btn" id="pickClose">Luk</button>
+      </header>
+      <p class="note" id="pickNote">Hver mission har et spørgsmål, som du skal finde svaret på i simulationen. Tutoren følger med og kan hjælpe dig undervejs.</p>
+      <button class="mitem quizitem" id="quizStart">
+        <span class="mnum">?</span>
+        <span class="mtxt"><b>Hvad tænker du nu?</b><span>6 korte spørgsmål, før du går i gang. Der er ingen point.</span></span>
+        <span class="mstat" id="quizStat"></span>
+      </button>
+      <div class="mlist" id="mList"></div>
+    </div>
+  </div>
+
+  <div id="quiz" class="overlay" hidden role="dialog" aria-modal="true" aria-labelledby="qStem">
+    <div class="sheet glass qsheet">
+      <header class="sheet-head">
+        <span class="meyebrow" id="qProg"></span>
+        <button class="btn" id="qClose">Luk</button>
+      </header>
+      <h2 id="qStem"></h2>
+      <div class="qopts" id="qOpts"></div>
+      <div class="qend" id="qEnd" hidden>
+        <p>Tak. Dine svar er sendt til tutoren, som bruger dem til at hjælpe dig.</p>
+        <button class="btn primary" id="qToMissions">Vælg en mission</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="glass" hidden role="status"><span class="tt" id="toastText"></span><button class="btn primary" id="toastAct" hidden></button><button class="btn" id="toastClose" aria-label="Luk">✕</button></div>
+</div>
+<script src="/vendor/three/0.128.0/three.min.js" integrity="sha384-CI3ELBVUz9XQO+97x6nwMDPosPR5XvsxW2ua7N1Xeygeh1IxtgqtCkGfQY9WWdHu" crossorigin="anonymous"></script>
+<!-- @aipla-bridge:start -->
+<script>
+/* ============================================================================
+ * AIPLA MCP App guest bridge — ONE canonical transport for every host.
+ *
+ * SOURCE OF TRUTH. This file is inlined verbatim into every artefact's
+ * index.html between the `@aipla-bridge:start … @aipla-bridge:end` markers by
+ * `scripts/build-artefact-bridge.mjs` (run `make sim-build`). NEVER hand-edit
+ * the inlined copy — edit THIS file and rebuild. CI (`--check`) fails on drift.
+ *
+ * It speaks whichever host is present:
+ *   - AIPLA app / SEP-1865 hosts  → JSON-RPC `ui/update-model-context` over
+ *                                   window.parent.postMessage (the app reads
+ *                                   structuredContent + renders the trust card).
+ *   - ChatGPT (OpenAI Apps SDK)   → window.openai.setWidgetState (durable state)
+ *                                   + window.openai.sendFollowUpMessage (turns a
+ *                                   deliberate commit into an immediate turn).
+ *   - Claude Desktop / Inspector  → the same SEP-1865 postMessage + `content`.
+ *
+ * The window.openai block is guarded end-to-end: absent in the AIPLA app and
+ * Claude, so it is a pure no-op there and the postMessage path stays
+ * authoritative. See docs/design/aipla/v1.1.0-feedback/shared-mcp-app-bridge.md.
+ *
+ * Public surface (window.AIPLA_BRIDGE):
+ *   emit(kind, extra)                 — report a student interaction. `kind` is
+ *                                       the FULL event kind (e.g. "boldkast.play").
+ *                                       `extra.label` (a curated string) marks a
+ *                                       DELIBERATE COMMIT — only labelled emits
+ *                                       inject a ChatGPT follow-up turn.
+ *   init({ name, version })           — run the ui/initialize handshake. Call once
+ *                                       at the bottom of the artefact script.
+ *   onChatFlush(cb)                   — cb() runs on ui/notifications/chat-flush.
+ *   onHostNotification(method, cb)    — cb(params, msg) runs on any host→iframe
+ *                                       JSON-RPC notification with that method.
+ *   hostContext()                     — the hostContext returned by ui/initialize.
+ *
+ * Conservative JS (var/function) so it runs unchanged in any host iframe engine.
+ * ========================================================================== */
+(function () {
+  "use strict";
+
+  var __rpcNextId = 1;
+  var __initialized = false;
+  var __pendingEmits = [];
+  var __hostContext = null;
+  var __handlers = {}; // method -> [cb]
+  var __lastReportedHeight = 0;
+  var __appLinkShown = false;
+  var __appLinkOpts = null;
+  var __hostIsExternal = false; // a non-AIPLA host (any MCP-Apps host OR ChatGPT)
+  var __hostIsAipla = false; // our own app — identified by serverInfo.name below
+
+  // Our app self-identifies in its ui/initialize response so host detection
+  // uses the OPEN STANDARD, not the OpenAI-specific window.openai shim. Every
+  // other SEP-1865 host (Claude, Inspector, Goose, Copilot) returns a different
+  // serverInfo; ChatGPT never answers the handshake (caught by window.openai).
+  var AIPLA_HOST_NAME = "aipla-host";
+
+  // Deployed AIPLA app — the deep-link target for the external-host "advertising
+  // → app" CTA (design 1.1.55 §0). Public URL; update per env / when a custom
+  // domain lands. Overridable per-sim via init({ appUrl: "…" }).
+  var APP_URL = "https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app";
+
+  function __post(msg) {
+    try {
+      // targetOrigin "*" is safe: the outer sandbox proxy validates origin on
+      // its side per ADR-013, then re-postMessages to the host with the host's
+      // specific origin. In standalone (artefact opened directly) parent may not
+      // exist — swallow.
+      window.parent.postMessage(msg, "*");
+    } catch (e) {
+      /* no host */
+    }
+  }
+
+  function rpcNotify(method, params) {
+    __post({ jsonrpc: "2.0", method: method, params: params || {} });
+  }
+
+  function rpcRequest(method, params) {
+    return new Promise(function (resolve, reject) {
+      var id = __rpcNextId++;
+      var listener = function (e) {
+        var d = e.data;
+        if (!d || d.id !== id) return;
+        window.removeEventListener("message", listener);
+        if (d.result !== undefined) resolve(d.result);
+        else reject(new Error((d.error && d.error.message) || "rpc error"));
+      };
+      window.addEventListener("message", listener);
+      __post({ jsonrpc: "2.0", id: id, method: method, params: params || {} });
+    });
+  }
+
+  // Single host→iframe listener: respond to ping (spec), dispatch registered
+  // notification handlers. rpcRequest installs its own short-lived id-matched
+  // listener separately for responses.
+  window.addEventListener("message", function (e) {
+    var d = e.data;
+    if (!d || d.jsonrpc !== "2.0") return;
+    if (d.method === "ping" && d.id !== undefined && d.id !== null) {
+      __post({ jsonrpc: "2.0", id: d.id, result: {} });
+      return;
+    }
+    if (d.method && __handlers[d.method]) {
+      var cbs = __handlers[d.method];
+      for (var i = 0; i < cbs.length; i++) {
+        try {
+          cbs[i](d.params, d);
+        } catch (err) {
+          /* a handler throwing must not break the bridge */
+        }
+      }
+    }
+  });
+
+  // Derive a human-readable `content` text for generic MCP hosts (ChatGPT /
+  // Claude feed `content` to the model and treat `structuredContent` as
+  // schema-validated app data — without a text the model never sees the
+  // interaction). Prefers the curated `label`; else summarises the payload.
+  // The AIPLA frontend reads structuredContent and IGNORES content, so this is
+  // purely additive for our own app.
+  function __contentText(kind, p) {
+    if (p && typeof p.label === "string" && p.label) return p.label;
+    if (!p) return kind;
+    var parts = [];
+    for (var k in p) {
+      if (k === "label") continue;
+      var v = p[k];
+      if (Array.isArray(v)) {
+        parts.push(k + "=[" + v.length + "]");
+      } else if (v && typeof v === "object") {
+        for (var k2 in v) {
+          if (v[k2] == null || typeof v[k2] !== "object") parts.push(k2 + "=" + v[k2]);
+        }
+      } else {
+        parts.push(k + "=" + v);
+      }
+    }
+    return kind + (parts.length ? " (" + parts.join(", ") + ")" : "");
+  }
+
+  function emit(kind, extra) {
+    extra = extra || {};
+    var sc = Object.assign({}, extra, { kind: kind });
+    var params = { structuredContent: sc };
+    var label = typeof extra.label === "string" && extra.label ? extra.label : "";
+    var text = label || __contentText(kind, extra);
+    if (text) params.content = [{ type: "text", text: text }];
+
+    // ── ChatGPT (OpenAI Apps SDK) ──────────────────────────────────────────
+    // Absent in the AIPLA app / Claude → whole block no-ops. Guard every call.
+    var oa = typeof window !== "undefined" ? window.openai : undefined;
+    if (oa) {
+      try {
+        if (oa.setWidgetState) oa.setWidgetState(sc);
+      } catch (e) {
+        /* best effort */
+      }
+      // Inject a turn ONLY on a deliberate commit (has a curated label) — never
+      // on a passive settle or a derived-text event. Gated on `label`, NOT on
+      // `content` (content is near-always present via __contentText).
+      if (label && oa.sendFollowUpMessage) {
+        try {
+          oa.sendFollowUpMessage({ prompt: label });
+        } catch (e) {
+          /* best effort */
+        }
+      }
+    }
+
+    // ── SEP-1865 postMessage (AIPLA app + native hosts) — authoritative ─────
+    var msg = { jsonrpc: "2.0", method: "ui/update-model-context", params: params };
+    if (!__initialized) {
+      __pendingEmits.push(msg);
+      return;
+    }
+    __post(msg);
+  }
+
+  function onHostNotification(method, cb) {
+    if (!__handlers[method]) __handlers[method] = [];
+    __handlers[method].push(cb);
+  }
+
+  function onChatFlush(cb) {
+    onHostNotification("ui/notifications/chat-flush", function () {
+      cb();
+    });
+  }
+
+  // The initial widget state a host restored for this render (ChatGPT/Copilot
+  // persist setWidgetState across navigate-away-and-back). A sim that wants to
+  // restore its UI reads this in its own init: e.g. AIPLA_BRIDGE.initialState().
+  // Returns null in the AIPLA app / Claude (no window.openai). Opt-in per sim.
+  function initialState() {
+    var oa = typeof window !== "undefined" ? window.openai : undefined;
+    return oa && oa.widgetState ? oa.widgetState : null;
+  }
+
+  // Report our content height so a host frame fits it. ChatGPT/Copilot default
+  // the widget iframe to ~600px and only shrink on this signal; we route it
+  // through window.openai only (the AIPLA app owns the workspace-pane height and
+  // Claude/Inspector default frames are fine — sending nothing there avoids
+  // noise). Guarded + best-effort: no-op where the API/host is absent. For a
+  // full-bleed sim (html,body height:100%) body.scrollHeight is the frame
+  // height, so this harmlessly reports the current size.
+  function reportSize() {
+    var oa = typeof window !== "undefined" ? window.openai : undefined;
+    if (!oa || typeof oa.notifyIntrinsicHeight !== "function") return;
+    var doc = typeof window !== "undefined" ? window.document : undefined;
+    if (!doc || !doc.body) return;
+    var rect = doc.body.getBoundingClientRect ? doc.body.getBoundingClientRect() : { height: 0 };
+    var h = Math.ceil(Math.max(doc.body.scrollHeight || 0, rect.height || 0));
+    if (!h || h === __lastReportedHeight) return;
+    __lastReportedHeight = h;
+    try {
+      oa.notifyIntrinsicHeight(h);
+    } catch (e) {
+      /* best effort */
+    }
+  }
+
+  // Deep-link CTA — external-host "advertising → app" (design 1.1.55 §0). The
+  // low-level injector: drops one unobtrusive floating pill that opens the
+  // deployed app for the full tutor (agent + persona + research capture).
+  // Idempotent + guarded. The SHOW DECISION (which host) is made by
+  // __maybeShowAppLink via the standard handshake — see __hostIsExternal.
+  function showAppLink(opts) {
+    opts = opts || {};
+    if (__appLinkShown || opts.disabled) return;
+    var oa = typeof window !== "undefined" ? window.openai : undefined;
+    var doc = typeof window !== "undefined" ? window.document : undefined;
+    if (!doc || !doc.body || typeof doc.createElement !== "function") return;
+    __appLinkShown = true;
+
+    var href = opts.href || APP_URL + (opts.sim ? "?sim=" + encodeURIComponent(opts.sim) : "");
+    var a = doc.createElement("a");
+    a.textContent = opts.label || "Open the full tutor in AIPLA ↗";
+    a.href = href;
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.setAttribute("role", "button");
+    a.style.cssText =
+      "position:fixed;right:12px;bottom:12px;z-index:2147483647;" +
+      "font:600 12px/1 ui-sans-serif,system-ui,-apple-system,sans-serif;" +
+      "padding:8px 12px;border-radius:999px;background:#1e40af;color:#fff;" +
+      "text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer";
+    a.addEventListener("click", function (e) {
+      // Prefer the host's vetted external-open affordance; else the <a> opens natively.
+      if (oa && typeof oa.openExternal === "function") {
+        try {
+          e.preventDefault();
+          oa.openExternal({ href: href });
+        } catch (err) {
+          try {
+            window.open(href, "_blank");
+          } catch (e2) {
+            /* best effort */
+          }
+        }
+      }
+    });
+    try {
+      doc.body.appendChild(a);
+    } catch (e) {
+      /* best effort */
+    }
+  }
+
+  // Show the CTA only when we KNOW we're in a host that isn't the AIPLA app.
+  // external (ChatGPT via window.openai, or any host whose ui/initialize
+  // serverInfo isn't "aipla-host") AND not our app.
+  function __maybeShowAppLink() {
+    if (__appLinkOpts && __appLinkOpts.disabled) return;
+    if (__hostIsAipla || !__hostIsExternal) return;
+    showAppLink(__appLinkOpts || {});
+  }
+
+  function __setupHostAdaptation() {
+    if (typeof window === "undefined") return;
+    // ChatGPT never answers the ui/initialize handshake, so it can't be detected
+    // via serverInfo — but it injects window.openai, which is a definitive
+    // "external, not our app" signal. window.openai may arrive slightly after
+    // load → also react to its (re)injection.
+    if (window.openai) __hostIsExternal = true;
+    try {
+      window.addEventListener("openai:set_globals", function () {
+        __hostIsExternal = true;
+        reportSize();
+        __maybeShowAppLink();
+      });
+    } catch (e) {
+      /* older engine */
+    }
+    var doc = window.document;
+    if (typeof ResizeObserver !== "undefined" && doc && doc.body) {
+      try {
+        new ResizeObserver(reportSize).observe(doc.body);
+      } catch (e) {
+        /* best effort */
+      }
+    }
+    reportSize();
+    __maybeShowAppLink();
+  }
+
+  function init(clientInfo) {
+    clientInfo = clientInfo || {};
+    var ci = {
+      name: clientInfo.name || "aipla-sim",
+      version: clientInfo.version || "1.0.0",
+    };
+    // Deep-link CTA options (external-host only). Disable per-sim with
+    // init({ appLink: false }); customise with appUrl / appLinkLabel.
+    __appLinkOpts = {
+      sim: ci.name,
+      href: clientInfo.appUrl,
+      label: clientInfo.appLinkLabel,
+      disabled: clientInfo.appLink === false,
+    };
+    // If parent isn't a sandbox proxy (standalone testing) this rejects and we
+    // flip __initialized so queued emits stop queuing (they become __post
+    // no-ops via the try/catch).
+    rpcRequest("ui/initialize", {
+      protocolVersion: "2026-01-26",
+      capabilities: {},
+      clientInfo: ci,
+    })
+      .then(function (result) {
+        __hostContext = (result && result.hostContext) || null;
+        // Standard host identification: our own app answers with
+        // serverInfo.name === "aipla-host"; every other SEP-1865 host (Claude,
+        // Inspector, Goose, Copilot) is external → eligible for the app CTA.
+        var srvName = result && result.serverInfo && result.serverInfo.name;
+        if (srvName === AIPLA_HOST_NAME) {
+          __hostIsAipla = true;
+        } else {
+          __hostIsExternal = true;
+        }
+        rpcNotify("ui/notifications/initialized", { clientInfo: ci });
+        __initialized = true;
+        while (__pendingEmits.length) __post(__pendingEmits.shift());
+        __maybeShowAppLink();
+      })
+      .catch(function () {
+        __initialized = true;
+        __pendingEmits.length = 0;
+      });
+    // Independent of the postMessage handshake (which never resolves under
+    // ChatGPT): adapt to a window.openai host + report our size.
+    __setupHostAdaptation();
+  }
+
+  window.AIPLA_BRIDGE = {
+    emit: emit,
+    init: init,
+    onChatFlush: onChatFlush,
+    onHostNotification: onHostNotification,
+    hostContext: function () {
+      return __hostContext;
+    },
+    initialState: initialState,
+    reportSize: reportSize,
+    showAppLink: showAppLink,
+  };
+})();
+</script>
+<!-- @aipla-bridge:end -->
+<script>
+// ---------------------------------------------------------------------------
+// Astro: positioner for Sol, Jord og Måne (ekliptisk koordinatsystem, dato-ækvinoktium)
+// Solen: Meeus kap. 25 (lav præcision, ~0,01°). Månen: Meeus kap. 47 (trunkeret ELP-2000/82,
+// ~60 led; nøjagtighed ~10"–20"). Enheder: km, dage, grader/radianer som angivet.
+// ---------------------------------------------------------------------------
+var Astro = (function () {
+  var D2R = Math.PI / 180, R2D = 180 / Math.PI;
+  var AU = 149597870.7;             // km
+  var R_SUN = 696000, R_EARTH = 6371.0, R_MOON = 1737.4;
+  var DELTA_T = 69;                 // s, TT - UT (ca. 2020-2030)
+  function norm360(x) { x %= 360; return x < 0 ? x + 360 : x; }
+  function wrap180(x) { x = norm360(x); return x > 180 ? x - 360 : x; }
+  function jdUT(ms) { return ms / 86400000 + 2440587.5; }
+  function msFromJd(jd) { return (jd - 2440587.5) * 86400000; }
+
+  // [D, M, M', F, Σl (1e-6 °), Σr (1e-3 km)]
+  var LR = [
+    [0,0,1,0,6288774,-20905355],[2,0,-1,0,1274027,-3699111],[2,0,0,0,658314,-2955968],
+    [0,0,2,0,213618,-569925],[0,1,0,0,-185116,48888],[0,0,0,2,-114332,-3149],
+    [2,0,-2,0,58793,246158],[2,-1,-1,0,57066,-152138],[2,0,1,0,53322,-170733],
+    [2,-1,0,0,45758,-204586],[0,1,-1,0,-40923,-129620],[1,0,0,0,-34720,108743],
+    [0,1,1,0,-30383,104755],[2,0,0,-2,15327,10321],[0,0,1,2,-12528,0],
+    [0,0,1,-2,10980,79661],[4,0,-1,0,10675,-34782],[0,0,3,0,10034,-23210],
+    [4,0,-2,0,8548,-21636],[2,1,-1,0,-7888,24208],[2,1,0,0,-6766,30824],
+    [1,0,-1,0,-5163,-8379],[1,1,0,0,4987,-16675],[2,-1,1,0,4036,-12831],
+    [2,0,2,0,3994,-10445],[4,0,0,0,3861,-11650],[2,0,-3,0,3665,14403],
+    [0,1,-2,0,-2689,-7003],[2,0,-1,2,-2602,0],[2,-1,-2,0,2390,10056],
+    [1,0,1,0,-2348,6322],[2,-2,0,0,2236,-9884],[0,1,2,0,-2120,5751],
+    [0,2,0,0,-2069,0],[2,-2,-1,0,2048,-4950],[2,0,1,-2,-1773,4130],
+    [2,0,0,2,-1595,0],[4,-1,-1,0,1215,-3958],[0,0,2,2,-1110,0],
+    [3,0,-1,0,-892,3258],[2,1,1,0,-810,2616],[4,-1,-2,0,759,-1897],
+    [0,2,-1,0,-713,-2117],[2,2,-1,0,-700,2354],[2,1,-2,0,691,0],
+    [2,-1,0,-2,596,0],[4,0,1,0,549,-1423],[0,0,4,0,537,-1117],
+    [4,-1,0,0,520,-1571],[1,0,-2,0,-487,-1739],[2,1,0,-2,-399,0],
+    [0,0,2,-2,-381,-4421],[1,1,1,0,351,0],[3,0,-2,0,-340,0],
+    [4,0,-3,0,330,0],[2,-1,2,0,327,0],[0,2,1,0,-323,1165],
+    [1,1,-1,0,299,0],[2,0,3,0,294,0],[2,0,-1,-2,0,8752]
+  ];
+  // [D, M, M', F, Σb (1e-6 °)]
+  var B = [
+    [0,0,0,1,5128122],[0,0,1,1,280602],[0,0,1,-1,277693],[2,0,0,-1,173237],
+    [2,0,-1,1,55413],[2,0,-1,-1,46271],[2,0,0,1,32573],[0,0,2,1,17198],
+    [2,0,1,-1,9266],[0,0,2,-1,8822],[2,-1,0,-1,8216],[2,0,-2,-1,4324],
+    [2,0,1,1,4200],[2,1,0,-1,-3359],[2,-1,-1,1,2463],[2,-1,0,1,2211],
+    [2,-1,-1,-1,2065],[0,1,-1,-1,-1870],[4,0,-1,-1,1828],[0,1,0,1,-1794],
+    [0,0,0,3,-1749],[0,1,-1,1,-1565],[1,0,0,1,-1491],[0,1,1,1,-1475],
+    [0,1,1,-1,-1410],[0,1,0,-1,-1344],[1,0,0,-1,-1335],[0,0,3,1,1107],
+    [4,0,0,-1,1021],[4,0,-1,1,833]
+  ];
+
+  function obliquity(T) { return 23.439291 - 0.0130042 * T; }
+
+  // Solens geocentriske ekliptiske længde (°) og afstand (km)
+  function sun(T) {
+    var L0 = 280.46646 + 36000.76983 * T + 0.0003032 * T * T;
+    var M = 357.52911 + 35999.05029 * T - 0.0001537 * T * T;
+    var e = 0.016708634 - 0.000042037 * T;
+    var Mr = M * D2R;
+    var C = (1.914602 - 0.004817 * T) * Math.sin(Mr) + (0.019993 - 0.000101 * T) * Math.sin(2 * Mr) + 0.000289 * Math.sin(3 * Mr);
+    var lon = norm360(L0 + C), nu = (M + C) * D2R;
+    var R = 1.000001018 * (1 - e * e) / (1 + e * Math.cos(nu));
+    return { lon: lon, lat: 0, dist: R * AU };
+  }
+
+  function moon(T) {
+    var Lp = 218.3164477 + 481267.88123421 * T - 0.0015786 * T * T;
+    var D = 297.8501921 + 445267.1114034 * T - 0.0018819 * T * T;
+    var M = 357.5291092 + 35999.0502909 * T - 0.0001536 * T * T;
+    var Mp = 134.9633964 + 477198.8675055 * T + 0.0087414 * T * T;
+    var F = 93.2720950 + 483202.0175233 * T - 0.0036539 * T * T;
+    var E = 1 - 0.002516 * T - 0.0000074 * T * T;
+    var A1 = 119.75 + 131.849 * T, A2 = 53.09 + 479264.290 * T, A3 = 313.45 + 481266.484 * T;
+    var sl = 0, sr = 0, sb = 0, i, t, arg, ef;
+    for (i = 0; i < LR.length; i++) {
+      t = LR[i];
+      arg = (t[0] * D + t[1] * M + t[2] * Mp + t[3] * F) * D2R;
+      ef = t[1] === 0 ? 1 : (Math.abs(t[1]) === 1 ? E : E * E);
+      sl += t[4] * ef * Math.sin(arg);
+      sr += t[5] * ef * Math.cos(arg);
+    }
+    for (i = 0; i < B.length; i++) {
+      t = B[i];
+      arg = (t[0] * D + t[1] * M + t[2] * Mp + t[3] * F) * D2R;
+      ef = t[1] === 0 ? 1 : (Math.abs(t[1]) === 1 ? E : E * E);
+      sb += t[4] * ef * Math.sin(arg);
+    }
+    sl += 3958 * Math.sin(A1 * D2R) + 1962 * Math.sin((Lp - F) * D2R) + 318 * Math.sin(A2 * D2R);
+    sb += -2235 * Math.sin(Lp * D2R) + 382 * Math.sin(A3 * D2R) + 175 * Math.sin((A1 - F) * D2R) +
+          175 * Math.sin((A1 + F) * D2R) + 127 * Math.sin((Lp - Mp) * D2R) - 115 * Math.sin((Lp + Mp) * D2R);
+    return { lon: norm360(Lp + sl / 1e6), lat: sb / 1e6, dist: 385000.56 + sr / 1000,
+             node: norm360(Lp - F) /* stigende knude, middel */ };
+  }
+
+  function sph2vec(lonDeg, latDeg, r) {
+    var lo = lonDeg * D2R, la = latDeg * D2R;
+    return [r * Math.cos(la) * Math.cos(lo), r * Math.cos(la) * Math.sin(lo), r * Math.sin(la)];
+  }
+  function sub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
+  function add(a, b) { return [a[0] + b[0], a[1] + b[1], a[2] + b[2]]; }
+  function mul(a, s) { return [a[0] * s, a[1] * s, a[2] * s]; }
+  function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+  function cross(a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; }
+  function len(a) { return Math.sqrt(dot(a, a)); }
+  function unit(a) { var l = len(a); return [a[0] / l, a[1] / l, a[2] / l]; }
+  function angle(a, b) { return Math.atan2(len(cross(a, b)), dot(a, b)); }
+
+  // Ækvatorial -> ekliptisk (rotation om x med -ε)
+  function eq2ecl(v, epsDeg) {
+    var e = epsDeg * D2R, c = Math.cos(e), s = Math.sin(e);
+    return [v[0], v[1] * c + v[2] * s, -v[1] * s + v[2] * c];
+  }
+  function ecl2eq(v, epsDeg) {
+    var e = epsDeg * D2R, c = Math.cos(e), s = Math.sin(e);
+    return [v[0], v[1] * c - v[2] * s, v[1] * s + v[2] * c];
+  }
+
+  function gmstDeg(jdut) {
+    var d = jdut - 2451545.0, T = d / 36525;
+    return norm360(280.46061837 + 360.98564736629 * d + 0.000387933 * T * T);
+  }
+
+  // Fuld tilstand til et tidspunkt (ms siden 1970, UTC)
+  function state(ms) {
+    var jd = jdUT(ms), jde = jd + DELTA_T / 86400, T = (jde - 2451545.0) / 36525;
+    var s = sun(T), m = moon(T), eps = obliquity(T);
+    var sunGeo = sph2vec(s.lon, 0, s.dist);             // km, geocentrisk ekliptisk
+    var moonGeo = sph2vec(m.lon, m.lat, m.dist);
+    var elong = norm360(m.lon - s.lon);                 // 0 = nymåne, 180 = fuldmåne
+    var phaseAngle = angle(sub(sunGeo, moonGeo), mul(moonGeo, -1)); // Sol-Måne-Jord
+    var illum = (1 + Math.cos(phaseAngle)) / 2;
+    return {
+      ms: ms, jd: jd, T: T, eps: eps, gmst: gmstDeg(jd),
+      sun: s, moon: m, sunGeo: sunGeo, moonGeo: moonGeo,
+      elong: elong, illum: illum,
+      sunDecl: Math.asin(Math.sin(eps * D2R) * Math.sin(s.lon * D2R)) * R2D
+    };
+  }
+
+  // Observatørens position (km, geocentrisk ekliptisk) og lokale akser
+  function observer(st, latDeg, lonDeg) {
+    var th = (st.gmst + lonDeg) * D2R, la = latDeg * D2R;
+    var upEq = [Math.cos(la) * Math.cos(th), Math.cos(la) * Math.sin(th), Math.sin(la)];
+    var eastEq = [-Math.sin(th), Math.cos(th), 0];
+    var northEq = cross(upEq, eastEq);
+    return {
+      up: eq2ecl(upEq, st.eps), east: eq2ecl(eastEq, st.eps), north: eq2ecl(northEq, st.eps),
+      pos: mul(eq2ecl(upEq, st.eps), R_EARTH)
+    };
+  }
+  // Højde og azimut (°, azimut fra nord mod øst) for en retning set fra observatør
+  function altAz(obs, targetGeo) {
+    var d = unit(sub(targetGeo, obs.pos));
+    var alt = Math.asin(Math.max(-1, Math.min(1, dot(d, obs.up)))) * R2D;
+    var az = norm360(Math.atan2(dot(d, obs.east), dot(d, obs.north)) * R2D);
+    return { alt: alt, az: az };
+  }
+
+  // Andel af solskiven dækket af en skive (vinkelradier a=sol, b=dækkende, c=afstand)
+  function overlapFrac(a, b, c) {
+    if (c >= a + b) return 0;
+    if (c <= Math.abs(a - b)) return Math.min(1, (b * b) / (a * a));
+    var A = a * a * Math.acos((c * c + a * a - b * b) / (2 * c * a)) +
+            b * b * Math.acos((c * c + b * b - a * a) / (2 * c * b)) -
+            0.5 * Math.sqrt((-c + a + b) * (c + a - b) * (c - a + b) * (c + a + b));
+    return A / (Math.PI * a * a);
+  }
+  // Hvor meget af Solen dækker Månen for en observatør (0..1) + størrelsesforhold
+  function solarObscuration(st, obsPos) {
+    var ds = sub(st.sunGeo, obsPos), dm = sub(st.moonGeo, obsPos);
+    var a = Math.asin(R_SUN / len(ds)), b = Math.asin(R_MOON / len(dm)), c = angle(ds, dm);
+    return { frac: overlapFrac(a, b, c), ratio: b / a, sep: c / a };
+  }
+  // Månens placering i Jordens skygge
+  function lunarShadow(st) {
+    var dES = len(st.sunGeo), dEM = len(st.moonGeo);
+    var axis = mul(unit(st.sunGeo), -1);
+    var along = dot(st.moonGeo, axis);
+    var perp = len(sub(st.moonGeo, mul(axis, along)));
+    var ru = 1.02 * (R_EARTH - along * (R_SUN - R_EARTH) / dES);
+    var rp = 1.02 * (R_EARTH + along * (R_SUN + R_EARTH) / dES);
+    var type = null;
+    if (along > 0) {
+      if (perp + R_MOON < ru) type = 'total';
+      else if (perp - R_MOON < ru) type = 'partial';
+      else if (perp - R_MOON < rp) type = 'penumbral';
+    }
+    var umbMag = (ru + R_MOON - perp) / (2 * R_MOON);
+    return { perp: perp, ru: ru, rp: rp, type: type, umbralMag: umbMag, dist: dEM };
+  }
+  // Månens skyggeakse i forhold til Jorden (til solformørkelser)
+  function solarShadow(st) {
+    var S = st.sunGeo, M = st.moonGeo;
+    var u = unit(sub(M, S));                   // fra Sol mod Måne (skyggeretning)
+    var t = -dot(M, u);                        // parameter for nærmeste punkt til Jordens centrum
+    var closest = add(M, mul(u, t));
+    var gammaKm = len(closest);
+    var dSM = len(sub(M, S));
+    var rp = R_MOON + t * (R_SUN + R_MOON) / dSM;   // halvskyggens radius ved Jorden
+    var ru = R_MOON - t * (R_SUN - R_MOON) / dSM;   // kerneskygge (>0) / antumbra (<0)
+    var hit = null;
+    if (gammaKm < R_EARTH) {                  // aksen rammer Jorden
+      var back = Math.sqrt(R_EARTH * R_EARTH - gammaKm * gammaKm);
+      hit = add(closest, mul(u, -back));      // skæringspunkt på Solens side
+    }
+    var type = null;
+    if (t > 0 && gammaKm < R_EARTH + rp) {
+      type = 'partial';
+      if (gammaKm < R_EARTH + Math.abs(ru)) {
+        var tt = hit ? t - Math.sqrt(R_EARTH * R_EARTH - gammaKm * gammaKm) : t;
+        var ruLocal = R_MOON - tt * (R_SUN - R_MOON) / dSM;
+        type = ruLocal > 0 ? 'total' : 'annular';
+      }
+    }
+    return { gamma: gammaKm / R_EARTH, type: type, hit: hit, closest: closest, dir: u, rp: rp, ru: ru };
+  }
+  // Geografisk bredde/længde af et punkt (km, geocentrisk ekliptisk)
+  function geoLatLon(st, v) {
+    var q = ecl2eq(v, st.eps), r = len(q);
+    return { lat: Math.asin(q[2] / r) * R2D, lon: wrap180(Math.atan2(q[1], q[0]) * R2D - st.gmst) };
+  }
+
+  // ---- Begivenheder ------------------------------------------------------
+  function elongAt(ms) { var st = state(ms); return norm360(st.moon.lon - st.sun.lon); }
+  // Næste tidspunkt efter ms hvor elongationen = target (0,90,180,270)
+  function nextPhase(ms, target, minGapDays) {
+    minGapDays = minGapDays === undefined ? 0.02 : minGapDays;
+    var e = elongAt(ms);
+    var days = norm360(target - e) / 12.1907;
+    if (days < minGapDays) days += 29.53;
+    var t = ms + days * 86400000;
+    for (var i = 0; i < 8; i++) {
+      var f = wrap180(elongAt(t) - target);
+      t -= f / 12.1907 * 86400000;
+      if (Math.abs(f) < 1e-6) break;
+    }
+    return t;
+  }
+  function prevPhase(ms, target) {
+    var t = nextPhase(ms - 29.6 * 86400000, target, 0);
+    var last = t;
+    while (t < ms - 60000) { last = t; t = nextPhase(t, target, 1); }
+    return last;
+  }
+  function sunLonAt(ms) { return state(ms).sun.lon; }
+  function nextSolarLon(ms, target) {
+    var days = norm360(target - sunLonAt(ms)) / 0.98565;
+    if (days < 0.02) days += 365.24;
+    var t = ms + days * 86400000;
+    for (var i = 0; i < 8; i++) {
+      var f = wrap180(sunLonAt(t) - target);
+      t -= f / 0.98565 * 86400000;
+      if (Math.abs(f) < 1e-7) break;
+    }
+    return t;
+  }
+  function golden(f, a, b, it) {
+    var g = (Math.sqrt(5) - 1) / 2, c = b - g * (b - a), d = a + g * (b - a), fc = f(c), fd = f(d);
+    for (var i = 0; i < (it || 40); i++) {
+      if (fc < fd) { b = d; d = c; fd = fc; c = b - g * (b - a); fc = f(c); }
+      else { a = c; c = d; fc = fd; d = a + g * (b - a); fd = f(d); }
+    }
+    return (a + b) / 2;
+  }
+  function nextApsis(ms, peri) {
+    var sign = peri ? 1 : -1, best = ms, bestV = Infinity, step = 86400000;
+    for (var t = ms + step; t < ms + 370 * step; t += step) {
+      var v = sign * state(t).sun.dist; if (v < bestV) { bestV = v; best = t; }
+    }
+    return golden(function (t) { return sign * state(t).sun.dist; }, best - 2 * step, best + 2 * step, 50);
+  }
+  function nextSolarEclipse(ms) {
+    var t = ms;
+    for (var k = 0; k < 40; k++) {
+      var nm = nextPhase(t, 0, k === 0 ? 0.02 : 1);
+      var tm = golden(function (x) { return solarShadow(state(x)).gamma; }, nm - 0.3 * 86400000, nm + 0.3 * 86400000, 40);
+      var st = state(tm), sh = solarShadow(st);
+      if (sh.type && tm > ms + 60000) {
+        var pt = sh.hit || mul(unit(sh.closest), R_EARTH);
+        return { ms: tm, kind: 'solar', type: sh.type, gamma: sh.gamma, where: geoLatLon(st, pt) };
+      }
+      t = nm;
+    }
+    return null;
+  }
+  function nextLunarEclipse(ms) {
+    var t = ms;
+    for (var k = 0; k < 40; k++) {
+      var fm = nextPhase(t, 180, k === 0 ? 0.02 : 1);
+      var tm = golden(function (x) { return lunarShadow(state(x)).perp; }, fm - 0.3 * 86400000, fm + 0.3 * 86400000, 40);
+      var sh = lunarShadow(state(tm));
+      if (sh.type && tm > ms + 60000) return { ms: tm, kind: 'lunar', type: sh.type, umbralMag: sh.umbralMag };
+      t = fm;
+    }
+    return null;
+  }
+  // Solopgang/-nedgang: dagens længde (timer) ved deklination δ og bredde φ
+  function dayLength(latDeg, declDeg) {
+    var h0 = -0.833 * D2R, la = latDeg * D2R, de = declDeg * D2R;
+    var c = (Math.sin(h0) - Math.sin(la) * Math.sin(de)) / (Math.cos(la) * Math.cos(de));
+    if (c <= -1) return 24; if (c >= 1) return 0;
+    return 2 * Math.acos(c) * R2D / 15;
+  }
+
+  return {
+    D2R: D2R, R2D: R2D, AU: AU, R_SUN: R_SUN, R_EARTH: R_EARTH, R_MOON: R_MOON,
+    norm360: norm360, wrap180: wrap180, state: state, observer: observer, altAz: altAz,
+    solarObscuration: solarObscuration, lunarShadow: lunarShadow, solarShadow: solarShadow,
+    geoLatLon: geoLatLon, nextPhase: nextPhase, prevPhase: prevPhase, nextSolarLon: nextSolarLon,
+    nextApsis: nextApsis, nextSolarEclipse: nextSolarEclipse, nextLunarEclipse: nextLunarEclipse,
+    dayLength: dayLength, eq2ecl: eq2ecl, ecl2eq: ecl2eq, overlapFrac: overlapFrac,
+    vec: { sub: sub, add: add, mul: mul, dot: dot, cross: cross, len: len, unit: unit, angle: angle }
+  };
+})();
+if (typeof module !== 'undefined') module.exports = Astro;
+
+// ---------------------------------------------------------------------------
+// Missioner og diagnosespørgsmål (elevrettet indhold). Missionerne er neutrale over for
+// dialogisk tilgang: et spørgsmål, nogle undersøgelsestrin og elevens svar. Hvordan tutoren
+// fører dialogen (POE, ESRU, autentisk dialog …), bestemmes af instruktør-prompten.
+// 'forudsigelse' bruges kun, når simulationen kører med struktur=poe.
+// ---------------------------------------------------------------------------
+var MISSIONS = [
+  {
+    id: 'M1', title: 'Hvad bevæger sig?', emne: 'Døgn', kort: 'Hvorfor går Solen over himlen?',
+    intro: 'Du står i København en oktobermorgen. Solen er lige stået op i øst.',
+    spoergsmaal: "Hvad er det egentlig, der bevæger sig, når Solen 'går' over himlen?",
+    forudsigelse: 'Hvor på himlen er Solen om 6 timer? Skriv, hvad du tror, og hvorfor.',
+    setup: [
+      ['setScale', { scale: 'korrekt' }], ['setObserver', { preset: 'kbh' }],
+      ['setTime', { iso: '2026-10-01T06:00:00Z' }], ['setView', { id: 'surface' }],
+      ['look', { az: 110, alt: 10, fov: 90 }], ['setSpeed', { secondsPerSecond: 600, direction: 'frem' }],
+      ['setShow', { paths: false, atmo: true, labels: true }]
+    ],
+    steps: [
+      'Start tiden (▶) og se, hvor Solen bevæger sig hen i løbet af 6 timer.',
+      "Skift til 'Rummet – frit udsyn' under Udsigtspunkt. Find den røde prik – det er København. Kør tiden igen.",
+      "Skift til 'Ovenfra: Jordens bane' og tryk '+1 d'. Hvor langt flytter Jorden sig i sin bane på et døgn?"
+    ],
+    svar: 'Svar på missionens spørgsmål med dine egne ord. Brug det, du har set i simulationen.'
+  },
+  {
+    id: 'M2', title: 'Afstand eller hældning?', emne: 'Årstider', kort: 'Hvorfor er det koldere om vinteren?',
+    intro: 'Mange tror, at det er sommer, fordi Jorden er tættest på Solen. Nu skal du undersøge, om det passer.',
+    spoergsmaal: 'Hvorfor er det koldere om vinteren end om sommeren?',
+    forudsigelse: 'I hvilken måned er Jorden tættest på Solen? Skriv, hvad du tror, og hvorfor.',
+    setup: [
+      ['setScale', { scale: 'overdrevet' }], ['setObserver', { preset: 'kbh' }], ['setTime', { iso: '2026-10-01T10:00:00Z' }],
+      ['setView', { id: 'ecliptic' }], ['setShow', { orbits: true, axis: true, grid: true, labels: true }]
+    ],
+    steps: [
+      "Brug 'Spring til → Perihel'. Aflæs datoen og 'Afstand Jord–Sol' under Målinger.",
+      "Vælg 'Fra Jorden – observatør' i København. Spring til sommersolhverv og til vintersolhverv. Notér 'Solens højde ved middag' og 'Dagens længde' begge gange.",
+      'Vælg Sydney under Observatør og aflæs de samme tal ved de to solhverv.',
+      "Se Jorden 'Fra Solen mod Jorden' ved begge solhverv. Hvad ser du ved vendekredsene?"
+    ],
+    svar: 'Svar på missionens spørgsmål. Brug mindst ét tal, du har aflæst i simulationen.'
+  },
+  {
+    id: 'M3', title: 'Månens faser', emne: 'Månefaser', kort: 'Hvorfor skifter Månen form?',
+    intro: 'Det er nymåne. Du ser Jorden og Månen oppefra – Solen er langt ude til siden.',
+    spoergsmaal: 'Hvorfor skifter Månen form i løbet af en måned?',
+    forudsigelse: 'Hvordan ser Månen ud fra Jorden om 7 døgn? Beskriv formen, og hvilken side der er lys.',
+    setup: [
+      ['setScale', { scale: 'overdrevet' }], ['setTime', { iso: '2026-10-09T12:00:00Z' }], ['jump', { event: 'nymaane' }],
+      ['setView', { id: 'earthmoon' }], ['setShow', { orbits: true, planes: false, labels: true }],
+      ['setSpeed', { secondsPerSecond: 86400, direction: 'frem' }]
+    ],
+    steps: [
+      "Tryk '+1 d' syv gange. Skift så til 'Fra Jordens centrum' og følg Månen.",
+      "Gå tilbage til 'Ovenfra: Jord og Måne'. Hvor stor en del af Månen er belyst set oppefra? Og set fra Jorden?",
+      "Spring til næste fuldmåne. Spring derefter til næste måneformørkelse og se Månen 'Fra Jordens centrum'."
+    ],
+    svar: 'Svar på missionens spørgsmål. Har Jordens skygge noget med månens faser at gøre?'
+  },
+  {
+    id: 'M4', title: 'Hvorfor ikke hver måned?', emne: 'Formørkelser', kort: 'Hvornår kommer der solformørkelse?',
+    intro: 'Ved nymåne står Månen mellem Solen og Jorden. Alligevel er der ingen solformørkelse lige nu.',
+    spoergsmaal: 'Hvorfor er der ikke solformørkelse ved hver nymåne?',
+    forudsigelse: 'Hvornår tror du, den næste solformørkelse kommer? Hvad skal der til, for at der bliver en?',
+    setup: [
+      ['setScale', { scale: 'overdrevet' }], ['setTime', { iso: '2026-10-10T16:00:00Z' }], ['jump', { event: 'nymaane' }],
+      ['setView', { id: 'space', target: 'earth' }], ['look', { target: 'earth', distance: 2.6, elevation: 6 }],
+      ['setShow', { planes: true, orbits: true, labels: true }]
+    ],
+    steps: [
+      'Drej kameraet, så du ser Jorden og Månens bane fra siden. Ligger Månens bane i samme plan som Jordens?',
+      "Tryk '+1 md' nogle gange. Notér ved hver nymåne 'Over/under Jordens baneplan' og 'Solretning vs. knudelinje' under Målinger.",
+      "Brug 'Spring til → Næste solformørkelse' og tryk 'Stil dig der' for at se formørkelsen fra Jorden."
+    ],
+    svar: 'Svar på missionens spørgsmål. Brug de tal, du har noteret.'
+  },
+  {
+    id: 'M5', title: 'Model og virkelighed', emne: 'Skala', kort: 'Hvor store og hvor langt væk?',
+    intro: 'Simulationen kan vise overdrevne eller korrekte størrelser. Alle modeller forvrænger noget.',
+    spoergsmaal: 'Hvilke forkerte indtryk kan man få, når Sol, Jord og Måne tegnes med overdrevne størrelser?',
+    forudsigelse: 'Hvor langt væk er Månen, målt i jorddiametre? Og hvor mange gange større end Jorden er Solen?',
+    setup: [
+      ['setScale', { scale: 'overdrevet' }], ['setView', { id: 'space', target: 'earth' }],
+      ['look', { target: 'earth', distance: 3.4, elevation: 22 }], ['setShow', { orbits: true, planes: false, labels: true }],
+      ['setSpeed', { secondsPerSecond: 86400, direction: 'frem' }]
+    ],
+    steps: [
+      "Tryk 'Korrekte' under Størrelser og afstande. Find Jorden og Månen igen – zoom ind.",
+      "Vælg 'Fra Månen mod Jorden' og kør tiden med 1 døgn/s. Hvad gør Jorden på Månens himmel?"
+    ],
+    svar: 'Svar på missionens spørgsmål med mindst to eksempler. Forklar også, hvorfor Jorden står stille på Månens himmel.'
+  }
+];
+
+// Diagnosespørgsmål (ordnede multiple choice, Wilson 2009 / Briggs m.fl. 2006).
+// Tallet efter hver svarmulighed er niveauet på konstruktkortet; det vises ikke for eleven.
+var QUIZ = [
+  { id: 'Q1', emne: 'Døgn', stem: 'Det er typisk koldere om natten, fordi …', opts: [
+    ['Jorden er længst væk fra Solen om natten.', 3], ['Solen er rejst om på den anden side af Jorden.', 2],
+    ['Solen er under Jorden, og Månen giver ikke så meget varme som Solen.', 1], ['Den del af Jorden, hvor det er nat, er drejet væk fra Solen.', 4]] },
+  { id: 'Q2', emne: 'Årstider', stem: 'Hvad er den bedste forklaring på, at vi har årstider på Jorden?', opts: [
+    ['Jordens bane gør, at vi er tættere på Solen om sommeren og længere væk om vinteren.', 4],
+    ['Jordens bane gør, at vi vender mod Solen om sommeren og væk fra den om vinteren.', 3],
+    ['Jordens akse hælder, så Solen står højere og skinner mere direkte om sommeren.', 5],
+    ['Jordens akse hælder, så vi er tættere på Solen om sommeren.', 4],
+    ['Aksehældningen giver højere solhøjde og længere dage om sommeren – Jorden er faktisk tættest på Solen i januar.', 6]] },
+  { id: 'Q3', emne: 'Månefaser', stem: 'Hvorfor ser Månen forskellig ud i løbet af en måned?', opts: [
+    ['Jordens skygge dækker forskellige dele af Månen.', 4],
+    ['Solen belyser altid halvdelen af Månen, og vi ser en større eller mindre del af den belyste halvdel, mens Månen kredser om Jorden.', 5],
+    ['Skyer dækker en del af Månen.', 1], ['Månen drejer om sig selv, så vi skiftevis ser dens lyse og mørke side.', 3]] },
+  { id: 'Q4', emne: 'Formørkelser', stem: 'Ved nymåne står Månen mellem Solen og Jorden. Hvorfor er der så ikke solformørkelse hver måned?', opts: [
+    ['Månen er for lille til at dække Solen.', 3], ['Der er solformørkelse hver måned, men den sker om natten, så vi ser den ikke.', 2],
+    ['Månens bane hælder ca. 5° i forhold til Jordens bane, så Månen passerer som regel over eller under Solen.', 5],
+    ['Solformørkelser kan kun ske, når Jorden er tættest på Solen.', 4],
+    ['Månens bane hælder ca. 5°, så formørkelser kræver nymåne tæt på knudelinjen – det sker i perioder ca. hvert halve år.', 6]] },
+  { id: 'Q5', emne: 'Fra Månen', stem: 'En astronaut står midt på Månens forside og kigger på Jorden i en hel uge. Hvad ser hun?', opts: [
+    ['Jorden står næsten stille på himlen og skifter fase.', 5], ['Jorden står op og går ned ca. hver 24. time.', 4],
+    ['Jorden er altid fuldt belyst.', 3], ['Hun kan ikke se Jorden, fordi det er dag på Månen.', 1]] },
+  { id: 'Q6', emne: 'Skala', stem: 'Forestil dig Jorden som et peberkorn (ca. 1 mm). Hvor langt væk er Månen så?', opts: [
+    ['Ca. 3 mm – som på de fleste tegninger.', 4], ['Ca. 3 cm.', 6], ['Ca. 1 m.', 3], ['Den ligger lige ved siden af peberkornet.', 2]] }
+];
+
+// ===========================================================================
+// Sol · Jord · Måne — 3D-simulation til AIPLA
+// Koordinater: fysik i geocentrisk ekliptisk system (km). Scenen: Solen i origo,
+// 1 enhed = 1000 km. Ekliptisk (x,y,z) -> three.js (x, z, -y), så ekliptikas nordpol er "op".
+// ===========================================================================
+(function () {
+  'use strict';
+  var V = Astro.vec, D2R = Astro.D2R, R2D = Astro.R2D;
+  var K = 1 / 1000;                               // km -> sceneenheder
+  var $ = function (s) { return document.querySelector(s); };
+  var qs = new URLSearchParams(location.search);
+  var reduceMotion = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // ---------------------------------------------------------------- tilstand
+  var SPEEDS = [
+    { s: 1, l: 'Realtid' }, { s: 60, l: '1 min/s' }, { s: 600, l: '10 min/s' }, { s: 3600, l: '1 time/s' },
+    { s: 21600, l: '6 timer/s' }, { s: 86400, l: '1 døgn/s' }, { s: 604800, l: '1 uge/s' },
+    { s: 2551443, l: '1 måned/s' }, { s: 7889238, l: '3 måneder/s' }
+  ];
+  var OBS_PRESETS = [
+    { id: 'kbh', name: 'København', lat: 55.68, lon: 12.57 },
+    { id: 'tromsoe', name: 'Tromsø', lat: 69.65, lon: 18.96 },
+    { id: 'nordpol', name: 'Nordpolen', lat: 89.99, lon: 0 },
+    { id: 'aswan', name: 'Aswan (vendekreds)', lat: 24.09, lon: 32.90 },
+    { id: 'quito', name: 'Quito (ækvator)', lat: -0.18, lon: -78.47 },
+    { id: 'sydney', name: 'Sydney', lat: -33.87, lon: 151.21 },
+    { id: 'sydpol', name: 'Sydpolen', lat: -89.99, lon: 0 }
+  ];
+  var VIEWS = [
+    { id: 'space', kind: 'orbit', nm: 'Rummet – frit udsyn', ds: 'Træk for at dreje. Rul eller knib for at zoome.' },
+    { id: 'ecliptic', kind: 'orbit', nm: 'Ovenfra: Jordens bane', ds: 'Solsystemet set fra nord. Se et helt år.' },
+    { id: 'earthmoon', kind: 'orbit', nm: 'Ovenfra: Jord og Måne', ds: 'Jorden set fra nord med Månens bane.' },
+    { id: 'sun', kind: 'sun', nm: 'Fra Solen mod Jorden', ds: 'Solens udsyn mod Jorden og Månen.' },
+    { id: 'surface', kind: 'look', nm: 'Fra Jorden – observatør', ds: 'Stå et sted på Jorden og se himlen.' },
+    { id: 'geo', kind: 'look', nm: 'Fra Jordens centrum', ds: 'Sol og Måne uden horisont.' },
+    { id: 'moon', kind: 'look', nm: 'Fra Månen mod Jorden', ds: 'Stå på Månens forside.' }
+  ];
+  var VIEW_ICONS = {
+    space: '<svg viewBox="0 0 22 22"><ellipse cx="11" cy="11" rx="9" ry="4" fill="none" stroke="#8f98b2" stroke-width="1.2"/><circle cx="11" cy="11" r="3" fill="#f3b340"/><circle cx="19" cy="12" r="1.8" fill="#6aa6f2"/></svg>',
+    ecliptic: '<svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="8" fill="none" stroke="#8f98b2" stroke-width="1.2"/><circle cx="11" cy="11" r="3" fill="#f3b340"/><circle cx="16.7" cy="5.3" r="1.8" fill="#6aa6f2"/></svg>',
+    earthmoon: '<svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="7" fill="none" stroke="#8f98b2" stroke-width="1.2" stroke-dasharray="2 2"/><circle cx="11" cy="11" r="3.2" fill="#6aa6f2"/><circle cx="18" cy="11" r="1.6" fill="#cfd3dc"/></svg>',
+    sun: '<svg viewBox="0 0 22 22"><circle cx="4" cy="11" r="4" fill="#f3b340"/><path d="M8 11h7" stroke="#8f98b2" stroke-width="1.2" stroke-dasharray="1.5 1.5"/><circle cx="18" cy="11" r="2.4" fill="#6aa6f2"/></svg>',
+    surface: '<svg viewBox="0 0 22 22"><path d="M1 16h20" stroke="#6aa6f2" stroke-width="1.4"/><path d="M4 16a7 7 0 0 1 14 0" fill="none" stroke="#8f98b2" stroke-width="1" stroke-dasharray="1.5 1.5"/><circle cx="15" cy="9.5" r="2.2" fill="#f3b340"/><path d="M11 16v-3" stroke="#e9ecf4" stroke-width="1.4"/></svg>',
+    geo: '<svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="5" fill="none" stroke="#6aa6f2" stroke-width="1.2" stroke-dasharray="2 1.5"/><circle cx="11" cy="11" r="1.2" fill="#e9ecf4"/><circle cx="19" cy="6" r="1.8" fill="#cfd3dc"/><circle cx="3" cy="16" r="1.8" fill="#f3b340"/></svg>',
+    moon: '<svg viewBox="0 0 22 22"><path d="M1 17h20" stroke="#cfd3dc" stroke-width="1.4"/><circle cx="13" cy="8" r="3.4" fill="#6aa6f2"/><path d="M13 4.6a3.4 3.4 0 0 0 0 6.8z" fill="#0b0e19" opacity=".6"/></svg>'
+  };
+  var SCALES = { exag: { sun: 11.5, body: 392, dist: 31 }, real: { sun: 1, body: 1, dist: 1 } };
+
+  var S = {
+    simMs: Date.now(), playing: !reduceMotion, speedIdx: 3, dir: 1,
+    view: 'space', scaleMode: 'overdrevet', scaleT: 0,
+    obs: { name: 'København', lat: 55.68, lon: 12.57 },
+    show: { orbits: true, planes: false, axis: true, grid: false, labels: true, paths: true, atmo: true },
+    orbit: {
+      space: { target: 'earth', az: 0.9, el: 0.38, mult: 3.4 },
+      ecliptic: { target: 'sun', az: 0, el: 1.53, mult: 2.8 },
+      earthmoon: { target: 'earth', az: 0, el: 1.53, mult: 3.2 }
+    },
+    sunView: { target: 'earth', zoom: 1 },
+    look: {
+      surface: { az: 180, alt: 18, fov: 70, track: null },
+      geo: { az: 0, alt: 0, fov: 40, track: 'moon' },
+      moon: { az: 0, alt: 20, fov: 60, track: 'earth' }
+    },
+    locks: {}, mLock: false, connected: false, task: null
+  };
+  var MIN_MS = Date.UTC(1900, 0, 1), MAX_MS = Date.UTC(2100, 11, 31);
+
+  // --------------------------------------------------------- URL-parametre
+  (function applyParams() {
+    if (qs.get('t')) { var t = Date.parse(qs.get('t')); if (!isNaN(t)) S.simMs = t; }
+    if (qs.get('view') && VIEWS.some(function (v) { return v.id === qs.get('view'); })) S.view = qs.get('view');
+    if (qs.get('scale') === 'korrekt') { S.scaleMode = 'korrekt'; S.scaleT = 1; }
+    if (qs.get('lat') && qs.get('lon')) S.obs = { name: qs.get('sted') || 'Valgt sted', lat: +qs.get('lat'), lon: +qs.get('lon') };
+    if (qs.get('play') === '0') S.playing = false;
+    if (qs.get('speed')) { var i = SPEEDS.findIndex(function (x) { return String(x.s) === qs.get('speed'); }); if (i >= 0) S.speedIdx = i; }
+    if (qs.get('lock')) qs.get('lock').split(',').forEach(function (k) { S.locks[k] = true; });
+  })();
+
+  // ---------------------------------------------------------------- hjælpere
+  function e2w(v) { return new THREE.Vector3(v[0], v[2], -v[1]); }
+  var W = new THREE.Matrix4().makeBasis(new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 1, 0));
+  function fmt(x, d) { return x.toLocaleString('da-DK', { minimumFractionDigits: d || 0, maximumFractionDigits: d || 0 }); }
+  var COMPASS = ['N', 'NNØ', 'NØ', 'ØNØ', 'Ø', 'ØSØ', 'SØ', 'SSØ', 'S', 'SSV', 'SV', 'VSV', 'V', 'VNV', 'NV', 'NNV'];
+  function compass(az) { return COMPASS[Math.round(Astro.norm360(az) / 22.5) % 16]; }
+  function lerpLog(a, b, t) { return Math.exp(Math.log(a) + (Math.log(b) - Math.log(a)) * t); }
+  function curScale() {
+    var t = S.scaleT, e = SCALES.exag, r = SCALES.real;
+    return { sun: lerpLog(e.sun, r.sun, t), body: lerpLog(e.body, r.body, t), dist: lerpLog(e.dist, r.dist, t) };
+  }
+
+  // ---------------------------------------------------------------- teksturer
+  function hash(x, y) { var h = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return h - Math.floor(h); }
+  function vnoise(x, y) {
+    var xi = Math.floor(x), yi = Math.floor(y), xf = x - xi, yf = y - yi;
+    var u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf);
+    var a = hash(xi, yi), b = hash(xi + 1, yi), c = hash(xi, yi + 1), d = hash(xi + 1, yi + 1);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+  }
+  function fbm(x, y) { var s = 0, a = 0.5, f = 1; for (var i = 0; i < 5; i++) { s += a * vnoise(x * f, y * f); f *= 2.03; a *= 0.5; } return s / 0.97; }
+
+  var LAND = [
+    // Nordamerika
+    [[-168,66],[-162,70],[-156,71.3],[-140,69.6],[-128,70],[-115,68.5],[-100,68],[-95,71.5],[-85,69.5],[-80,63],[-94,59],[-92,57],[-82,55],[-79,52],[-78,58],[-72,61],[-65,60],[-61,56],[-56,52],[-60,47],[-66,45],[-70,43],[-70,41.5],[-74,40],[-76,37],[-76,35],[-81,31],[-80,26],[-82,27],[-84,30],[-89,30],[-94,29],[-97,26],[-97,22],[-95,19],[-91,19],[-90,21],[-87,21],[-88,16],[-84,15],[-83,11],[-80,9],[-78,8],[-80,7.5],[-83,8],[-86,11],[-88,13],[-92,14],[-96,16],[-100,17],[-105,20],[-106,23],[-110,27],[-112,31],[-114,30],[-110,24],[-112,25],[-115,29],[-117,32],[-120,34],[-122,37],[-124,40],[-124,46],[-123,49],[-128,51],[-133,56],[-137,59],[-142,60],[-148,61],[-152,59],[-158,57],[-164,55],[-158,58],[-162,60],[-165,62],[-166,64]],
+    [[-90,72],[-80,73.5],[-68,70],[-62,66],[-66,62],[-74,64],[-78,68]],
+    [[-92,80],[-65,82.5],[-75,77],[-90,76.5]],
+    // Grønland, Island
+    [[-73,78],[-60,82],[-40,83.5],[-22,82],[-18,77],[-20,70],[-26,68],[-35,65.5],[-42,60],[-48,61],[-52,65],[-54,69],[-58,75],[-68,77]],
+    [[-24,64.2],[-22,66.3],[-15,66.5],[-13.5,65],[-18,63.4],[-22,63.8]],
+    // Sydamerika
+    [[-78,8],[-72,12],[-64,11],[-60,8],[-52,5],[-50,0],[-44,-2],[-35,-5],[-35,-9],[-39,-14],[-40,-20],[-44,-23],[-48,-26],[-53,-34],[-58,-35],[-57,-38],[-62,-39],[-65,-42],[-65,-47],[-69,-51],[-68,-55],[-72,-54],[-75,-50],[-74,-42],[-73,-37],[-71,-30],[-71,-18],[-76,-14],[-81,-6],[-80,-2],[-80,1],[-78,4],[-77,7]],
+    // Afrika, Madagaskar
+    [[-17,21],[-16,28],[-10,30],[-6,35.5],[0,36],[10,37],[11,33],[20,31],[25,32],[32,31],[34,28],[37,22],[39,16],[43,12],[51,12],[50,8],[46,2],[40,-3],[39,-8],[40,-15],[35,-20],[35,-25],[32,-29],[27,-34],[20,-35],[18,-32],[15,-26],[12,-18],[13,-10],[9,-1],[9,4],[4,6],[-4,5],[-8,4],[-13,8],[-15,11],[-17,15]],
+    [[49,-12],[50,-16],[47,-25],[44,-24],[44,-17],[47,-14]],
+    // Eurasien
+    [[-9,37],[-9,43],[-2,43.5],[-1,46],[-4,48],[-2,49],[2,51],[5,53],[8,54],[8.3,55.5],[8.2,56.8],[10.5,57.7],[10.3,56.5],[10.9,56.3],[10,55],[12,54.3],[14,54],[19,54.5],[21,57],[24,59],[29,60],[23,60.2],[21,63],[25,65.5],[22,66],[17,62],[19,60],[16,56],[13,55.4],[11,58.5],[8,58],[5,59],[5,62],[10,64],[14,67.5],[19,70],[25,71],[30,70],[40,68],[44,66],[40,65],[44,68],[53,68],[60,69],[68,72],[72,73],[80,73],[90,76],[105,78],[113,74],[130,72],[142,72],[160,70],[170,70],[180,69],[180,65],[176,62],[164,60],[163,57],[156,51],[156,58],[160,62],[152,59],[142,59],[136,54],[141,52],[140,48],[135,43],[129,41],[129,35],[126,35],[126,38],[122,40],[118,39],[122,37],[120,33],[122,30],[119,25],[114,22],[109,21],[108,18],[106,12],[109,11],[105,9],[103,10],[100,13],[99,8],[103,2],[104,1],[101,3],[98,8],[98,16],[94,17],[92,22],[88,22],[86,20],[80,15],[80,10],[77,8],[73,17],[72,21],[68,23],[66,25],[62,25],[57,26],[56,27],[52,28],[49,30],[48,30],[50,26],[52,24],[56,26],[59,23],[57,19],[52,16],[45,13],[43,15],[39,21],[35,28],[33,30],[35,33],[36,36],[32,37],[27,37],[26,40],[29,41],[35,42],[41,41],[40,44],[37,45],[34,46],[30,46],[28,44],[28,42],[24,41],[23,38],[21,40],[19,42],[16,43.5],[13.5,45.5],[12.5,44],[15.5,41],[16,39],[16,38],[15.5,40],[13,41.5],[10,44],[7,43.5],[3,43],[3,42],[0,40],[0,38.5],[-2,37],[-5,36],[-7,37]],
+    [[-180,69],[-172,70],[-170,66],[-175,65],[-180,65]],
+    // Øer
+    [[-5,50],[1,51],[1.7,52.7],[0,53.5],[-2,56],[-2,57.7],[-4,58.6],[-5,58.6],[-6,57],[-5.5,55.5],[-3,54.8],[-3,53.4],[-4.5,53.3],[-4,51.6],[-5.5,51.7]],
+    [[-6,52],[-6,54],[-7.5,55.2],[-10,54],[-10,52],[-8,51.5]],
+    [[10.9,55.2],[12.6,55.6],[12.2,56.1],[11,55.8]],
+    [[9.7,55.5],[10.8,55.4],[10.6,55.0],[9.9,55.1]],
+    [[130,31],[132,34],[135,34],[140,35],[141,38],[142,41],[140,41],[139,38],[136,37],[132,35],[130,33]],
+    [[140,42],[145,43],[142,45.5],[140,43.5]],
+    [[95,5.5],[98,4],[104,-2],[106,-6],[102,-4],[96,3]],
+    [[109,2],[111,-3],[116,-4],[119,1],[117,7],[113,3]],
+    [[105.5,-6],[114,-7.5],[114,-8.5],[106,-7]],
+    [[131,-1],[138,-1.5],[146,-5],[150,-10],[143,-9],[138,-8],[132,-3]],
+    [[120,18],[122,18],[124,13],[126,7],[122,7],[120,14]],
+    [[80,9.8],[82,7],[81,6],[80,6.5]],
+    // Australien, New Zealand
+    [[114,-22],[114,-26],[115,-34],[118,-35],[124,-34],[131,-31.5],[138,-35],[140,-38],[146,-39],[150,-37],[153,-32],[153,-26],[150,-22],[146,-19],[145,-15],[142,-11],[141,-17],[137,-16],[136,-12],[131,-11],[129,-15],[126,-14],[122,-18],[119,-20]],
+    [[146,-41],[148,-41],[148,-43],[146,-43.5]],
+    [[173,-35],[178,-37.5],[177,-39],[175,-41.5],[173,-39.5],[174,-37]],
+    [[174,-41],[172,-41],[168,-44.5],[166.5,-46],[169,-46.7],[171,-44],[173.5,-42.5]]
+  ];
+  (function antarctica() {
+    var p = [];
+    for (var lon = -180; lon <= 180; lon += 6) {
+      var lat = -70 + 2.5 * Math.sin(lon * 3 * D2R) + 1.5 * Math.cos(lon * 5 * D2R);
+      if (lon > -75 && lon < -55) lat = -64 + (Math.abs(lon + 62) * 0.25);
+      p.push([lon, lat]);
+    }
+    p.push([180, -90], [-180, -90]);
+    LAND.push(p);
+  })();
+
+  function makeEarthTexture() {
+    var Wd = 2048, Ht = 1024;
+    var m = document.createElement('canvas'); m.width = Wd; m.height = Ht;
+    var g = m.getContext('2d');
+    g.fillStyle = '#000'; g.fillRect(0, 0, Wd, Ht); g.fillStyle = '#fff';
+    LAND.forEach(function (poly) {
+      g.beginPath();
+      poly.forEach(function (p, i) { var x = (p[0] + 180) / 360 * Wd, y = (90 - p[1]) / 180 * Ht; if (i) g.lineTo(x, y); else g.moveTo(x, y); });
+      g.closePath(); g.fill();
+    });
+    var mask = g.getImageData(0, 0, Wd, Ht).data;
+    var out = g.createImageData(Wd, Ht), o = out.data;
+    for (var y = 0; y < Ht; y++) {
+      var lat = 90 - (y + 0.5) / Ht * 180, al = Math.abs(lat);
+      for (var x = 0; x < Wd; x++) {
+        var lon = (x + 0.5) / Wd * 360 - 180, i = (y * Wd + x) * 4;
+        var n = fbm(x / 70, y / 70), land = mask[i] / 255, c;
+        if (land > 0.5) {
+          if (lat < -60 || (lat > 59 && lon > -75 && lon < -12 && !(lat < 66 && lon > -25))) c = [232 + 14 * n, 238 + 10 * n, 244];
+          else {
+            var desert = (lat > 14 && lat < 33 && lon > -17 && lon < 62) || (lat > 36 && lat < 47 && lon > 52 && lon < 110 && n > 0.42) ||
+              (lat > -32 && lat < -18 && lon > 115 && lon < 146) || (lat > -28 && lat < -17 && lon > 14 && lon < 26) ||
+              (lat > 25 && lat < 37 && lon > -117 && lon < -103) || (lat > -30 && lat < -12 && lon > -72 && lon < -68);
+            var tibet = lat > 28 && lat < 39 && lon > 75 && lon < 100;
+            if (desert) c = [200, 170, 118];
+            else if (tibet) c = [128, 118, 102];
+            else if (al < 12) c = [36, 92, 42];
+            else if (al < 30) c = [98, 122, 62];
+            else if (al < 52) c = [66, 110, 54];
+            else if (al < 66) c = [50, 84, 52];
+            else c = [124, 120, 104];
+            var f = 0.8 + 0.4 * n; c = [c[0] * f, c[1] * f, c[2] * f];
+          }
+        } else {
+          var d = 0.7 + 0.5 * n;
+          c = [12 * d, 44 * d, 92 * d];
+          if (al > 77 && n > 0.36) c = [210, 222, 232];
+        }
+        o[i] = c[0]; o[i + 1] = c[1]; o[i + 2] = c[2]; o[i + 3] = 255;
+      }
+    }
+    var cv = document.createElement('canvas'); cv.width = Wd; cv.height = Ht;
+    cv.getContext('2d').putImageData(out, 0, 0);
+    return cv;
+  }
+
+  var MARIA = [
+    [33, -16, 16, 12], [28, 17, 9, 8], [8, 31, 10, 8], [17, 59, 6, 5], [-7, 52, 6, 9], [-15, 35, 4, 4],
+    [-20, -16, 9, 7], [-24, -39, 5, 4], [18, -55, 13, 20], [-2, -40, 10, 8], [56, 0, 26, 4], [13, 4, 4, 3],
+    [-10, -23, 5, 4], [7, -31, 6, 5], [27, 147, 3, 3], [-20, -95, 3, 3], [3, 86, 4, 5]
+  ];
+  function makeMoonTexture() {
+    var Wd = 1024, Ht = 512, cv = document.createElement('canvas'); cv.width = Wd; cv.height = Ht;
+    var g = cv.getContext('2d'), img = g.createImageData(Wd, Ht), o = img.data;
+    for (var y = 0; y < Ht; y++) {
+      var lat = 90 - (y + 0.5) / Ht * 180, cl = Math.max(0.15, Math.cos(lat * D2R));
+      for (var x = 0; x < Wd; x++) {
+        var lon = (x + 0.5) / Wd * 360 - 180, i = (y * Wd + x) * 4;
+        var n = fbm(x / 26, y / 26), n2 = fbm(x / 7 + 40, y / 7);
+        var mare = 0;
+        for (var k = 0; k < MARIA.length; k++) {
+          var M = MARIA[k], dl = Astro.wrap180(lon - M[1]) * cl / M[2], db = (lat - M[0]) / M[3];
+          var dd = Math.sqrt(dl * dl + db * db) + (n - 0.5) * 0.5;
+          mare = Math.max(mare, 1 - Math.min(1, Math.max(0, (dd - 0.75) / 0.3)));
+        }
+        var hi = 176 * (0.78 + 0.3 * n + 0.12 * n2), lo = 88 * (0.85 + 0.25 * n + 0.1 * n2);
+        var v = hi + (lo - hi) * mare;
+        o[i] = v; o[i + 1] = v * 0.99; o[i + 2] = v * 0.965; o[i + 3] = 255;
+      }
+    }
+    g.putImageData(img, 0, 0);
+    function ll(lat, lon) { return [(lon + 180) / 360 * Wd, (90 - lat) / 180 * Ht]; }
+    // kratere
+    var seed = 7; function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+    for (var c = 0; c < 420; c++) {
+      var la = Math.asin(rnd() * 2 - 1) * R2D, lo = rnd() * 360 - 180, r = Math.pow(rnd(), 2.2) * 3.2 + 0.35;
+      var p = ll(la, lo), sx = r / 360 * Wd / Math.max(0.2, Math.cos(la * D2R)), sy = r / 180 * Ht;
+      g.beginPath(); g.ellipse(p[0], p[1], sx, sy, 0, 0, 2 * Math.PI);
+      g.fillStyle = 'rgba(0,0,0,0.055)'; g.fill();
+      g.lineWidth = Math.max(0.8, sy * 0.25); g.strokeStyle = 'rgba(255,255,255,0.10)'; g.stroke();
+    }
+    [[-43, -11, 1.4, 16], [10, -20, 1.2, 10], [-8, -39, 0.6, 6]].forEach(function (R) {
+      var p = ll(R[0], R[1]);
+      for (var j = 0; j < R[3]; j++) {
+        var a = j / R[3] * 2 * Math.PI + 0.3, L = (18 + 22 * ((j * 37) % 7) / 7) / 180 * Ht;
+        g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(p[0] + Math.cos(a) * L * 1.4, p[1] + Math.sin(a) * L);
+        g.strokeStyle = 'rgba(255,255,250,0.07)'; g.lineWidth = 3; g.stroke();
+      }
+      g.beginPath(); g.arc(p[0], p[1], R[2] * 3.5, 0, 2 * Math.PI); g.fillStyle = 'rgba(255,255,250,0.35)'; g.fill();
+    });
+    return cv;
+  }
+  function makeGlowTexture() {
+    var cv = document.createElement('canvas'); cv.width = cv.height = 256;
+    var g = cv.getContext('2d'), gr = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+    gr.addColorStop(0, 'rgba(255,246,220,1)'); gr.addColorStop(0.14, 'rgba(255,226,160,0.85)');
+    gr.addColorStop(0.2, 'rgba(255,200,110,0.35)'); gr.addColorStop(0.45, 'rgba(255,170,70,0.08)'); gr.addColorStop(1, 'rgba(255,150,50,0)');
+    g.fillStyle = gr; g.fillRect(0, 0, 256, 256);
+    return cv;
+  }
+
+  // ---------------------------------------------------------------- shaders
+  var VERT = [
+    '#include <common>', '#include <logdepthbuf_pars_vertex>',
+    'varying vec3 vObjN; varying vec3 vViewN; varying vec3 vViewPos;',
+    'void main(){',
+    '  vObjN = normalize(position);',
+    '  vec4 mv = modelViewMatrix * vec4(position, 1.0);',
+    '  vViewPos = mv.xyz; vViewN = normalize(normalMatrix * normal);',
+    '  gl_Position = projectionMatrix * mv;',
+    '  #include <logdepthbuf_vertex>',
+    '}'
+  ].join('\n');
+  var BODY_FRAG = [
+    '#include <common>', '#include <logdepthbuf_pars_fragment>',
+    'uniform sampler2D uTex; uniform mat3 uB2E;',
+    'uniform vec3 uSun; uniform vec3 uOcc; uniform float uR; uniform float uOccR; uniform float uSunR;',
+    'uniform float uIsMoon; uniform float uGrid; uniform vec3 uObs; uniform float uObsOn; uniform float uAmb; uniform vec3 uAir;',
+    'varying vec3 vObjN; varying vec3 vViewN; varying vec3 vViewPos;',
+    'float overlapFrac(float a, float b, float c){',
+    '  if (c >= a + b) return 0.0;',
+    '  if (c <= abs(a - b)) return min(1.0, (b*b)/(a*a));',
+    '  float A = a*a*acos(clamp((c*c+a*a-b*b)/(2.0*c*a),-1.0,1.0)) + b*b*acos(clamp((c*c+b*b-a*a)/(2.0*c*b),-1.0,1.0))',
+    '          - 0.5*sqrt(max(0.0,(-c+a+b)*(c+a-b)*(c-a+b)*(c+a+b)));',
+    '  return clamp(A/(PI*a*a), 0.0, 1.0);',
+    '}',
+    'float gline(float v, float at, float w){ float fw = fwidth(v); return 1.0 - smoothstep(0.0, fw * w, abs(v - at)); }',
+    'void main(){',
+    '  #include <logdepthbuf_fragment>',
+    '  vec3 nb = normalize(vObjN);',
+    '  float lat = asin(clamp(nb.z, -1.0, 1.0)); float lon = atan(nb.y, nb.x);',
+    '  vec3 albedo = texture2D(uTex, vec2(lon/(2.0*PI) + 0.5, lat/PI + 0.5)).rgb;',
+    '  vec3 n = uB2E * nb; vec3 p = n * uR;',
+    '  vec3 ds = uSun - p; vec3 dO = uOcc - p;',
+    '  float lS = length(ds), lO = length(dO); vec3 L = ds / lS;',
+    '  float ndl = dot(n, L);',
+    '  float cover = 0.0;',
+    '  if (dot(ds, dO) > 0.0 && lO < lS) {',
+    '    float a = uSunR / lS, b = uOccR / lO, c = atan(length(cross(ds, dO)), dot(ds, dO));',
+    '    cover = overlapFrac(a, b, c);',
+    '  }',
+    '  float vis = 1.0 - cover;',
+    '  float light = clamp(ndl * 1.05 + 0.02, 0.0, 1.0);',
+    '  vec3 col = albedo * (uAmb + light * vis * 1.08);',
+    '  if (uIsMoon > 0.5) {',
+    '    float umb = smoothstep(0.96, 1.0, cover);',
+    '    col += albedo * vec3(0.62, 0.20, 0.08) * 0.42 * umb * clamp(ndl + 0.1, 0.0, 1.0);',
+    '    col += uAir;',
+    '  } else {',
+    '    float rim = pow(1.0 - max(dot(normalize(vViewN), normalize(-vViewPos)), 0.0), 3.0);',
+    '    col += vec3(0.32, 0.56, 1.0) * rim * 0.55 * smoothstep(-0.25, 0.35, ndl) * vis;',
+    '    if (uGrid > 0.5) {',
+    '      float ld = degrees(lat);',
+    '      col = mix(col, vec3(1.0, 0.86, 0.35), gline(ld, 0.0, 1.6) * 0.9);',
+    '      col = mix(col, vec3(1.0, 0.55, 0.3), max(gline(ld, 23.44, 1.4), gline(ld, -23.44, 1.4)) * 0.85);',
+    '      col = mix(col, vec3(0.45, 0.85, 1.0), max(gline(ld, 66.56, 1.4), gline(ld, -66.56, 1.4)) * 0.85);',
+    '    }',
+    '    if (uObsOn > 0.5) {',
+    '      float ang = acos(clamp(dot(nb, uObs), -1.0, 1.0));',
+    '      float fw = fwidth(ang) * 1.5;',
+    '      float ring = 1.0 - smoothstep(0.0, fw + 0.004, abs(ang - 0.035));',
+    '      float dotc = 1.0 - smoothstep(0.012, 0.012 + fw, ang);',
+    '      col = mix(col, vec3(1.0, 0.36, 0.25), max(ring, dotc));',
+    '    }',
+    '  }',
+    '  gl_FragColor = vec4(col, 1.0);',
+    '}'
+  ].join('\n');
+  var SUN_FRAG = [
+    '#include <common>', '#include <logdepthbuf_pars_fragment>',
+    'varying vec3 vObjN; varying vec3 vViewN; varying vec3 vViewPos;',
+    'void main(){',
+    '  #include <logdepthbuf_fragment>',
+    '  float mu = max(dot(normalize(vViewN), normalize(-vViewPos)), 0.0);',
+    '  vec3 c = vec3(1.0, 0.95, 0.80) * (0.58 + 0.42 * pow(mu, 0.55));',
+    '  gl_FragColor = vec4(c, 1.0);',
+    '}'
+  ].join('\n');
+
+  // ---------------------------------------------------------------- scene
+  var canvas = $('#scene');
+  var renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true, logarithmicDepthBuffer: true, preserveDrawingBuffer: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  var scene = new THREE.Scene();
+  var camera = new THREE.PerspectiveCamera(45, 1, 1e-6, 1e10);
+  var NIGHT = new THREE.Color('#04060b');
+  scene.background = NIGHT.clone();
+
+  var earthTex = new THREE.CanvasTexture(makeEarthTexture());
+  var moonTex = new THREE.CanvasTexture(makeMoonTexture());
+  [earthTex, moonTex].forEach(function (t) { t.generateMipmaps = false; t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter; t.anisotropy = 4; });
+
+  function bodyMaterial(tex, isMoon) {
+    return new THREE.ShaderMaterial({
+      vertexShader: VERT, fragmentShader: BODY_FRAG, extensions: { derivatives: true },
+      uniforms: {
+        uTex: { value: tex }, uB2E: { value: new THREE.Matrix3() },
+        uSun: { value: new THREE.Vector3() }, uOcc: { value: new THREE.Vector3() },
+        uR: { value: 1 }, uOccR: { value: 1 }, uSunR: { value: Astro.R_SUN * K },
+        uIsMoon: { value: isMoon ? 1 : 0 }, uGrid: { value: 0 }, uObs: { value: new THREE.Vector3(1, 0, 0) },
+        uObsOn: { value: 0 }, uAmb: { value: isMoon ? 0.025 : 0.035 }, uAir: { value: new THREE.Vector3() }
+      }
+    });
+  }
+  var sphereHi = new THREE.SphereGeometry(1, 256, 128); sphereHi.rotateX(Math.PI / 2);
+  var sphereMd = new THREE.SphereGeometry(1, 128, 64); sphereMd.rotateX(Math.PI / 2);
+  var earth = new THREE.Mesh(sphereHi, bodyMaterial(earthTex, false));
+  var moon = new THREE.Mesh(sphereMd, bodyMaterial(moonTex, true));
+  var sun = new THREE.Mesh(sphereMd, new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: SUN_FRAG }));
+  var glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(makeGlowTexture()), blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+  scene.add(earth, moon, sun, glow);
+
+  // stjerner (følger kameraet, så de er "uendeligt" langt væk)
+  var stars = new THREE.Group();
+  (function makeStars() {
+    var seed = 11; function rnd() { seed = (seed * 16807) % 2147483647; return seed / 2147483647; }
+    [[2600, 1.2, 0.55], [700, 1.8, 0.8], [140, 2.6, 1.0]].forEach(function (cfg) {
+      var pos = new Float32Array(cfg[0] * 3), col = new Float32Array(cfg[0] * 3);
+      for (var i = 0; i < cfg[0]; i++) {
+        var z = rnd() * 2 - 1, a = rnd() * 2 * Math.PI, r = Math.sqrt(1 - z * z), R = 1e8;
+        pos[i * 3] = R * r * Math.cos(a); pos[i * 3 + 1] = R * z; pos[i * 3 + 2] = R * r * Math.sin(a);
+        var t = rnd(), b = cfg[2] * (0.6 + 0.4 * rnd());
+        col[i * 3] = b * (t < 0.2 ? 1.0 : t > 0.85 ? 0.8 : 0.95); col[i * 3 + 1] = b * (t < 0.2 ? 0.86 : 0.93); col[i * 3 + 2] = b * (t < 0.2 ? 0.7 : 1.0);
+      }
+      var gm = new THREE.BufferGeometry();
+      gm.setAttribute('position', new THREE.BufferAttribute(pos, 3)); gm.setAttribute('color', new THREE.BufferAttribute(col, 3));
+      stars.add(new THREE.Points(gm, new THREE.PointsMaterial({ size: cfg[1], sizeAttenuation: false, vertexColors: true, transparent: true, depthWrite: false })));
+    });
+  })();
+  scene.add(stars);
+
+  // baner, planer, akse
+  function lineMat(color, opacity) { return new THREE.LineBasicMaterial({ color: color, transparent: true, opacity: opacity, depthWrite: false }); }
+  var earthOrbit = new THREE.Line(new THREE.BufferGeometry(), lineMat(0x6aa6f2, 0.45));
+  var moonOrbit = new THREE.Line(new THREE.BufferGeometry(), lineMat(0xcfd3dc, 0.5));
+  scene.add(earthOrbit, moonOrbit);
+  var lastEarthOrbitYear = null, lastMoonOrbitMs = -Infinity;
+  function rebuildEarthOrbit() {
+    var y = new Date(S.simMs).getUTCFullYear(); if (y === lastEarthOrbitYear) return; lastEarthOrbitYear = y;
+    var t0 = Date.UTC(y, 0, 1), pts = [];
+    for (var i = 0; i <= 366; i++) { var st = Astro.state(t0 + i * 86400000 * 365.256 / 366); pts.push(e2w(V.mul(st.sunGeo, -K))); }
+    earthOrbit.geometry.setFromPoints(pts);
+  }
+  function rebuildMoonOrbit() {
+    if (Math.abs(S.simMs - lastMoonOrbitMs) < 0.25 * 86400000) return; lastMoonOrbitMs = S.simMs;
+    var pts = [];
+    for (var i = 0; i <= 120; i++) { var st = Astro.state(S.simMs + (i / 120 - 0.5) * 27.55 * 86400000); pts.push(e2w(V.mul(st.moonGeo, K))); }
+    moonOrbit.geometry.setFromPoints(pts);
+  }
+  var planes = new THREE.Group();
+  var eclDisc = new THREE.Mesh(new THREE.CircleGeometry(1, 96), new THREE.MeshBasicMaterial({ color: 0xf3b340, transparent: true, opacity: 0.07, side: THREE.DoubleSide, depthWrite: false }));
+  var eclEdge = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(Array.from({ length: 96 }, function (_, i) { var a = i / 96 * 2 * Math.PI; return new THREE.Vector3(Math.cos(a), Math.sin(a), 0); })), lineMat(0xf3b340, 0.45));
+  var eclG = new THREE.Group(); eclG.add(eclDisc, eclEdge); eclG.rotation.x = -Math.PI / 2;
+  var mDisc = new THREE.Mesh(new THREE.CircleGeometry(1, 96), new THREE.MeshBasicMaterial({ color: 0xcfd3dc, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false }));
+  var mEdge = new THREE.LineLoop(eclEdge.geometry, lineMat(0xcfd3dc, 0.5));
+  var mG = new THREE.Group(); mG.add(mDisc, mEdge);
+  var nodeLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-1, 0, 0), new THREE.Vector3(1, 0, 0)]), lineMat(0xb9a4f5, 0.9));
+  var sunDirLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(1, 0, 0)]), new THREE.LineDashedMaterial({ color: 0xf3b340, dashSize: 0.04, gapSize: 0.03, transparent: true, opacity: 0.8 }));
+  sunDirLine.computeLineDistances();
+  planes.add(eclG, mG, nodeLine, sunDirLine);
+  scene.add(planes);
+  var axis = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, -1, 0), new THREE.Vector3(0, 1, 0)]), lineMat(0xe9ecf4, 0.75));
+  scene.add(axis);
+
+  // jord/måne-overflade (horisont) i observatørvisninger
+  var ground = new THREE.Mesh(new THREE.CircleGeometry(1, 96), new THREE.MeshBasicMaterial({ color: 0x223322 }));
+  ground.visible = false; scene.add(ground);
+
+  // himmelbaner (Sol og Måne i dag)
+  var sunPath = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineDashedMaterial({ color: 0xf3b340, dashSize: 2, gapSize: 1.5, transparent: true, opacity: 0.75, depthWrite: false }));
+  var moonPath = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineDashedMaterial({ color: 0xcfd3dc, dashSize: 2, gapSize: 1.5, transparent: true, opacity: 0.6, depthWrite: false }));
+  var pathDots = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ size: 4, sizeAttenuation: false, color: 0xf3b340, transparent: true, opacity: 0.9, depthWrite: false }));
+  scene.add(sunPath, moonPath, pathDots);
+  var pathCache = { key: '', sun: [], moon: [], sunHours: [] };
+
+  // ---------------------------------------------------------------- etiketter
+  var labelsEl = $('#labels');
+  function mkLabel(cls, text) {
+    var d = document.createElement('div'); d.className = 'blabel ' + cls;
+    d.innerHTML = '<span class="ring"></span><span class="txt"></span>'; d.querySelector('.txt').textContent = text;
+    labelsEl.appendChild(d); return d;
+  }
+  var L = { sun: mkLabel('sun', 'Solen'), earth: mkLabel('earth', 'Jorden'), moon: mkLabel('moon', 'Månen') };
+  var LC = ['N', 'Ø', 'S', 'V'].map(function (t) { var d = mkLabel('compass', t); d.querySelector('.ring').remove(); return d; });
+  var LN = [mkLabel('node', 'Stigende knude'), mkLabel('node', 'Nedstigende knude')];
+  LN.forEach(function (d) { d.querySelector('.ring').remove(); });
+  var _v = new THREE.Vector3();
+  function placeLabel(el, worldPos, radiusWorld, show) {
+    if (!show) { el.style.display = 'none'; return; }
+    _v.copy(worldPos).project(camera);
+    var cw = canvas.clientWidth, ch = canvas.clientHeight;
+    if (_v.z > 1 || _v.z < -1 || Math.abs(_v.x) > 1.3 || Math.abs(_v.y) > 1.3) { el.style.display = 'none'; return; }
+    var x = (_v.x + 1) / 2 * cw, y = (1 - _v.y) / 2 * ch;
+    var rpx = 0;
+    if (radiusWorld) {
+      var dist = camera.position.distanceTo(worldPos);
+      rpx = radiusWorld / dist / Math.tan(camera.fov * D2R / 2) * ch / 2;
+    }
+    el.style.display = 'block';
+    el.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
+    var ring = el.querySelector('.ring'), txt = el.querySelector('.txt');
+    if (ring) ring.style.display = rpx < 5 ? 'block' : 'none';
+    if (txt) {
+      var off = Math.max(8, rpx * 0.72 + 4);
+      if (el === L.sun) { txt.style.left = 'auto'; txt.style.right = off + 'px'; txt.style.top = -(off + 11) + 'px'; }
+      else if (el === L.moon) { txt.style.left = 'auto'; txt.style.right = off + 'px'; txt.style.top = off + 'px'; }
+      else { txt.style.left = off + 'px'; txt.style.top = off + 'px'; txt.style.right = 'auto'; }
+    }
+  }
+
+  // ---------------------------------------------------------------- kamera-input
+  var pointers = new Map(), lastPinch = null;
+  canvas.addEventListener('pointerdown', function (e) { canvas.setPointerCapture(e.pointerId); pointers.set(e.pointerId, { x: e.clientX, y: e.clientY }); });
+  function endPtr(e) { pointers.delete(e.pointerId); lastPinch = null; if (dragMoved) { dragMoved = false; emit('event', { action: 'kamera', detail: camSummary() }); } }
+  canvas.addEventListener('pointerup', endPtr); canvas.addEventListener('pointercancel', endPtr);
+  var dragMoved = false;
+  canvas.addEventListener('pointermove', function (e) {
+    if (!pointers.has(e.pointerId)) return;
+    var p = pointers.get(e.pointerId), dx = e.clientX - p.x, dy = e.clientY - p.y;
+    pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pointers.size === 2) {
+      var a = Array.from(pointers.values()), d = Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y);
+      if (lastPinch) zoomBy(lastPinch / d);
+      lastPinch = d; return;
+    }
+    if (Math.abs(dx) + Math.abs(dy) > 0) dragMoved = true;
+    rotateBy(dx, dy);
+  });
+  canvas.addEventListener('wheel', function (e) { e.preventDefault(); zoomBy(Math.exp(e.deltaY * 0.0012)); }, { passive: false });
+  canvas.addEventListener('keydown', function (e) {
+    var k = { ArrowLeft: [-20, 0], ArrowRight: [20, 0], ArrowUp: [0, -20], ArrowDown: [0, 20] }[e.key];
+    if (k) { e.preventDefault(); rotateBy(k[0], k[1]); }
+    if (e.key === '+' || e.key === '=') zoomBy(0.8);
+    if (e.key === '-') zoomBy(1.25);
+  });
+  function viewDef(id) { return VIEWS.find(function (v) { return v.id === (id || S.view); }); }
+  function rotateBy(dx, dy) {
+    var vd = viewDef();
+    if (vd.kind === 'orbit') {
+      var o = S.orbit[S.view]; o.az -= dx * 0.006; o.el = Math.max(-1.55, Math.min(1.55, o.el + dy * 0.006));
+    } else if (vd.kind === 'look') {
+      var l = S.look[S.view], k = l.fov / canvas.clientHeight;
+      if (l.track) { l.track = null; renderCamCtl(); }
+      l.az = Astro.norm360(l.az - dx * k); l.alt = Math.max(-89, Math.min(89.5, l.alt + dy * k));
+    }
+  }
+  function zoomBy(f) {
+    var vd = viewDef();
+    if (vd.kind === 'orbit') { var o = S.orbit[S.view]; o.mult = Math.max(minMult(S.view), Math.min(40, o.mult * f)); }
+    else if (vd.kind === 'look') { var l = S.look[S.view]; l.fov = Math.max(0.08, Math.min(110, l.fov * f)); }
+    else { S.sunView.zoom = Math.max(0.0015, Math.min(12, S.sunView.zoom * f)); }
+  }
+  $('#zoomIn').onclick = function () { zoomBy(0.7); };
+  $('#zoomOut').onclick = function () { zoomBy(1 / 0.7); };
+
+  // ---------------------------------------------------------------- geometri pr. frame
+  var G = {};   // aktuel geometri
+  function refLen(target, sc) { return target === 'sun' ? Astro.AU * K : 384.4 * sc.dist; }
+  function minMult(view) {
+    var o = S.orbit[view], sc = curScale(), R = o.target === 'sun' ? Astro.R_SUN * K * sc.sun : (o.target === 'earth' ? Astro.R_EARTH : Astro.R_MOON) * K * sc.body;
+    return R * 1.25 / refLen(o.target, sc);
+  }
+  function computeGeometry() {
+    var st = Astro.state(S.simMs), sc = curScale();
+    G.st = st; G.sc = sc;
+    G.sunR = Astro.R_SUN * K * sc.sun; G.earthR = Astro.R_EARTH * K * sc.body; G.moonR = Astro.R_MOON * K * sc.body;
+    G.sunPos = new THREE.Vector3(0, 0, 0);
+    G.earthPos = e2w(V.mul(st.sunGeo, -K));
+    G.moonPos = G.earthPos.clone().add(e2w(V.mul(st.moonGeo, K * sc.dist)));
+    // Jordens orientering: krop -> ekliptisk = Rx(-ε)·Rz(GMST)
+    var Rbe = new THREE.Matrix4().makeRotationX(-st.eps * D2R).multiply(new THREE.Matrix4().makeRotationZ(st.gmst * D2R));
+    G.earthRbe = Rbe;
+    earth.position.copy(G.earthPos); earth.scale.setScalar(G.earthR);
+    earth.quaternion.setFromRotationMatrix(W.clone().multiply(Rbe));
+    // Månen: bunden rotation, x-aksen peger mod Jorden
+    var xm = new THREE.Vector3().fromArray(V.unit(V.mul(st.moonGeo, -1)));
+    var ym = new THREE.Vector3(0, 0, 1).cross(xm).normalize(), zm = new THREE.Vector3().crossVectors(xm, ym);
+    var Rm = new THREE.Matrix4().makeBasis(xm, ym, zm);
+    G.moonRbe = Rm;
+    moon.position.copy(G.moonPos); moon.scale.setScalar(G.moonR);
+    moon.quaternion.setFromRotationMatrix(W.clone().multiply(Rm));
+    sun.scale.setScalar(G.sunR);
+    glow.scale.setScalar(G.sunR * 7.5);
+    // shader-uniformer (fysiske størrelser, 1000 km)
+    var eu = earth.material.uniforms, mu = moon.material.uniforms;
+    eu.uB2E.value.setFromMatrix4(Rbe);
+    eu.uSun.value.fromArray(V.mul(st.sunGeo, K)); eu.uOcc.value.fromArray(V.mul(st.moonGeo, K));
+    eu.uR.value = Astro.R_EARTH * K; eu.uOccR.value = Astro.R_MOON * K;
+    eu.uGrid.value = S.show.grid ? 1 : 0;
+    var la = S.obs.lat * D2R, lo = S.obs.lon * D2R;
+    eu.uObs.value.set(Math.cos(la) * Math.cos(lo), Math.cos(la) * Math.sin(lo), Math.sin(la));
+    eu.uObsOn.value = (S.view !== 'surface' && S.view !== 'geo') ? 1 : 0;
+    mu.uB2E.value.setFromMatrix4(Rm);
+    mu.uSun.value.fromArray(V.mul(V.sub(st.sunGeo, st.moonGeo), K)); mu.uOcc.value.fromArray(V.mul(st.moonGeo, -K));
+    mu.uR.value = Astro.R_MOON * K; mu.uOccR.value = Astro.R_EARTH * K * 1.02;
+    // jordakse
+    var pole = e2w(Astro.eq2ecl([0, 0, 1], st.eps));
+    G.pole = pole;
+    axis.position.copy(G.earthPos); axis.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), pole); axis.scale.setScalar(G.earthR * 1.75);
+    var onSurf = S.view === 'surface' || S.view === 'moon';
+    axis.visible = S.show.axis && S.view !== 'geo' && !onSurf;
+    // baner
+    rebuildEarthOrbit(); rebuildMoonOrbit();
+    earthOrbit.visible = moonOrbit.visible = S.show.orbits && !onSurf && S.view !== 'geo';
+    moonOrbit.position.copy(G.earthPos); moonOrbit.scale.setScalar(sc.dist);
+    // planer og knudelinje
+    planes.visible = S.show.planes && !onSurf;
+    var r = 384.4 * sc.dist * 1.3;
+    planes.position.copy(G.earthPos);
+    eclG.scale.setScalar(r);
+    var inc = 5.145 * D2R, Om = st.moon.node * D2R;
+    var nrm = e2w([Math.sin(inc) * Math.sin(Om), -Math.sin(inc) * Math.cos(Om), Math.cos(inc)]);
+    mG.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), nrm); mG.scale.setScalar(r);
+    G.nodeDir = e2w([Math.cos(Om), Math.sin(Om), 0]);
+    nodeLine.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), G.nodeDir); nodeLine.scale.setScalar(r * 1.05);
+    var sd = e2w(V.unit(st.sunGeo));
+    sunDirLine.quaternion.setFromUnitVectors(new THREE.Vector3(1, 0, 0), sd); sunDirLine.scale.setScalar(r * 1.05);
+    // observatør
+    G.obs = Astro.observer(st, S.obs.lat, S.obs.lon);
+  }
+
+  // ---------------------------------------------------------------- kamera pr. frame
+  var _tmp = new THREE.Vector3();
+  function bodyPos(id) { return id === 'sun' ? G.sunPos : id === 'earth' ? G.earthPos : G.moonPos; }
+  function lookFrame(view) {
+    if (view === 'surface') {
+      var U = e2w(G.obs.up), N = e2w(G.obs.north);
+      var h = G.earthR * 1.6e-5;
+      return { P: G.earthPos.clone().addScaledVector(U, G.earthR + h), U: U, N: N, E: new THREE.Vector3().crossVectors(N, U), h: h, body: 'earth' };
+    }
+    if (view === 'moon') {
+      var a = -62 * D2R, b = 8 * D2R;
+      var nb = new THREE.Vector3(Math.cos(b) * Math.cos(a), Math.cos(b) * Math.sin(a), Math.sin(b));
+      var R3 = new THREE.Matrix3().setFromMatrix4(W.clone().multiply(G.moonRbe));
+      var U2 = nb.clone().applyMatrix3(R3).normalize();
+      var zb = new THREE.Vector3(0, 0, 1).applyMatrix3(R3);
+      var N2 = zb.addScaledVector(U2, -zb.dot(U2)).normalize();
+      var h2 = G.moonR * 1.6e-5;
+      return { P: G.moonPos.clone().addScaledVector(U2, G.moonR + h2), U: U2, N: N2, E: new THREE.Vector3().crossVectors(N2, U2), h: h2, body: 'moon' };
+    }
+    var Ug = new THREE.Vector3(0, 1, 0), Ng = new THREE.Vector3(1, 0, 0);
+    return { P: G.earthPos.clone(), U: Ug, N: Ng, E: new THREE.Vector3().crossVectors(Ng, Ug), h: 0, body: null };
+  }
+  function dirFromAltAz(F, alt, az) {
+    var ca = Math.cos(alt * D2R);
+    return new THREE.Vector3().addScaledVector(F.N, ca * Math.cos(az * D2R)).addScaledVector(F.E, ca * Math.sin(az * D2R)).addScaledVector(F.U, Math.sin(alt * D2R)).normalize();
+  }
+  function altAzFromDir(F, d) {
+    return { alt: Math.asin(Math.max(-1, Math.min(1, d.dot(F.U)))) * R2D, az: Astro.norm360(Math.atan2(d.dot(F.E), d.dot(F.N)) * R2D) };
+  }
+  function updateCamera() {
+    var vd = viewDef();
+    G.frame = null;
+    if (vd.kind === 'orbit') {
+      var o = S.orbit[S.view], T = bodyPos(o.target), dist = o.mult * refLen(o.target, G.sc);
+      o.mult = Math.max(o.mult, minMult(S.view));
+      camera.position.set(T.x + dist * Math.cos(o.el) * Math.sin(o.az), T.y + dist * Math.sin(o.el), T.z + dist * Math.cos(o.el) * Math.cos(o.az));
+      camera.up.set(0, 1, 0); camera.fov = 45; camera.lookAt(T);
+    } else if (vd.kind === 'sun') {
+      var tgt = bodyPos(S.sunView.target);
+      var dir = tgt.clone().sub(G.sunPos).normalize();
+      camera.position.copy(G.sunPos).addScaledVector(dir, G.sunR * 1.04);
+      camera.up.set(0, 1, 0); camera.lookAt(tgt);
+      var base = 2 * Math.atan(1.7 * 384.4 * G.sc.dist / (Astro.AU * K)) * R2D;
+      camera.fov = Math.max(0.0005, Math.min(120, base * S.sunView.zoom));
+    } else {
+      var F = lookFrame(S.view), l = S.look[S.view];
+      G.frame = F;
+      var d;
+      if (l.track) {
+        d = bodyPos(l.track).clone().sub(F.P).normalize();
+        var aa = altAzFromDir(F, d); l.az = aa.az; l.alt = Math.max(-89, Math.min(89.5, aa.alt));
+        d = dirFromAltAz(F, l.alt, l.az);
+      } else d = dirFromAltAz(F, l.alt, l.az);
+      camera.position.copy(F.P); camera.up.copy(F.U);
+      camera.lookAt(_tmp.copy(F.P).add(d)); camera.fov = l.fov;
+    }
+    var aspect = canvas.clientWidth / Math.max(1, canvas.clientHeight);
+    camera.aspect = aspect; camera.updateProjectionMatrix();
+    stars.position.copy(camera.position);
+  }
+
+  // ---------------------------------------------------------------- himmel og horisont
+  var DAY_SKY = new THREE.Color('#5a8fd6'), TWI = new THREE.Color('#d9804a');
+  function updateSky() {
+    var F = G.frame, onEarth = S.view === 'surface', onMoon = S.view === 'moon';
+    ground.visible = onEarth || onMoon;
+    var skyB = 0, obscur = 0, air = new THREE.Vector3();
+    if (ground.visible) {
+      ground.position.copy(F.P).addScaledVector(F.U, -F.h);
+      ground.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), F.U);
+      ground.scale.setScalar(F.h * 4000);
+      var sunDir = G.sunPos.clone().sub(F.P).normalize(), sAlt = Math.asin(sunDir.dot(F.U)) * R2D;
+      if (onEarth) {
+        var op = Astro.solarObscuration(G.st, G.obs.pos); obscur = op.frac;
+        var lightG = Math.max(0, Math.min(1, Math.sin(Math.max(sAlt, 0) * D2R) * 1.6 + (sAlt > -6 ? (sAlt + 6) / 6 * 0.12 : 0)));
+        lightG *= (1 - obscur * 0.97);
+        ground.material.color.setRGB(0.05 + 0.20 * lightG, 0.07 + 0.27 * lightG, 0.05 + 0.14 * lightG);
+        if (S.show.atmo) {
+          skyB = Math.max(0, Math.min(1, (sAlt + 5) / 13));
+          skyB *= 1 - Math.pow(Math.min(1, obscur), 6) * 0.96;
+        }
+      } else {
+        var lm = Math.max(0, Math.sin(Math.max(sAlt, 0) * D2R)) * 1.5;
+        var cov = sAlt > -1 ? Astro.overlapFrac(Math.asin(Astro.R_SUN / V.len(V.sub(G.st.sunGeo, G.st.moonGeo))), Math.asin(Astro.R_EARTH / V.len(G.st.moonGeo)), V.angle(V.sub(G.st.sunGeo, G.st.moonGeo), V.mul(G.st.moonGeo, -1))) : 0;
+        lm = Math.min(1, lm) * (1 - cov) + 0.02;
+        ground.material.color.setRGB(0.55 * lm + 0.02, 0.54 * lm + 0.02, 0.52 * lm + 0.02);
+      }
+    }
+    var bg = NIGHT.clone();
+    if (skyB > 0) {
+      bg.lerp(DAY_SKY, skyB);
+      var sunDir2 = G.sunPos.clone().sub(F.P).normalize(), a2 = Math.asin(sunDir2.dot(F.U)) * R2D;
+      var tw = Math.max(0, 1 - Math.abs(a2 - 1) / 7) * 0.35; bg.lerp(TWI, tw * skyB);
+      air.set(bg.r * 0.9, bg.g * 0.9, bg.b * 0.9);
+    }
+    scene.background = bg;
+    moon.material.uniforms.uAir.value.copy(air);
+    stars.children.forEach(function (p) { p.material.opacity = 1 - Math.min(1, skyB * 1.4); });
+    G.skyB = skyB; G.obscur = obscur;
+  }
+
+  // himmelbaner for observatør i dag
+  function updatePaths() {
+    var show = S.view === 'surface' && S.show.paths;
+    sunPath.visible = moonPath.visible = pathDots.visible = show;
+    if (!show) return;
+    var dayKey = Math.floor(S.simMs / 3600000) + '|' + S.obs.lat + '|' + S.obs.lon;
+    if (pathCache.key !== dayKey) {
+      pathCache.key = dayKey;
+      var d0 = S.simMs - 12 * 3600000, sunA = [], moonA = [], hours = [];
+      for (var i = 0; i <= 288; i++) {
+        var t = d0 + i * 300000, st = Astro.state(t), ob = Astro.observer(st, S.obs.lat, S.obs.lon);
+        sunA.push(Astro.altAz(ob, st.sunGeo)); moonA.push(Astro.altAz(ob, st.moonGeo));
+        if (i % 12 === 0) hours.push(sunA[sunA.length - 1]);
+      }
+      pathCache.sun = sunA; pathCache.moon = moonA; pathCache.sunHours = hours;
+    }
+    var F = G.frame, Rd = F.h * 3000;
+    [sunPath, moonPath, pathDots].forEach(function (o) { o.position.copy(F.P); });
+    function pts(arr) { return arr.map(function (a) { return dirFromAltAz(F, a.alt, a.az).multiplyScalar(Rd); }); }
+    sunPath.geometry.setFromPoints(pts(pathCache.sun)); sunPath.computeLineDistances();
+    moonPath.geometry.setFromPoints(pts(pathCache.moon)); moonPath.computeLineDistances();
+    pathDots.geometry.setFromPoints(pts(pathCache.sunHours));
+    sunPath.material.dashSize = moonPath.material.dashSize = Rd * 0.006;
+    sunPath.material.gapSize = moonPath.material.gapSize = Rd * 0.005;
+  }
+
+  // ---------------------------------------------------------------- labels pr. frame
+  function updateLabels() {
+    var show = S.show.labels, vd = viewDef();
+    var above = function (id) {
+      if (!G.frame || !G.frame.body) return true;
+      var p = bodyPos(id); return p.clone().sub(G.frame.P).normalize().dot(G.frame.U) > -0.01;
+    };
+    placeLabel(L.sun, G.sunPos, G.sunR, show && S.view !== 'sun' && above('sun'));
+    placeLabel(L.earth, G.earthPos, G.earthR, show && S.view !== 'surface' && S.view !== 'geo' && above('earth'));
+    placeLabel(L.moon, G.moonPos, G.moonR, show && S.view !== 'moon' && above('moon'));
+    var F = G.frame;
+    LC.forEach(function (el, i) {
+      if (S.view !== 'surface' || !F) { el.style.display = 'none'; return; }
+      placeLabel(el, F.P.clone().addScaledVector(dirFromAltAz(F, 0.6, i * 90), 1000 * F.h), 0, true);
+    });
+    var pShow = S.show.planes && vd.kind !== 'look' && S.view !== 'sun';
+    var r = 384.4 * G.sc.dist * 1.36;
+    placeLabel(LN[0], G.earthPos.clone().addScaledVector(G.nodeDir, r), 0, pShow && show);
+    placeLabel(LN[1], G.earthPos.clone().addScaledVector(G.nodeDir, -r), 0, pShow && show);
+  }
+
+  // ---------------------------------------------------------------- UI
+  var viewList = $('#viewList');
+  VIEWS.forEach(function (v) {
+    var b = document.createElement('button'); b.className = 'vbtn'; b.id = 'view_' + v.id; b.setAttribute('aria-pressed', 'false');
+    b.innerHTML = '<span class="ico">' + VIEW_ICONS[v.id] + '</span><span class="nm"></span><span class="ds"></span>';
+    b.querySelector('.nm').textContent = v.nm; b.querySelector('.ds').textContent = v.ds;
+    b.onclick = function () { setView(v.id, null, 'bruger'); };
+    viewList.appendChild(b);
+  });
+  function chipGroup(label, opts, cur, onPick) {
+    var wrap = document.createElement('div'); wrap.style.display = 'grid'; wrap.style.gap = '5px';
+    var s = document.createElement('div'); s.className = 'sub'; s.textContent = label; wrap.appendChild(s);
+    var c = document.createElement('div'); c.className = 'chips';
+    opts.forEach(function (o) {
+      var b = document.createElement('button'); b.className = 'chip'; b.textContent = o.l;
+      b.setAttribute('aria-pressed', String(o.v === cur)); b.onclick = function () { onPick(o.v); };
+      c.appendChild(b);
+    });
+    wrap.appendChild(c); return wrap;
+  }
+  function renderCamCtl() {
+    var el = $('#camCtl'); el.innerHTML = '';
+    var vd = viewDef();
+    if (vd.kind === 'orbit') {
+      el.appendChild(chipGroup('Kameraet følger', [{ v: 'sun', l: 'Solen' }, { v: 'earth', l: 'Jorden' }, { v: 'moon', l: 'Månen' }], S.orbit[S.view].target, function (v) {
+        var o = S.orbit[S.view], sc = curScale(), oldDist = o.mult * refLen(o.target, sc);
+        o.target = v; o.mult = Math.max(minMult(S.view), v === 'sun' ? 2.8 : (v === 'moon' ? 0.6 : 3.4));
+        renderCamCtl(); emit('event', { action: 'kamera', detail: camSummary() });
+      }));
+    } else if (vd.kind === 'sun') {
+      el.appendChild(chipGroup('Kig mod', [{ v: 'earth', l: 'Jorden' }, { v: 'moon', l: 'Månen' }], S.sunView.target, function (v) { S.sunView.target = v; renderCamCtl(); emit('event', { action: 'kamera', detail: camSummary() }); }));
+    } else {
+      var opts = [{ v: 'sun', l: 'Følg Solen' }, { v: 'moon', l: 'Følg Månen' }];
+      if (S.view === 'moon') opts = [{ v: 'earth', l: 'Følg Jorden' }, { v: 'sun', l: 'Følg Solen' }];
+      opts.push({ v: null, l: 'Frit blik' });
+      el.appendChild(chipGroup('Blik', opts, S.look[S.view].track, function (v) {
+        S.look[S.view].track = v; if (!v && S.view === 'surface') { S.look.surface.alt = 15; }
+        renderCamCtl(); emit('event', { action: 'kamera', detail: camSummary() });
+      }));
+    }
+  }
+  function camSummary() {
+    var vd = viewDef(), o = {};
+    if (vd.kind === 'orbit') { var q = S.orbit[S.view]; o = { foelger: q.target, hoejdeGrader: +(q.el * R2D).toFixed(1) }; }
+    else if (vd.kind === 'sun') o = { kigMod: S.sunView.target, zoom: +S.sunView.zoom.toFixed(3) };
+    else { var l = S.look[S.view]; o = { foelger: l.track, azimut: +l.az.toFixed(1), hoejde: +l.alt.toFixed(1), synsfeltGrader: +l.fov.toFixed(2) }; }
+    o.visning = S.view; return o;
+  }
+  function setView(id, opts, source) {
+    if (!viewDef(id)) return;
+    S.view = id; opts = opts || {};
+    if (opts.target) {
+      if (viewDef(id).kind === 'orbit') S.orbit[id].target = opts.target;
+      else if (viewDef(id).kind === 'sun') S.sunView.target = opts.target;
+      else S.look[id].track = opts.target;
+    }
+    if (id === 'surface' && !opts.target && S.look.surface.track === null) {
+      computeGeometry();
+      var sa = Astro.altAz(G.obs, G.st.sunGeo), ma = Astro.altAz(G.obs, G.st.moonGeo);
+      if (sa.alt > 0) S.look.surface.track = 'sun'; else if (ma.alt > 0) S.look.surface.track = 'moon';
+    }
+    VIEWS.forEach(function (v) { $('#view_' + v.id).setAttribute('aria-pressed', String(v.id === id)); });
+    $('#viewHint').textContent = viewDef().ds;
+    renderCamCtl(); updateScaleChip();
+    if (source) emit('event', { action: 'visning', detail: camSummary(), kilde: source });
+  }
+  function updateScaleChip() {
+    var vd = viewDef();
+    $('#scaleChip').hidden = !(vd.kind === 'look' && S.scaleMode === 'overdrevet');
+  }
+
+  // skala
+  function setScale(mode, source) {
+    if (mode !== 'korrekt' && mode !== 'overdrevet') return;
+    S.scaleMode = mode;
+    $('#scaleExag').setAttribute('aria-pressed', String(mode === 'overdrevet'));
+    $('#scaleReal').setAttribute('aria-pressed', String(mode === 'korrekt'));
+    $('#scaleNote').textContent = mode === 'korrekt'
+      ? 'Alt i korrekt målestok. Jorden er 109 gange mindre end Solen, og Månen er ca. 30 jorddiametre væk. Zoom ind for at finde dem.'
+      : 'Jord og Måne er forstørret 392×, Solen 11,5× og Månens afstand 31×. Skygger og formørkelser beregnes stadig med de rigtige størrelser.';
+    updateScaleChip();
+    if (reduceMotion) S.scaleT = mode === 'korrekt' ? 1 : 0;
+    if (source) emit('event', { action: 'skala', detail: { skala: mode }, kilde: source });
+  }
+  $('#scaleExag').onclick = function () { setScale('overdrevet', 'bruger'); };
+  $('#scaleReal').onclick = function () { setScale('korrekt', 'bruger'); };
+  $('#chipReal').onclick = function () { setScale('korrekt', 'bruger'); };
+
+  // observatør
+  var presetBox = $('#obsPresets');
+  OBS_PRESETS.forEach(function (p) {
+    var b = document.createElement('button'); b.className = 'chip'; b.textContent = p.name; b.dataset.id = p.id;
+    b.onclick = function () { setObserver(p.lat, p.lon, p.name, 'bruger'); };
+    presetBox.appendChild(b);
+  });
+  function setObserver(lat, lon, name, source) {
+    lat = Math.max(-89.99, Math.min(89.99, +lat)); lon = Astro.wrap180(+lon);
+    if (isNaN(lat) || isNaN(lon)) return;
+    S.obs = { name: name || 'Valgt sted', lat: lat, lon: lon };
+    $('#obsLat').value = lat.toFixed(2); $('#obsLon').value = lon.toFixed(2);
+    presetBox.querySelectorAll('.chip').forEach(function (b) { b.setAttribute('aria-pressed', String(b.textContent === S.obs.name)); });
+    pathCache.key = '';
+    if (source) emit('event', { action: 'observatoer', detail: S.obs, kilde: source });
+  }
+  $('#obsLat').onchange = $('#obsLon').onchange = function () { setObserver($('#obsLat').value, $('#obsLon').value, 'Valgt sted', 'bruger'); };
+
+  // vis-knapper
+  ['orbits', 'planes', 'axis', 'grid', 'labels', 'paths', 'atmo'].forEach(function (k) {
+    var el = $('#t_' + k); el.checked = S.show[k];
+    el.onchange = function () { S.show[k] = el.checked; if (k === 'grid') setView(S.view); emit('event', { action: 'vis', detail: { element: k, til: el.checked }, kilde: 'bruger' }); };
+  });
+  function setShow(obj) { Object.keys(obj).forEach(function (k) { if (k in S.show) { S.show[k] = !!obj[k]; $('#t_' + k).checked = !!obj[k]; } }); }
+
+  // tid
+  var speedSel = $('#speedSel');
+  SPEEDS.forEach(function (sp, i) { var o = document.createElement('option'); o.value = i; o.textContent = sp.l; speedSel.appendChild(o); });
+  speedSel.value = S.speedIdx;
+  speedSel.onchange = function () { S.speedIdx = +speedSel.value; emit('event', { action: 'hastighed', detail: { hastighed: SPEEDS[S.speedIdx].l }, kilde: 'bruger' }); };
+  var PLAY_SVG = '<svg viewBox="0 0 14 14"><path d="M3 1.5v11l9-5.5z" fill="currentColor"/></svg>', PAUSE_SVG = '<svg viewBox="0 0 14 14"><path d="M3 1.5h3v11H3zM8 1.5h3v11H8z" fill="currentColor"/></svg>';
+  function setPlaying(p, source) {
+    if (p && source === 'bruger' && (S.locks.time || S.mLock)) { toast(S.mLock ? 'Skriv din forudsigelse i opgaven, før du starter tiden.' : 'Tiden er låst af tutoren lige nu.', null); return; }
+    S.playing = p; var b = $('#playBtn'); b.innerHTML = p ? PAUSE_SVG : PLAY_SVG; b.setAttribute('aria-label', p ? 'Pause' : 'Afspil');
+    if (source) emit('event', { action: p ? 'afspil' : 'pause', kilde: source });
+  }
+  $('#playBtn').onclick = function () { setPlaying(!S.playing, 'bruger'); };
+  $('#dirBtn').onclick = function () {
+    S.dir = -S.dir; this.textContent = S.dir > 0 ? '▶▶' : '◀◀'; this.setAttribute('aria-label', S.dir > 0 ? 'Tiden går fremad' : 'Tiden går baglæns');
+    emit('event', { action: 'retning', detail: { retning: S.dir > 0 ? 'frem' : 'tilbage' }, kilde: 'bruger' });
+  };
+  document.querySelectorAll('[data-step]').forEach(function (b) {
+    b.onclick = function () { setTime(S.simMs + parseFloat(b.dataset.step) * 86400000); emit('event', { action: 'trin', detail: { dage: parseFloat(b.dataset.step) }, kilde: 'bruger' }); };
+  });
+  $('#nowBtn').onclick = function () { setTime(Date.now()); emit('event', { action: 'nu', kilde: 'bruger' }); };
+  // Tidspunkt indtastes i dansk tid (Europe/Copenhagen), uanset browserens tidszone
+  var dateInput = $('#dateInput'), dateForm = $('#dateForm');
+  var partsFmt = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Copenhagen', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' });
+  function dkParts(ms) { var o = {}; partsFmt.formatToParts(new Date(ms)).forEach(function (p) { o[p.type] = +p.value; }); return o; }
+  function dkOffset(ms) { var p = dkParts(ms); return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute) - Math.floor(ms / 60000) * 60000; }
+  function toLocalInput(ms) {
+    var p = dkParts(ms), z = function (n) { return String(n).padStart(2, '0'); };
+    return String(p.year).padStart(4, '0') + '-' + z(p.month) + '-' + z(p.day) + 'T' + z(p.hour) + ':' + z(p.minute);
+  }
+  function parseDk(v) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(v || ''); if (!m) return NaN;
+    var y = +m[1]; if (y < 1900 || y > 2100) return NaN;
+    var guess = Date.UTC(y, +m[2] - 1, +m[3], +m[4], +m[5]);
+    var t = guess - dkOffset(guess); t = guess - dkOffset(t);
+    return t;
+  }
+  var dateTimer = null;
+  function applyDate(source) {
+    clearTimeout(dateTimer);
+    var t = parseDk(dateInput.value);
+    if (isNaN(t)) { dateForm.classList.add('bad'); return; }
+    dateForm.classList.remove('bad', 'dirty');
+    setTime(t); setPlaying(false);
+    var st = Astro.state(t), lu = Astro.lunarShadow(st), so = Astro.solarShadow(st), note = '';
+    if (lu.type) note = ' Der er ' + (lu.type === 'penumbral' ? 'halvskygge-måneformørkelse' : TYPE_DA[lu.type].toLowerCase() + ' måneformørkelse') + ' lige nu.';
+    else if (so.type) note = ' Der er ' + TYPE_DA[so.type].toLowerCase() + ' solformørkelse et sted på Jorden lige nu.';
+    toast('Tiden er sat til ' + fmtDate(t) + '.' + note, null);
+    emit('event', { action: 'dato', detail: { tid: new Date(t).toISOString() }, kilde: source || 'bruger' });
+  }
+  dateInput.addEventListener('input', function () {
+    dateForm.classList.add('dirty'); dateForm.classList.remove('bad');
+    clearTimeout(dateTimer);
+    // valg i kalender-vælgeren anvendes efter en kort pause; tastning afsluttes med Enter eller Gå
+    dateTimer = setTimeout(function () { if (document.activeElement !== dateInput && !isNaN(parseDk(dateInput.value))) applyDate(); }, 900);
+  });
+  dateInput.addEventListener('blur', function () { if (dateForm.classList.contains('dirty') && !isNaN(parseDk(dateInput.value))) applyDate(); });
+  dateForm.addEventListener('submit', function (e) { e.preventDefault(); applyDate(); });
+  dateInput.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); applyDate(); } });
+  $('#clockBtn').onclick = function () {
+    dateInput.value = toLocalInput(S.simMs); dateInput.focus();
+    try { if (dateInput.showPicker) dateInput.showPicker(); } catch (e) { }
+  };
+  function setTime(ms) { S.simMs = Math.max(MIN_MS, Math.min(MAX_MS, ms)); }
+
+  var JUMP_NAMES = { nymaane: 'Nymåne', foerste: 'Første kvarter', fuldmaane: 'Fuldmåne', sidste: 'Sidste kvarter', foraar: 'Forårsjævndøgn', sommer: 'Sommersolhverv', efteraar: 'Efterårsjævndøgn', vinter: 'Vintersolhverv', perihel: 'Perihel', aphel: 'Aphel', middag: 'Middag', midnat: 'Midnat', solform: 'Solformørkelse', maaneform: 'Måneformørkelse' };
+  function hourAngleAt(ms) {
+    var st = Astro.state(ms), q = Astro.ecl2eq(st.sunGeo, st.eps), ra = Math.atan2(q[1], q[0]) * R2D;
+    return Astro.wrap180(st.gmst + S.obs.lon - ra);
+  }
+  function nextHourAngle(ms, target) {
+    var h = hourAngleAt(ms), days = Astro.norm360(target - h) / 360.9856; if (days < 0.001) days += 1;
+    var t = ms + days * 86400000;
+    for (var i = 0; i < 6; i++) t -= Astro.wrap180(hourAngleAt(t) - target) / 360.9856 * 86400000;
+    return t;
+  }
+  var TYPE_DA = { total: 'Total', annular: 'Ringformet', partial: 'Delvis', penumbral: 'Halvskygge-' };
+  function jump(ev, source, silent) {
+    var t = S.simMs, res = null, msg = null, act = null;
+    switch (ev) {
+      case 'nymaane': res = Astro.nextPhase(t, 0); break;
+      case 'foerste': res = Astro.nextPhase(t, 90); break;
+      case 'fuldmaane': res = Astro.nextPhase(t, 180); break;
+      case 'sidste': res = Astro.nextPhase(t, 270); break;
+      case 'foraar': res = Astro.nextSolarLon(t, 0); break;
+      case 'sommer': res = Astro.nextSolarLon(t, 90); break;
+      case 'efteraar': res = Astro.nextSolarLon(t, 180); break;
+      case 'vinter': res = Astro.nextSolarLon(t, 270); break;
+      case 'perihel': res = Astro.nextApsis(t, true); break;
+      case 'aphel': res = Astro.nextApsis(t, false); break;
+      case 'middag': res = nextHourAngle(t, 0); break;
+      case 'midnat': res = nextHourAngle(t, 180); break;
+      case 'solform':
+        var e = Astro.nextSolarEclipse(t);
+        if (e) {
+          res = e.ms;
+          msg = TYPE_DA[e.type] + ' solformørkelse ' + fmtDate(e.ms) + '. Størst ved ' + fmt(Math.abs(e.where.lat), 1) + '° ' + (e.where.lat >= 0 ? 'N' : 'S') + ', ' + fmt(Math.abs(e.where.lon), 1) + '° ' + (e.where.lon >= 0 ? 'Ø' : 'V') + '.';
+          act = { l: 'Stil dig der', f: function () { setObserver(e.where.lat, e.where.lon, 'Største formørkelse', 'bruger'); setScale('korrekt', 'bruger'); S.look.surface.track = 'sun'; S.look.surface.fov = 4; setView('surface', { target: 'sun' }, 'bruger'); setPlaying(false, 'bruger'); } };
+        }
+        break;
+      case 'maaneform':
+        var l = Astro.nextLunarEclipse(t);
+        if (l) {
+          res = l.ms;
+          msg = (l.type === 'penumbral' ? 'Halvskyggeformørkelse af Månen ' : TYPE_DA[l.type] + ' måneformørkelse ') + fmtDate(l.ms) + '.';
+          act = { l: 'Se Månen fra Jorden', f: function () { setScale('korrekt', 'bruger'); S.look.geo.fov = 3; setView('geo', { target: 'moon' }, 'bruger'); setPlaying(false, 'bruger'); } };
+        }
+        break;
+      default: return null;
+    }
+    if (res === null) return null;
+    setTime(res);
+    if (ev === 'solform' || ev === 'maaneform') setPlaying(false);
+    if (!silent) toast(msg || (JUMP_NAMES[ev] + ': ' + fmtDate(res) + '.'), act);
+    if (source) emit('event', { action: 'spring', detail: { begivenhed: ev, tid: new Date(res).toISOString(), besked: msg }, kilde: source });
+    return res;
+  }
+  $('#jumpSel').onchange = function () { var v = this.value; this.value = ''; if (v) jump(v, 'bruger'); };
+
+  // toast
+  var toastTimer = null;
+  function toast(text, act) {
+    $('#toastText').textContent = text; var a = $('#toastAct');
+    if (act) { a.hidden = false; a.textContent = act.l; a.onclick = function () { act.f(); $('#toast').hidden = true; }; } else a.hidden = true;
+    $('#toast').hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(function () { $('#toast').hidden = true; }, act ? 14000 : 5000);
+  }
+  $('#toastClose').onclick = function () { $('#toast').hidden = true; };
+
+  // paneler
+  $('#roToggle').onclick = function () { var ex = this.getAttribute('aria-expanded') === 'true'; this.setAttribute('aria-expanded', String(!ex)); $('#roBody').hidden = ex; };
+  $('#panelToggle').onclick = function () { var p = $('#panel'), o = !p.classList.contains('open'); p.classList.toggle('open', o); this.setAttribute('aria-expanded', String(o)); };
+  if (window.innerWidth < 860) { $('#roToggle').setAttribute('aria-expanded', 'false'); $('#roBody').hidden = true; }
+  $('#taskMin').onclick = function () { var t = $('#task'), m = !t.classList.contains('min'); t.classList.toggle('min', m); this.textContent = m ? 'Vis' : 'Skjul'; };
+  document.addEventListener('keydown', function (e) {
+    if (e.target.matches('input, select, textarea')) return;
+    if (e.code === 'Space' && e.target === document.body) { e.preventDefault(); setPlaying(!S.playing, 'bruger'); }
+  });
+
+  function applyLocks() {
+    document.querySelectorAll('[data-lock]').forEach(function (el) {
+      var k = el.dataset.lock, on = !!S.locks[k];
+      el.classList.toggle('locked', on); if (on) el.setAttribute('inert', ''); else el.removeAttribute('inert');
+    });
+    var tl = S.locks.time || S.mLock, tb = $('#timebar');
+    tb.style.opacity = tl ? 0.45 : ''; if (tl) tb.setAttribute('inert', ''); else tb.removeAttribute('inert');
+    $('#timeLockNote').hidden = !(S.mLock && !S.locks.time);
+    if (S.locks.camera) canvas.style.pointerEvents = 'none'; else canvas.style.pointerEvents = '';
+  }
+
+  // ---------------------------------------------------------------- aflæsninger
+  var fmtDK = new Intl.DateTimeFormat('da-DK', { timeZone: 'Europe/Copenhagen', weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  var fmtDKs = new Intl.DateTimeFormat('da-DK', { timeZone: 'Europe/Copenhagen', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  function fmtDate(ms) { return fmtDKs.format(new Date(ms)) + ' (dansk tid)'; }
+  function phaseName(e) {
+    if (e < 7 || e > 353) return 'Nymåne'; if (e < 83) return 'Tiltagende månesegl'; if (e < 97) return 'Første kvarter';
+    if (e < 173) return 'Tiltagende måne'; if (e < 187) return 'Fuldmåne'; if (e < 263) return 'Aftagende måne';
+    if (e < 277) return 'Sidste kvarter'; return 'Aftagende månesegl';
+  }
+  function seasonName(lon) { return lon < 90 ? 'Forår' : lon < 180 ? 'Sommer' : lon < 270 ? 'Efterår' : 'Vinter'; }
+  var phaseCtx = null, phaseImg = null;
+  function drawPhaseIcon(elong) {
+    if (!phaseCtx) { phaseCtx = $('#phaseIcon').getContext('2d'); phaseImg = phaseCtx.createImageData(68, 68); }
+    var d = phaseImg.data, k = Math.cos(elong * D2R), s = elong < 180 ? 1 : -1, r = 31;
+    for (var py = 0; py < 68; py++) for (var px = 0; px < 68; px++) {
+      var x = (px + 0.5 - 34) / r, y = (py + 0.5 - 34) / r, rr = x * x + y * y, i = (py * 68 + px) * 4;
+      if (rr > 1) { d[i + 3] = 0; continue; }
+      var edge = Math.min(1, (1 - Math.sqrt(rr)) * r);
+      var lit = s * x - k * Math.sqrt(1 - y * y), a = Math.max(0, Math.min(1, lit * r * 0.8 + 0.5));
+      d[i] = 32 + (228 - 32) * a; d[i + 1] = 37 + (230 - 37) * a; d[i + 2] = 58 + (236 - 58) * a; d[i + 3] = 255 * edge;
+    }
+    phaseCtx.putImageData(phaseImg, 0, 0);
+  }
+  function obsInfo() {
+    var st = G.st, ob = G.obs, sa = Astro.altAz(ob, st.sunGeo), ma = Astro.altAz(ob, st.moonGeo);
+    var noon = 90 - Math.abs(S.obs.lat - st.sunDecl); if (noon > 90) noon = 180 - noon;
+    return { sun: sa, moon: ma, day: Astro.dayLength(S.obs.lat, st.sunDecl), noon: noon, obscur: Astro.solarObscuration(st, ob.pos).frac };
+  }
+  function updateReadouts() {
+    var st = G.st, d = new Date(S.simMs);
+    $('#clockMain').textContent = fmtDK.format(d);
+    $('#clockSub').textContent = 'UTC ' + d.toISOString().slice(0, 16).replace('T', ' ') + ' · ' + SPEEDS[S.speedIdx].l + (S.playing ? '' : ' · pause') + (S.dir < 0 ? ' · baglæns' : '');
+    if (document.activeElement !== dateInput && !dateForm.classList.contains('dirty')) dateInput.value = toLocalInput(S.simMs);
+    var es = V.len(st.sunGeo);
+    $('#r_es').textContent = fmt(es / 1e6, 2) + ' mio. km';
+    $('#r_decl').textContent = (st.sunDecl >= 0 ? '+' : '−') + fmt(Math.abs(st.sunDecl), 1) + '°';
+    $('#r_season').textContent = seasonName(st.sun.lon);
+    $('#r_phase').textContent = phaseName(st.elong);
+    $('#r_illum').textContent = fmt(st.illum * 100) + ' % belyst · ca. ' + fmt(st.elong / 360 * 29.53, 1) + ' døgn efter nymåne';
+    drawPhaseIcon(st.elong);
+    $('#r_em').textContent = fmt(Math.round(st.moon.dist / 100) * 100) + ' km';
+    $('#r_beta').textContent = (st.moon.lat >= 0 ? '+' : '−') + fmt(Math.abs(st.moon.lat), 2) + '° ' + (st.moon.lat >= 0 ? 'over' : 'under');
+    var oi = obsInfo();
+    $('#r_obsname').textContent = 'Observatør: ' + S.obs.name;
+    $('#r_salt').textContent = fmt(oi.sun.alt, 1) + '° · ' + compass(oi.sun.az);
+    $('#r_malt').textContent = fmt(oi.moon.alt, 1) + '° · ' + compass(oi.moon.az);
+    var dh = Math.floor(oi.day), dm = Math.round((oi.day - dh) * 60); if (dm === 60) { dh++; dm = 0; }
+    $('#r_day').textContent = oi.day >= 24 ? 'Midnatssol' : oi.day <= 0 ? 'Mørketid' : dh + ' t ' + String(dm).padStart(2, '0') + ' min';
+    $('#r_noon').textContent = fmt(oi.noon, 1) + '°';
+    var sol = Astro.solarShadow(st), lun = Astro.lunarShadow(st), html = [];
+    if (sol.type) html.push('<span class="pill alert">' + TYPE_DA[sol.type] + ' solformørkelse</span>');
+    if (lun.type) html.push('<span class="pill alert">' + (lun.type === 'penumbral' ? 'Halvskygge-måneformørkelse' : TYPE_DA[lun.type] + ' måneformørkelse') + '</span>');
+    if (oi.obscur > 0.001 && oi.sun.alt > -1) html.push('<span class="pill good">Herfra: ' + fmt(oi.obscur * 100) + ' % af Solen dækket</span>');
+    $('#r_ecl').innerHTML = html.length ? html.join(' ') : '<span class="pill calm">Ingen</span>';
+    var na = nodeAngle(st);
+    $('#r_node').innerHTML = fmt(na) + '°' + (na < 18 ? ' <span class="pill alert">formørkelsessæson</span>' : '');
+  }
+  function nodeAngle(st) { var a = Math.abs(Astro.wrap180(st.sun.lon - st.moon.node)); return Math.min(a, 180 - a); }
+
+  // ---------------------------------------------------------------- AIPLA-kobling
+  var API_VERSION = '1.0', SIM_ID = 'sol-jord-maane';
+  function getState() {
+    var st = G.st || Astro.state(S.simMs); if (!G.st) computeGeometry();
+    var oi = obsInfo(), sol = Astro.solarShadow(st), lun = Astro.lunarShadow(st);
+    return {
+      sim: SIM_ID, version: API_VERSION,
+      tid: { utc: new Date(S.simMs).toISOString(), dansk: fmtDK.format(new Date(S.simMs)), afspiller: S.playing, hastighed: SPEEDS[S.speedIdx].l, sekunderPrSekund: SPEEDS[S.speedIdx].s * S.dir },
+      visning: camSummary(), skala: S.scaleMode, vis: Object.assign({}, S.show),
+      observatoer: { navn: S.obs.name, bredde: S.obs.lat, laengde: S.obs.lon,
+        solHoejde: +oi.sun.alt.toFixed(2), solAzimut: +oi.sun.az.toFixed(1), maaneHoejde: +oi.moon.alt.toFixed(2), maaneAzimut: +oi.moon.az.toFixed(1),
+        dagensLaengdeTimer: +oi.day.toFixed(2), middagshoejdeSol: +oi.noon.toFixed(1), solDaekketProcent: +(oi.obscur * 100).toFixed(1) },
+      jordSol: { afstandKm: Math.round(V.len(st.sunGeo)), solLaengdeGrader: +st.sun.lon.toFixed(2), solDeklination: +st.sunDecl.toFixed(2), aarstidNord: seasonName(st.sun.lon) },
+      maane: { fase: phaseName(st.elong), belystProcent: +(st.illum * 100).toFixed(1), elongationGrader: +st.elong.toFixed(1), alderDoegn: +(st.elong / 360 * 29.53).toFixed(1),
+        afstandKm: Math.round(st.moon.dist), eklipiskBreddeGrader: +st.moon.lat.toFixed(3), knudeVsSolGrader: +nodeAngle(st).toFixed(1) },
+      formoerkelse: { sol: sol.type, maane: lun.type, gammaJordradier: +sol.gamma.toFixed(3) },
+      opgave: S.task ? S.task.id || S.task.title : null,
+      mission: typeof Missions !== 'undefined' ? Missions.summary() : null
+    };
+  }
+  // ---- AIPLA guest-bridge adapter (replaces the author's postMessage protocol).
+  // Every student action already flows through emit('event', …). Deliberate acts
+  // are labelled commits (trust card + tutor state); exploration is local until
+  // the next commit or chat send — the commit-on-submit rule.
+  var ARTEFACT_NAME = SIM_ID;
+  var pendingChanges = {};
+  function clip(s, n) { s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s; }
+  function compactState() {
+    var s = getState();
+    delete s.vis; delete s.version; delete s.sim; // toggles are in pending changes; id is the serverId
+    return s;
+  }
+  function flushPendingChanges(triggeredBy) {
+    var changed = Object.keys(pendingChanges);
+    if (!changed.length) return;
+    var summary = {}; changed.forEach(function (k) { summary[k] = pendingChanges[k]; });
+    AIPLA_BRIDGE.emit(ARTEFACT_NAME + '.state-change', { changed: summary, state: compactState(), triggeredBy: triggeredBy });
+    pendingChanges = {};
+  }
+  // The five deliberate acts. Verbs are chosen from the proactive vocabulary on
+  // purpose: prediction/answer/quiz/view are `commit`/`record` (the tutor may
+  // take a turn); mission start and a finished step are not (the student is
+  // reading the task card, and the author marks them as batchable).
+  var COMMITS = {
+    mission_start: { verb: 'mission-start', label: function (d) { return (d.genoptaget ? 'Genoptog' : 'Startede') + ' mission ' + d.mission + ': ' + d.titel; } },
+    forudsigelse: { verb: 'prediction-commit', label: function (d) { return 'Forudsigelse (' + d.mission + '): «' + clip(d.tekst, 140) + '»'; } },
+    trin_faerdigt: { verb: 'checkpoint', label: function (d) { return 'Færdig med trin ' + d.trin + ' i ' + d.mission; } },
+    svar: { verb: 'answer-commit', label: function (d) { return 'Svar på ' + d.mission + ': «' + clip(d.tekst, 140) + '»'; } },
+    quiz_slut: { verb: 'quiz-record', label: function () { return 'Besvarede diagnosespørgsmålene'; } }
+  };
+  function commitDetail(action, d) {
+    if (action === 'quiz_slut') {
+      // levels go to the tutor (it recommends a first mission from them); never into a label
+      return { runde: d.runde, svar: (d.svar || []).map(function (a) { return { item: a.item, emne: a.emne, bogstav: a.bogstav, niveau: a.niveau }; }) };
+    }
+    var out = {}; Object.keys(d).forEach(function (k) { out[k] = typeof d[k] === 'string' ? clip(d[k], 600) : d[k]; });
+    return out;
+  }
+  function explorationNote(action, d) {
+    if (!d) return true;
+    return clip(d.begivenhed || d.skala || d.hastighed || d.retning || (d.element ? d.element + '=' + d.til : '') || d.visning || d.navn || d.tid || d.dage || '', 60) || true;
+  }
+  function emit(type, payload) {
+    if (type !== 'event') return;
+    var a = payload.action, c = COMMITS[a];
+    if (a === 'mission_slut') return; // always follows `svar`, which already carries it
+    if (!c) { pendingChanges[a] = explorationNote(a, payload.detail); return; }
+    flushPendingChanges(a); // state precedes the action, on the wire in that order
+    var d = payload.detail || {};
+    AIPLA_BRIDGE.emit(ARTEFACT_NAME + '.' + c.verb, { label: c.label(d), detail: commitDetail(a, d), state: compactState() });
+  }
+  function snapshot() {
+    renderer.render(scene, camera);
+    var img = null; try { img = canvas.toDataURL('image/jpeg', 0.82); } catch (e) { }
+    return { type: 'snapshot', image: img, state: getState() };
+  }
+  function command(cmd, a) {
+    a = a || {};
+    switch (cmd) {
+      case 'getState': return getState();
+      case 'setTime': if (a.iso || a.ms !== undefined) setTime(a.iso ? Date.parse(a.iso) : +a.ms); break;
+      case 'addTime': setTime(S.simMs + ((+a.days || 0) * 86400000) + ((+a.hours || 0) * 3600000)); break;
+      case 'play': setPlaying(true); break;
+      case 'pause': setPlaying(false); break;
+      case 'setSpeed':
+        var i = SPEEDS.findIndex(function (x) { return x.s === +a.secondsPerSecond || x.l === a.label; });
+        if (i >= 0) { S.speedIdx = i; speedSel.value = i; }
+        if (a.direction) { S.dir = a.direction === 'tilbage' || a.direction < 0 ? -1 : 1; $('#dirBtn').textContent = S.dir > 0 ? '▶▶' : '◀◀'; }
+        break;
+      case 'setView': setView(a.id, { target: a.target }); break;
+      case 'setScale': setScale(a.scale); break;
+      case 'setObserver':
+        if (a.preset) { var p = OBS_PRESETS.find(function (x) { return x.id === a.preset; }); if (p) setObserver(p.lat, p.lon, p.name); }
+        else setObserver(a.lat, a.lon, a.name);
+        break;
+      case 'look':
+        var vd = viewDef();
+        if (vd.kind === 'look') { if (a.target !== undefined) S.look[S.view].track = a.target; if (a.fov) S.look[S.view].fov = +a.fov; if (a.az !== undefined) { S.look[S.view].track = null; S.look[S.view].az = +a.az; S.look[S.view].alt = +(a.alt || 0); } }
+        else if (vd.kind === 'sun') { if (a.target) S.sunView.target = a.target; if (a.zoom) S.sunView.zoom = +a.zoom; }
+        else { if (a.target) S.orbit[S.view].target = a.target; if (a.distance) S.orbit[S.view].mult = +a.distance; if (a.elevation !== undefined) S.orbit[S.view].el = +a.elevation * D2R; }
+        renderCamCtl(); break;
+      case 'setShow': setShow(a); setView(S.view); break;
+      case 'jump': return jump(a.event, null, !!a.silent);
+      case 'setTask': setTask(a); break;
+      case 'clearTask': setTask(null); break;
+      case 'lock': (a.controls || []).forEach(function (k) { S.locks[k] = a.locked !== false; }); applyLocks(); break;
+      case 'toast': toast(String(a.text || ''), null); break;
+      case 'snapshot': return snapshot();
+      case 'startMission': return Missions.start(a.id, 'tutor') ? getState() : { error: 'Ukendt mission: ' + a.id };
+      case 'openMissions': Missions.openPicker(); break;
+      case 'openQuiz': Missions.openQuiz(); break;
+      case 'getMissions': return Missions.summary();
+      case 'configure': return Missions.configure(a);
+      default: return { error: 'Ukendt kommando: ' + cmd };
+    }
+    return getState();
+  }
+  function setTask(t) {
+    S.task = t; var el = $('#task');
+    if (!t) { el.hidden = true; return; }
+    $('#taskTitle').textContent = t.title || 'Opgave'; $('#taskText').textContent = t.text || '';
+    var ol = $('#taskSteps'); ol.innerHTML = '';
+    (t.steps || []).forEach(function (s) { var li = document.createElement('li'); li.textContent = s; ol.appendChild(li); });
+    el.classList.remove('min'); $('#taskMin').textContent = 'Skjul'; el.hidden = false;
+  }
+  // Host -> sim: every command in INTEGRATION.md, as `sol-jord-maane.cmd-<command>`.
+  // Nothing is echoed back (the host knows what it pushed); state rides the next commit.
+  ['setTime', 'addTime', 'play', 'pause', 'setSpeed', 'setView', 'setScale', 'setObserver', 'look', 'setShow',
+   'jump', 'setTask', 'clearTask', 'lock', 'toast', 'startMission', 'openMissions', 'openQuiz', 'configure']
+    .forEach(function (name) {
+      AIPLA_BRIDGE.onHostNotification(ARTEFACT_NAME + '.cmd-' + name, function (p) { command(name, p || {}); });
+    });
+  $('#shareBtn').onclick = function () {
+    flushPendingChanges('view-record');
+    var s = compactState();
+    AIPLA_BRIDGE.emit(ARTEFACT_NAME + '.view-record', { label: 'Delte sin visning: ' + clip(s.tid.dansk, 40) + (s.observatoer ? ', ' + s.observatoer.navn : ''), state: s });
+    toast('Din visning er sendt til tutoren.', null);
+  };
+  window.SolJordMaane = { getState: getState, command: command, version: API_VERSION };
+
+
+  // ---------------------------------------------------------------- missioner (selvkørende)
+  var Missions = (function () {
+    var KEY = 'sjm-fremskridt-v1';
+    var P = { done: {}, active: null, step: {}, texts: {}, hints: {}, quiz: { i: 0, answers: [], done: false } };
+    try { var raw = sessionStorage.getItem(KEY); if (raw) { var o = JSON.parse(raw); if (o && o.done) P = Object.assign(P, o); } } catch (e) { }
+    function save() { try { sessionStorage.setItem(KEY, JSON.stringify(P)); } catch (e) { } }
+    function byId(id) { return MISSIONS.find(function (m) { return m.id === id; }); }
+    var KIND = { predict: 'Forudsig', do: 'Undersøg', answer: 'Dit svar' };
+    // Konfiguration: struktur 'neutral' (standard) eller 'poe' (forudsigelse først, tiden låst indtil da)
+    var CFG = { struktur: qs.get('struktur') === 'poe' ? 'poe' : 'neutral', quiz: qs.get('quiz') !== 'fra' };
+    function stepsOf(m) {
+      var list = m.steps.map(function (t) { return { type: 'do', text: t }; });
+      if (CFG.struktur === 'poe') list.unshift({ type: 'predict', text: m.forudsigelse });
+      list.push({ type: 'answer', text: m.svar });
+      return list;
+    }
+    var card = $('#mcard'), pill = $('#missionPill');
+
+    function summary() {
+      return {
+        aktiv: P.active, trin: P.active ? (P.step[P.active] || 0) + 1 : null,
+        trinIalt: P.active ? stepsOf(byId(P.active)).length : null,
+        konfiguration: Object.assign({}, CFG),
+        faerdige: Object.keys(P.done).filter(function (k) { return P.done[k]; }),
+        quizFaerdig: !!P.quiz.done
+      };
+    }
+    function updatePill() {
+      var n = MISSIONS.filter(function (m) { return P.done[m.id]; }).length;
+      $('#missionPillCount').textContent = n ? n + '/' + MISSIONS.length : '';
+      pill.hidden = !!P.active && !card.hidden;
+    }
+    function setLock() {
+      var m = P.active && byId(P.active), st = m && stepsOf(m)[P.step[m.id] || 0];
+      S.mLock = !!(st && st.type === 'predict');
+      if (S.mLock) setPlaying(false);
+      applyLocks();
+    }
+
+    function start(id, source, resume) {
+      var m = byId(id); if (!m) return false;
+      closePicker();
+      P.struktur = P.struktur || {};
+      if (resume && P.struktur[id] !== CFG.struktur) resume = false;
+      if (!resume) { P.step[id] = 0; P.texts[id] = {}; }
+      P.struktur[id] = CFG.struktur;
+      P.active = id; save();
+      S.locks = {}; S.mLock = false;
+      m.setup.forEach(function (c) { var a = Object.assign({}, c[1]); if (c[0] === 'jump') a.silent = true; command(c[0], a); });
+      setPlaying(false);
+      $('#toast').hidden = true;
+      card.hidden = false; card.classList.remove('min'); $('#mMin').setAttribute('aria-expanded', 'true');
+      if (window.innerHeight < 900) { $('#roToggle').setAttribute('aria-expanded', 'false'); $('#roBody').hidden = true; }
+      render(); setLock(); updatePill();
+      if (source) emit('event', { action: 'mission_start', detail: { mission: id, titel: m.title, genoptaget: !!resume }, kilde: source });
+      return true;
+    }
+    function render() {
+      var m = byId(P.active); if (!m) { card.hidden = true; return; }
+      var cur = P.step[m.id] || 0, idx = MISSIONS.indexOf(m) + 1;
+      $('#mEyebrow').textContent = 'Mission ' + idx + ' · ' + m.emne;
+      $('#mTitle').textContent = m.title;
+      $('#mIntro').textContent = m.intro;
+      $('#mQtext').textContent = m.spoergsmaal;
+      var steps = stepsOf(m);
+      var ol = $('#mSteps'); ol.innerHTML = '';
+      steps.forEach(function (st, i) {
+        var li = document.createElement('li');
+        li.className = 'mstep ' + (i < cur ? 'done' : i === cur ? 'cur' : 'todo');
+        li.innerHTML = '<span class="dot" aria-hidden="true"></span><span class="txt"><span class="kind"></span></span>';
+        li.querySelector('.kind').textContent = KIND[st.type];
+        li.querySelector('.txt').appendChild(document.createTextNode(st.text));
+        var said = (P.texts[m.id] || {})[i];
+        if (i < cur && said) { var q = document.createElement('div'); q.className = 'said'; q.textContent = said; li.appendChild(q); }
+        if (i === cur) li.appendChild(actionFor(m, st, i));
+        ol.appendChild(li);
+      });
+      var dn = $('#mDone');
+      if (cur >= steps.length) {
+        dn.hidden = false; dn.innerHTML = '';
+        var p1 = document.createElement('div'); p1.innerHTML = '<b>Mission fuldført.</b> Dit svar er sendt til tutoren.'; dn.appendChild(p1);
+        var row = document.createElement('div'); row.className = 'row';
+        var next = MISSIONS[MISSIONS.indexOf(m) + 1];
+        if (next) { var nb = document.createElement('button'); nb.className = 'btn primary'; nb.textContent = 'Næste: ' + next.title; nb.onclick = function () { start(next.id, 'bruger'); }; row.appendChild(nb); }
+        var ab = document.createElement('button'); ab.className = 'btn'; ab.textContent = 'Alle missioner'; ab.onclick = openPicker; row.appendChild(ab);
+        dn.appendChild(row);
+      } else dn.hidden = true;
+      requestAnimationFrame(function () {
+        var body = $('#mBody'), tgt = cur >= steps.length ? dn : ol.children[cur];
+        if (tgt && body) body.scrollTop = cur === 0 ? 0 : Math.max(0, tgt.offsetTop - body.offsetTop - 40);
+      });
+    }
+    function actionFor(m, st, i) {
+      var box = document.createElement('div'); box.className = 'act';
+      if (st.type === 'do') {
+        var b = document.createElement('button'); b.className = 'btn'; b.textContent = 'Færdig – næste trin';
+        b.onclick = function () { advance(m, i, null); }; box.appendChild(b); return box;
+      }
+      var ta = document.createElement('textarea'); ta.id = 'mText_' + m.id + '_' + i;
+      ta.placeholder = st.type === 'predict' ? 'Jeg tror, at … fordi …' : 'Mit svar: …';
+      ta.value = (P.draft && P.draft[ta.id]) || '';
+      var row = document.createElement('div'); row.className = 'row';
+      var cc = document.createElement('span'); cc.className = 'charcount';
+      var sb = document.createElement('button'); sb.className = 'btn primary';
+      sb.textContent = st.type === 'predict' ? 'Send forudsigelse' : 'Send svar';
+      function upd() {
+        var n = ta.value.trim().length; sb.disabled = n < 10;
+        cc.textContent = n < 10 ? 'Skriv lidt mere' : ''; P.draft = P.draft || {}; P.draft[ta.id] = ta.value; save();
+      }
+      ta.addEventListener('input', upd); upd();
+      ta.addEventListener('keydown', function (e) { e.stopPropagation(); });
+      sb.onclick = function () { if (ta.value.trim().length >= 10) { if (P.draft) delete P.draft[ta.id]; advance(m, i, ta.value.trim()); } };
+      row.appendChild(cc); row.appendChild(sb);
+      box.appendChild(ta); box.appendChild(row);
+      setTimeout(function () { if (!card.classList.contains('min') && window.innerWidth > 860) ta.focus({ preventScroll: true }); }, 50);
+      return box;
+    }
+    function advance(m, i, text) {
+      var steps = stepsOf(m), st = steps[i];
+      if (text) { P.texts[m.id] = P.texts[m.id] || {}; P.texts[m.id][i] = text; }
+      P.step[m.id] = i + 1;
+      var action = st.type === 'predict' ? 'forudsigelse' : st.type === 'answer' ? 'svar' : 'trin_faerdigt';
+      emit('event', { action: action, detail: { mission: m.id, trin: i + 1, opgave: st.text, spoergsmaal: m.spoergsmaal, tekst: text || undefined }, kilde: 'bruger' });
+      if (P.step[m.id] >= steps.length) {
+        P.done[m.id] = true;
+        emit('event', { action: 'mission_slut', detail: { mission: m.id }, kilde: 'bruger' });
+      }
+      save(); render(); setLock(); updatePill();
+      if (st.type === 'predict') toast('Forudsigelsen er sendt til tutoren. Nu kan du starte tiden.', null);
+    }
+    // oversigt
+    function openPicker() {
+      var list = $('#mList'); list.innerHTML = '';
+      MISSIONS.forEach(function (m, i) {
+        var b = document.createElement('button'); b.className = 'mitem';
+        b.innerHTML = '<span class="mnum"></span><span class="mtxt"><span class="emne"></span><b></b><span class="k"></span></span><span class="mstat"></span>';
+        b.querySelector('.mnum').textContent = i + 1;
+        b.querySelector('.emne').textContent = m.emne; b.querySelector('b').textContent = m.title; b.querySelector('.k').textContent = m.kort;
+        var stt = b.querySelector('.mstat');
+        if (P.done[m.id]) { stt.textContent = 'Færdig'; stt.className = 'mstat done'; }
+        else if (P.active === m.id) { stt.textContent = 'I gang'; stt.className = 'mstat going'; }
+        else stt.remove();
+        b.onclick = function () { if (P.active === m.id && !P.done[m.id]) { closePicker(); card.hidden = false; updatePill(); } else start(m.id, 'bruger'); };
+        list.appendChild(b);
+      });
+      $('#quizStart').hidden = !CFG.quiz;
+      $('#pickNote').textContent = 'Hver mission har et spørgsmål, som du skal finde svaret på i simulationen.' +
+        (CFG.struktur === 'poe' ? ' Du starter med at skrive, hvad du tror, der vil ske.' : '') + ' Tutoren følger med og kan hjælpe dig undervejs.';
+      var qs2 = $('#quizStat'); qs2.textContent = P.quiz.done ? 'Besvaret' : ''; qs2.className = P.quiz.done ? 'mstat done' : 'mstat';
+      $('#picker').hidden = false;
+      setTimeout(function () { var f = $('#picker .mitem'); if (f) f.focus({ preventScroll: true }); }, 30);
+    }
+    function closePicker() { $('#picker').hidden = true; }
+
+    // diagnosespørgsmål
+    function openQuiz() {
+      closePicker();
+      if (P.quiz.done) P.quiz = { i: 0, answers: [], done: false, runde: (P.quiz.runde || 1) + 1 };
+      renderQuiz(); $('#quiz').hidden = false;
+      if ((P.quiz.i || 0) === 0) emit('event', { action: 'quiz_start', detail: { runde: P.quiz.runde || 1 }, kilde: 'bruger' });
+    }
+    function renderQuiz() {
+      var i = P.quiz.i || 0, end = i >= QUIZ.length;
+      $('#qEnd').hidden = !end; $('#qOpts').hidden = end; $('#qStem').hidden = end;
+      $('#qProg').textContent = end ? 'Færdig' : 'Spørgsmål ' + (i + 1) + ' af ' + QUIZ.length;
+      if (end) { setTimeout(function () { $('#qToMissions').focus(); }, 30); return; }
+      var q = QUIZ[i]; $('#qStem').textContent = q.stem;
+      var box = $('#qOpts'); box.innerHTML = '';
+      q.opts.forEach(function (o, j) {
+        var b = document.createElement('button'); b.className = 'qopt';
+        b.innerHTML = '<span class="l"></span><span></span>';
+        b.querySelector('.l').textContent = 'ABCDE'[j]; b.lastChild.textContent = o[0];
+        b.onclick = function () {
+          var ans = { item: q.id, emne: q.emne, bogstav: 'ABCDE'[j], svar: o[0], niveau: o[1] };
+          P.quiz.answers.push(ans); P.quiz.i = i + 1;
+          emit('event', { action: 'quiz_svar', detail: ans, kilde: 'bruger' });
+          if (P.quiz.i >= QUIZ.length) { P.quiz.done = true; emit('event', { action: 'quiz_slut', detail: { svar: P.quiz.answers, runde: P.quiz.runde || 1 }, kilde: 'bruger' }); }
+          save(); renderQuiz();
+        };
+        box.appendChild(b);
+      });
+      setTimeout(function () { var f = box.querySelector('.qopt'); if (f) f.focus({ preventScroll: true }); }, 30);
+    }
+
+    pill.onclick = openPicker;
+    $('#pickClose').onclick = closePicker;
+    $('#quizStart').onclick = openQuiz;
+    $('#qClose').onclick = function () { $('#quiz').hidden = true; save(); };
+    $('#qToMissions').onclick = function () { $('#quiz').hidden = true; openPicker(); };
+    $('#mClose').onclick = openPicker;
+    $('#mMin').onclick = function () { var mn = !card.classList.contains('min'); card.classList.toggle('min', mn); this.setAttribute('aria-expanded', String(!mn)); };
+    [$('#picker'), $('#quiz')].forEach(function (ov) {
+      ov.addEventListener('click', function (e) { if (e.target === ov) ov.hidden = true; });
+      ov.addEventListener('keydown', function (e) { if (e.key === 'Escape') ov.hidden = true; });
+    });
+
+    function boot() {
+      if (P.active && byId(P.active) && !P.done[P.active]) start(P.active, null, true);
+      else { P.active = null; updatePill(); }
+      var fresh = !(CFG.quiz && P.quiz.done) && !Object.keys(P.done).length && !P.active;
+      if (fresh && qs.get('intro') !== '0') openPicker();
+    }
+    function configure(c) {
+      c = c || {};
+      var old = CFG.struktur;
+      if (c.struktur === 'poe' || c.struktur === 'neutral') CFG.struktur = c.struktur;
+      if (c.quiz !== undefined) CFG.quiz = !!c.quiz && c.quiz !== 'fra';
+      if (P.active && byId(P.active)) {
+        if (old !== CFG.struktur) { P.step[P.active] = 0; P.texts[P.active] = {}; P.struktur = P.struktur || {}; P.struktur[P.active] = CFG.struktur; save(); }
+        render(); setLock();
+      }
+      return Object.assign({}, CFG);
+    }
+    return { start: start, openPicker: openPicker, openQuiz: openQuiz, summary: summary, boot: boot, configure: configure };
+  })();
+
+  // ---------------------------------------------------------------- løkke
+  var last = performance.now(), roTimer = 0;
+  function resize() {
+    var w = canvas.clientWidth, h = canvas.clientHeight;
+    if (canvas.width !== Math.round(w * renderer.getPixelRatio()) || canvas.height !== Math.round(h * renderer.getPixelRatio())) renderer.setSize(w, h, false);
+  }
+  function frame(now) {
+    var dt = Math.min(0.1, (now - last) / 1000); last = now;
+    if (S.playing) setTime(S.simMs + dt * SPEEDS[S.speedIdx].s * 1000 * S.dir);
+    var targetT = S.scaleMode === 'korrekt' ? 1 : 0;
+    if (S.scaleT !== targetT) { var step = dt / 1.4; S.scaleT = targetT > S.scaleT ? Math.min(targetT, S.scaleT + step) : Math.max(targetT, S.scaleT - step); }
+    resize();
+    computeGeometry();
+    updateCamera();
+    updateSky();
+    updatePaths();
+    updateLabels();
+    renderer.render(scene, camera);
+    roTimer += dt; if (roTimer > 0.2) { roTimer = 0; updateReadouts(); }
+    requestAnimationFrame(frame);
+  }
+  // start
+  setScale(S.scaleMode); setObserver(S.obs.lat, S.obs.lon, S.obs.name); setPlaying(S.playing); setView(S.view);
+  applyLocks();
+  computeGeometry();
+  (function niceStartAngle() {
+    var toSun = G.earthPos.clone().negate().normalize();
+    S.orbit.space.az = Math.atan2(toSun.x, toSun.z) + 1.05;
+  })();
+  updateReadouts();
+  Missions.boot();
+  requestAnimationFrame(frame);
+  S.connected = true;
+  AIPLA_BRIDGE.init({ name: ARTEFACT_NAME, version: '1.0.0' });
+  AIPLA_BRIDGE.onChatFlush(function () { flushPendingChanges('chat-submit'); });
+  AIPLA_BRIDGE.emit(ARTEFACT_NAME + '.open', { state: compactState() });
+
+  // ?test=1 — the astronomy against NASA's catalogue (the author's validation set):
+  // total solar eclipse 2026-08-12 17:46 UT; new moon 2026-10-10 15:50 UT;
+  // total lunar eclipse 2026-03-03.
+  if (qs.get('test') === '1') {
+    var e1 = Astro.solarShadow(Astro.state(Date.parse('2026-08-12T17:46:00Z'))).type;
+    var el = Astro.state(Date.parse('2026-10-10T15:50:00Z')).elong, dNew = Math.min(el, 360 - el);
+    var e2 = Astro.lunarShadow(Astro.state(Date.parse('2026-03-03T11:33:00Z'))).type;
+    var ok = e1 === 'total' && dNew < 0.2 && e2 === 'total' && typeof THREE !== 'undefined';
+    document.title = (ok ? 'TEST PASS' : 'TEST FAIL') + ' — Sol, Jord og Måne';
+    if (!ok) console.error('Self-test failed', { solar: e1, newMoonElong: el, lunar: e2, three: typeof THREE });
+  }
+})();
+</script></body></html>

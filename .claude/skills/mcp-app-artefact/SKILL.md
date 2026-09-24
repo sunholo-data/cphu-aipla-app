@@ -206,6 +206,8 @@ catches it now; where that says *judgement*, you are the guard.
 | **Light theme, ≥11px text, no `min-width` over 600px** | the host workspace is light and ~700px | `audit_artefact.sh` |
 | **Fits 700px AND 390px** | the workspace pane is `md:w-1/2`; students use phones | `verify_sim.mjs` |
 | **No external fetch, no CDN, no nested iframe, no `eval`, ≤200 KB** | the sandbox CSP is `default-src 'none'` — a violation is a blank frame with no error | `audit_artefact.sh` |
+| **The one exception: a vendored library** (three.js r128 today) by its absolute `/vendor/…` path with the manifest's SRI hash and `crossorigin="anonymous"` — never a CDN | same-origin and hash-checked twice; a CDN leaks every student's IP and widens the CSP. Policy + how to admit one: [resources/vendored-libraries.md](resources/vendored-libraries.md) | `audit_artefact.sh` gate 12, `serve.test.ts` |
+| **No `localStorage`** — `sessionStorage` if state must survive a reload | the sandbox origin is shared by every student on a lab machine; `sol-jord-maane` arrived storing students' written answers there | judgement |
 | **Never hand-edit the `@aipla-bridge` block** | it is generated from one source; a local edit drifts silently | `make sim-build-check` |
 | **`status: live`** | `SimPicker` filters on it | `test_artefact_catalogue.py` |
 
@@ -297,7 +299,21 @@ Danish reads well, whether a student knows what to do next.
 
 ## Known gaps
 
-Current as of 2026-09-14. Fix or delete these lines when they change.
+Current as of 2026-09-24. Fix or delete these lines when they change.
+
+- **The tutor cannot drive a sim, and has no assessment channel.** Author
+  packages (sol-jord-maane's `INTEGRATION.md`) expect the tutor to write
+  `<sim>{command}</sim>` lines the host strips and forwards, and
+  `<vurdering>{…}</vurdering>` lines the host strips and stores. Neither is
+  parsed, so neither is in any tutorBlock: a tutor told to write them would show
+  them to the student. The sim half exists already: `sol-jord-maane` registers
+  every command as the host notification `sol-jord-maane.cmd-<command>`.
+- **No per-activity sim configuration.** A sim cannot be told "run in POE mode"
+  or "hide the quiz" by the activity. URL parameters do not work because the
+  artefact is `document.write`n under `sandbox.html`'s URL. A `configure` host
+  notification is the natural carrier; nothing sends one yet.
+- **No image channel.** A sim can share its state, not a screenshot:
+  `ui/update-model-context` is JSON capped at 4096 bytes.
 
 - **No sim receives a locale.** `GenericArtefactFrame` passes no `hostContext`
   to `StaticArtefactFrame`, so `AIPLA_BRIDGE.hostContext()` never carries
@@ -330,6 +346,7 @@ Current as of 2026-09-14. Fix or delete these lines when they change.
 | `phase-change` | Faseovergange — opvarmningskurve | catalogue-only; graph is in-iframe because it IS the live sim |
 | `wave-speed` | Bølgefart — v = f·λ | catalogue-only; shows f, λ and T and never the speed |
 | `wave-interference` | Interferens — to bølger lægges sammen | catalogue-only; one medium owns the speed, so f is DERIVED from λ |
+| `sol-jord-maane` | Sol, Jord og Måne | first **author-supplied** port (author I) and first **three.js** sim (vendored); dark by exception (it is space); missions + diagnostic quiz stay in the iframe because they reconfigure the scene; 9.9 KB tutorBlock with the author's construct map; not offered on `/mcp` (vendored lib) |
 
 Keep this table current — it is the fastest answer to "what do we already have".
 
@@ -343,14 +360,15 @@ Keep this table current — it is the fastest answer to "what do we already have
 | [resources/visual-standard.md](resources/visual-standard.md) | writing CSS |
 | [resources/event-vocabulary.md](resources/event-vocabulary.md) | choosing event kinds, or an event is not reaching the tutor |
 | [resources/porting-external-apps.md](resources/porting-external-apps.md) | the sim came from outside AIPLA |
+| [resources/vendored-libraries.md](resources/vendored-libraries.md) | a sim needs three.js, or you want to admit another library |
 | [resources/host-side-code.md](resources/host-side-code.md) | you believe the generic frame is not enough |
 | [resources/pre-ship-checklist.md](resources/pre-ship-checklist.md) | before merging |
 
 | Script | Does |
 |---|---|
 | [scripts/new_sim.sh](scripts/new_sim.sh) | scaffolds both files from one id |
-| [scripts/audit_artefact.sh](scripts/audit_artefact.sh) | 11 static gates: ADR-013, size, theme, type size, layout, bridge presence |
-| [scripts/verify_sim.mjs](scripts/verify_sim.mjs) | runs it in Chromium: self-test, viewports, and with `--drive` the live event stream |
+| [scripts/audit_artefact.sh](scripts/audit_artefact.sh) | 12 static gates: ADR-013, size, theme, type size, layout, bridge presence, vendored-script pinning (via `check_vendor_scripts.cjs`) |
+| [scripts/verify_sim.mjs](scripts/verify_sim.mjs) | runs it in Chromium over HTTP under the real runtime CSP, with `/vendor/` resolved and WebGL on: self-test, viewports, and with `--drive` a repeated button sweep, a closing chat-flush, and the live event stream |
 
 Related skills: `agent-protocols` (MCP Apps / AG-UI / A2UI disambiguation),
 `workbench-element-builder` (activity elements, a different surface).

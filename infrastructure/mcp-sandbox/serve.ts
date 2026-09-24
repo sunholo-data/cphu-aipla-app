@@ -23,6 +23,7 @@
 
 import cors from "cors";
 import express from "express";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -113,9 +114,56 @@ export function buildCspHeader(csp?: McpUiResourceCsp): string {
   return directives.join("; ");
 }
 
+// Shared sim libraries (vendor.json). Each file is read ONCE at startup from a
+// pinned npm dependency and served only if its bytes match the manifest's
+// sha384 — the same digest the artefact must carry as its SRI `integrity`, so
+// the browser re-checks what this server already checked. Nothing else under
+// node_modules is reachable: the route looks names up in this map, it never
+// joins a request path onto the filesystem.
+interface VendorFile {
+  body: Buffer;
+  sha384: string;
+}
+
+export interface VendorTable {
+  files: Map<string, VendorFile>; // key: "<lib>/<version>/<file>"
+  errors: string[];
+}
+
+export function loadVendorTable(baseDir: string = __dirname): VendorTable {
+  const files = new Map<string, VendorFile>();
+  const errors: string[] = [];
+  let manifest: { libraries?: Record<string, { version: string; files: Record<string, { from: string; sha384: string }> }> };
+  try {
+    manifest = JSON.parse(readFileSync(join(baseDir, "vendor.json"), "utf8"));
+  } catch (e) {
+    return { files, errors: [`vendor.json unreadable: ${(e as Error).message}`] };
+  }
+  for (const [lib, entry] of Object.entries(manifest.libraries ?? {})) {
+    for (const [name, spec] of Object.entries(entry.files)) {
+      const key = `${lib}/${entry.version}/${name}`;
+      try {
+        const body = readFileSync(join(baseDir, spec.from));
+        const actual = createHash("sha384").update(body).digest("base64");
+        if (actual !== spec.sha384) {
+          errors.push(`${key}: sha384 mismatch (manifest ${spec.sha384}, file ${actual}) — not served`);
+          continue;
+        }
+        files.set(key, { body, sha384: spec.sha384 });
+      } catch (e) {
+        errors.push(`${key}: ${(e as Error).message} — not served`);
+      }
+    }
+  }
+  return { files, errors };
+}
+
 export function createSandboxApp(): express.Express {
   const app = express();
   app.use(cors());
+
+  const vendor = loadVendorTable();
+  for (const err of vendor.errors) console.error(`[aitana-sandbox] vendor: ${err}`);
 
   // Serve sandbox.html (with injected runtime config) at / and /sandbox.html
   app.get(["/", "/sandbox.html"], (req, res) => {
@@ -142,7 +190,29 @@ export function createSandboxApp(): express.Express {
 
   // Health probe for Cloud Run / smoke tests.
   app.get("/healthz", (_req, res) => {
-    res.json({ status: "ok", allowedHostOrigins: ALLOWED_HOST_ORIGINS });
+    res.json({
+      status: "ok",
+      allowedHostOrigins: ALLOWED_HOST_ORIGINS,
+      vendor: { served: [...vendor.files.keys()], errors: vendor.errors },
+    });
+  });
+
+  // Vendored sim libraries. Versioned paths never change content, so they are
+  // immutable-cached. CORS is open (app-wide cors()) because the artefact loads
+  // them with crossorigin="anonymous" — required for SRI to be checked at all.
+  app.get("/vendor/:lib/:version/:file", (req, res) => {
+    const key = `${req.params.lib}/${req.params.version}/${req.params.file}`;
+    const hit = vendor.files.get(key);
+    if (!hit) {
+      res.status(404).send("Unknown vendor file.");
+      return;
+    }
+    res.setHeader("Content-Type", "text/javascript; charset=utf-8");
+    res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+    res.setHeader("Digest", `sha-384=${hit.sha384}`);
+    res.send(hit.body);
   });
 
   // Static artefact subtree — hand-curated MCP App content per ADR-013's
@@ -167,9 +237,14 @@ export function createSandboxApp(): express.Express {
   // enforced CSP on top of the host's iframe sandbox="allow-scripts"
   // attribute. The host iframe attribute alone is necessary but not
   // sufficient per ADR-013.
+  //
+  // `script-src 'self'` admits exactly one thing beyond inline: the hash-
+  // checked /vendor/* files above (this origin serves nothing else that is
+  // executable). The in-app mount already runs under sandbox.html's CSP, which
+  // allows 'self'; this makes a DIRECTLY opened artefact behave the same.
   const ARTEFACT_CSP = [
     "default-src 'none'",
-    "script-src 'unsafe-inline'",
+    "script-src 'self' 'unsafe-inline'",
     "style-src 'unsafe-inline'",
     "img-src data: blob:",
     "font-src data:",
@@ -204,7 +279,7 @@ export function createSandboxApp(): express.Express {
 
   // Anything else 404s — this server intentionally serves a tiny surface.
   app.use((_req, res) => {
-    res.status(404).send("Only sandbox.html / sandbox.js / healthz / artefacts/* are served.");
+    res.status(404).send("Only sandbox.html / sandbox.js / healthz / artefacts/* / vendor/* are served.");
   });
 
   return app;

@@ -72,7 +72,14 @@ _SOLUTION_TASK_CAP = 500
 # position. Bounded like every other variable-length contributor.
 _ILO_BLOCK_CAP = 1200
 # Belt and braces: if the sum still exceeds this, something new went unbounded.
-_TOTAL_FOCUS_CAP = 8000
+# **Raised 8,000 -> 32,000 on 2026-09-24, by decision (M).** The 8,000 was set
+# when a sim contributed a paragraph; the first author-supplied sim
+# (sol-jord-maane) arrived with a 13 KB activity module — missions, a construct
+# map, per-level answer descriptors — and 8,000 forced it to a summary that lost
+# the descriptors the tutor diagnoses with. Current models hold this comfortably;
+# the individual caps above still bound each contributor, so this remains the
+# "something went unbounded" alarm rather than the working limit.
+_TOTAL_FOCUS_CAP = 32000
 
 
 def _clip(text: str, limit: int) -> str:

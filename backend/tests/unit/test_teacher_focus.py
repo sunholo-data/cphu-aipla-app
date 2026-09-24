@@ -429,6 +429,9 @@ def test_composed_focus_stays_under_the_skillconfig_instruction_cap() -> None:
     # not move when that went 10,000 -> 25,000 on 2026-08-06. Kept: a single
     # activity composing 8,000+ chars of focus is a problem regardless of how
     # much room the model would tolerate.
+    # 2026-09-24: _TOTAL_FOCUS_CAP itself is now 32,000 so an author-supplied
+    # sim can carry its activity module; this 8,000 margin still holds for the
+    # teacher-authored blocks measured here (_maximal_cfg carries no sim).
     assert len(focus) < 8000, (
         f"composed focus is {len(focus)} chars — over the 8,000 working margin "
         "(_TOTAL_FOCUS_CAP), which is independent of the instructions cap"
@@ -727,7 +730,11 @@ def test_checkpoint_summary_block_is_bounded() -> None:
 # (cm)=90.33" can. The attention argument above cuts the same way it always did
 # — which is why the block spends its budget on counts FIRST and values second,
 # so the "a table is empty" signal can never be what gets squeezed out.
-_PER_TURN_ACTIVITY_BUDGET = 14_800
+#
+# **Raised 14,800 -> 38,800 on 2026-09-24, by decision (M):** exactly the 24,000
+# that _TOTAL_FOCUS_CAP moved (8,000 -> 32,000) so an author-supplied sim can
+# carry its full activity module. Nothing else changed.
+_PER_TURN_ACTIVITY_BUDGET = 38_800
 
 
 def test_per_turn_prompt_stays_within_budget() -> None:

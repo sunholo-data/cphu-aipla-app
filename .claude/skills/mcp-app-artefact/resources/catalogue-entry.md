@@ -48,7 +48,7 @@ status: live
 | `levels` | any of `A` `B` `C` (stx level) | picker/search |
 | `language` | ≤8, default `da`. The sim's default/fallback language | passed through `public()` |
 | `eventVocabulary` | ≤40 verbs, **unprefixed** (`run`, not `kettle-efficiency.run`) | documentation + tests; not dispatch |
-| `tutorBlock` | ≤2000 chars. **Server-side only** | `adk/teacher_focus.py`, `adk/element_manifest.py` |
+| `tutorBlock` | ≤16000 chars (was 2000 until 2026-09-24). **Server-side only** | `adk/teacher_focus.py`, `adk/element_manifest.py` |
 | `thumbnail` | optional path/URL; unset → the picker draws a monogram tile | `SimThumbnail` |
 | `minViewportPx` | optional, 320–2000. The narrowest width at which the sim is **fully usable** | the student launcher, to warn rather than silently render half a bench |
 | `status` | `live` \| `beta` \| `deprecated` | `GET /api/artefacts?status=live` — **`SimPicker` requests `live` only** |

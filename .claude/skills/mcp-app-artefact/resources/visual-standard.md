@@ -40,6 +40,13 @@ palettes. Retrofit when you next touch one; do not "fix" them in passing.
 
 ### No dark themes, no dark headers
 
+**One recorded exception:** a scene whose subject *is* space or the night sky
+(`sol-jord-maane`) is dark because the physics is dark. Record it in the
+artefact's header comment. It does not license a dark header, dark panels on a
+bench, or a black LCD readout. Note that `audit_artefact.sh` gate 6 greps
+literal hex backgrounds only, so a dark theme written through CSS variables
+passes it. That is judgement, not enforcement.
+
 Never `background: #0f172a`, never `linear-gradient(135deg, #0f172a, …)` on a
 header. If the sim needs a header at all — many do not, since the host draws the
 chrome — it is:

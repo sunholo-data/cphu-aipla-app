@@ -159,6 +159,22 @@ else
     echo "      or re-stamp with 'make sim-build'." | sed 's/^/      /'
 fi
 
+# --- Gate 12: every <script src> is a vendored library, pinned and SRI-checked ---
+# The ONLY non-inline script an artefact may load is a file listed in
+# infrastructure/mcp-sandbox/vendor.json, by its absolute /vendor/... path (the
+# artefact is document.written into the sandbox frame, so relative paths resolve
+# against sandbox.html, not the artefact), with integrity="sha384-<manifest hash>"
+# and crossorigin="anonymous" (without which the browser skips the SRI check).
+# See resources/vendored-libraries.md.
+VENDOR_JSON="$(cd "$(dirname "$0")/../../../.." 2>/dev/null && pwd)/infrastructure/mcp-sandbox/vendor.json"
+src_problems=$(node "$(dirname "$0")/check_vendor_scripts.cjs" "$ART_PATH" "$VENDOR_JSON" 2>&1)
+if [ -z "$src_problems" ]; then
+    check "Script src only to pinned, SRI-checked /vendor/ libraries" "pass"
+else
+    check "Script src only to pinned, SRI-checked /vendor/ libraries" "fail"
+    echo "$src_problems" | head -5 | sed 's/^/      /'
+fi
+
 echo ""
 if [ "$fail" -eq 0 ]; then
     echo "All automated gates passed for $ART_NAME."

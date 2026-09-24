@@ -39,6 +39,7 @@ logger = logging.getLogger(__name__)
 
 UI_MIME_TYPE = "text/html;profile=mcp-app"
 BRIDGE_MARKER = "ui/initialize"  # an artefact is MCP-App-ready iff it runs the handshake
+VENDOR_MARKER = 'src="/vendor/'  # loads a sandbox-served library (see infrastructure/mcp-sandbox/vendor.json)
 _VERSION_RE = re.compile(r"^v(\d+)$")
 _TITLE_RE = re.compile(r"<title>([^<]*)</title>", re.IGNORECASE)
 
@@ -148,6 +149,13 @@ def _discover_from_fs() -> list[SimApp]:
             html = index.read_text(encoding="utf-8")
             if BRIDGE_MARKER not in html:
                 break  # newest version isn't bridge-ready — skip this sim
+            if VENDOR_MARKER in html:
+                # A vendored library (three.js …) is served by OUR sandbox at an
+                # absolute /vendor/ path; an external host renders the HTML on its
+                # own origin with an empty CSP, where that path cannot resolve.
+                # Offering it would hand Claude/ChatGPT a blank frame.
+                logger.info("sim_apps: %s loads a /vendor/ library — not offered to external hosts", sim_dir.name)
+                break
             title_match = _TITLE_RE.search(html)
             title = title_match.group(1).strip() if title_match else sim_dir.name
             sim = SimApp(sim_dir.name, vdir.name, title, fs_path=index)
