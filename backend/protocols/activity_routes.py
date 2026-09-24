@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import logging
 from typing import Literal
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from opentelemetry import trace
@@ -41,7 +42,7 @@ from db.activities import (
     save_activity,
     soft_delete_activity,
 )
-from db.classes import add_activities, get_class, stamp_last_edit
+from db.classes import add_activities, get_class, list_classes_for_owner, mint_preview_group, stamp_last_edit
 from db.curriculum import list_curriculum_for_teacher
 from db.models.activity import Activity, Visibility
 from db.models.activity_config import (
@@ -586,3 +587,79 @@ async def set_visibility_route(
         user.uid,
     )
     return _set_visibility(_attributed(activity, user), body.visibility)
+
+
+class PreviewStudentRequest(BaseModel):
+    """Body for ``POST /{activity_id}/preview-student`` (1.1.133)."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    class_id: str | None = Field(default=None, alias="classId", max_length=128)
+
+
+def _preview_class_for(activity: Activity, class_id: str | None, user: User):
+    """The class a "Try as student" group binds to.
+
+    The tutor resolves its context — activity config, tutor, curriculum — through
+    the group's class, so a preview needs a class that actually contains the
+    activity. An explicit ``classId`` must be one the caller may edit (owner or
+    researcher, like every other write here); otherwise the first of the
+    activity owner's live classes that contains it.
+    """
+    if class_id:
+        cls = get_class(class_id)
+        if cls is None or cls.revoked or (cls.owner_uid != user.uid and not user.is_researcher):
+            raise HTTPException(status_code=404, detail="class not found")
+        if activity.activity_id not in cls.activity_ids:
+            raise HTTPException(
+                status_code=409, detail="This activity is not in that class — add it to the class first."
+            )
+        return cls
+    for cls in list_classes_for_owner(activity.owner_uid):
+        if activity.activity_id in cls.activity_ids:
+            return cls
+    raise HTTPException(
+        status_code=409,
+        detail="Assign this activity to a class first — the student view runs through the class.",
+    )
+
+
+@router.post("/{activity_id}/preview-student", status_code=201)
+async def preview_student_route(
+    body: PreviewStudentRequest | None = None,
+    activity_id: str = Path(...),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Open the REAL student view of this activity, without a join code (1.1.133).
+
+    Mints a short-lived ``preview-`` group bound to the activity's class and
+    returns where to send the teacher. The student pipeline then runs unchanged
+    in a new tab — group JWT, greet, tutor, workbench — so the teacher never
+    carries a teacher token onto the student chat page (the dual-auth surface
+    this repo keeps breaking). The group is kept out of the class roster and of
+    every student-facing aggregate; see ``db.classes.mint_preview_group``.
+
+    Owner or researcher (``_load_for_modify``). Reflects the SAVED activity.
+    """
+    _assert_teacher(user)
+    activity = _load_for_modify(activity_id, user)
+    cls = _preview_class_for(activity, body.class_id if body else None, user)
+    code = mint_preview_group(cls.class_id)
+    next_path = (
+        f"/chat/{quote(activity.skill_id, safe='')}?activity_id={quote(activity.activity_id, safe='')}"
+        if activity.skill_id
+        else "/lessons"
+    )
+    log.info(
+        "activity preview-student id=%s class=%s group=%s by=%s",
+        activity_id,
+        cls.class_id,
+        code,
+        user.uid,
+    )
+    return {
+        "code": code,
+        "classId": cls.class_id,
+        "next": next_path,
+        "joinUrl": f"/group?code={quote(code, safe='')}&next={quote(next_path, safe='')}",
+    }

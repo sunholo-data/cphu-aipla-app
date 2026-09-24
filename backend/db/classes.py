@@ -408,6 +408,39 @@ def mint_group_codes_under_class(class_id: str, *, count: int = 1) -> list[str]:
     return minted
 
 
+#: 1.1.133 — one school day is plenty for a teacher to try an activity.
+PREVIEW_GROUP_TTL_DAYS = 1
+
+
+def mint_preview_group(class_id: str) -> str:
+    """Mint a short-lived "Try as student" group bound to this class (1.1.133).
+
+    Bound like a real code — ``anon_groups/<code>.classId`` — so the student
+    pipeline resolves the class, its activities and its tutor unchanged. But
+    deliberately NOT appended to ``Class.groupCodes``: that list is the class
+    roster and the input to every class analytic, and a teacher's test is not a
+    student. The ``preview-`` prefix keeps it out of the research lens too.
+    """
+    cls = get_class(class_id)
+    if cls is None:
+        raise ValueError(f"class {class_id} not found")
+    if cls.revoked:
+        raise ValueError(f"class {class_id} is revoked; cannot mint a preview")
+
+    from auth.group_id_auth import PREVIEW_CODE_PREFIX, create_group
+
+    record = create_group(
+        title=f"Preview — {cls.name} ({cls.class_id})",
+        skill_ids=list(cls.lessons),
+        creator_uid=cls.owner_uid,
+        ttl_days=PREVIEW_GROUP_TTL_DAYS,
+        code_prefix=PREVIEW_CODE_PREFIX,
+    )
+    update_document(_ANON_GROUPS_COLLECTION, record.group_id, {"classId": class_id, "preview": True})
+    logger.info("classes_db: minted preview group=%s class=%s owner=%s", record.group_id, class_id, cls.owner_uid)
+    return record.group_id
+
+
 def revoke_group_code(class_id: str, code: str) -> None:
     """Remove a single code from a class's bindings.
 

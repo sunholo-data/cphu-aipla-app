@@ -29,6 +29,7 @@ import type { ActivityPayload } from "@/lib/teacherApi";
 import { ActingForOwnerBanner, LastEditedLine } from "@/components/teacher/ActingForOwnerBanner";
 import { SettingsMap } from "@/components/teacher/SettingsMap";
 import { InheritedTutor } from "@/components/teacher/InheritedTutor";
+import { TryAsStudentButton } from "@/components/teacher/TryAsStudentButton";
 import { ActivityBuilderBody } from "@/components/teacher/ActivityBuilderBody";
 import { useActivityBuilder } from "@/hooks/useActivityBuilder";
 import { AuthoringCopilot } from "./_AuthoringCopilot";
@@ -289,6 +290,10 @@ export default function TeacherActivityConfigPage() {
                     <Save className="h-4 w-4" aria-hidden="true" />
                     {isSaving ? "Saving…" : "Save configuration"}
                   </button>
+                  {/* 1.1.133 — the whole student view, tutor included, no code.
+                      Activity-store ids only: the legacy composite config has
+                      no activity to mint a preview group for. */}
+                  {isActivityStore ? <TryAsStudentButton activityId={activityId} classId={classId} /> : null}
                 </div>
               }
             />

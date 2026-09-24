@@ -663,6 +663,27 @@ export async function duplicateActivity(activityId: string): Promise<ActivityPay
   return readJson<ActivityPayload>(resp, "duplicate activity");
 }
 
+/** Where "Try as student" sends the teacher (1.1.133). `joinUrl` opens the
+ *  ordinary join page with a short-lived `preview-` code, which auto-joins and
+ *  lands in `next` — the real student view, no code to type. */
+export interface StudentPreview {
+  code: string;
+  classId: string;
+  next: string;
+  joinUrl: string;
+}
+
+/** Mint a "Try as student" preview group for a SAVED activity (1.1.133).
+ *  409 when the activity is in no class — the student view runs through one. */
+export async function createStudentPreview(activityId: string, classId?: string): Promise<StudentPreview> {
+  const resp = await fetchWithAuth(`/api/proxy/api/activities/${encodeURIComponent(activityId)}/preview-student`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(classId ? { classId } : {}),
+  });
+  return readJson<StudentPreview>(resp, "open student preview");
+}
+
 /** Soft-delete an activity (owner-only). */
 export async function deleteActivity(activityId: string): Promise<void> {
   const resp = await fetchWithAuth(`/api/proxy/api/activities/${encodeURIComponent(activityId)}`, {

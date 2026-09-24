@@ -1,6 +1,6 @@
 # Lesson-author transparency — resolved-prompt preview + trial session
 
-**Status:** Planned (P1)
+**Status:** Planned (P1). ⚠️ **The trial-session half is superseded by [1.1.133 try-as-student](try-as-student.md)** (2026-09-24): same feature, but a short-lived *preview group* instead of the teacher's Firebase identity on the student chat page. The resolved-prompt preview half is still open here.
 **Last Updated:** 2026-06-12
 **Priority:** P1 — closes the "I can't see what the AI will do" gap teachers flagged, and gives teachers a real way to test a lesson before students see it
 **Estimated:** ~1.5–2d (0.75d backend prompt-assembler + resolved-prompt endpoint, 0.5d trial-session endpoint + analytics exclusion, 0.5d frontend preview + trial button, 0.25d CLI)

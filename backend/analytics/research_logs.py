@@ -59,7 +59,10 @@ log = logging.getLogger(__name__)
 #: separable only by having no content — and a preview would have been worse,
 #: because it carries a framework and would have landed in a framework tab
 #: looking like classroom evidence.
-NON_STUDENT_PREFIXES = ("teacher:", "preview:")
+#:
+#: ``preview-<code>`` is a teacher's "Try as student" group (1.1.133): a real
+#: group JWT through the real student pipeline, and still nobody was taught.
+NON_STUDENT_PREFIXES = ("teacher:", "preview:", "preview-")
 
 #: Sentinel for "the framework_id IS NULL bucket" on the wire. Not a real
 #: framework id (those are slugs like ``esru`` / ``accountable-talk``), so it
@@ -203,8 +206,11 @@ def excluded_counts() -> dict[str, Any]:
         SELECT
           COUNTIF(STARTS_WITH(group_id, 'teacher:')) AS teacher_turns,
           COUNT(DISTINCT IF(STARTS_WITH(group_id, 'teacher:'), session_id, NULL)) AS teacher_sessions,
-          COUNTIF(STARTS_WITH(group_id, 'preview:')) AS preview_turns,
-          COUNT(DISTINCT IF(STARTS_WITH(group_id, 'preview:'), session_id, NULL)) AS preview_sessions,
+          -- 'preview:' = a tutor preview (1.1.113); 'preview-' = a teacher's
+          -- "Try as student" group (1.1.133). Both: nobody was taught.
+          COUNTIF(STARTS_WITH(group_id, 'preview:') OR STARTS_WITH(group_id, 'preview-')) AS preview_turns,
+          COUNT(DISTINCT IF(STARTS_WITH(group_id, 'preview:') OR STARTS_WITH(group_id, 'preview-'), session_id, NULL))
+            AS preview_sessions,
           -- Turns that belong to no conversation at all. Not listable (there is
           -- no transcript to open), but real, so they are reported rather than
           -- vanishing from the arithmetic.

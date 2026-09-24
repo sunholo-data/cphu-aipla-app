@@ -291,3 +291,46 @@ describe("/group page — environment mix-up mitigations", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+// 1.1.133 — "Try as student": the builder opens /group?code=preview-…&next=/chat/…
+describe("/group page — Try as student (preview codes)", () => {
+  const okJoin = {
+    ok: true,
+    status: 200,
+    json: async () => ({ token: "t", uid: "anon-p", expires_at: Date.now() / 1000 + 3600 }),
+  } as Response;
+
+  function setUrl(search: string) {
+    window.history.replaceState({}, "", `/group${search}`);
+  }
+
+  it("auto-joins a preview- code and lands in the activity", async () => {
+    setUrl("?code=preview-bright-fox-42&next=%2Fchat%2Fconcept-dialogue%3Factivity_id%3Dact-1");
+    fetchMock.mockResolvedValueOnce(okJoin);
+    const Page = await importPage();
+    render(wrap(<Page />));
+    await waitFor(() => {
+      expect(routerReplaceMock).toHaveBeenCalledWith("/chat/concept-dialogue?activity_id=act-1");
+    });
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body.group_id.toLowerCase()).toBe("preview-bright-fox-42");
+  });
+
+  it("ignores an unsafe next and falls back to /lessons", async () => {
+    setUrl("?code=preview-bright-fox-42&next=https%3A%2F%2Fevil.example%2Fchat%2Fx");
+    fetchMock.mockResolvedValueOnce(okJoin);
+    const Page = await importPage();
+    render(wrap(<Page />));
+    await waitFor(() => expect(routerReplaceMock).toHaveBeenCalledWith("/lessons"));
+  });
+
+  it("never auto-joins a real class code — the student still presses Join", async () => {
+    setUrl("?code=bright-fox-42&next=%2Fchat%2Fx");
+    const Page = await importPage();
+    render(wrap(<Page />));
+    expect(screen.getByLabelText(/group code/i)).toHaveValue("bright-fox-42");
+    await new Promise((r) => setTimeout(r, 20));
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(routerReplaceMock).not.toHaveBeenCalled();
+  });
+});

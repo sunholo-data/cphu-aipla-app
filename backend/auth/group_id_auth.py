@@ -270,6 +270,27 @@ def _signing_secret() -> str:
     return secret
 
 
+#: 1.1.133 — a teacher's "Try as student" group. Never a student: excluded from
+#: the class roster (not in ``Class.groupCodes``) and, by this prefix, from the
+#: research chat-log lens.
+PREVIEW_CODE_PREFIX = "preview-"
+
+
+def normalize_join_code(raw: str) -> str:
+    """The code a caller meant, from whatever they typed or pasted.
+
+    Case- and whitespace-insensitive, and a pasted join LINK
+    (``https://…/group?code=bright-fox-42``) is reduced to its ``code=`` value.
+    2026-09-22: a pasted link reached Firestore as a document path, raised
+    ``ValueError: A document must have an even number of path elements`` and
+    401'd a student who had the right code in their hand.
+    """
+    code = raw.strip().lower()
+    if "code=" in code:
+        code = code.split("code=", 1)[1].split("&", 1)[0].split("#", 1)[0].strip()
+    return code
+
+
 def _generate_code() -> str:
     """Mint a human-readable code teachers can shout across a classroom.
 
@@ -440,6 +461,7 @@ def create_group(
     creator_uid: str,
     ttl_days: int = DEFAULT_GROUP_CODE_TTL_DAYS,
     max_concurrent_sessions: int = DEFAULT_MAX_CONCURRENT_SESSIONS,
+    code_prefix: str = "",
 ) -> GroupRecord:
     """Mint a new group code. Called by the teacher-facing endpoint (M2).
 
@@ -455,15 +477,18 @@ def create_group(
             the teacher-choice TTL flag ships — see
             docs/design/aipla/v1.1.0-feedback/teacher-choice-ttl.md.
         max_concurrent_sessions: Per-group cap (default 100/day).
+        code_prefix: Prepended to the generated code. ``PREVIEW_CODE_PREFIX``
+            marks a teacher's "Try as student" group (1.1.133), which every
+            student-facing aggregate excludes by that prefix.
     """
     # Verify the signing secret early — fail loud BEFORE we mint state.
     _signing_secret()
 
     now = AnonymousGroupAuth.time_provider()
-    code = _generate_code()
+    code = code_prefix + _generate_code()
     # Defensive: regenerate if collision (vanishingly rare; loop bounded).
     while code in _state.groups or code in _state.revoked_group_ids:
-        code = _generate_code()
+        code = code_prefix + _generate_code()
 
     record = GroupRecord(
         group_id=code,
@@ -711,7 +736,7 @@ def join_group(group_id: str, *, client_ip: str) -> JoinResult:
     # Normalize: codes are case-insensitive + whitespace-tolerant so
     # "Bright-Fox-42" / " bright-fox-42 " / "BRIGHT-FOX-42" all hit the
     # same record. Mint outputs are always lowercase (see _generate_code).
-    group_id = group_id.strip().lower()
+    group_id = normalize_join_code(group_id)
 
     # Gate 5 (rate limit) is FIRST so brute-force attempts don't even
     # get to learn whether the group exists.
@@ -722,6 +747,9 @@ def join_group(group_id: str, *, client_ip: str) -> JoinResult:
     # by a previous instance — Firestore is the source of truth.
     if group_id in _state.revoked_group_ids:
         raise GroupRevoked(f"group {group_id} has been revoked")
+    # A slash is never in a code, and in a Firestore id it is a path separator.
+    if not group_id or "/" in group_id:
+        raise GroupNotFound(f"group {group_id!r} not found")
     record = get_group(group_id)
     if record is None:
         raise GroupNotFound(f"group {group_id} not found")

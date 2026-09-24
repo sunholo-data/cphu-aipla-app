@@ -21,7 +21,7 @@ import { useEffect, useState } from "react";
 
 import { useAnonymousGroupAuth } from "@/contexts/AnonymousGroupAuthProvider";
 import { useEnvironment } from "@/hooks/useEnvironment";
-import { isAnonymousGroupAuthMode } from "@/lib/anonymousGroupAuth";
+import { isAnonymousGroupAuthMode, PREVIEW_CODE_PREFIX, safePreviewNext } from "@/lib/anonymousGroupAuth";
 import { environmentLabel } from "@/lib/environment";
 import { isLocalMode } from "@/lib/localMode";
 
@@ -60,6 +60,8 @@ function GroupJoinForm() {
   const { status, error, join } = useAnonymousGroupAuth();
   const router = useRouter();
   const [code, setCode] = useState("");
+  // 1.1.133 — where a teacher's "Try as student" join lands (validated).
+  const [nextPath, setNextPath] = useState<string | null>(null);
 
   // Prefill from `?code=` so the teacher can hand out a whole join LINK
   // instead of a bare code. The link carries the environment with it, which
@@ -67,16 +69,32 @@ function GroupJoinForm() {
   // Read from window rather than useSearchParams(): this page is statically
   // rendered, and useSearchParams() would force a Suspense/CSR bail-out.
   // Prefill only, never auto-join — the student still presses the button.
+  //
+  // The ONE exception (1.1.133): a `preview-` code, which only the builder's
+  // "Try as student" button mints, for the teacher who clicked it. That teacher
+  // asked for the student view, not a join form, so it joins at once and lands
+  // in the activity. A real class code is never auto-joined.
   useEffect(() => {
-    const fromLink = new URLSearchParams(window.location.search).get("code");
-    if (fromLink) setCode(fromLink.trim().toLowerCase());
+    const params = new URLSearchParams(window.location.search);
+    const fromLink = params.get("code");
+    if (!fromLink) return;
+    const prefilled = fromLink.trim().toLowerCase();
+    setCode(prefilled);
+    if (prefilled.startsWith(PREVIEW_CODE_PREFIX)) {
+      setNextPath(safePreviewNext(params.get("next")));
+      join(prefilled).catch(() => {
+        /* Provider already set `error` — the form renders it. */
+      });
+    }
+    // Mount-only: `join` is stable for the provider's lifetime.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (status === "joined") {
-      router.replace("/lessons");
+      router.replace(nextPath ?? "/lessons");
     }
-  }, [status, router]);
+  }, [status, router, nextPath]);
 
   const isJoining = status === "joining";
 

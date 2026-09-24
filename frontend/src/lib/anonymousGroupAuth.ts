@@ -158,5 +158,26 @@ export function clearStoredGroupSession(): void {
  * deterministic.
  */
 export function normalizeGroupCode(input: string): string {
-  return input.trim().toUpperCase();
+  let code = input.trim();
+  // A pasted join LINK (`https://…/group?code=bright-fox-42`) is reduced to its
+  // code. 2026-09-22: one reached the server whole and 401'd a student who had
+  // the right code in their hand (1.1.133; the server now does the same).
+  const m = /[?&]code=([^&#\s]+)/i.exec(code);
+  if (m) code = decodeURIComponent(m[1]);
+  return code.trim().toUpperCase();
+}
+
+/** 1.1.133 — a teacher's "Try as student" group. Mirrors
+ *  `auth.group_id_auth.PREVIEW_CODE_PREFIX`. */
+export const PREVIEW_CODE_PREFIX = "preview-";
+
+/** Where a preview join may land: a same-origin student chat path, nothing else.
+ *  Anything with a scheme, a protocol-relative `//`, or outside `/chat/` is
+ *  rejected so `?next=` can never be used as an open redirect. */
+export function safePreviewNext(next: string | null): string | null {
+  if (!next) return null;
+  if (!next.startsWith("/chat/") || next.startsWith("//") || next.includes("\\") || /^[a-z]+:/i.test(next)) {
+    return null;
+  }
+  return next;
 }
