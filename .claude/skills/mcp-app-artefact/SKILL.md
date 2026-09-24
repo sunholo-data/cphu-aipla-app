@@ -160,14 +160,18 @@ catalogue YAML is baked into the **backend image**, so it needs the root `dev`
 build too. A push touching both fires both. If you change only the YAML and the
 sim stops appearing, you are looking at a backend deploy that has not run.
 
-Verify deployed:
+Verify deployed, as a teacher sees it:
 
 ```bash
-SANDBOX_URL=$(gcloud run services describe aipla-v01-sandbox \
-  --project=aipla-dev-2026 --region=europe-north1 --format='value(status.url)')
-curl -s -o /dev/null -w '%{http_code}\n' "$SANDBOX_URL/artefacts/<id>/v1/index.html"   # 200
-curl -s "$(…backend url…)/api/artefacts?status=live" | grep '<id>'
+make smoke-sim ENV=dev ID=<id>    # sandbox HTML + /vendor libs + teacher catalogue + no tutorBlock leak
 ```
+
+It signs in as the test teacher (`test-teacher@example.dk`, dev and test;
+`scripts/mint-test-teacher-token.sh`). The catalogue is teacher-only, so an
+unauthenticated curl only ever returns 401. **Prod has no test teacher, by
+design**: that password is in this repo. There, steps 1–2 plus
+`make deploy-status` (prod's backend is test's promoted digest) are the check,
+or pass `TEACHER_EMAIL`/`TEACHER_PASSWORD` for a real account.
 
 test and prod are reached by the tag-based release triggers, not by this push —
 see `infrastructure/env/cloudbuild.tf` and the deploy runbook.

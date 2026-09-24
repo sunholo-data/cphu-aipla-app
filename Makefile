@@ -1,4 +1,4 @@
-.PHONY: tf-plan tf-apply tf-local tf-fmt check-iam-posture check-spend-ceiling spend-ceiling check-domains deploy-status dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes check-role list-roles list-unregistered grant-researcher revoke-researcher register-demo-teacher force-seed-demo bind-demo-code reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content backfill-document-skill-ids seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check guides guides-pdf check-guides guide-screens seed-guide-corpus guide-staleness
+.PHONY: tf-plan tf-apply tf-local tf-fmt check-iam-posture check-spend-ceiling spend-ceiling check-domains deploy-status dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes check-role list-roles list-unregistered grant-researcher revoke-researcher register-demo-teacher force-seed-demo bind-demo-code reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content backfill-document-skill-ids seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check smoke-sim guides guides-pdf check-guides guide-screens seed-guide-corpus guide-staleness
 
 # Seed SKILL.md templates -> Firestore. Since P1.3 the Cloud Build deploy runs
 # this automatically via the `aipla-seed-skills` Cloud Run job (see
@@ -623,6 +623,12 @@ port-up: ## Copy platform improvements up to the template (dry run; GO=1 to push
 # See docs/design/aipla/v1.1.0-feedback/shared-mcp-app-bridge.md.
 sim-build:
 	@node scripts/build-artefact-bridge.mjs
+
+# Is a sim REALLY in the library on a deployed env? Sandbox HTML + /vendor libs
+# + the teacher catalogue SimPicker reads, signed in as the test teacher.
+#   make smoke-sim ENV=test ID=sol-jord-maane
+smoke-sim:
+	@scripts/smoke-sim-catalogue.sh $(ENV) $(ID)
 
 sim-build-check:
 	@node scripts/build-artefact-bridge.mjs --check

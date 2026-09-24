@@ -30,14 +30,17 @@ EMAIL="${TEACHER_EMAIL:-test-teacher@example.dk}"
 PASSWORD="${TEACHER_PASSWORD:-aipla-demo-1}"
 
 API_KEY="${FIREBASE_API_KEY:-}"
+# `|| true`: with pipefail, a missing .env.local made grep exit 2 and killed the
+# script silently BEFORE the secret fallback below — which is the only path in a
+# checkout without frontend/.env.local (found 2026-09-24).
 if [ -z "$API_KEY" ] && [ "$ENV" = "dev" ]; then
-  API_KEY="$(grep -hoE 'NEXT_PUBLIC_FIREBASE_API_KEY=[^[:space:]]+' "$REPO_ROOT"/frontend/.env.local 2>/dev/null | head -1 | cut -d= -f2-)"
+  API_KEY="$(grep -hoE 'NEXT_PUBLIC_FIREBASE_API_KEY=[^[:space:]]+' "$REPO_ROOT"/frontend/.env.local 2>/dev/null | head -1 | cut -d= -f2- || true)"
 fi
 if [ -z "$API_KEY" ]; then
   # test/prod (and dev without a local .env.local): the env's own build secret.
   API_KEY="$(gcloud secrets versions access latest \
     --secret=FIREBASE_ENV --project="aipla-${ENV}-2026" 2>/dev/null \
-    | grep -hoE 'NEXT_PUBLIC_FIREBASE_API_KEY=[^[:space:]]+' | head -1 | cut -d= -f2-)"
+    | grep -hoE 'NEXT_PUBLIC_FIREBASE_API_KEY=[^[:space:]]+' | head -1 | cut -d= -f2- || true)"
 fi
 if [ -z "$API_KEY" ]; then
   echo "ERROR: Firebase Web API key not found for env '$ENV'. Either set" >&2

@@ -568,6 +568,7 @@ Any local workflow that requires more than one manual step — setting env vars,
 | **Apply the infra layer** — Cloud Build, as `aipla-terraform@`, not your laptop | `make tf-apply ENV=test\|prod GO=1` |
 | Install the `aiplatform` CLI globally | `make cli-install` |
 | Verify the `aiplatform` CLI works end-to-end | `make cli-selftest` |
+| **Is a sim really live on a deployed env?** (sandbox + `/vendor` libs + the teacher catalogue, signed in as the test teacher — dev/test; prod has none by design) | `make smoke-sim ENV=test ID=<id>` |
 | Scaffold a new sim's frontend wiring | `aiplatform sim scaffold <name>` (uses `frontend/src/_sim-template/`; see `mcp-app-artefact` skill) |
 | **Run the CI dep-security gate locally** (before pushing dep changes) | `make security-check` (invokes the same `scripts/security-check.sh` the CI gate runs — see `aipla-security-checkup` skill for triage rubric) |
 | **Run the trust-card footgun gate locally** (after adding/editing a workspace element) | `make audit-trust-cards` (same `scripts/audit-trust-cards.sh` the CI `local-mode-safety` job runs — see `workbench-element-builder` skill) |
