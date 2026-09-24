@@ -26,7 +26,11 @@ lives in the scoping site. AIPLA docs here cite ADRs rather than restating them.
   runs on. Treat them as reference for *how the platform works*, not as AIPLA's plan.
 - **`forks/`** — design docs for other downstream forks of the template
   (`8bs-internal-tools`, `playground-tutor`). Not AIPLA.
-- **`mockups/`** — image mockups (e.g. JB's workbench sketches).
+- **`mockups/`** — mockup material: JB's workbench sketches, standalone
+  sim HTML drop-ins (kettle, phase change, wave, sol-jord-måne) and their
+  accompanying activity/integration docs. Design material only — a mockup here
+  is not served; promoting one into the product goes through
+  [`aipla/v1.1.0-feedback/simulation-import-pipeline.md`](aipla/v1.1.0-feedback/simulation-import-pipeline.md).
 
 ## Conventions
 
