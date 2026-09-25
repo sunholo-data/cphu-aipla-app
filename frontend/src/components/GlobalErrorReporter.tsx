@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 
 import { reportClientError } from "@/lib/clientErrorReporting";
+import { reloadIfStaleDeploy } from "@/lib/staleDeployReload";
 
 /**
  * Installs the two window-level error listeners (1.1.96 M-1). Renders nothing.
@@ -37,6 +38,10 @@ export function GlobalErrorReporter() {
         message: reason instanceof Error ? reason.message : String(reason),
         stack: reason instanceof Error ? (reason.stack ?? "") : "",
       });
+      // A lazy import whose chunk vanished in a deploy. Chunk-load failures
+      // only: the page may still be usable, so nothing looser justifies
+      // throwing away what is on it.
+      reloadIfStaleDeploy(reason, { chunkLoadOnly: true });
     };
 
     window.addEventListener("error", onError);

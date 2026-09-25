@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 
 import { reportClientError } from "@/lib/clientErrorReporting";
+import { reloadIfStaleDeploy } from "@/lib/staleDeployReload";
 
 // 1.1.108 content-localisation — copy in one object, not inline JSX. No locale
 // axis: this boundary replaces the whole document (providers, stylesheets and
@@ -42,6 +43,8 @@ export default function GlobalError({
       message: error.message || "root layout error",
       stack: error.stack ?? "",
     });
+    // A tab that outlived a deploy: one reload fetches the new chunks.
+    reloadIfStaleDeploy(error);
   }, [error]);
 
   return (

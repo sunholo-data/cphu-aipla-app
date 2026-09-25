@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import { reportClientError } from "@/lib/clientErrorReporting";
+import { canAutoReload, isStaleDeployError, reloadIfStaleDeploy } from "@/lib/staleDeployReload";
 
 // 1.1.108 content-localisation — user-facing copy lives in one object, never
 // inline in JSX. No locale axis yet: this boundary renders when the app is
@@ -15,6 +16,7 @@ const copy = {
   tryAgain: "Try again",
   goHome: "Go to the start page",
   reference: "Reference:",
+  updating: "A new version of the app is available — reloading…",
 } as const;
 
 /**
@@ -41,13 +43,29 @@ export default function RouteError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  // A tab that outlived a deploy crashes here on a missing chunk; one reload
+  // fixes it (see lib/staleDeployReload). Decided once, at first render, so the
+  // "reloading" line and the reload itself agree.
+  const [reloading] = useState(() => isStaleDeployError(error) && canAutoReload());
+
   useEffect(() => {
+    // Reported either way — `keepalive` carries it across the reload, and the
+    // count of stale-deploy crashes is itself worth seeing.
     reportClientError({
       kind: "render",
       message: error.message || "render error",
       stack: error.stack ?? "",
     });
-  }, [error]);
+    if (reloading) reloadIfStaleDeploy(error);
+  }, [error, reloading]);
+
+  if (reloading) {
+    return (
+      <main className="mx-auto flex max-w-md flex-1 flex-col justify-center px-6 py-16 text-center">
+        <p className="text-sm text-muted-foreground">{copy.updating}</p>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto flex max-w-md flex-1 flex-col justify-center gap-4 px-6 py-16 text-center">
