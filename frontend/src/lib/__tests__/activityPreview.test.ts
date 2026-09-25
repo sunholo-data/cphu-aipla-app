@@ -226,12 +226,13 @@ describe("builderToElementDefs — conceptMap (CONCEPT-1 M1)", () => {
   const MAP = {
     title: " Projektil ",
     nodes: [
-      { key: 1, id: "n-1", label: "Vektorer", dependsOn: [], questions: [] },
-      { key: 2, id: "n-2", label: "Trigonometri", dependsOn: [], questions: [] },
+      { key: 1, id: "n-1", label: "Vektorer", doneWhen: "", dependsOn: [], questions: [] },
+      { key: 2, id: "n-2", label: "Trigonometri", doneWhen: "", dependsOn: [], questions: [] },
       {
         key: 3,
         id: "n-3",
         label: " Projektilbevægelse ",
+        doneWhen: "  kan forklare parablen  ",
         dependsOn: ["n-1", "n-2"],
         questions: [
           { key: 4, prompt: " Hvorfor en parabel? ", expectedAnswer: " konstant acceleration " },
@@ -240,6 +241,14 @@ describe("builderToElementDefs — conceptMap (CONCEPT-1 M1)", () => {
       },
     ],
   };
+
+  it("trims the definition of done onto the node def (CONCEPT-2 M1)", () => {
+    const defs = builderToElementDefs({ ...EMPTY, conceptMap: MAP });
+    expect(defs.conceptMap[0].nodes[2].doneWhen).toBe("kan forklare parablen");
+    // a node the teacher left blank carries an empty bar, never undefined —
+    // the backend falls back to the label and must not see a missing key
+    expect(defs.conceptMap[0].nodes[0].doneWhen).toBe("");
+  });
 
   it("projects dependsOn into prerequisite edges and trims labels/questions", () => {
     const d = builderToElementDefs({ ...EMPTY, conceptMap: MAP });
@@ -262,8 +271,8 @@ describe("builderToElementDefs — conceptMap (CONCEPT-1 M1)", () => {
       conceptMap: {
         title: "",
         nodes: [
-          { key: 1, id: "n-1", label: "  ", dependsOn: [], questions: [] },
-          { key: 2, id: "n-2", label: "Kraft", dependsOn: ["n-1"], questions: [] },
+          { key: 1, id: "n-1", label: "  ", doneWhen: "", dependsOn: [], questions: [] },
+          { key: 2, id: "n-2", label: "Kraft", doneWhen: "", dependsOn: ["n-1"], questions: [] },
         ],
       },
     });
@@ -275,7 +284,7 @@ describe("builderToElementDefs — conceptMap (CONCEPT-1 M1)", () => {
     expect(
       builderToElementDefs({
         ...EMPTY,
-        conceptMap: { title: "T", nodes: [{ key: 1, id: "n-1", label: " ", dependsOn: [], questions: [] }] },
+        conceptMap: { title: "T", nodes: [{ key: 1, id: "n-1", label: " ", doneWhen: "", dependsOn: [], questions: [] }] },
       }).conceptMap,
     ).toEqual([]);
     expect(hasAnyElement(builderToElementDefs({ ...EMPTY, conceptMap: MAP }))).toBe(true);

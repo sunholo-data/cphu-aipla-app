@@ -6,11 +6,17 @@ import type { ConceptMapEditorValue, ConceptNodeRow } from "@/components/teacher
  *  replace it. Mirrors backend `propose_concept_map`'s wire shape. */
 export interface ConceptMapDiff {
   title?: string | null;
-  addNodes?: { id: string; label: string; checkQuestions?: { prompt: string; expectedAnswer?: string }[] }[];
+  addNodes?: {
+    id: string;
+    label: string;
+    doneWhen?: string;
+    checkQuestions?: { prompt: string; expectedAnswer?: string }[];
+  }[];
   addEdges?: { from: string; to: string }[];
   removeNodes?: string[];
   relabel?: { id: string; label: string }[];
   setCheckQuestions?: { nodeId: string; questions: { prompt: string; expectedAnswer?: string }[] }[];
+  setDoneWhen?: { nodeId: string; doneWhen: string }[];
 }
 
 function toQuestionRows(
@@ -29,6 +35,9 @@ function toQuestionRows(
  * referencing ids that don't exist locally are skipped, not errors: the server
  * validated the diff against the SAVED map, and the local draft may have
  * drifted — applying what still fits beats refusing the whole proposal.
+ *
+ * `setDoneWhen` (CONCEPT-2 M1) sits beside `setCheckQuestions` in that order:
+ * both patch a node that must already exist, before `addNodes` introduces any.
  */
 export function applyConceptMapDiff(
   current: ConceptMapEditorValue | null,
@@ -46,6 +55,9 @@ export function applyConceptMapDiff(
   for (const sq of diff.setCheckQuestions ?? []) {
     nodes = nodes.map((n) => (n.id === sq.nodeId ? { ...n, questions: toQuestionRows(sq.questions, nextKey) } : n));
   }
+  for (const sd of diff.setDoneWhen ?? []) {
+    nodes = nodes.map((n) => (n.id === sd.nodeId ? { ...n, doneWhen: sd.doneWhen } : n));
+  }
 
   const ids = new Set(nodes.map((n) => n.id));
   for (const add of diff.addNodes ?? []) {
@@ -55,6 +67,7 @@ export function applyConceptMapDiff(
       key: nextKey(),
       id: add.id,
       label: add.label,
+      doneWhen: add.doneWhen ?? "",
       dependsOn: [],
       questions: toQuestionRows(add.checkQuestions, nextKey),
     });

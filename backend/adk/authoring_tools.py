@@ -454,6 +454,16 @@ def _questions_wire(questions: list[dict[str, Any]] | None) -> list[dict[str, st
     return out
 
 
+def _done_when_wire(spec: dict[str, Any]) -> str:
+    """The definition of done off a tool argument, snake_case or camelCase.
+
+    Same tolerance as ``_questions_wire`` and for the same reason: an agent
+    echoing a previous proposal back sends the camelCase wire shape, and
+    silently dropping it would delete a field the teacher had already accepted.
+    """
+    return str(spec.get("done_when") or spec.get("doneWhen") or "").strip()[:200]
+
+
 def _current_concept_map(activity_id: str) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str]:
     """The saved map as plain wire dicts ``(nodes, edges, title)`` — empty for a
     draft or an activity without one. Caller has already passed ``_can_author``."""
@@ -474,6 +484,7 @@ def propose_concept_map(
     remove_nodes: list[str] | None = None,
     relabel: list[dict[str, Any]] | None = None,
     set_check_questions: list[dict[str, Any]] | None = None,
+    set_done_when: list[dict[str, Any]] | None = None,
     tool_context: ToolContext = None,
 ) -> dict[str, Any]:
     """Propose a DIFF to the activity's living concept map (CONCEPT-1 M2).
@@ -487,15 +498,22 @@ def propose_concept_map(
     Args:
         activity_id: the activity being authored (the teacher owns it).
         title: optionally set the map's title.
-        add_nodes: concepts to add — each ``{"label", "id"?, "check_questions"?:
-            [{"prompt", "expected_answer"?}]}``. The id is minted from the label
-            when omitted; check questions are what the tutor asks IN CHAT at a
-            checkpoint, judged against the expected answer.
+        add_nodes: concepts to add — each ``{"label", "id"?, "done_when"?,
+            "check_questions"?: [{"prompt", "expected_answer"?}]}``. The id is
+            minted from the label when omitted; check questions are what the
+            tutor asks IN CHAT at a checkpoint, judged against the expected
+            answer; ``done_when`` is the definition of done (below).
         add_edges: prerequisite links — each ``{"from": <prereq id>, "to": <id>}``.
         remove_nodes: node ids to remove (their edges go with them).
         relabel: label fixes — each ``{"id", "label"}``.
         set_check_questions: replace one node's questions — each ``{"node_id",
             "questions": [{"prompt", "expected_answer"?}]}``.
+        set_done_when: set one node's DEFINITION OF DONE — each ``{"node_id",
+            "done_when"}``. One plain sentence saying what counts as having got
+            the concept ("can explain why the horizontal component is
+            unchanged"), written so a teacher would recognise their own bar in
+            it. It is not a question: it is what an answer is judged against,
+            and it is what the tutor must justify a mark against.
 
     Returns:
         ``{"ok": True, "proposal": {"kind": "propose_concept_map", "diff": ...,
@@ -505,7 +523,7 @@ def propose_concept_map(
     uid = _caller_uid(tool_context)
     if not uid:
         return dict(_DENY)
-    if not any([title, add_nodes, add_edges, remove_nodes, relabel, set_check_questions]):
+    if not any([title, add_nodes, add_edges, remove_nodes, relabel, set_check_questions, set_done_when]):
         return {"ok": False, "error": "empty diff — propose at least one change"}
     if not _can_author(activity_id, uid):
         return dict(_DENY)
@@ -539,6 +557,12 @@ def propose_concept_map(
             return _fail(f"unknown node id for check questions: {nid!r}")
         by_id[nid]["checkQuestions"] = _questions_wire(sq.get("questions"))
 
+    for sd in set_done_when or []:
+        nid = str(sd.get("node_id") or sd.get("nodeId") or "")
+        if nid not in by_id:
+            return _fail(f"unknown node id for done_when: {nid!r}")
+        by_id[nid]["doneWhen"] = _done_when_wire(sd)
+
     added_nodes = []
     for i, spec in enumerate(add_nodes or []):
         label = str(spec.get("label", "")).strip()
@@ -547,7 +571,12 @@ def propose_concept_map(
         nid = str(spec.get("id") or "").strip() or _concept_slug(label, i)
         if nid in by_id:
             return _fail(f"node id {nid!r} already exists — relabel it or pick a new id")
-        node = {"id": nid, "label": label, "checkQuestions": _questions_wire(spec.get("check_questions"))}
+        node = {
+            "id": nid,
+            "label": label,
+            "checkQuestions": _questions_wire(spec.get("check_questions")),
+            "doneWhen": _done_when_wire(spec),
+        }
         by_id[nid] = node
         nodes.append(node)
         added_nodes.append(node)
@@ -591,6 +620,13 @@ def propose_concept_map(
                 "questions": _questions_wire(sq.get("questions")),
             }
             for sq in set_check_questions or []
+        ],
+        "setDoneWhen": [
+            {
+                "nodeId": str(sd.get("node_id") or sd.get("nodeId") or ""),
+                "doneWhen": _done_when_wire(sd),
+            }
+            for sd in set_done_when or []
         ],
     }
     label = (

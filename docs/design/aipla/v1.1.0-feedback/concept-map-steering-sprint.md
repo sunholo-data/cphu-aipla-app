@@ -325,7 +325,7 @@ What remains open, and does **not** block any milestone:
 - [x] **M0:** a map-carrying activity composes a boundary + frontier block; an activity without a map
       composes byte-identically to before; eval shows an off-map question returned from and an on-map
       tangent NOT suppressed.
-- [ ] **M1:** `done_when` authored in the builder, proposed by the co-pilot, visible to the tutor, and
+- [x] **M1:** `done_when` authored in the builder, proposed by the co-pilot, visible to the tutor, and
       absent-safe on the 56 existing maps.
 - [ ] **M2:** `mark_concept` writes `observed` evidence, never downgrades a `checkpoint`, renders a
       trust card, and is in `_CLIENT_RENDER_TOOLS` with the CI guard green.

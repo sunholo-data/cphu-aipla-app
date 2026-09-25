@@ -133,6 +133,11 @@ export interface ConceptMapNode {
   level?: "A" | "B" | "C" | null;
   dra?: string | null;
   checkQuestions?: ConceptCheckQuestion[];
+  /** The teacher's DEFINITION OF DONE (CONCEPT-2 M1) — one plain sentence
+   *  saying what counts as having got this concept. Not a question: it is the
+   *  bar an answer is judged against, and the bar the tutor must justify a mark
+   *  against. Empty falls back to the label. Mirrors backend `done_when`. */
+  doneWhen?: string;
 }
 
 /** A prerequisite edge (`from` must be demonstrated before `to`). Mirrors the

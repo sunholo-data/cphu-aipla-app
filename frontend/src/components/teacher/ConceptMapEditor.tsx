@@ -23,6 +23,12 @@ export interface ConceptNodeRow {
    *  M3 checkpoint state key on it, so it must survive relabels/reorders. */
   id: string;
   label: string;
+  /** The teacher's DEFINITION OF DONE (CONCEPT-2 M1) — one sentence saying what
+   *  counts as having got this concept. It is the bar a checkpoint judges
+   *  against and the bar a passive mark must justify itself against: a check
+   *  question is the probe, this is the standard. Empty falls back to the
+   *  label, which is what every map authored before this field carries. */
+  doneWhen: string;
   /** Prerequisite node ids ("builds on"). */
   dependsOn: string[];
   questions: ConceptQuestionRow[];
@@ -85,7 +91,8 @@ export function ConceptMapEditor({ value, onChange, nextKey }: ConceptMapEditorP
 
   const addNode = () => {
     const k = nextKey();
-    update({ nodes: [...value.nodes, { key: k, id: `node-${k}`, label: "", dependsOn: [], questions: [] }] });
+    const fresh = { key: k, id: `node-${k}`, label: "", doneWhen: "", dependsOn: [], questions: [] };
+    update({ nodes: [...value.nodes, fresh] });
   };
   const removeNode = (key: number) => {
     const removed = value.nodes.find((n) => n.key === key);
@@ -183,6 +190,16 @@ export function ConceptMapEditor({ value, onChange, nextKey }: ConceptMapEditorP
                   })}
               </div>
             )}
+
+            <input
+              type="text"
+              aria-label={`Done when, concept ${idx + 1}`}
+              value={node.doneWhen}
+              onChange={(e) => updateNode(node.key, { doneWhen: e.target.value })}
+              placeholder="Done when… — what counts as having got this concept"
+              maxLength={200}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+            />
 
             <div className="flex flex-col gap-1.5">
               {node.questions.map((q, qIdx) => (

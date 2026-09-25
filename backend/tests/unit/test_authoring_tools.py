@@ -626,6 +626,53 @@ def test_propose_concept_map_diffs_against_the_saved_map():
     assert len(res["proposal"]["result"]["edges"]) == 2
 
 
+def test_propose_concept_map_proposes_a_definition_of_done(monkeypatch):
+    """CONCEPT-2 M1 — the co-pilot drafts the BAR, not only the concept.
+
+    A map of bare labels leaves the tutor inferring what "got it" means, which
+    is the inference the definition of done exists to remove. Both routes in:
+    on a node being added, and on one that already exists."""
+    from adk.authoring_tools import propose_concept_map
+
+    aid = _make_activity_with_map(TEACHER)
+    res = propose_concept_map(
+        add_nodes=[{"label": "Trigonometri", "done_when": "kan begrunde cos og sin ud fra trekanten"}],
+        set_done_when=[{"node_id": "projektil", "done_when": "kan forklare parablen ud fra de to retninger"}],
+        activity_id=aid,
+        tool_context=_tc(TEACHER),
+    )
+    assert res["ok"] is True, res
+    diff = res["proposal"]["diff"]
+    assert diff["addNodes"][0]["doneWhen"] == "kan begrunde cos og sin ud fra trekanten"
+    assert diff["setDoneWhen"] == [{"nodeId": "projektil", "doneWhen": "kan forklare parablen ud fra de to retninger"}]
+    by_id = {n["id"]: n for n in res["proposal"]["result"]["nodes"]}
+    assert by_id["projektil"]["doneWhen"] == "kan forklare parablen ud fra de to retninger"
+
+
+def test_propose_concept_map_accepts_the_camelcase_echo_of_a_definition_of_done():
+    """An agent echoing a previous proposal back sends the wire shape. Dropping
+    it silently would delete a bar the teacher had already accepted — the same
+    tolerance ``_questions_wire`` has, for the same reason."""
+    from adk.authoring_tools import propose_concept_map
+
+    res = propose_concept_map(
+        add_nodes=[{"label": "Vektorer", "doneWhen": "kan dekomponere en fart"}],
+        tool_context=_tc(TEACHER),
+    )
+    assert res["ok"] is True, res
+    assert res["proposal"]["diff"]["addNodes"][0]["doneWhen"] == "kan dekomponere en fart"
+
+
+def test_propose_concept_map_rejects_an_unknown_node_for_a_definition_of_done():
+    from adk.authoring_tools import propose_concept_map
+
+    res = propose_concept_map(
+        set_done_when=[{"node_id": "ghost", "done_when": "x"}],
+        tool_context=_tc(TEACHER),
+    )
+    assert res["ok"] is False and "done_when" in res["error"]
+
+
 def test_propose_concept_map_rejects_a_cycle_with_current_nodes():
     from adk.authoring_tools import propose_concept_map
 

@@ -357,6 +357,20 @@ class ConceptNode(BaseModel):
     ``id`` is a stable slug (survives relabels — edges and check-off state key on
     it); ``level`` is the optional stx A/B/C tag; ``dra`` links the node to a DRA
     map entry (1.K). ``check_questions`` power the chat-native checkpoint.
+
+    ``done_when`` is the teacher's **definition of done** (CONCEPT-2 M1): one
+    plain sentence saying what counts as having got this concept — *"can explain
+    why the horizontal component is unchanged"*. It is deliberately NOT a check
+    question. A question is the summative probe the tutor asks at a checkpoint;
+    ``done_when`` is the bar the answer is judged against, and it is also what a
+    passive mark (M2) has to justify itself against. A node may carry either,
+    both or neither: empty falls back to the label, so the 56 maps live on prod
+    on 2026-09-25 are unaffected until someone edits them.
+
+    Axiom-10: like ``CheckQuestion.expected_answer``, this is judging material
+    for the MODEL. ``adk/stream_redaction.py`` keeps server-only tool results off
+    the student's SSE stream; it belongs on the same list and not in any
+    student-visible payload.
     """
 
     id: str = Field(min_length=1, max_length=64)
@@ -364,6 +378,7 @@ class ConceptNode(BaseModel):
     level: StxLevel | None = None
     dra: str | None = Field(default=None, max_length=64)
     check_questions: list[CheckQuestion] = Field(default_factory=list, alias="checkQuestions", max_length=5)
+    done_when: str = Field(default="", alias="doneWhen", max_length=200)
 
     model_config = ConfigDict(populate_by_name=True)
 

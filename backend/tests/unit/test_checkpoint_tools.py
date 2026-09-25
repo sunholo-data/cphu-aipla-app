@@ -97,7 +97,33 @@ def test_run_checkpoint_self_corrects_on_unknown_or_questionless_node():
     assert unknown["ok"] is False
     assert {n["id"] for n in unknown["nodes"]} == {"vektorer", "projektil"}
     no_q = run("vektorer")
-    assert no_q["ok"] is False and "no check questions" in no_q["error"]
+    assert no_q["ok"] is False and "neither check questions nor a definition of done" in no_q["error"]
+
+
+def test_a_node_with_only_a_definition_of_done_is_checkpointable():
+    """CONCEPT-2 M1. Before, a node the teacher described but wrote no questions
+    for was a dead end — the tutor was told to "assess it conversationally",
+    which is a checkpoint that happens and leaves no evidence. The definition of
+    done is a bar, so it is enough to run one against."""
+    cfg = _cfg(with_questions=False)
+    cfg.concept_map[0].nodes[0].done_when = "kan opdele en fart i vx og vy uden hjælp"
+    out = _tools(cfg, _student())["run_checkpoint"]("vektorer")
+    assert out["ok"] is True
+    assert out["questions"] == []
+    assert out["node"]["doneWhen"] == "kan opdele en fart i vx og vy uden hjælp"
+    assert "Ask one" in out["guidance"]
+
+
+def test_the_definition_of_done_reaches_the_judge_alongside_the_questions():
+    """A node with BOTH: the questions are the probe, doneWhen is the bar, and
+    the guidance must say which is which — an expected answer the student
+    matches verbatim is not the same as having got the concept."""
+    cfg = _cfg()
+    cfg.concept_map[0].nodes[1].done_when = "kan begrunde parablen med konstant lodret acceleration"
+    out = _tools(cfg, _student())["run_checkpoint"]("projektil")
+    assert out["ok"] is True
+    assert out["node"]["doneWhen"] == "kan begrunde parablen med konstant lodret acceleration"
+    assert "doneWhen" in out["guidance"] and "that sentence is the bar" in out["guidance"]
 
 
 # --- record_checkpoint ---
@@ -141,6 +167,28 @@ def test_checkpoint_state_summary_reads_the_group_state():
     # 1.1.70 M1: the teacher's LABEL, not the raw node id the old one-line form
     # emitted — an id the model has to cross-reference to say anything useful.
     assert "Vektorer" in summary or "vektorer" in summary
+
+
+def test_the_focus_block_carries_the_definition_of_done_and_names_it_as_the_bar():
+    """CONCEPT-2 M1. The bar has to reach the tutor on an ORDINARY turn, not
+    only inside a run_checkpoint result — a mark the tutor makes without opening
+    a checkpoint (M2) is judged against whatever it has in front of it."""
+    from adk.teacher_focus import compose_teacher_focus
+
+    cfg = _cfg()
+    cfg.concept_map[0].nodes[1].done_when = "kan begrunde parablen med konstant lodret acceleration"
+    focus = compose_teacher_focus(cfg)
+    assert "done when: kan begrunde parablen med konstant lodret acceleration" in focus
+    assert "that sentence is the bar" in focus
+
+
+def test_the_focus_block_is_unchanged_for_a_map_with_no_definitions_of_done():
+    """The 56 maps on prod on 2026-09-25 carry none. They must compose exactly
+    as they did before the field existed."""
+    from adk.teacher_focus import compose_teacher_focus
+
+    focus = compose_teacher_focus(_cfg())
+    assert "done when:" not in focus
 
 
 def test_compose_teacher_focus_includes_the_map_and_the_contract():

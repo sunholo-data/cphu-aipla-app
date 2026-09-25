@@ -64,6 +64,12 @@ export interface TemplateConceptNode {
   label: string;
   /** Prerequisite node ids (must be demonstrated first); forms the DAG. */
   dependsOn?: string[];
+  /** The definition of done (CONCEPT-2 M1) — what counts as having got it.
+   *  Templates carry one because they are where nearly every map on prod comes
+   *  from: of the 56 activities with a concept map on 2026-09-25, 55 were
+   *  template copies and one was authored by hand. A template without a bar
+   *  teaches teachers that a map does not need one. */
+  doneWhen?: string;
   questions?: TemplateConceptQuestion[];
 }
 
@@ -171,6 +177,7 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
         {
           id: "kinetisk",
           label: "Kinetisk energi",
+          doneWhen: "kan forklare, at E_kin vokser med massen og med kvadratet på farten",
           questions: [
             {
               prompt: "Hvad afhænger den kinetiske energi af?",
@@ -181,6 +188,7 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
         {
           id: "potentiel",
           label: "Potentiel energi",
+          doneWhen: "kan forklare, at E_pot afhænger af massen og af højden over nulpunktet",
           questions: [
             {
               prompt: "Hvad afhænger den potentielle energi af?",
@@ -191,6 +199,7 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
         {
           id: "bevarelse",
           label: "Energibevarelse",
+          doneWhen: "kan følge energien gennem et forløb og vise, at summen er den samme før og efter",
           dependsOn: ["kinetisk", "potentiel"],
           questions: [
             {
@@ -405,6 +414,7 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
         {
           id: "vektorer",
           label: "Vektorer",
+          doneWhen: "kan opdele en starthastighed i en vandret og en lodret komposant uden hjælp",
           questions: [
             {
               prompt: "Hvordan finder du den vandrette og lodrette del af starthastigheden ved 30°?",
@@ -415,6 +425,7 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
         {
           id: "trigonometri",
           label: "Trigonometri",
+          doneWhen: "kan begrunde valget af cosinus og sinus ud fra trekanten, ikke fra en huskeregel",
           questions: [
             {
               prompt: "Hvorfor bruger vi cosinus til den vandrette komposant og sinus til den lodrette?",
@@ -426,6 +437,7 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
         {
           id: "projektilbevaegelse",
           label: "Projektilbevægelse",
+          doneWhen: "kan forklare parablen ud fra, at x-retningen har konstant fart og y-retningen konstant acceleration",
           dependsOn: ["vektorer", "trigonometri"],
           questions: [
             {
@@ -473,6 +485,7 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
         {
           id: "fart",
           label: "Fart",
+          doneWhen: "kan aflæse en fart som hældningen på en sted-tid-graf og sige hvad en stejlere kurve betyder",
           questions: [
             {
               prompt: "Hvad fortæller hældningen på en sted-tid-graf?",
@@ -483,6 +496,7 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
         {
           id: "acceleration",
           label: "Acceleration",
+          doneWhen: "kan aflæse en acceleration som hældningen på en fart-tid-graf",
           questions: [
             {
               prompt: "Hvad fortæller hældningen på en fart-tid-graf?",
@@ -493,6 +507,7 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
         {
           id: "grafer",
           label: "Bevægelsesgrafer",
+          doneWhen: "kan skifte mellem sted-, fart- og accelerationsgrafer for den samme bevægelse",
           dependsOn: ["fart", "acceleration"],
           questions: [
             {

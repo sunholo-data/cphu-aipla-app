@@ -71,29 +71,48 @@ def build_checkpoint_tools(cfg: ActivityConfig | None, user: User) -> list[Funct
             node_id: the concept to check (see the concept map in your context).
 
         Returns:
-            The node's questions + judging guidance, or the valid node ids.
+            The node's questions, its ``doneWhen`` bar where the teacher wrote
+            one, and judging guidance — or the valid node ids.
         """
         node = next((n for n in cmap.nodes if n.id == node_id), None)
         if node is None:
             return {"ok": False, "error": f"unknown node {node_id!r}", "nodes": _node_list(cmap)}
-        if not node.check_questions:
+        # CONCEPT-2 M1 — a node with a definition of done but no authored
+        # questions is now checkpointable: the teacher has said what counts, so
+        # the tutor can ask in its own words and judge against that. Before, the
+        # only such node was a dead end (``ok: False``), which pushed the tutor
+        # back to an unrecorded conversational read — a checkpoint that happened
+        # and left no evidence.
+        if not node.check_questions and not node.done_when:
             return {
                 "ok": False,
-                "error": f"{node.label!r} has no check questions — assess it conversationally instead",
+                "error": (
+                    f"{node.label!r} has neither check questions nor a definition of done — assess it "
+                    "conversationally instead"
+                ),
                 "nodes": _node_list(cmap),
             }
+        if node.check_questions:
+            guidance = (
+                "Ask these one at a time in your own voice, in the session language. Judge each answer "
+                "against its expectedAnswer, and against doneWhen where the teacher wrote one — that "
+                "sentence is the bar, not your own sense of a good answer. When done, call "
+                "record_checkpoint with passed=true only if the student demonstrated the concept."
+            )
+        else:
+            guidance = (
+                "The teacher authored no questions for this concept, only what it is done when. Ask one "
+                "or two questions of your own, in the session language, that would show exactly that — "
+                "then judge against doneWhen and call record_checkpoint."
+            )
         return {
             "ok": True,
-            "node": {"id": node.id, "label": node.label},
+            "node": {"id": node.id, "label": node.label, "doneWhen": node.done_when},
             "questions": [
                 {"prompt": q.prompt, "expectedAnswer": q.expected_answer, "explanation": q.explanation}
                 for q in node.check_questions
             ],
-            "guidance": (
-                "Ask these one at a time in your own voice, in the session language. Judge each answer "
-                "against its expectedAnswer. When done, call record_checkpoint with passed=true only if "
-                "the student demonstrated the concept."
-            ),
+            "guidance": guidance,
         }
 
     def record_checkpoint(node_id: str, passed: bool, evidence_summary: str) -> dict[str, Any]:

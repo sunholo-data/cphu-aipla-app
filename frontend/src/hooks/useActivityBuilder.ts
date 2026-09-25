@@ -287,6 +287,7 @@ export function useActivityBuilder(): ActivityBuilder {
               key: nextKeyRef.current++,
               id: n.id,
               label: n.label,
+              doneWhen: n.doneWhen ?? "",
               dependsOn: n.dependsOn ?? [],
               questions: (n.questions ?? []).map((q) => ({
                 key: nextKeyRef.current++,
@@ -403,6 +404,7 @@ export function useActivityBuilder(): ActivityBuilder {
               key: nextKeyRef.current++,
               id: n.id,
               label: n.label,
+              doneWhen: n.doneWhen ?? "",
               dependsOn: (cm.edges ?? []).filter((e) => e.to === n.id).map((e) => e.from),
               questions: (n.checkQuestions ?? []).map((q) => ({
                 key: nextKeyRef.current++,

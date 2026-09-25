@@ -139,6 +139,7 @@ function conceptMapDefs(map: ConceptMapEditorValue | null): ConceptMapElementDef
     .map((n) => ({
       id: n.id,
       label: n.label.trim(),
+      doneWhen: n.doneWhen.trim(),
       checkQuestions: n.questions
         .filter((q) => q.prompt.trim())
         .map((q, qIdx) => ({

@@ -110,7 +110,25 @@ echo ""
 cleanup() {
     echo ""
     echo "Stopping dev servers…"
+    # $BACKEND_PID/$FRONTEND_PID/$SANDBOX_PID are the wrapping subshells
+    # (each backgrounded as `(... | tee log) &`), not the real servers —
+    # `uv run` execs into a uvicorn --reload supervisor that forks its own
+    # worker, and `npm run dev` forks down into the actual next-server.
+    # Killing the subshell PID never reaches those grandchildren, so the
+    # port stays held and the next `make dev` collides with a live server.
+    # Kill by PORT instead (same idiom the free-port loop above already
+    # uses) so whoever actually holds the port dies, however deep the fork
+    # tree is by the time this runs.
+    for PORT in 1956 "$FRONTEND_PORT" "$SANDBOX_PORT"; do
+        PIDS=$(lsof -ti ":$PORT" 2>/dev/null || true)
+        [ -n "$PIDS" ] && kill $PIDS 2>/dev/null || true
+    done
     kill "$BACKEND_PID" "$FRONTEND_PID" ${SANDBOX_PID:-} 2>/dev/null || true
+    sleep 1
+    for PORT in 1956 "$FRONTEND_PORT" "$SANDBOX_PORT"; do
+        PIDS=$(lsof -ti ":$PORT" 2>/dev/null || true)
+        [ -n "$PIDS" ] && kill -9 $PIDS 2>/dev/null || true
+    done
     wait "$BACKEND_PID" "$FRONTEND_PID" ${SANDBOX_PID:-} 2>/dev/null || true
 }
 trap cleanup EXIT INT TERM

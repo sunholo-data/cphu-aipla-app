@@ -14,8 +14,8 @@ function keyMinter() {
 const CURRENT: ConceptMapEditorValue = {
   title: "Kast",
   nodes: [
-    { key: 1, id: "vektorer", label: "Vektorer", dependsOn: [], questions: [] },
-    { key: 2, id: "projektil", label: "Projektil", dependsOn: ["vektorer"], questions: [] },
+    { key: 1, id: "vektorer", label: "Vektorer", doneWhen: "", dependsOn: [], questions: [] },
+    { key: 2, id: "projektil", label: "Projektil", doneWhen: "", dependsOn: ["vektorer"], questions: [] },
   ],
 };
 
@@ -71,6 +71,36 @@ describe("applyConceptMapDiff", () => {
     expect(next.nodes).toHaveLength(2);
     expect(next.nodes[0].label).toBe("Vektorer");
     expect(next.nodes[1].dependsOn).toEqual(["vektorer"]);
+  });
+
+  it("sets a definition of done on an existing node (CONCEPT-2 M1)", () => {
+    const next = applyConceptMapDiff(
+      CURRENT,
+      { setDoneWhen: [{ nodeId: "projektil", doneWhen: "kan forklare parablen" }] },
+      keyMinter(),
+    );
+    expect(next.nodes[1].doneWhen).toBe("kan forklare parablen");
+    // the co-pilot setting a bar must not disturb anything else on the node
+    expect(next.nodes[1].dependsOn).toEqual(["vektorer"]);
+    expect(next.nodes[0].doneWhen).toBe("");
+  });
+
+  it("skips a definition of done for a node that is not in the local draft", () => {
+    const next = applyConceptMapDiff(
+      CURRENT,
+      { setDoneWhen: [{ nodeId: "ghost", doneWhen: "never applied" }] },
+      keyMinter(),
+    );
+    expect(next.nodes.map((n) => n.doneWhen)).toEqual(["", ""]);
+  });
+
+  it("carries a definition of done in on an added node", () => {
+    const next = applyConceptMapDiff(
+      null,
+      { addNodes: [{ id: "a", label: "A", doneWhen: "kan gøre rede for A" }] },
+      keyMinter(),
+    );
+    expect(next.nodes[0].doneWhen).toBe("kan gøre rede for A");
   });
 
   it("starts from an empty draft (null current)", () => {

@@ -68,9 +68,9 @@ describe("ConceptMapView (student read-only)", () => {
 
 describe("wouldCreateCycle", () => {
   const ROWS = [
-    { key: 1, id: "a", label: "A", dependsOn: [], questions: [] },
-    { key: 2, id: "b", label: "B", dependsOn: ["a"], questions: [] },
-    { key: 3, id: "c", label: "C", dependsOn: ["b"], questions: [] },
+    { key: 1, id: "a", label: "A", doneWhen: "", dependsOn: [], questions: [] },
+    { key: 2, id: "b", label: "B", doneWhen: "", dependsOn: ["a"], questions: [] },
+    { key: 3, id: "c", label: "C", doneWhen: "", dependsOn: ["b"], questions: [] },
   ];
 
   it("blocks self and transitive back-edges, allows forward edges", () => {
@@ -109,8 +109,8 @@ describe("ConceptMapEditor (teacher list mode)", () => {
     setup({
       title: "",
       nodes: [
-        { key: 1, id: "a", label: "A", dependsOn: [], questions: [] },
-        { key: 2, id: "b", label: "B", dependsOn: ["a"], questions: [] },
+        { key: 1, id: "a", label: "A", doneWhen: "", dependsOn: [], questions: [] },
+        { key: 2, id: "b", label: "B", doneWhen: "", dependsOn: ["a"], questions: [] },
       ],
     });
     // In A's row, the chip for B must be disabled (B already builds on A).
@@ -118,10 +118,25 @@ describe("ConceptMapEditor (teacher list mode)", () => {
     expect(chips.some((c) => (c as HTMLButtonElement).disabled)).toBe(true);
   });
 
+  it("gives every concept a definition-of-done field the teacher can type in (CONCEPT-2 M1)", () => {
+    // Not a formality: this repo has shipped a whole stack twice with the
+    // control unmounted — the endpoint works, the state shape is right, and a
+    // teacher has no way to do the thing. A test on the reducer proves the
+    // reducer.
+    const onChange = setup({
+      title: "",
+      nodes: [{ key: 1, id: "a", label: "A", doneWhen: "", dependsOn: [], questions: [] }],
+    });
+    fireEvent.change(screen.getByLabelText(/done when, concept 1/i), {
+      target: { value: "kan forklare hvorfor" },
+    });
+    expect(onChange.mock.calls[0][0].nodes[0].doneWhen).toBe("kan forklare hvorfor");
+  });
+
   it("adds a check question to a concept", () => {
     const onChange = setup({
       title: "",
-      nodes: [{ key: 1, id: "a", label: "A", dependsOn: [], questions: [] }],
+      nodes: [{ key: 1, id: "a", label: "A", doneWhen: "", dependsOn: [], questions: [] }],
     });
     fireEvent.click(screen.getByRole("button", { name: /\+ check question/i }));
     const next = onChange.mock.calls[0][0];

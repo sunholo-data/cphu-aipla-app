@@ -331,7 +331,12 @@ def compose_teacher_focus(cfg: ActivityConfig | None) -> str:
             prereqs = [e.from_ for e in cmap.edges if e.to == n.id]
             dep = f" (builds on: {', '.join(prereqs)})" if prereqs else ""
             q = f" [{len(n.check_questions)} check questions]" if n.check_questions else ""
-            lines.append(f"- {n.id}: {n.label}{dep}{q}")
+            # CONCEPT-2 M1 — the teacher's definition of done, where they wrote
+            # one. It is the bar a checkpoint judges against and the bar a
+            # passive mark must justify itself against; without it the tutor is
+            # left inferring what "got it" means from the label alone.
+            done = f" — done when: {n.done_when}" if n.done_when else ""
+            lines.append(f"- {n.id}: {n.label}{dep}{q}{done}")
         node_lines, dropped_nodes = _fit_lines(lines, _CONCEPT_MAP_CAP)
         if dropped_nodes:
             node_lines.append(f"(+{dropped_nodes} more concepts)")
@@ -342,7 +347,9 @@ def compose_teacher_focus(cfg: ActivityConfig | None) -> str:
             + "\n\nWhen a concept looks nearly understood (or at a wrap-up), offer a short checkpoint: "
             "call run_checkpoint(node_id) to get its check questions, ask them ONE AT A TIME in your "
             "own voice in the conversation (never as a form), judge the answers, then call "
-            "record_checkpoint(node_id, passed, evidence_summary). Frame results as progress "
+            "record_checkpoint(node_id, passed, evidence_summary). Where a concept states what it is "
+            "'done when', that sentence is the bar — judge against it rather than against your own "
+            "sense of a good answer. Frame results as progress "
             "('på vej'), never as failure. This is the AI's read — the teacher can override it."
         )
 
