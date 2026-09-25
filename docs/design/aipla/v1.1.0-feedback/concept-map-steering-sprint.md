@@ -311,12 +311,18 @@ the third by M on 2026-09-25.
 
 What remains open, and does **not** block any milestone:
 
-4. **Does an override apply to the group or the whole class by default?** M6 builds the per-group record
+4. ~~**What counts as "never met"?**~~ **Settled at M5**: kept as its own segment and its own words
+   ("har ikke mødt begrebet"), never merged into `not_yet`. They are different facts — a gap in coverage
+   versus a gap in understanding — and they call for opposite responses from a teacher. The rollup
+   reports only what it can see; the class roster that turns "absent" into "never met" is added by the
+   route, which is the only layer that holds it.
+5. **Does an override apply to the group or the whole class by default?** M6 builds the per-group record
    as the atom with a class-wide convenience on top. If teachers reach for the class-wide form every
    time, the default is wrong and should flip - that is a post-M6 observation, not a pre-M6 decision.
-5. **What counts as "never met"** in the M5 distribution - a group that has not run the activity, or one
-   that ran it and the concept never came up? They are different facts and the view should not merge
-   them; whether both are worth a colour is a design call at M5.
+6. **Does a cycle in the aggregated graph need resolving?** Two activities can legitimately disagree
+   about which of two concepts comes first, and M4 keeps both edges rather than picking a winner nobody
+   chose. The renderer tolerates it. Whether a teacher should be SHOWN that their two maps disagree is a
+   question for AD and M, not a bug.
 
 ## Risks
 
@@ -358,7 +364,7 @@ What remains open, and does **not** block any milestone:
 - [x] **M4:** checkpoints stamp `classId` (existing documents are stamped by an idempotent script, since a QUERY cannot be read-migrated); the rollup joins
       on labels/links, not id equality; `get_class_concept_distribution` returns a per-group
       distribution and **no test anywhere asserts a union**.
-- [ ] **M5:** a teacher sees one graph for the class spanning every mapped activity it has run, with each
+- [x] **M5:** a teacher sees one graph for the class spanning every mapped activity it has run, with each
       node showing how its groups are spread rather than one averaged colour.
 - [ ] **M6:** a teacher override outranks every AI record, survives later AI marks, is stated to the
       tutor, and the two conflict classes are flagged rather than hunted for.

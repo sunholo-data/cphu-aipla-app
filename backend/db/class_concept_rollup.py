@@ -91,6 +91,30 @@ def _node_labels(activity_id: str) -> dict[str, str]:
     return {n.id: n.label for n in activity.concept_map[0].nodes}
 
 
+def _label_edges(activity_id: str) -> list[tuple[str, str]]:
+    """One activity's prerequisite edges, keyed by normalised label.
+
+    Translated out of node ids for the same reason the concepts are: across
+    activities an id means nothing. Each activity's own map is cycle-guarded
+    server-side, but the UNION of several is not — two teachers can legitimately
+    disagree about which of two concepts comes first. The renderer tolerates
+    that (``conceptLayers`` relaxes a bounded number of passes), so a
+    disagreement is left visible rather than one activity's ordering being
+    silently dropped to satisfy a layout.
+    """
+    activity = get_activity(activity_id)
+    if activity is None or not activity.concept_map:
+        return []
+    cmap = activity.concept_map[0]
+    labels = {n.id: normalise_concept(n.label) for n in cmap.nodes}
+    out = []
+    for edge in cmap.edges:
+        src, dst = labels.get(edge.from_), labels.get(edge.to)
+        if src and dst and src != dst:
+            out.append((src, dst))
+    return out
+
+
 def class_concept_distribution(class_id: str) -> dict[str, Any]:
     """Every concept this class's activities have mapped, with its spread.
 
@@ -99,11 +123,13 @@ def class_concept_distribution(class_id: str) -> dict[str, Any]:
         {
           "classId": ...,
           "groups": [group_id, ...],        # groups with ANY record in this class
+          "edges": [{"from": <normalised>, "to": <normalised>}, ...],
           "concepts": [
             {"concept": "Vektorer",          # the teacher's label, first seen
              "byGroup": {group_id: status},  # one entry per group WITH a record
              "counts": {"demonstrated": 3, "partial": 2, "not_yet": 0},
              "activityIds": [...],           # every activity that mapped it
+             "key": "vektorer",              # the normalised join key (what edges name)
              "nodeIds": [...]},              # its id in each of those
             ...
           ],
@@ -117,11 +143,12 @@ def class_concept_distribution(class_id: str) -> dict[str, Any]:
     """
     docs = docs_for_class(class_id)
     if not docs:
-        return {"classId": class_id, "groups": [], "concepts": []}
+        return {"classId": class_id, "groups": [], "concepts": [], "edges": []}
 
     labels_cache: dict[str, dict[str, str]] = {}
     by_concept: dict[str, dict[str, Any]] = {}
     groups: set[str] = set()
+    edges: set[tuple[str, str]] = set()
 
     for doc in docs:
         group_id = doc.get("groupId") or ""
@@ -131,6 +158,7 @@ def class_concept_distribution(class_id: str) -> dict[str, Any]:
         groups.add(group_id)
         if activity_id not in labels_cache:
             labels_cache[activity_id] = _node_labels(activity_id)
+            edges.update(_label_edges(activity_id))
         labels = labels_cache[activity_id]
 
         for node_id, state in states_from_stored(doc.get("nodeStates", {})).items():
@@ -142,7 +170,7 @@ def class_concept_distribution(class_id: str) -> dict[str, Any]:
             key = normalise_concept(label)
             entry = by_concept.setdefault(
                 key,
-                {"concept": label, "byGroup": {}, "activityIds": [], "nodeIds": []},
+                {"concept": label, "key": key, "byGroup": {}, "activityIds": [], "nodeIds": []},
             )
             if activity_id not in entry["activityIds"]:
                 entry["activityIds"].append(activity_id)
@@ -158,6 +186,8 @@ def class_concept_distribution(class_id: str) -> dict[str, Any]:
         entry["counts"] = {s: counts.get(s, 0) for s in STATUSES}
         concepts.append(entry)
     concepts.sort(key=lambda e: e["concept"].lower())
+    known = {c["key"] for c in concepts}
+    graph_edges = [{"from": a, "to": b} for a, b in sorted(edges) if a in known and b in known]
 
     logger.info(
         "class rollup: class=%s groups=%d concepts=%d from %d document(s)",
@@ -166,7 +196,7 @@ def class_concept_distribution(class_id: str) -> dict[str, Any]:
         len(concepts),
         len(docs),
     )
-    return {"classId": class_id, "groups": sorted(groups), "concepts": concepts}
+    return {"classId": class_id, "groups": sorted(groups), "concepts": concepts, "edges": graph_edges}
 
 
 def _stronger(current: str | None, incoming: str | None) -> str:

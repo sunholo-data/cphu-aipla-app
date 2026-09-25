@@ -54,6 +54,17 @@ def _activity(activity_id: str, *nodes: tuple[str, str]) -> str:
     return activity_id
 
 
+def _link(activity_id: str, src: str, dst: str) -> None:
+    """Add a prerequisite edge to a seeded activity's map."""
+    from db.activities import get_activity, save_activity
+    from db.models.activity_config import ConceptEdge
+
+    a = get_activity(activity_id)
+    assert a is not None
+    a.concept_map[0].edges.append(ConceptEdge.model_validate({"from": src, "to": dst}))
+    save_activity(a)
+
+
 def _mark(group: str, activity: str, node: str, status: str, kind: str = "checkpoint") -> None:
     record_concept_evidence(group, activity, node, status, "evidens", kind=kind, class_id=CLASS)
 
@@ -88,8 +99,9 @@ def test_a_group_with_no_record_is_absent_rather_than_not_yet():
 
 
 def test_an_empty_or_unstamped_class_reports_nothing_rather_than_guessing():
-    assert class_concept_distribution("cls-none") == {"classId": "cls-none", "groups": [], "concepts": []}
-    assert class_concept_distribution("") == {"classId": "", "groups": [], "concepts": []}
+    empty = {"groups": [], "concepts": [], "edges": []}
+    assert class_concept_distribution("cls-none") == {"classId": "cls-none", **empty}
+    assert class_concept_distribution("") == {"classId": "", **empty}
 
 
 # --- the join --------------------------------------------------------------
@@ -127,6 +139,48 @@ def test_a_record_whose_node_was_deleted_from_the_map_is_kept_under_its_id():
     _mark("grp-a", "act-1", "gone", "demonstrated")
     labels = [c["concept"] for c in class_concept_distribution(CLASS)["concepts"]]
     assert "gone" in labels
+
+
+def test_prerequisite_edges_survive_the_join_across_activities():
+    """The class graph is a CONCEPT graph: each activity's prerequisite edges
+    are translated out of its own node ids and unioned by label, so two
+    activities that both teach "vektorer → projektil" contribute one edge."""
+    _activity("act-1", ("v", "Vektorer"), ("p", "Projektil"))
+    _activity("act-2", ("vv", "vektorer"), ("pp", "Projektil"))
+    _link("act-1", "v", "p")
+    _link("act-2", "vv", "pp")
+    _mark("grp-a", "act-1", "v", "demonstrated")
+    _mark("grp-a", "act-1", "p", "partial")
+    _mark("grp-a", "act-2", "vv", "demonstrated")
+    _mark("grp-a", "act-2", "pp", "partial")
+
+    out = class_concept_distribution(CLASS)
+    assert out["edges"] == [{"from": "vektorer", "to": "projektil"}]
+    assert {c["key"] for c in out["concepts"]} == {"vektorer", "projektil"}
+
+
+def test_an_edge_to_a_concept_no_group_has_touched_is_dropped():
+    """An edge with no node to attach to would render as a dangling arrow. The
+    concept is absent because no group has a record for it — the graph shows
+    what the class has actually met."""
+    _activity("act-1", ("v", "Vektorer"), ("p", "Projektil"))
+    _link("act-1", "v", "p")
+    _mark("grp-a", "act-1", "v", "demonstrated")
+    assert class_concept_distribution(CLASS)["edges"] == []
+
+
+def test_two_activities_disagreeing_about_order_keep_both_edges():
+    """A cycle in the union is a real disagreement between two teachers' maps,
+    not corrupt data. Dropping one silently would pick a winner nobody chose;
+    the renderer relaxes a bounded number of passes, so it survives it."""
+    _activity("act-1", ("a", "Kraft"), ("b", "Acceleration"))
+    _activity("act-2", ("c", "Kraft"), ("d", "Acceleration"))
+    _link("act-1", "a", "b")
+    _link("act-2", "d", "c")
+    for act, nodes in (("act-1", ("a", "b")), ("act-2", ("c", "d"))):
+        for n in nodes:
+            _mark("grp-a", act, n, "partial")
+    assert len(class_concept_distribution(CLASS)["edges"]) == 2
 
 
 def test_normalise_merges_case_and_whitespace_and_nothing_else():

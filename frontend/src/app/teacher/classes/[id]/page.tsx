@@ -36,6 +36,7 @@ import { ActingForOwnerBanner, LastEditedLine } from "@/components/teacher/Actin
 import { ClassDetailsPanel } from "@/components/teacher/ClassDetailsPanel";
 import { ClassVoiceSettingsPanel } from "@/components/teacher/ClassVoiceSettingsPanel";
 import { TutorPicker } from "@/components/teacher/TutorPicker";
+import { ClassConceptGraph } from "@/components/teacher/ClassConceptGraph";
 import { SettingsSection } from "@/components/teacher/ui/SettingsSection";
 import { SettingsMap } from "@/components/teacher/SettingsMap";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
@@ -699,6 +700,18 @@ export default function TeacherClassDetailPage() {
             )}
           </ul>
         )}
+      </SettingsSection>
+
+      {/* CONCEPT-2 M5 — the class's concepts across the year. Collapsed by
+          default: it is the longitudinal view, not the thing a teacher opens
+          this page to do, and it costs a query. */}
+      <SettingsSection
+        title="Begrebskort for klassen"
+        description="Begreber fra klassens aktiviteter, og hvordan grupperne fordeler sig på dem."
+        collapsible
+        defaultOpen={false}
+      >
+        <ClassConceptGraph classId={cls.classId} />
       </SettingsSection>
 
       <div
