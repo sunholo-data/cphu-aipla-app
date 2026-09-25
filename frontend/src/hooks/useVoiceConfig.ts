@@ -72,6 +72,51 @@ const DEFAULT_CONFIG: VoiceConfig = {
 // serve the first one's voice to the second.
 const _cache = new Map<string, Omit<VoiceConfig, "loading">>();
 
+// One request per key, however many callers ask. This hook runs once PER
+// MESSAGE BUBBLE, so without these a 40-message chat sent 40 requests on load
+// and 40 more on every tab focus — and after a failed fetch (nothing cached)
+// every bubble that mounted fetched again. Prod saw ~4,000 requests an hour
+// from one class on 2026-09-22.
+//  - _inflight: concurrent callers share the one pending request.
+//  - _lastAttempt: success OR failure; a focus refetch or a post-failure
+//    retry waits out REFETCH_MIN_MS instead of firing per bubble.
+type LoadedConfig = Omit<VoiceConfig, "loading">;
+const _inflight = new Map<string, Promise<LoadedConfig | null>>();
+const _lastAttempt = new Map<string, number>();
+const REFETCH_MIN_MS = 30_000;
+
+function recentlyAttempted(cacheKey: string): boolean {
+  const last = _lastAttempt.get(cacheKey);
+  return last !== undefined && Date.now() - last < REFETCH_MIN_MS;
+}
+
+function loadConfig(cacheKey: string, url: string): Promise<LoadedConfig | null> {
+  const pending = _inflight.get(cacheKey);
+  if (pending) return pending;
+  _lastAttempt.set(cacheKey, Date.now());
+  const request = (async () => {
+    try {
+      const res = await fetchWithAuth(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const raw = (await res.json()) as Partial<LoadedConfig>;
+      // Normalize: an older deployed backend may not yet send `capabilities`.
+      const data: LoadedConfig = {
+        tts: raw.tts ?? DEFAULT_CONFIG.tts,
+        stt: raw.stt ?? DEFAULT_CONFIG.stt,
+        capabilities: raw.capabilities ?? DEFAULT_CONFIG.capabilities,
+      };
+      _cache.set(cacheKey, data);
+      return data;
+    } catch {
+      return null;
+    } finally {
+      _inflight.delete(cacheKey);
+    }
+  })();
+  _inflight.set(cacheKey, request);
+  return request;
+}
+
 export function useVoiceConfig(
   skillId: string | null,
   /** The activity whose language + persona the voice must follow (1.1.63 M4).
@@ -85,7 +130,9 @@ export function useVoiceConfig(
   const [config, setConfig] = useState<Omit<VoiceConfig, "loading">>(
     cached ?? DEFAULT_CONFIG,
   );
-  const [loading, setLoading] = useState<boolean>(!cached);
+  const [loading, setLoading] = useState<boolean>(
+    !cached && (_inflight.has(cacheKey) || !recentlyAttempted(cacheKey)),
+  );
 
   // Shared fetch routine — used for the initial mount AND for the
   // on-focus refetch so teacher class-voice updates land quickly.
@@ -97,24 +144,10 @@ export function useVoiceConfig(
     const url = qs
       ? `/api/proxy/api/voice/config?${qs}`
       : `/api/proxy/api/voice/config`;
-    try {
-      const res = await fetchWithAuth(url);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const raw = (await res.json()) as Partial<Omit<VoiceConfig, "loading">>;
-      // Normalize: an older deployed backend may not yet send `capabilities`.
-      const data: Omit<VoiceConfig, "loading"> = {
-        tts: raw.tts ?? DEFAULT_CONFIG.tts,
-        stt: raw.stt ?? DEFAULT_CONFIG.stt,
-        capabilities: raw.capabilities ?? DEFAULT_CONFIG.capabilities,
-      };
-      if (!signal.cancelled) {
-        _cache.set(cacheKey, data);
-        setConfig(data);
-        setLoading(false);
-      }
-    } catch {
-      if (!signal.cancelled) setLoading(false);
-    }
+    const data = await loadConfig(cacheKey, url);
+    if (signal.cancelled) return;
+    if (data) setConfig(data);
+    setLoading(false);
   }, [skillId, activityId, cacheKey]);
 
   useEffect(() => {
@@ -122,8 +155,12 @@ export function useVoiceConfig(
     if (cached) {
       setConfig(cached);
       setLoading(false);
-    } else {
+    } else if (_inflight.has(cacheKey) || !recentlyAttempted(cacheKey)) {
       void fetchConfig(signal);
+    } else {
+      // A fetch for this key failed moments ago — keep the safe default
+      // rather than re-asking once per newly mounted bubble.
+      setLoading(false);
     }
     return () => {
       signal.cancelled = true;
@@ -136,12 +173,15 @@ export function useVoiceConfig(
   useEffect(() => {
     if (typeof window === "undefined") return;
     function onFocus() {
+      // Bubbles after the first join its in-flight request (so all of them
+      // pick up the new config); only a SECOND focus inside the window skips.
+      if (!_inflight.has(cacheKey) && recentlyAttempted(cacheKey)) return;
       const signal = { cancelled: false };
       void fetchConfig(signal);
     }
     window.addEventListener("focus", onFocus);
     return () => window.removeEventListener("focus", onFocus);
-  }, [fetchConfig]);
+  }, [fetchConfig, cacheKey]);
 
   return { ...config, loading };
 }
@@ -149,4 +189,6 @@ export function useVoiceConfig(
 /** Reset the module-level cache. Test helper; not exported in the bundle. */
 export function _resetVoiceConfigCacheForTests(): void {
   _cache.clear();
+  _inflight.clear();
+  _lastAttempt.clear();
 }
