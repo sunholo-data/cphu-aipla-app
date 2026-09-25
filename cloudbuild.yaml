@@ -92,8 +92,14 @@ steps:
   # deployed — twice on 2026-06-17. These two steps run the SAME checks as
   # .github/workflows/ci.yml (backend lint+format+test-fast; frontend
   # lint+typecheck+vitest) BEFORE anything is built or deployed. They run in
-  # parallel (both waitFor ['-']) and EVERY downstream step waits on both, so a
-  # single failure here aborts the whole build with nothing shipped.
+  # parallel (both waitFor ['-']). The image BUILDS also start at t=0, beside
+  # the gates (2026-09-25: they used to wait, stacking a ~7.5 min frontend build
+  # after a ~14 min gate for a ~25 min deploy). Everything that leaves this VM
+  # still waits on BOTH gates — the image pushes (a pushed tag is what
+  # `make promote` copies to prod, so an untested image must never reach the
+  # registry), the Firestore rules deploy, and the Cloud Run deploy — so a
+  # single gate failure still aborts the build with nothing shipped. Only CPU
+  # spent on a doomed build is wasted.
   - name: 'ghcr.io/astral-sh/uv:python3.12-bookworm-slim'
     id: 'ci-gate-backend'
     waitFor: ['-']
@@ -152,7 +158,8 @@ steps:
   # --- Get Firebase config from Secret Manager ---
   - name: 'gcr.io/cloud-builders/gcloud'
     id: 'get-firebase-config'
-    waitFor: ['ci-gate-backend', 'ci-gate-frontend']
+    # Reads a secret into /workspace; ships nothing, so it need not wait.
+    waitFor: ['-']
     entrypoint: 'bash'
     args:
       - './get-firebase-config.sh'
@@ -180,7 +187,8 @@ steps:
   # --- Build backend ---
   - name: 'gcr.io/cloud-builders/docker'
     id: build-backend
-    waitFor: ['ci-gate-backend', 'ci-gate-frontend']
+    # Local build only — the gate is enforced at push-backend.
+    waitFor: ['-']
     dir: ${_BUILD_FOLDER}/backend
     args:
       - 'build'
@@ -197,12 +205,13 @@ steps:
   # --- Push images ---
   - name: 'gcr.io/cloud-builders/docker'
     id: push-frontend
-    waitFor: ['build-frontend']
+    # The gate lives HERE for images: nothing untested reaches the registry.
+    waitFor: ['build-frontend', 'ci-gate-backend', 'ci-gate-frontend']
     args: ['push', '${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/ui:${_IMAGE_TAG}']
 
   - name: 'gcr.io/cloud-builders/docker'
     id: push-backend
-    waitFor: ['build-backend']
+    waitFor: ['build-backend', 'ci-gate-backend', 'ci-gate-frontend']
     args: ['push', '${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/backend:${_IMAGE_TAG}']
 
   # --- Deploy to Cloud Run (multi-container) ---

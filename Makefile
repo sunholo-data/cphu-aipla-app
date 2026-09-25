@@ -534,8 +534,9 @@ audit-trust-cards: ## Fail if a workspace element pushes to the tutor without a 
 check-auth-dispatcher: ## Fail if a student-facing route uses the Firebase-only get_current_user (CI-gated)
 	@bash scripts/check-auth-dispatcher.sh
 
-check-cloudbuild: ## Fail on $$-unescaped shell vars in Cloud Build steps (CI-gated)
+check-cloudbuild: ## Fail on $$-unescaped shell vars, or a shipping step not behind both CI gates (CI-gated)
 	@python3 scripts/check-cloudbuild-substitutions.py
+	@python3 scripts/check-cloudbuild-gates.py
 
 # Laptop-bound documentation links (P4.2). Design docs cited the scoping site,
 # agent memory and two other local trees through file:///Users/<someone>/...
