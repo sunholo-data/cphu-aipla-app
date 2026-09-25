@@ -322,7 +322,7 @@ What remains open, and does **not** block any milestone:
 
 ## Acceptance
 
-- [ ] **M0:** a map-carrying activity composes a boundary + frontier block; an activity without a map
+- [x] **M0:** a map-carrying activity composes a boundary + frontier block; an activity without a map
       composes byte-identically to before; eval shows an off-map question returned from and an on-map
       tangent NOT suppressed.
 - [ ] **M1:** `done_when` authored in the builder, proposed by the co-pilot, visible to the tutor, and

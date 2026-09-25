@@ -61,6 +61,7 @@ from adk.callbacks import (
 from adk.checklist_tools import build_checklist_tools
 from adk.checkpoint_tools import build_checkpoint_tools
 from adk.citation_markers import make_marker_strip_callback
+from adk.concept_steering import build_concept_steering_block
 from adk.curriculum_retrieval import (
     build_curriculum_grounding_preamble,
     build_curriculum_retrieval_tool,
@@ -855,6 +856,24 @@ def create_agent(
                                 # recorded progress, so an untouched activity
                                 # composes byte-identically to before.
                                 + compose_progress_context(_active_cfg, user)
+                                # CONCEPT-2 M0 — the map as a BOUNDARY and a
+                                # FRONTIER. Everything above tells the tutor
+                                # what the map contains and where the group has
+                                # got to; nothing told it the map was a limit,
+                                # or what to do next with it. "Tutors stray
+                                # from the lesson plans despite keeping
+                                # character" (M, 2026-09-25) is that gap.
+                                #
+                                # Last of the concept blocks on the same "later
+                                # instruction wins" convention: it has to be
+                                # able to redirect the statuses above (a
+                                # finished map means consolidate, not wrap up)
+                                # and it deliberately licenses a brief
+                                # excursion rather than forbidding one — see
+                                # adk/concept_steering.py. Empty for an
+                                # activity with no map and for any caller who
+                                # is not a group student.
+                                + build_concept_steering_block(_active_cfg, user)
                                 # Teacher feedback 2026-08-21 items 17 + 18 —
                                 # "we do not like asterisks used as
                                 # multiplication signs" and "it doesn't work
