@@ -1,5 +1,6 @@
 import { BackendHealthBadge } from "@/components/BackendHealthBadge";
 import { SignInButton } from "@/components/SignInButton";
+import { TeacherEntryLink } from "@/components/site/TeacherEntryLink";
 import { skillHref } from "@/components/navigation/skillHref";
 import { BRANDING } from "@/lib/branding";
 import Link from "next/link";
@@ -68,13 +69,7 @@ export default async function HomePage() {
             >
               Tilslut din gruppe / Join your group →
             </Link>
-            <Link
-              href="/teacher/sign-in"
-              className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-            >
-              Er du lærer? Log ind her{" "}
-              <span className="opacity-70">/ Are you a teacher? Sign in</span>
-            </Link>
+            <TeacherEntryLink />
             <Link
               href="/guides"
               className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
