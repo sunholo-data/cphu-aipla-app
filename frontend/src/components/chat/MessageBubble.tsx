@@ -334,9 +334,11 @@ export const MessageBubble = React.memo(function MessageBubble({
             )}
             {/* CONCEPT-1 M3 — a successful record_checkpoint renders as a
                 visible card (concept + forstået/på vej + the evidence) instead
-                of an opaque tool chip; everything else keeps the chip. */}
+                of an opaque tool chip; everything else keeps the chip.
+                CONCEPT-2 M2 — mark_concept, the passive read, renders through
+                the same card with "bemærket" framing. */}
             {nonA2uiCalls
-              .filter((tc) => tc.name === "record_checkpoint")
+              .filter((tc) => tc.name === "record_checkpoint" || tc.name === "mark_concept")
               .map((tc) => {
                 const result = parseCheckpointResult(tc.resultContent);
                 return result ? <CheckpointCard key={tc.id} result={result} /> : null;
@@ -355,7 +357,10 @@ export const MessageBubble = React.memo(function MessageBubble({
                 {nonA2uiCalls
                   .filter(
                     (tc) =>
-                      !(tc.name === "record_checkpoint" && parseCheckpointResult(tc.resultContent)) &&
+                      !(
+                        (tc.name === "record_checkpoint" || tc.name === "mark_concept") &&
+                        parseCheckpointResult(tc.resultContent)
+                      ) &&
                       !(tc.name === "mark_checklist_item" && parseChecklistMarkResult(tc.resultContent)),
                   )
                   .map((tc) => (

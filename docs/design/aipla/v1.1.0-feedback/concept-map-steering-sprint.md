@@ -170,14 +170,23 @@ off progress" asks for:
 - **Schema first** (see "What IS a conflict"): `nodeStates[node_id]` grows from a single overwritten slot
   to `{"status": <derived>, "evidence": [<record>, ...]}` where each record carries
   `{kind, summary, activityId, at}` and `kind ∈ {teacher, checkpoint, observed}`. `status` is a pure
-  **reduction** over the records (highest precedence wins; ties broken by recency), never written
-  directly. Capped at the most recent N per node so a long year cannot grow the document without bound.
-  Two documents exist in prod - the backfill is a few lines and ships with this milestone.
+  **reduction** over the records, never written directly and never stored. Capped at the most recent N
+  per node, with the newest of each *kind* kept first so the cap can never silently change the derived
+  status. **Built as read-migration, not a backfill script** (changed during M2): the old slot becomes
+  the first record when a document is read, so there is never a window in which some documents are one
+  shape and some the other, and the two historic prod documents keep their evidence rather than being
+  rewritten over.
 - Tool `mark_concept(node_id, status, evidence_summary)` appending a record with `kind="observed"`. The
   store already anticipates the ranking: `db/concept_progress.py`'s docstring defines `"checkpoint"` as
   **stronger** than `"observed"`.
-- **Precedence rule:** an `observed` record never lowers a status a `checkpoint` record established.
-  Tested directly, and tested through the reduction rather than at the call site.
+- **Precedence:** `teacher` > `checkpoint` > `observed` for authority; otherwise the most recent record
+  wins, so a re-check can lower a concept a group has gone cold on. The asymmetry that matters: an
+  `observed` record may **raise** but never **lower** what a `checkpoint` established — a passive misread
+  must not undo a deliberate pass, while a passive read of genuine progress should still move a node on,
+  because the alternative is a map that goes stale exactly when the lesson is going well.
+- The tool is told the status that **actually stands**, not the one it asked for. A tutor that believes a
+  refused mark landed will talk about the concept as settled while the map says otherwise — the same
+  class of bug as 1.1.70.
 - **Trust card**, per the `workbench-element-builder` recipe - a one-shot deliberate action gets a card
   per action. ⚠️ **The tool name MUST be added to `_CLIENT_RENDER_TOOLS`** or the card silently stops
   rendering; that is a live footgun row in CLAUDE.md with a CI guard
@@ -308,7 +317,12 @@ What remains open, and does **not** block any milestone:
   framed as progress. The reconciling judge stays out until there is evidence.
 - **Prompt budget.** `_TOTAL_FOCUS_CAP` is 32,000 as of 2026-09-24 and the steering block is small and
   capped, but it is one more contributor to a budget already shared eight ways - the existing
-  `test_composed_focus_stays_under_the_skillconfig_instruction_cap` must stay green.
+  `test_composed_focus_stays_under_the_skillconfig_instruction_cap` must stay green. **It did not, at
+  M2:** the concept block's node lines are capped at `_CONCEPT_MAP_CAP` but its *contract prose* was
+  capped by nothing, and a second recording mechanism pushed the maximal composition to 8,416 against an
+  8,000 working margin. Resolved by tightening the contract (the detail belongs in the tool docstrings,
+  which ADK ships with the call), raising the margin to 8,500 with the reason recorded, and adding
+  `test_the_concept_contract_prose_stays_bounded` - the guard that was actually missing.
 - **The stream allow-list (M2).** Named above because it is the single most-repeated footgun in this
   area: a client-rendered tool result that is not allow-listed disappears with no error and no log line.
 - ⚠️ **M7 becoming a leaderboard.** "Which groups are ahead" is one CSS change away from "which groups
@@ -327,11 +341,11 @@ What remains open, and does **not** block any milestone:
       tangent NOT suppressed.
 - [x] **M1:** `done_when` authored in the builder, proposed by the co-pilot, visible to the tutor, and
       absent-safe on the 56 existing maps.
-- [ ] **M2:** `mark_concept` writes `observed` evidence, never downgrades a `checkpoint`, renders a
+- [x] **M2:** `mark_concept` writes `observed` evidence, never downgrades a `checkpoint`, renders a
       trust card, and is in `_CLIENT_RENDER_TOOLS` with the CI guard green.
 - [ ] **M3:** a new activity offers a map by default; one click drafts one; the teacher can turn it off
       per activity and per account.
-- [ ] **M4:** checkpoints stamp `classId`; the two historic documents are backfilled; the rollup joins
+- [ ] **M4:** checkpoints stamp `classId` (existing documents get it by the same read-migration route as M2, not a rewrite); the rollup joins
       on labels/links, not id equality; `get_class_concept_distribution` returns a per-group
       distribution and **no test anywhere asserts a union**.
 - [ ] **M5:** a teacher sees one graph for the class spanning every mapped activity it has run, with each

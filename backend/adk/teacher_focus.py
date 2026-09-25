@@ -344,13 +344,17 @@ def compose_teacher_focus(cfg: ActivityConfig | None) -> str:
             "This activity has a concept map — the concepts the student should demonstrate, in "
             "prerequisite order:\n"
             + "\n".join(node_lines)
-            + "\n\nWhen a concept looks nearly understood (or at a wrap-up), offer a short checkpoint: "
-            "call run_checkpoint(node_id) to get its check questions, ask them ONE AT A TIME in your "
-            "own voice in the conversation (never as a form), judge the answers, then call "
-            "record_checkpoint(node_id, passed, evidence_summary). Where a concept states what it is "
-            "'done when', that sentence is the bar — judge against it rather than against your own "
-            "sense of a good answer. Frame results as progress "
-            "('på vej'), never as failure. This is the AI's read — the teacher can override it."
+            + "\n\nTwo ways to record progress, both judged against what a concept says it is "
+            "'done when' where the teacher wrote one — not against your own sense of a good answer:\n"
+            "- run_checkpoint(node_id) is the DELIBERATE read, when a concept looks nearly understood "
+            "or at a wrap-up: ask its questions ONE AT A TIME in your own voice in the conversation "
+            "(never as a form), then record_checkpoint(node_id, passed, evidence_summary).\n"
+            "- mark_concept(node_id, status, evidence_summary) is the RUNNING read, when the student "
+            "settles a concept in passing and stopping would interrupt work that is going well. Never "
+            "mark on agreement, a nod, or a correct final number alone.\n"
+            "The evidence you write is shown to the student and the teacher, so name what they actually "
+            "did. Frame results as progress ('på vej'), never as failure. A mark is weaker than a "
+            "checkpoint and cannot lower one; both are the AI's read, and the teacher can override them."
         )
 
     if goal:

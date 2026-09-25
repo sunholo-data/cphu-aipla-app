@@ -27,7 +27,7 @@ from google.adk.tools import FunctionTool
 
 from adk.prompt_budget import fit_lines, short_date
 from auth.firebase_auth import User
-from db.concept_progress import get_node_states, record_checkpoint_state
+from db.concept_progress import get_node_states, record_checkpoint_state, record_concept_evidence
 from db.models.activity_config import ActivityConfig, ConceptMapElement
 
 logger = logging.getLogger(__name__)
@@ -148,13 +148,72 @@ def build_checkpoint_tools(cfg: ActivityConfig | None, user: User) -> list[Funct
         return {
             "ok": True,
             "node": {"id": node.id, "label": node.label},
-            "status": status,
+            "status": states[node_id]["status"],
+            "kind": "checkpoint",
             # Echoed for the chat CheckpointCard — the student sees WHY.
             "evidence": evidence_summary.strip()[:500],
             "nodeStates": {nid: s.get("status") for nid, s in states.items()},
         }
 
-    return [FunctionTool(run_checkpoint), FunctionTool(record_checkpoint)]
+    def mark_concept(node_id: str, status: str, evidence_summary: str) -> dict[str, Any]:
+        """Mark a concept from the conversation, WITHOUT running a checkpoint.
+
+        Use this when the student has just shown you something that settles a
+        concept in passing — they explained it, used it correctly, or clearly
+        have not got it yet — and stopping to run formal check questions would
+        interrupt work that is going well. A checkpoint is the deliberate
+        summative read; this is the running one.
+
+        Judge against the concept's "done when" where the teacher wrote one. Do
+        not mark on agreement, a nod, or a correct final number alone — the
+        evidence you write here is shown to the student and to the teacher, so
+        it must name what the student actually did.
+
+        A mark is never a verdict: it is weaker than a checkpoint (one will
+        override it) and the teacher can override both. Mark ``partial`` freely;
+        it is progress, not failure.
+
+        Args:
+            node_id: the concept (see the concept map in your context).
+            status: "demonstrated" or "partial".
+            evidence_summary: one concrete sentence about what the student did.
+
+        Returns:
+            The updated node-status map, or the valid node ids.
+        """
+        node = next((n for n in cmap.nodes if n.id == node_id), None)
+        if node is None:
+            return {"ok": False, "error": f"unknown node {node_id!r}", "nodes": _node_list(cmap)}
+        if status not in ("demonstrated", "partial"):
+            return {
+                "ok": False,
+                "error": f"status must be 'demonstrated' or 'partial', not {status!r}",
+                "nodes": _node_list(cmap),
+            }
+        summary = evidence_summary.strip()
+        if not summary:
+            return {"ok": False, "error": "evidence_summary is required — say what the student did"}
+        states = record_concept_evidence(group_id, activity_id, node_id, status, summary, kind="observed")
+        logger.info(
+            "mark_concept: %s -> %s (observed) for group=%s activity=%s",
+            node_id,
+            status,
+            group_id,
+            activity_id,
+        )
+        return {
+            "ok": True,
+            "node": {"id": node.id, "label": node.label},
+            # The DERIVED status, which is not always what was just asked for:
+            # an observed mark never lowers what a checkpoint established, so
+            # the tutor must be told what actually stands.
+            "status": states[node_id]["status"],
+            "kind": "observed",
+            "evidence": summary[:500],
+            "nodeStates": {nid: st.get("status") for nid, st in states.items()},
+        }
+
+    return [FunctionTool(run_checkpoint), FunctionTool(record_checkpoint), FunctionTool(mark_concept)]
 
 
 def checkpoint_state_summary(cfg: ActivityConfig | None, user: User) -> str:

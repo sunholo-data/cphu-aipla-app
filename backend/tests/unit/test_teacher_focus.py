@@ -432,10 +432,37 @@ def test_composed_focus_stays_under_the_skillconfig_instruction_cap() -> None:
     # 2026-09-24: _TOTAL_FOCUS_CAP itself is now 32,000 so an author-supplied
     # sim can carry its activity module; this 8,000 margin still holds for the
     # teacher-authored blocks measured here (_maximal_cfg carries no sim).
-    assert len(focus) < 8000, (
-        f"composed focus is {len(focus)} chars — over the 8,000 working margin "
+    # 2026-09-25, CONCEPT-2 M2: 8,000 -> 8,500. The concept block gained a
+    # SECOND recording mechanism (mark_concept, the running read beside the
+    # deliberate checkpoint) and the block is the only place the tutor can be
+    # told it exists. That is ~300 chars once, for a permanent capability, and
+    # the alternative was golfing the contract into something less clear — a bad
+    # trade against an alarm that still leaves a 3.8x margin under
+    # _TOTAL_FOCUS_CAP. The contract prose itself is pinned by
+    # test_the_concept_contract_prose_stays_bounded so it cannot creep again;
+    # that is the guard that was actually missing here.
+    assert len(focus) < 8500, (
+        f"composed focus is {len(focus)} chars — over the 8,500 working margin "
         "(_TOTAL_FOCUS_CAP), which is independent of the instructions cap"
     )
+
+
+def test_the_concept_contract_prose_stays_bounded() -> None:
+    """The node lines are capped at ``_CONCEPT_MAP_CAP``; the CONTRACT prose
+    around them is fixed-length and was capped by nothing, which is how it grew
+    past the composed-focus margin in CONCEPT-2 M2 without anything objecting.
+
+    Every mapped activity pays this on every turn, so it is pinned here. If a
+    third recording mechanism ever arrives, move the detail into the tool
+    docstrings (ADK ships those with the call) rather than raising this."""
+    from adk.teacher_focus import compose_teacher_focus
+    from db.models.activity_config import ConceptMapElement, ConceptNode
+
+    one_node = _cfg(
+        conceptMap=[ConceptMapElement(id="cm", title="M", nodes=[ConceptNode(id="n", label="N")], edges=[])]
+    )
+    block = next(b for b in compose_teacher_focus(one_node).split("\n\n") if "run_checkpoint" in b)
+    assert len(block) < 1000, f"the concept contract is {len(block)} chars of every mapped turn"
 
 
 def test_maximal_config_still_names_its_elements() -> None:

@@ -75,9 +75,9 @@ def test_no_tools_without_map_or_group():
     assert build_checkpoint_tools(None, _student()) == []
 
 
-def test_student_with_map_gets_both_tools():
+def test_student_with_map_gets_the_checkpoint_and_marking_tools():
     tools = _tools(_cfg(), _student())
-    assert set(tools) == {"run_checkpoint", "record_checkpoint"}
+    assert set(tools) == {"run_checkpoint", "record_checkpoint", "mark_concept"}
 
 
 # --- run_checkpoint ---
@@ -135,7 +135,7 @@ def test_record_checkpoint_persists_keyed_by_the_verified_group():
     assert res["ok"] is True and res["status"] == "demonstrated"
     stored = get_node_states(GROUP, "act-1")
     assert stored["projektil"]["status"] == "demonstrated"
-    assert stored["projektil"]["evidence"]["kind"] == "checkpoint"
+    assert [r["kind"] for r in stored["projektil"]["evidence"]] == ["checkpoint"]
     # another group's record is untouched (keying really is per group)
     assert get_node_states("grp-other", "act-1") == {}
 
@@ -154,6 +154,44 @@ def test_record_checkpoint_merges_per_node():
     states = get_node_states(GROUP, "act-1")
     assert states["vektorer"]["status"] == "demonstrated"
     assert states["projektil"]["status"] == "partial"
+
+
+# --- mark_concept (CONCEPT-2 M2) ---
+
+
+def test_mark_concept_records_observed_evidence():
+    mark = _tools(_cfg(), _student())["mark_concept"]
+    res = mark("vektorer", "demonstrated", "Dekomponerede 30°-kastet uden hjælp.")
+    assert res["ok"] is True and res["status"] == "demonstrated" and res["kind"] == "observed"
+    stored = get_node_states(GROUP, "act-1")["vektorer"]
+    assert [r["kind"] for r in stored["evidence"]] == ["observed"]
+
+
+def test_mark_concept_reports_the_status_that_actually_stands_not_the_one_asked_for():
+    """The tutor must not be told its mark landed when the reduction refused
+    it — it would then talk to the student about a concept as settled while the
+    map shows otherwise. Same class of bug as the tutor believing progress it
+    could not see (1.1.70)."""
+    record_checkpoint_state(GROUP, "act-1", "vektorer", "demonstrated", "bestod tjek")
+    res = _tools(_cfg(), _student())["mark_concept"]("vektorer", "partial", "virkede usikker igen")
+    assert res["ok"] is True
+    assert res["status"] == "demonstrated"  # the checkpoint still stands
+
+
+def test_mark_concept_refuses_an_unknown_node_a_bad_status_and_empty_evidence():
+    mark = _tools(_cfg(), _student())["mark_concept"]
+    assert mark("bogus", "demonstrated", "x")["ok"] is False
+    bad = mark("vektorer", "not_yet", "x")
+    assert bad["ok"] is False and "demonstrated" in bad["error"]
+    assert mark("vektorer", "partial", "   ")["ok"] is False
+    # none of the three wrote anything
+    assert get_node_states(GROUP, "act-1") == {}
+
+
+def test_mark_concept_is_not_offered_to_a_teacher_or_a_mapless_activity():
+    """Same gate as the checkpoint tools: identity is closed over, and there is
+    no group to record against."""
+    assert build_checkpoint_tools(_cfg(), _teacher()) == []
 
 
 # --- context summary + focus block ---
@@ -179,7 +217,7 @@ def test_the_focus_block_carries_the_definition_of_done_and_names_it_as_the_bar(
     cfg.concept_map[0].nodes[1].done_when = "kan begrunde parablen med konstant lodret acceleration"
     focus = compose_teacher_focus(cfg)
     assert "done when: kan begrunde parablen med konstant lodret acceleration" in focus
-    assert "that sentence is the bar" in focus
+    assert "not against your own sense of a good answer" in focus
 
 
 def test_the_focus_block_is_unchanged_for_a_map_with_no_definitions_of_done():

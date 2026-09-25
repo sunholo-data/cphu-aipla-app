@@ -107,6 +107,11 @@ _CLIENT_RENDER_TOOLS = frozenset(
         # stopped rendering. Anything the client parses by name must be listed
         # HERE; scripts/check-stream-render-allowlist.sh now enforces that.
         "mark_checklist_item",
+        # CheckpointCard again (CONCEPT-2 M2) — the passive mark renders as the
+        # same card with "bemærket" framing. Card-safe by construction: node
+        # label, derived status, one line of evidence, and the provenance. The
+        # tool never sees the rubric or the definition of done.
+        "mark_concept",
     }
 )
 

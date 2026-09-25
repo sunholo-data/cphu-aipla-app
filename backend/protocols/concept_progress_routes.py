@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from auth import User, get_current_user
 from db.activities import get_activity
-from db.concept_progress import get_node_states
+from db.concept_progress import get_node_states, states_from_stored
 from db.firestore import query_documents
 
 log = logging.getLogger(__name__)
@@ -43,5 +43,7 @@ async def get_concept_progress(
         raise HTTPException(status_code=404, detail="activity not found")
 
     docs = query_documents(collection="concept_progress", filters=[("activityId", "==", activity_id)])
-    groups = {d.get("groupId", d.get("__id", "?")): d.get("nodeStates", {}) for d in docs}
+    # Derived through the store's own reducer, never read off the document:
+    # since CONCEPT-2 M2 a node holds evidence records and no stored status.
+    groups = {d.get("groupId", d.get("__id", "?")): states_from_stored(d.get("nodeStates", {})) for d in docs}
     return {"groups": groups}

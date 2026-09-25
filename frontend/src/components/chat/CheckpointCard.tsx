@@ -6,6 +6,12 @@
 // principle: every check-off shows its evidence). Formative framing: a
 // non-pass renders as "på vej" (progress), never as failure. This is the AI's
 // read — the teacher can override it.
+//
+// CONCEPT-2 M2: mark_concept (the passive, running read) renders through the
+// SAME card, with its own framing. Two cards for "the AI recorded something
+// about a concept" would be two things to keep in sync and two things for a
+// student to learn; one card that names its provenance is honest about the
+// store's own precedence — an observed mark is weaker than a checkpoint.
 
 import { CheckCircle2, CircleDashed } from "lucide-react";
 
@@ -13,6 +19,9 @@ export interface CheckpointResult {
   nodeLabel: string;
   status: "demonstrated" | "partial";
   evidence: string;
+  /** Provenance. Absent on results from before this field existed → treated as
+   *  a checkpoint, which is what they were. */
+  kind?: "checkpoint" | "observed";
 }
 
 /** Parse a record_checkpoint tool result into card data, or null (failed /
@@ -25,9 +34,15 @@ export function parseCheckpointResult(resultContent: string | null | undefined):
       node?: { label?: string };
       status?: string;
       evidence?: string;
+      kind?: string;
     };
     if (!r.ok || !r.node?.label || (r.status !== "demonstrated" && r.status !== "partial")) return null;
-    return { nodeLabel: r.node.label, status: r.status, evidence: typeof r.evidence === "string" ? r.evidence : "" };
+    return {
+      nodeLabel: r.node.label,
+      status: r.status,
+      evidence: typeof r.evidence === "string" ? r.evidence : "",
+      kind: r.kind === "observed" ? "observed" : "checkpoint",
+    };
   } catch {
     return null;
   }
@@ -35,6 +50,11 @@ export function parseCheckpointResult(resultContent: string | null | undefined):
 
 export function CheckpointCard({ result }: { result: CheckpointResult }) {
   const demonstrated = result.status === "demonstrated";
+  const observed = result.kind === "observed";
+  // A passive mark says what the tutor noticed; a checkpoint says what was
+  // checked. Claiming the stronger of the two for the weaker one would be the
+  // card lying about how the mark was earned.
+  const heading = observed ? "bemærket" : demonstrated ? "forstået" : "på vej";
   return (
     <div
       data-testid="checkpoint-card"
@@ -49,7 +69,7 @@ export function CheckpointCard({ result }: { result: CheckpointResult }) {
       )}
       <div className="min-w-0">
         <p className={`font-medium ${demonstrated ? "text-emerald-900" : "text-amber-900"}`}>
-          {result.nodeLabel} — {demonstrated ? "forstået" : "på vej"}
+          {result.nodeLabel} — {heading}
         </p>
         {result.evidence ? <p className="text-xs text-slate-600">{result.evidence}</p> : null}
       </div>
