@@ -6,6 +6,7 @@ Callbacks wired into every skill by ``adk.agent.create_agent``:
                                  ``make_session_tracker(owner_uid)``
   * ``after_agent_callback``   = ``make_after_agent_response(owner_uid)``
   * ``after_tool_callback``    = ``_handle_large_output``
+  * ``on_tool_error_callback`` = ``handle_unknown_tool``
 
 Submodules:
   permission   — tool permission enforcement + OTEL span annotation
@@ -14,6 +15,7 @@ Submodules:
                  + every-turn injection (1.1.87)
   session      — session index creation + turn counter maintenance
   large_output — oversized tool-response offloading to ADK artifacts
+  unknown_tool — a hallucinated tool name becomes a result, not a crash
   compaction   — pre-request compaction demotion (keeps routine compaction
                  out of TTFT; wired into make_before_agent)
 """
@@ -47,6 +49,7 @@ from adk.callbacks.session import (
     make_after_agent_response,
     make_session_tracker,
 )
+from adk.callbacks.unknown_tool import handle_unknown_tool
 
 __all__ = [
     "_STATE_DOCS_IN_CONTEXT",
@@ -62,6 +65,7 @@ __all__ = [
     "_derive_access_control",
     "_handle_large_output",
     "_try_generate_title",
+    "handle_unknown_tool",
     "make_activity_document_injector",
     "make_activity_document_loader",
     "make_activity_image_injector",

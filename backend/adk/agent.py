@@ -46,6 +46,7 @@ from adk.a2ui_surface_context import wrap_with_a2ui_surface_context
 from adk.artifact_tools import retrieve_artifact
 from adk.callbacks import (
     _handle_large_output,
+    handle_unknown_tool,
     make_activity_document_injector,
     make_activity_document_loader,
     make_activity_image_injector,
@@ -937,6 +938,7 @@ def create_agent(
         after_model_callback=_composed_after_model,
         before_tool_callback=_before_tool,
         after_tool_callback=_after_tool,
+        on_tool_error_callback=handle_unknown_tool,
     )
 
 
