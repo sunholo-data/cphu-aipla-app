@@ -20,7 +20,7 @@ _COLLECTION = "teacher_prefs"
 
 #: The storable fields — the route model is the validation layer; this list is
 #: the storage allow-list so a widened route model can't silently persist junk.
-_FIELDS = ("defaultLanguage", "defaultPersonaId", "features")
+_FIELDS = ("defaultLanguage", "defaultPersonaId", "defaultConceptMap", "features")
 
 
 def get_teacher_prefs(uid: str) -> dict[str, Any]:

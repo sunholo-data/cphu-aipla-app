@@ -53,6 +53,19 @@ def test_put_partial_merges_and_round_trips():
     assert body.get("defaultLanguage") is None and body["defaultPersonaId"] == "astrid"
 
 
+def test_concept_map_default_round_trips_and_is_absent_until_turned_off():
+    """CONCEPT-2 M3. Tri-state: absent means ON, so a teacher who never opens
+    settings gets the map. Only an explicit ``false`` is stored — and the
+    frontend clears it back to absent rather than storing ``true``, so "on" has
+    exactly one representation."""
+    c = _client(User(uid="t-1", is_teacher=True))
+    assert "defaultConceptMap" not in c.get("/api/teacher/prefs").json()
+    c.put("/api/teacher/prefs", json={"defaultConceptMap": False})
+    assert c.get("/api/teacher/prefs").json()["defaultConceptMap"] is False
+    c.put("/api/teacher/prefs", json={"defaultConceptMap": None})
+    assert c.get("/api/teacher/prefs").json()["defaultConceptMap"] is None
+
+
 def test_features_opt_in_round_trips():
     c = _client(User(uid="t-1", is_teacher=True))
     c.put("/api/teacher/prefs", json={"features": {"authoringCopilot": True}})

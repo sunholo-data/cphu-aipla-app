@@ -15,6 +15,7 @@ import { WritingEditor } from "@/components/teacher/WritingEditor";
 import { SimPicker } from "@/components/teacher/SimPicker";
 import { SolutionEditor } from "@/components/teacher/SolutionEditor";
 import { TableEditor } from "@/components/teacher/TableEditor";
+import { useCopilotEntry } from "@/components/teacher/copilot";
 import type { ActivityBuilder } from "@/hooks/useActivityBuilder";
 
 // Living concept map (CONCEPT-1 M1) — dark-flagged like the authoring co-pilot;
@@ -59,6 +60,20 @@ export function ActivityBuilderBody({
   error,
 }: ActivityBuilderBodyProps) {
   const b = builder;
+  // CONCEPT-2 M3 — "Foreslå begrebskort" asks the page's co-pilot for a draft.
+  // `useCopilotEntry` is null outside the teacher shell and `ask` returns false
+  // when no work co-pilot is mounted, so the button only appears where it can
+  // actually do something. The co-pilot already receives the builder's draft as
+  // hidden context, so the request needs no arguments.
+  const entry = useCopilotEntry();
+  const proposeConceptMap = entry?.registered
+    ? () => {
+        entry.ask(
+          "Foreslå et begrebskort til denne aktivitet: de vigtigste begreber, " +
+            "hvad der bygger på hvad, og hvornår hvert begreb er forstået.",
+        );
+      }
+    : undefined;
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,46rem)_minmax(0,1fr)]">
       {/* LEFT — configuration, grouped into four colour-coded sections. */}
@@ -196,7 +211,12 @@ export function ActivityBuilderBody({
           <DocumentEditor value={b.document} onChange={b.setDocument} />
 
           {CONCEPT_MAP_ENABLED && (
-            <ConceptMapEditor value={b.conceptMap} onChange={b.setConceptMap} nextKey={b.nextElementKey} />
+            <ConceptMapEditor
+              value={b.conceptMap}
+              onChange={b.setConceptMap}
+              nextKey={b.nextElementKey}
+              onPropose={proposeConceptMap}
+            />
           )}
         </BuilderSection>
 

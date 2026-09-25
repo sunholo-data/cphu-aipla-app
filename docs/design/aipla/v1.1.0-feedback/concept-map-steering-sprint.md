@@ -196,9 +196,12 @@ off progress" asks for:
 
 ### M3 - on by default, with a real off switch, and help creating one (~1d, fullstack)
 
-- **Builder:** for a new activity the concept-map section is present and expanded, with a one-click
-  *"Foreslå begrebskort"* that calls the existing co-pilot `propose_concept_map`. **Propose, never
-  auto-apply** (Axiom 2) - the teacher accepts the diff, as today.
+- **Builder:** for a new activity the concept-map section is present, with a one-click
+  *"Foreslå begrebskort"* that asks the page's co-pilot for a draft. **Propose, never auto-apply**
+  (Axiom 2) - the teacher accepts the diff, as today. Built as an `ask(text)` channel on the existing
+  `CopilotEntryContext` (*"one way to ask for help"*), because the chat that can send a turn sits several
+  layers below the builder inside the AG-UI provider; the button is not rendered at all when no work
+  co-pilot is mounted, rather than being offered dead.
 - **Off switch, two levels:** remove the element on this activity (already possible - an empty list);
   and a `conceptMapDefault` preference in `teacher_prefs`, surfaced in the existing
   `/teacher/settings` Defaults card (`_DefaultsCard.tsx`), which **seeds** the builder and never fights
@@ -343,7 +346,7 @@ What remains open, and does **not** block any milestone:
       absent-safe on the 56 existing maps.
 - [x] **M2:** `mark_concept` writes `observed` evidence, never downgrades a `checkpoint`, renders a
       trust card, and is in `_CLIENT_RENDER_TOOLS` with the CI guard green.
-- [ ] **M3:** a new activity offers a map by default; one click drafts one; the teacher can turn it off
+- [x] **M3:** a new activity offers a map by default; one click drafts one; the teacher can turn it off
       per activity and per account.
 - [ ] **M4:** checkpoints stamp `classId` (existing documents get it by the same read-migration route as M2, not a rewrite); the rollup joins
       on labels/links, not id equality; `get_class_concept_distribution` returns a per-group

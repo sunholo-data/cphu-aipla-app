@@ -9,7 +9,7 @@ vi.mock("@/lib/apiClient", () => ({
 }));
 
 import { useTeacherFeature } from "../useTeacherFeature";
-import { languageSeed } from "../useTeacherPrefs";
+import { conceptMapDefault, languageSeed } from "../useTeacherPrefs";
 
 beforeEach(() => mockFetch.mockReset());
 
@@ -57,5 +57,20 @@ describe("languageSeed (the anti-fight rule)", () => {
     expect(languageSeed({ defaultLanguage: "en" }, { ...UNTOUCHED, language: "en" })).toBeNull();
     expect(languageSeed({ defaultLanguage: "en" }, { ...UNTOUCHED, title: "Kast" })).toBeNull();
     expect(languageSeed({ defaultLanguage: "en" }, { ...UNTOUCHED, teachingGoal: "..." })).toBeNull();
+  });
+});
+
+describe("conceptMapDefault (CONCEPT-2 M3)", () => {
+  it("is ON for a teacher who has never opened settings", () => {
+    // The whole point of the default: on prod on 2026-09-25, 55 of the 56
+    // activities carrying a map got it from a template and exactly one was
+    // authored. An opt-in nobody finds is not a default.
+    expect(conceptMapDefault({})).toBe(true);
+    expect(conceptMapDefault({ defaultConceptMap: null })).toBe(true);
+  });
+
+  it("is off only on an explicit false", () => {
+    expect(conceptMapDefault({ defaultConceptMap: false })).toBe(false);
+    expect(conceptMapDefault({ defaultConceptMap: true })).toBe(true);
   });
 });

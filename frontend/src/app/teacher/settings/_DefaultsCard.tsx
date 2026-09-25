@@ -105,6 +105,26 @@ export function DefaultsCard() {
             </select>
           </label>
 
+          {/* CONCEPT-2 M3 — the off switch. Default ON, so this control exists
+              to turn it OFF; a teacher who never opens this page gets the map,
+              which is the point of a default. Per-activity removal still wins:
+              this only seeds a NEW activity. */}
+          <label className="flex items-center gap-2 text-sm text-slate-700">
+            <span className="w-44 shrink-0 text-xs font-medium text-slate-600">Concept map</span>
+            <input
+              type="checkbox"
+              aria-label="Start new activities with a concept map"
+              checked={prefs.defaultConceptMap !== false}
+              onChange={(e) =>
+                void put(
+                  { defaultConceptMap: e.target.checked ? null : false },
+                  e.target.checked ? "New activities will start with a concept map." : "Concept-map default off.",
+                )
+              }
+            />
+            <span className="text-xs text-slate-500">Start new activities with a concept-map section</span>
+          </label>
+
           <div className="flex flex-col gap-1.5">
             <span className="text-xs font-medium text-slate-600">Beta features</span>
             {BETA_FLAGS.length === 0 ? (

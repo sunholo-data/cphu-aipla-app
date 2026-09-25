@@ -11,7 +11,24 @@ import { fetchWithTeacherAuth } from "@/lib/apiClient";
 export interface TeacherPrefs {
   defaultLanguage?: "da" | "en" | null;
   defaultPersonaId?: string | null;
+  /** CONCEPT-2 M3 — whether a NEW activity starts with a concept-map section.
+   *  Tri-state: unset means ON. Only an explicit `false` turns it off, so a
+   *  teacher who has never opened settings still gets the map. */
+  defaultConceptMap?: boolean | null;
   features?: Record<string, boolean> | null;
+}
+
+/** Whether a new activity should open with a concept-map section (CONCEPT-2 M3).
+ *
+ *  Default ON, per M 2026-09-25 — "we should default to have concept maps on
+ *  (with option to turn them off)". An EMPTY map costs the saved activity
+ *  nothing: `conceptMapDefs` drops a map whose nodes carry no labels, so a
+ *  teacher who ignores the section saves exactly what they saved before. What
+ *  it buys is that the section is visible at all — on prod on 2026-09-25, of
+ *  the 56 activities carrying a map, 55 came from a template and exactly one
+ *  was authored by hand. */
+export function conceptMapDefault(prefs: TeacherPrefs): boolean {
+  return prefs.defaultConceptMap !== false;
 }
 
 /** Seed the builder's language from the account default — CREATE-time only,

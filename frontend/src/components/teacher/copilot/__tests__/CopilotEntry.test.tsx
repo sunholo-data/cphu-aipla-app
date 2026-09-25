@@ -2,7 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { AskAiplaButton } from "@/components/teacher/copilot/AskAiplaButton";
-import { CopilotEntryProvider } from "@/components/teacher/copilot/CopilotEntryContext";
+import { CopilotEntryProvider, useCopilotEntry } from "@/components/teacher/copilot/CopilotEntryContext";
 import { FloatingCopilot } from "@/components/teacher/copilot/FloatingCopilot";
 
 /**
@@ -21,6 +21,55 @@ describe("the one entry (AskAiplaButton + CopilotEntryProvider)", () => {
     fireEvent.click(screen.getByTestId("ask-aipla"));
     expect(onOpenHelp).toHaveBeenCalled();
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  it("carries a surface question through to the copilot and opens it (CONCEPT-2 M3)", () => {
+    const onAsk = vi.fn();
+    function SurfaceButton() {
+      const entry = useCopilotEntry();
+      return (
+        <button type="button" onClick={() => entry?.ask("Foreslå et begrebskort")}>
+          propose
+        </button>
+      );
+    }
+    render(
+      <CopilotEntryProvider>
+        <FloatingCopilot title="Medbygger" onAsk={onAsk}>
+          <p>chat</p>
+        </FloatingCopilot>
+        <SurfaceButton />
+      </CopilotEntryProvider>,
+    );
+    // The work copilot starts minimised; asking must open it, not send into a
+    // panel the teacher cannot see.
+    // `overflow-hidden` is on the panel at all times, so match the class as a
+    // whole word rather than a substring.
+    const classes = () => screen.getByTestId("copilot-panel").className.split(/\s+/);
+    expect(classes()).toContain("hidden");
+    fireEvent.click(screen.getByText("propose"));
+    expect(onAsk).toHaveBeenCalledWith("Foreslå et begrebskort");
+    expect(classes()).not.toContain("hidden");
+  });
+
+  it("reports that nothing was asked when no work copilot is mounted", () => {
+    // The caller hides its button on false rather than offering a dead control.
+    let result: boolean | undefined;
+    function SurfaceButton() {
+      const entry = useCopilotEntry();
+      return (
+        <button type="button" onClick={() => (result = entry?.ask("anything"))}>
+          propose
+        </button>
+      );
+    }
+    render(
+      <CopilotEntryProvider>
+        <SurfaceButton />
+      </CopilotEntryProvider>,
+    );
+    fireEvent.click(screen.getByText("propose"));
+    expect(result).toBe(false);
   });
 
   it("renders nothing when help is off and no copilot registered — the header as it was", () => {

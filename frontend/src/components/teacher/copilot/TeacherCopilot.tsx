@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Send } from "lucide-react";
 
 import { AGUIProvider } from "@/providers/AGUIProvider";
@@ -48,6 +48,11 @@ export function TeacherCopilot<P>(config: TeacherCopilotConfig<P>) {
   // and coming back (the backend session is keyed on it; useSessionMessages
   // reloads the prior turns). Stable from mount → no URL-writeback rebuild.
   const [threadId, setThreadId] = useState<string>(() => readOrMintThreadId(storageKey));
+  // CONCEPT-2 M3 — a question asked from the surface (a button on the page,
+  // via `useCopilotEntry().ask`). Held here because the chat that can send it
+  // lives several layers down, inside the AG-UI provider. Cleared by the chat
+  // when it goes out, so the same ask cannot fire twice.
+  const [pendingAsk, setPendingAsk] = useState<string | null>(null);
 
   const newChat = useCallback(() => {
     const fresh = crypto.randomUUID();
@@ -66,8 +71,14 @@ export function TeacherCopilot<P>(config: TeacherCopilotConfig<P>) {
       minimizeLabel={config.minimizeLabel}
       onClose={config.onClose}
       align={config.align}
+      onAsk={setPendingAsk}
     >
-      <CopilotResolver config={config} threadId={threadId} />
+      <CopilotResolver
+        config={config}
+        threadId={threadId}
+        pendingAsk={pendingAsk}
+        onAskSent={() => setPendingAsk(null)}
+      />
     </FloatingCopilot>
   );
 }
@@ -77,7 +88,17 @@ export function TeacherCopilot<P>(config: TeacherCopilotConfig<P>) {
  * endpoint keys on UUID, not slug), then mount the teacher-auth AG-UI provider
  * seeded with the persisted threadId so the session resumes.
  */
-function CopilotResolver<P>({ config, threadId }: { config: TeacherCopilotConfig<P>; threadId: string }) {
+function CopilotResolver<P>({
+  config,
+  threadId,
+  pendingAsk,
+  onAskSent,
+}: {
+  config: TeacherCopilotConfig<P>;
+  threadId: string;
+  pendingAsk?: string | null;
+  onAskSent?: () => void;
+}) {
   const { skillId, resolveError } = useSkillSlugResolver(config.skillName);
 
   if (resolveError) {
@@ -96,12 +117,22 @@ function CopilotResolver<P>({ config, threadId }: { config: TeacherCopilotConfig
   }
   return (
     <AGUIProvider key={skillId} skillId={skillId} sessionId={threadId || undefined} useTeacherAuth>
-      <CopilotChat config={config} threadId={threadId} />
+      <CopilotChat config={config} threadId={threadId} pendingAsk={pendingAsk} onAskSent={onAskSent} />
     </AGUIProvider>
   );
 }
 
-function CopilotChat<P>({ config, threadId }: { config: TeacherCopilotConfig<P>; threadId: string }) {
+function CopilotChat<P>({
+  config,
+  threadId,
+  pendingAsk,
+  onAskSent,
+}: {
+  config: TeacherCopilotConfig<P>;
+  threadId: string;
+  pendingAsk?: string | null;
+  onAskSent?: () => void;
+}) {
   const labels = { ...DEFAULT_LABELS, ...config.labels };
   const { messages: liveMessages, toolCalls, sendMessage, isLoading, error } = useSkillAgent();
   // Prior turns for a resumed thread (empty for a fresh one — a 404 lands as
@@ -114,6 +145,19 @@ function CopilotChat<P>({ config, threadId }: { config: TeacherCopilotConfig<P>;
   // empty bubbles above the proposals.
   const visibleMessages = messages.filter((m) => m.content && m.content.trim().length > 0);
   const [input, setInput] = useState("");
+
+  // Send a surface-asked question as a turn, once. Cleared BEFORE the await so
+  // a re-render mid-flight cannot send it twice; a question that arrives while
+  // the copilot is mid-turn waits for the next render rather than being
+  // dropped, because `isLoading` is in the dependency list.
+  useEffect(() => {
+    if (!pendingAsk || isLoading) return;
+    onAskSent?.();
+    void sendMessage(`${config.scopePrefix ?? ""}${pendingAsk}`);
+    // `sendMessage` identity is not stable across renders; the guard above is
+    // what makes this fire once, not the dependency list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingAsk, isLoading]);
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

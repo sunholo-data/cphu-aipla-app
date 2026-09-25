@@ -27,6 +27,10 @@ class TeacherPrefsUpdate(BaseModel):
 
     default_language: Literal["da", "en"] | None = Field(default=None, alias="defaultLanguage")
     default_persona_id: str | None = Field(default=None, alias="defaultPersonaId", max_length=64)
+    # CONCEPT-2 M3. Tri-state on purpose: None = unset = ON, which is the
+    # default the teacher never has to find. Only an explicit ``false`` turns it
+    # off, so a teacher who has never opened settings gets the map.
+    default_concept_map: bool | None = Field(default=None, alias="defaultConceptMap")
     features: dict[str, bool] | None = None
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")

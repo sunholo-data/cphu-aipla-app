@@ -19,7 +19,8 @@ import { createContext, useCallback, useContext, useMemo, useRef, useState, type
  */
 export interface RegisteredCopilot {
   title: string;
-  open: () => void;
+  /** Open the panel. With `prefill`, also send it as a turn — see `ask`. */
+  open: (prefill?: string) => void;
 }
 
 interface CopilotEntryValue {
@@ -27,9 +28,22 @@ interface CopilotEntryValue {
   registered: RegisteredCopilot | null;
   /** Called by a FloatingCopilot on mount; returns the unregister function. */
   register: (copilot: RegisteredCopilot) => () => void;
+  /**
+   * Open the page's work copilot and ask it something, from anywhere in the
+   * surface (CONCEPT-2 M3). Returns false when no work copilot is mounted, so
+   * a caller can hide its button rather than offering a dead control.
+   *
+   * This is the same "one way to ask" the header button is — a button on the
+   * surface that phrases the question for the teacher. It sends a turn; what
+   * comes back is still a PROPOSAL the teacher applies (Axiom 2), so one click
+   * is a request, never a change.
+   */
+  ask: (text: string) => boolean;
 }
 
-const CopilotEntryContext = createContext<CopilotEntryValue | null>(null);
+/** Exported so a test can mount a surface with a stub copilot registered,
+ *  without standing up the whole AG-UI chat. */
+export const CopilotEntryContext = createContext<CopilotEntryValue | null>(null);
 
 export function CopilotEntryProvider({ children }: { children: ReactNode }) {
   const [registered, setRegistered] = useState<RegisteredCopilot | null>(null);
@@ -47,7 +61,12 @@ export function CopilotEntryProvider({ children }: { children: ReactNode }) {
       }
     };
   }, []);
-  const value = useMemo(() => ({ registered, register }), [registered, register]);
+  const ask = useCallback((text: string) => {
+    if (!current.current) return false;
+    current.current.open(text);
+    return true;
+  }, []);
+  const value = useMemo(() => ({ registered, register, ask }), [registered, register, ask]);
   return <CopilotEntryContext.Provider value={value}>{children}</CopilotEntryContext.Provider>;
 }
 

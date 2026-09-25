@@ -7,7 +7,7 @@
 // student sees — a projection of the same {nodes, edges} data, never a second
 // data shape. Drag-to-edit graph mode is deferred by design.
 
-import { Map as MapIcon, Plus, X } from "lucide-react";
+import { Map as MapIcon, Plus, Sparkles, X } from "lucide-react";
 
 import { ConceptMapGraph } from "@/components/workspace/ConceptMapGraph";
 
@@ -61,9 +61,13 @@ interface ConceptMapEditorProps {
   onChange: (value: ConceptMapEditorValue | null) => void;
   /** Mints unique client keys/ids; shared with the builder's key counter. */
   nextKey: () => number;
+  /** CONCEPT-2 M3 — ask the page's co-pilot to draft a map. Omitted when no
+   *  co-pilot is mounted (outside the teacher shell, or the flag is off), in
+   *  which case the button is not rendered at all. */
+  onPropose?: () => void;
 }
 
-export function ConceptMapEditor({ value, onChange, nextKey }: ConceptMapEditorProps) {
+export function ConceptMapEditor({ value, onChange, nextKey, onPropose }: ConceptMapEditorProps) {
   if (!value) {
     return (
       <div className="flex flex-col gap-2">
@@ -264,15 +268,32 @@ export function ConceptMapEditor({ value, onChange, nextKey }: ConceptMapEditorP
         ))}
       </ul>
 
-      {value.nodes.length < 30 && (
-        <button
-          type="button"
-          onClick={addNode}
-          className="flex items-center gap-1 self-start rounded border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
-        >
-          <Plus className="h-3.5 w-3.5" /> Add concept
-        </button>
-      )}
+      <div className="flex flex-wrap items-center gap-2">
+        {value.nodes.length < 30 && (
+          <button
+            type="button"
+            onClick={addNode}
+            className="flex items-center gap-1 self-start rounded border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
+          >
+            <Plus className="h-3.5 w-3.5" /> Add concept
+          </button>
+        )}
+        {/* CONCEPT-2 M3 — the co-pilot already has `propose_concept_map`; what
+            it lacked was a reason for a teacher to think of asking. The button
+            phrases the request for them. It sends a turn and nothing else: what
+            comes back is a proposal the teacher Applies, so one click is a
+            request, never a change. Hidden when no co-pilot is mounted, rather
+            than offered as a dead control. */}
+        {onPropose && (
+          <button
+            type="button"
+            onClick={onPropose}
+            className="flex items-center gap-1 self-start rounded border border-sky-300 bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-100"
+          >
+            <Sparkles className="h-3.5 w-3.5" /> Foreslå begrebskort
+          </button>
+        )}
+      </div>
 
       {labelled.length > 0 && (
         <div className="overflow-x-auto rounded-md border border-slate-100 bg-white p-2">

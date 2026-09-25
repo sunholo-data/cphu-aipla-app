@@ -16,7 +16,7 @@ import { InheritedTutor } from "@/components/teacher/InheritedTutor";
 import { TemplatePicker } from "@/components/teacher/TemplatePicker";
 import { ActivityBuilderBody } from "@/components/teacher/ActivityBuilderBody";
 import { useActivityBuilder } from "@/hooks/useActivityBuilder";
-import { languageSeed, useTeacherPrefs } from "@/hooks/useTeacherPrefs";
+import { conceptMapDefault, languageSeed, useTeacherPrefs } from "@/hooks/useTeacherPrefs";
 import { AuthoringCopilot } from "../[id]/_AuthoringCopilot";
 import { applyCopilotProposal } from "../applyCopilotProposal";
 
@@ -63,6 +63,13 @@ function NewActivityForm() {
     if (!prefsLoaded) return;
     const seed = languageSeed(prefs, builder);
     if (seed) builder.setLanguage(seed);
+    // CONCEPT-2 M3 — open a new activity WITH a concept-map section unless the
+    // teacher turned the default off. Seeding (not forcing): if the builder
+    // already carries a map — a template was picked first — it is left alone,
+    // the same anti-fight rule `languageSeed` follows. The teacher removes the
+    // section per activity; the account default is the off switch for all of
+    // them.
+    if (conceptMapDefault(prefs) && !builder.conceptMap) builder.setConceptMap({ title: "", nodes: [] });
     // Seed exactly once, when prefs resolve — not on later builder changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefsLoaded]);

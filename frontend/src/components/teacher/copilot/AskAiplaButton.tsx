@@ -60,7 +60,7 @@ export function AskAiplaButton({ helpEnabled, onOpenHelp }: { helpEnabled: boole
   }
   if (!helpEnabled) {
     return (
-      <button type="button" onClick={page.open} className={cls} data-testid="ask-aipla">
+      <button type="button" onClick={() => page.open()} className={cls} data-testid="ask-aipla">
         <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
         <span>{page.title}</span>
       </button>

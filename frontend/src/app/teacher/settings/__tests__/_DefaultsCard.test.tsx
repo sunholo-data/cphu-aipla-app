@@ -59,6 +59,26 @@ describe("DefaultsCard", () => {
     });
   });
 
+  it("offers the concept-map default ON, and turning it off PUTs false (CONCEPT-2 M3)", async () => {
+    mockFetch.mockResolvedValue(ok({}));
+    render(<DefaultsCard />);
+    const box = await screen.findByLabelText("Start new activities with a concept map");
+    // Unset reads as ON — the control exists to turn the default OFF, which is
+    // what makes it a default rather than an opt-in nobody finds.
+    expect(box).toBeChecked();
+
+    mockFetch.mockClear();
+    mockFetch.mockResolvedValue(ok({ defaultConceptMap: false }));
+    fireEvent.click(box);
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/proxy/api/teacher/prefs",
+        expect.objectContaining({ method: "PUT", body: JSON.stringify({ defaultConceptMap: false }) }),
+      );
+    });
+  });
+
   it("shows the designed beta empty state when no flag is in 'beta' (dev)", async () => {
     mockFetch.mockResolvedValue(ok({}));
     render(<DefaultsCard />);

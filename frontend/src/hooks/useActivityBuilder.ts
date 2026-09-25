@@ -456,7 +456,13 @@ export function useActivityBuilder(): ActivityBuilder {
     writing.length +
     (solution ? 1 : 0) +
     (document ? 1 : 0) +
-    (conceptMap ? 1 : 0);
+    // CONCEPT-2 M3 — counted only once a concept carries a LABEL, not merely
+    // because the section is present. A new activity now opens with an empty
+    // map by default, and a badge saying the workspace has an element the
+    // student will never see would be the count lying. This matches what is
+    // actually saved: `conceptMapDefs` drops a map whose nodes are unlabelled,
+    // so counting one was already wrong for a half-filled map.
+    (conceptMap?.nodes.some((n) => n.label.trim()) ? 1 : 0);
 
   return useMemo(
     () => ({

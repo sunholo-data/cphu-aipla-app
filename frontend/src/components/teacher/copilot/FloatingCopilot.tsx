@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, Sparkles, SquarePen, X } from "lucide-react";
 
 import { useCopilotEntry } from "./CopilotEntryContext";
@@ -21,6 +21,7 @@ export function FloatingCopilot({
   minimizeLabel = "Minimize",
   onClose,
   align = "right",
+  onAsk,
   children,
 }: {
   title: string;
@@ -36,6 +37,10 @@ export function FloatingCopilot({
   /** Which corner the panel sits in. Default right (the work co-pilots); the
    *  help co-pilot uses "left" so it never collides with them. */
   align?: "left" | "right";
+  /** CONCEPT-2 M3 — a surface button asked this copilot something (via
+   *  `useCopilotEntry().ask`). The panel opens and hands the text on; the
+   *  chat sends it as a turn. */
+  onAsk?: (text: string) => void;
   children: ReactNode;
 }) {
   // START MINIMISED (2026-09-11, M's standing request for every co-pilot).
@@ -62,9 +67,20 @@ export function FloatingCopilot({
   // changes on every registration, and depending on it would re-register in a
   // loop (register → value changes → cleanup → register → …).
   const register = entry?.register;
+  // `onAsk` rides in a ref so a new callback identity does not re-register the
+  // copilot on every parent render — the same reason `register` is the stable
+  // dependency here rather than the context value.
+  const askRef = useRef(onAsk);
+  askRef.current = onAsk;
   useEffect(() => {
     if (!register || closable) return;
-    return register({ title, open: () => setMinimized(false) });
+    return register({
+      title,
+      open: (prefill?: string) => {
+        setMinimized(false);
+        if (prefill) askRef.current?.(prefill);
+      },
+    });
   }, [register, closable, title]);
   return (
     <>
