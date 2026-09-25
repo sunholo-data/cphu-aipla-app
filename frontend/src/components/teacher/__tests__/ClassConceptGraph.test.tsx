@@ -28,6 +28,7 @@ const ROLLUP = {
       byGroup: { "grp-a": "demonstrated", "grp-b": "not_yet", "grp-c": "partial" },
       counts: { demonstrated: 1, partial: 1, not_yet: 1 },
       activityIds: ["act-1"],
+      flags: [{ groupId: "grp-b", kind: "provenance" }],
     },
     {
       concept: "Projektil",
@@ -35,6 +36,7 @@ const ROLLUP = {
       byGroup: { "grp-a": "partial" },
       counts: { demonstrated: 0, partial: 1, not_yet: 0 },
       activityIds: ["act-1", "act-2"],
+      flags: [],
     },
   ],
 };
@@ -88,6 +90,42 @@ describe("ClassConceptGraph", () => {
     // grp-d has no record — named, and named as absent rather than as failing.
     expect(detail).toHaveTextContent("grp-d");
     expect(detail).toHaveTextContent("har ikke mødt begrebet");
+  });
+
+  it("flags a conflict inside one group, and flags nothing for groups that merely differ", async () => {
+    mockFetch.mockResolvedValue(ok(ROLLUP));
+    render(<ClassConceptGraph classId="cls-1" />);
+    await screen.findByTestId("class-concept-graph");
+    await userEvent.click(screen.getByTestId("concept-node-vektorer"));
+
+    // grp-b's own evidence disagrees with itself — that is a conflict.
+    expect(await screen.findByTestId("flag-grp-b-provenance")).toBeInTheDocument();
+    // grp-a and grp-c hold different statuses from each other, which is the
+    // class's SHAPE and must never be dressed up as a problem.
+    expect(screen.queryByTestId("flag-grp-a-provenance")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("flag-grp-c-provenance")).not.toBeInTheDocument();
+  });
+
+  it("records the teacher's own read for one group and re-reads the store", async () => {
+    mockFetch.mockResolvedValue(ok(ROLLUP));
+    render(<ClassConceptGraph classId="cls-1" />);
+    await screen.findByTestId("class-concept-graph");
+    await userEvent.click(screen.getByTestId("concept-node-vektorer"));
+
+    mockFetch.mockClear();
+    mockFetch.mockResolvedValue(ok(ROLLUP));
+    await userEvent.click(screen.getByLabelText("Sæt Vektorer til forstået for grp-b"));
+
+    const [url, init] = mockFetch.mock.calls[0];
+    expect(url).toBe("/api/proxy/api/classes/cls-1/concept-override");
+    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+      concept: "Vektorer",
+      groupId: "grp-b",
+      status: "demonstrated",
+    });
+    // The server writes to every activity that maps the concept, so the panel
+    // must re-read rather than patch its own guess in.
+    await waitFor(() => expect(mockFetch.mock.calls.length).toBeGreaterThan(1));
   });
 
   it("shows a designed empty state before any group has been checked off", async () => {

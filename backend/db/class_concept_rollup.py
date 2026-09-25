@@ -130,6 +130,7 @@ def class_concept_distribution(class_id: str) -> dict[str, Any]:
              "counts": {"demonstrated": 3, "partial": 2, "not_yet": 0},
              "activityIds": [...],           # every activity that mapped it
              "key": "vektorer",              # the normalised join key (what edges name)
+             "flags": [{"groupId": ..., "kind": "provenance"|"regressed"}],
              "nodeIds": [...]},              # its id in each of those
             ...
           ],
@@ -170,13 +171,14 @@ def class_concept_distribution(class_id: str) -> dict[str, Any]:
             key = normalise_concept(label)
             entry = by_concept.setdefault(
                 key,
-                {"concept": label, "key": key, "byGroup": {}, "activityIds": [], "nodeIds": []},
+                {"concept": label, "key": key, "byGroup": {}, "activityIds": [], "nodeIds": [], "_records": {}},
             )
             if activity_id not in entry["activityIds"]:
                 entry["activityIds"].append(activity_id)
             if node_id not in entry["nodeIds"]:
                 entry["nodeIds"].append(node_id)
             entry["byGroup"][group_id] = _stronger(entry["byGroup"].get(group_id), state.get("status"))
+            entry["_records"].setdefault(group_id, []).extend(state.get("evidence", []))
 
     concepts = []
     for entry in by_concept.values():
@@ -184,6 +186,11 @@ def class_concept_distribution(class_id: str) -> dict[str, Any]:
         for status in entry["byGroup"].values():
             counts[status] += 1
         entry["counts"] = {s: counts.get(s, 0) for s in STATUSES}
+        entry["flags"] = [
+            {"groupId": gid, "kind": kind}
+            for gid, records in sorted(entry.pop("_records").items())
+            for kind in concept_flags(records)
+        ]
         concepts.append(entry)
     concepts.sort(key=lambda e: e["concept"].lower())
     known = {c["key"] for c in concepts}
@@ -197,6 +204,64 @@ def class_concept_distribution(class_id: str) -> dict[str, Any]:
         len(docs),
     )
     return {"classId": class_id, "groups": sorted(groups), "concepts": concepts, "edges": graph_edges}
+
+
+def targets_for_concept(cls: Any, concept_key: str) -> list[tuple[str, str]]:
+    """Every ``(activity_id, node_id)`` in this class that maps one concept.
+
+    A teacher's override is written to ALL of them, not one. The rollup takes a
+    group's BEST showing across the activities that teach a concept (``_stronger``),
+    so an override applied to a single activity while another still says
+    ``demonstrated`` would read as having done nothing — the teacher would press
+    the control and watch the node not move.
+    """
+    out: list[tuple[str, str]] = []
+    for activity_id in getattr(cls, "activity_ids", []) or []:
+        activity = get_activity(activity_id)
+        if activity is None or not activity.concept_map:
+            continue
+        for node in activity.concept_map[0].nodes:
+            if normalise_concept(node.label) == concept_key:
+                out.append((activity_id, node.id))
+    return out
+
+
+def concept_flags(records: list[dict[str, Any]]) -> list[str]:
+    """The genuine conflicts inside ONE group's evidence for one concept (M6).
+
+    Not disagreements BETWEEN groups — those are the class's shape, and the
+    whole point of the distribution. These are two readings that cannot both be
+    the current one, and a teacher should not have to find them among thirty
+    nodes:
+
+    * ``provenance`` — a passive mark and a deliberate checkpoint disagree.
+      Either the tutor read the room wrong, or the student has moved since.
+    * ``regressed`` — a later record is weaker than an earlier one. Forgetting,
+      or the same concept meaning something harder in a second activity.
+
+    Ordered by ``at`` first, because records arrive here merged across several
+    activities and a document's own order says nothing about the class's.
+    """
+    ordered = sorted(records, key=lambda r: str(r.get("at") or ""))
+    flags: list[str] = []
+    rank = {s: i for i, s in enumerate(STATUSES)}
+
+    latest: dict[str, str] = {}
+    for record in ordered:
+        kind, status = str(record.get("kind") or ""), str(record.get("status") or "")
+        if kind and status:
+            latest[kind] = status
+    if "observed" in latest and "checkpoint" in latest and latest["observed"] != latest["checkpoint"]:
+        flags.append("provenance")
+
+    best = -1
+    for record in ordered:
+        here = rank.get(str(record.get("status")), -1)
+        if here < best:
+            flags.append("regressed")
+            break
+        best = max(best, here)
+    return flags
 
 
 def _stronger(current: str | None, incoming: str | None) -> str:
@@ -217,6 +282,8 @@ def _stronger(current: str | None, incoming: str | None) -> str:
 __all__ = [
     "STATUSES",
     "class_concept_distribution",
+    "concept_flags",
     "normalise_concept",
     "suggest_activity_links",
+    "targets_for_concept",
 ]

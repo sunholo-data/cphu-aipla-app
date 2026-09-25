@@ -20,9 +20,14 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from auth import User, get_current_user
 from db.activities import get_activity, list_activities_by_owner, save_activity
-from db.class_concept_rollup import class_concept_distribution, suggest_activity_links
+from db.class_concept_rollup import (
+    class_concept_distribution,
+    normalise_concept,
+    suggest_activity_links,
+    targets_for_concept,
+)
 from db.classes import get_class
-from db.concept_progress import get_node_states, states_from_stored
+from db.concept_progress import NodeStatus, get_node_states, record_concept_evidence, states_from_stored
 from db.firestore import query_documents
 from db.models.activity import ActivityLink
 
@@ -130,3 +135,63 @@ async def put_activity_links(
     saved = save_activity(activity.model_copy(update={"links": body.links}))
     log.info("concept-links: %s set %d link(s) on %s", user.uid, len(body.links), activity_id)
     return {"links": [link.model_dump(by_alias=True) for link in saved.links]}
+
+
+class ConceptOverride(BaseModel):
+    """A teacher's judgement about one group and one concept (CONCEPT-2 M6)."""
+
+    concept: str = Field(min_length=1, max_length=200)
+    group_id: str = Field(alias="groupId", min_length=1, max_length=64)
+    status: NodeStatus
+    note: str = Field(default="", max_length=200)
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+@class_router.put("/{class_id}/concept-override")
+async def put_concept_override(
+    class_id: str,
+    body: ConceptOverride,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """Record the teacher's own read of a concept for one group.
+
+    ``teacher_focus`` has told the tutor since CONCEPT-1 that *"this is the AI's
+    read — the teacher can override it"*. Until now nothing implemented that.
+
+    Written as ``kind="teacher"`` evidence, which outranks every AI record in
+    ``derive_status`` and is never overwritten by one; and written to EVERY
+    activity in the class that maps this concept, because the rollup takes a
+    group's best showing across them — an override applied to one activity while
+    another still said ``demonstrated`` would read as having done nothing.
+
+    Per-GROUP is the atom. A class-wide gesture is this call in a loop, not a
+    second concept. (Open question: if teachers reach for class-wide every time,
+    the default is wrong — that is an observation to make after it ships, not a
+    guess to build on.)
+    """
+    cls = get_class(class_id)
+    if cls is None or cls.owner_uid != user.uid:
+        raise HTTPException(status_code=404, detail="class not found")
+    if body.group_id not in cls.group_codes:
+        raise HTTPException(status_code=400, detail="group is not in this class")
+
+    key = normalise_concept(body.concept)
+    targets = targets_for_concept(cls, key)
+    if not targets:
+        raise HTTPException(status_code=400, detail=f"no activity in this class maps {body.concept!r}")
+
+    summary = body.note.strip() or f"Læreren har vurderet dette som {body.status}."
+    for activity_id, node_id in targets:
+        record_concept_evidence(
+            body.group_id, activity_id, node_id, body.status, summary, kind="teacher", class_id=class_id
+        )
+    log.info(
+        "concept-override: %s set %s=%s for group=%s across %d activity/activities",
+        user.uid,
+        key,
+        body.status,
+        body.group_id,
+        len(targets),
+    )
+    return {"concept": key, "groupId": body.group_id, "status": body.status, "activities": len(targets)}

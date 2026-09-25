@@ -258,7 +258,12 @@ def checkpoint_state_summary(cfg: ActivityConfig | None, user: User) -> str:
         if not status:
             continue
         when = short_date(s.get("updatedAt"))
-        lines.append(f'- "{labels.get(node.id, node.id)}": {status}{when}')
+        # CONCEPT-2 M6 — whose read this is. A teacher's record outranks every
+        # AI one in the store; the tutor has to know that, or it will treat the
+        # teacher's judgement as its own and re-test what a human has settled.
+        by_teacher = any(r.get("kind") == "teacher" for r in s.get("evidence", []))
+        source = " (the TEACHER's judgement, not yours)" if by_teacher else ""
+        lines.append(f'- "{labels.get(node.id, node.id)}": {status}{when}{source}')
 
     if not lines:
         return ""
@@ -267,7 +272,14 @@ def checkpoint_state_summary(cfg: ActivityConfig | None, user: User) -> str:
     if dropped:
         kept.append(f"(+{dropped} more concepts)")
 
-    return "## Concept checkpoints already recorded for this group\n" + "\n".join(kept)
+    block = "## Concept checkpoints already recorded for this group\n" + "\n".join(kept)
+    if any("TEACHER's judgement" in line for line in kept):
+        block += (
+            "\nA concept marked as the teacher's judgement is settled: do not re-test it and do not "
+            "contradict it. If the student's work in front of you disagrees, say what you are seeing "
+            "rather than changing the mark — that is the teacher's to change."
+        )
+    return block
 
 
 __all__ = ["CHECKPOINT_SUMMARY_CAP", "build_checkpoint_tools", "checkpoint_state_summary"]

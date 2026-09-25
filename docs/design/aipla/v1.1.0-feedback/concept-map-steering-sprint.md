@@ -366,7 +366,7 @@ What remains open, and does **not** block any milestone:
       distribution and **no test anywhere asserts a union**.
 - [x] **M5:** a teacher sees one graph for the class spanning every mapped activity it has run, with each
       node showing how its groups are spread rather than one averaged colour.
-- [ ] **M6:** a teacher override outranks every AI record, survives later AI marks, is stated to the
+- [x] **M6:** a teacher override outranks every AI record, survives later AI marks, is stated to the
       tutor, and the two conflict classes are flagged rather than hunted for.
 - [ ] **M7:** a teacher sees candidate group pairings naming the concept each would exchange, with no
       ranking and no student-facing surface.

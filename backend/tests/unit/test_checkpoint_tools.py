@@ -229,6 +229,26 @@ def test_the_focus_block_is_unchanged_for_a_map_with_no_definitions_of_done():
     assert "done when:" not in focus
 
 
+def test_the_tutor_is_told_which_marks_are_the_teachers_and_not_to_re_test_them():
+    """CONCEPT-2 M6. A teacher record outranks every AI one in the store; if the
+    tutor is not told, it treats the teacher's judgement as its own and
+    re-tests what a human has settled."""
+    from db.concept_progress import record_concept_evidence
+
+    record_concept_evidence(GROUP, "act-1", "vektorer", "partial", "set det i timen", kind="teacher")
+    summary = checkpoint_state_summary(_cfg(), _student())
+    assert "the TEACHER's judgement, not yours" in summary
+    assert "do not re-test it" in summary
+
+
+def test_an_ai_only_record_carries_no_teacher_marker_or_contract():
+    """The marker has to MEAN something. A block that said it about every mark
+    would train the tutor to ignore it."""
+    record_checkpoint_state(GROUP, "act-1", "vektorer", "demonstrated", "ok")
+    summary = checkpoint_state_summary(_cfg(), _student())
+    assert "TEACHER" not in summary and "re-test" not in summary
+
+
 def test_compose_teacher_focus_includes_the_map_and_the_contract():
     from adk.teacher_focus import compose_teacher_focus
 

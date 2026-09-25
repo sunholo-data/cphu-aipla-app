@@ -205,6 +205,44 @@ def test_an_unbound_group_lands_in_no_class_rollup():
     assert class_concept_distribution(CLASS)["concepts"] == []
 
 
+# --- conflicts (M6) --------------------------------------------------------
+
+
+def test_a_passive_mark_disagreeing_with_a_checkpoint_is_flagged():
+    _activity("act-1", ("v", "Vektorer"))
+    _mark("grp-a", "act-1", "v", "partial")
+    _mark("grp-a", "act-1", "v", "demonstrated", kind="observed")
+    assert class_concept_distribution(CLASS)["concepts"][0]["flags"] == [{"groupId": "grp-a", "kind": "provenance"}]
+
+
+def test_a_status_that_went_backwards_is_flagged():
+    """Forgetting, or the same concept meaning something harder in a second
+    activity. Either way it is the teacher's to look at, not ours to resolve."""
+    _activity("act-1", ("v", "Vektorer"))
+    _mark("grp-a", "act-1", "v", "demonstrated")
+    _mark("grp-a", "act-1", "v", "partial")
+    assert [f["kind"] for f in class_concept_distribution(CLASS)["concepts"][0]["flags"]] == ["regressed"]
+
+
+def test_two_groups_simply_disagreeing_is_not_a_conflict():
+    """THE distinction. Groups differing IS the class's shape and the reason the
+    distribution exists; flagging it would bury the two real conflicts under
+    one per concept per class."""
+    _activity("act-1", ("v", "Vektorer"))
+    _mark("grp-a", "act-1", "v", "demonstrated")
+    _mark("grp-b", "act-1", "v", "not_yet")
+    assert class_concept_distribution(CLASS)["concepts"][0]["flags"] == []
+
+
+def test_a_teacher_record_agreeing_with_nobody_is_not_flagged_as_a_conflict():
+    """An override is the resolution, not a conflict — flagging it would put a
+    warning on every concept a teacher had just settled."""
+    _activity("act-1", ("v", "Vektorer"))
+    _mark("grp-a", "act-1", "v", "demonstrated")
+    _mark("grp-a", "act-1", "v", "not_yet", kind="teacher")
+    assert [f["kind"] for f in class_concept_distribution(CLASS)["concepts"][0]["flags"]] == ["regressed"]
+
+
 # --- activity links --------------------------------------------------------
 
 
