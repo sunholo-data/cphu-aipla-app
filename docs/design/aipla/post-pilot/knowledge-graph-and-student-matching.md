@@ -4,6 +4,13 @@
 **Last Updated:** 2026-06-30
 **Origin:** Excitement at the **29 June** research session ([../v1.1.0-feedback/june-29-feedback.md](../v1.1.0-feedback/june-29-feedback.md)) — "the AI helps build a network graph of required topics, helps build it, monitors what students learn, and we record it over time" + "match students by what their group-IDs look like — who'd most benefit from meeting in person." Extends the **23 June** C3 thread ("standard map of knowledge; AI generates the learning map / a student model").
 **Strand:** **C** (research instrumentation + student models). This doc is the *execution sketch*; the model choice, validity, and research questions are Strand C in [`strands.qmd`](https://aipla.ku.dk/project/workstreams) + [`evaluation.qmd`](https://aipla.ku.dk/project/evaluation).
+> **Update 2026-09-25.** **Capability 3's teacher-facing slice — *"matching within their groups"*, the
+> one this doc already scopes at the bottom — was built** in [CONCEPT-2](../v1.1.0-feedback/concept-map-steering-sprint.md)
+> M7, at CLASS scope. It turned out to need only today's data rather than a year of it: a group's
+> frontier and demonstrated set come from the existing concept store, so the pairing is a read. Capability
+> 2-proper (a longitudinal per-group mastery vector), cross-CLASS matching, and the researcher-first
+> surface all remain Year-2 and are untouched by that.
+
 **Gated on:** pilot data flowing (chat-log pipeline + DRA tagging producing longitudinal signal); JB/AR Strand-C scoping of the knowledge model; the analytics rubric ([session-analytics-rubric.md](session-analytics-rubric.md), 2.5) + DRA framework ([1.K dra-activity-framework](../v1.0.0-pilot/dra-activity-framework.md)). **Not before the pilot.**
 
 > **Why this doc exists.** The 29-June idea is genuinely three capabilities riding one substrate (a per-group **student model**). Capturing the architecture now keeps the v1 pilot choices (what we log, how the DRA tags map to concepts, the group-ID keying) from painting Year-2 into a corner — the same "design now so we don't foreclose it" rationale as the live-dashboard R1 gate. **It is a vision + architecture sketch, not a build spec**; nothing here is committed, and the breadth-over-depth steer says we do NOT build this during the contract unless the pilot demands it. The research *why* (which knowledge model, does matching help, social-network evolution) is **Strand C** and stays in the scoping site.

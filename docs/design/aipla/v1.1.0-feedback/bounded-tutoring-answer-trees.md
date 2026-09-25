@@ -1,6 +1,16 @@
 # Bounded tutoring — the concept map steers, the answer tree navigates
 
-**Status**: **Design (OPEN)** — **1.1.90**. Decision **D2 taken 2026-09-02**: answer trees are teacher-authored, AI-navigated
+**Status**: **M0 SHIPPED 2026-09-25** by [CONCEPT-2](concept-map-steering-sprint.md); M1–M5 still OPEN — **1.1.90**. Decision **D2 taken 2026-09-02**: answer trees are teacher-authored, AI-navigated
+
+> ⚠️ **Correction, 2026-09-25 — the table below was stale when it was written.**
+> It says the tutor *"is not told the map exists on an ordinary turn"*. It is:
+> `adk/teacher_focus.py` composes the map's nodes, prerequisite edges and the
+> checkpoint contract (CONCEPT-1 M3, commit `6e100a3b`), and
+> `adk/progress_context.py` composes the group's **live node statuses every
+> turn** — `create_agent_with_thinking` runs per request, so what reads like a
+> build-time block is a per-turn block. The real gap was narrower: **no
+> boundary, no frontier, no stop condition.** M0 was therefore ~0.5d, not ~1d,
+> and shipped as `adk/concept_steering.py`.
 **Priority**: **P1** — the most-repeated theme of the 2026-09-01 meeting, and the first item that treats *tutor tangents* as a design problem rather than a prompt-tuning one
 **Estimated**: ~5–7d phased (M0 map-bounded context ~1d · M1 question budget ~0.75d · M2 answer-tree schema + authoring ~2d · M3 navigation at runtime ~1.5d · M4 conditional retrieval ~1d · M5 co-pilot drafting ~0.75d)
 **Scope**: Fullstack — `ActivityConfig` gains an answer-tree structure; `adk/` gains a navigator and a bounding preamble; the activity builder gains a tree editor; the authoring co-pilot gains a drafting tool

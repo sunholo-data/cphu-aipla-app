@@ -279,7 +279,7 @@ capability 3's teacher-facing slice: *"group A has what group B is stuck on"*.
 - ADR-001-safe by construction: group-level throughout, no individual targeting. The teacher already
   knows who is in which group - that is their class, not a re-identification.
 
-## Doc amendments that ship with the sprint (~0.25d)
+## Doc amendments that ship with the sprint (~0.25d) — **all done 2026-09-25**
 
 1. **[1.1.90](bounded-tutoring-answer-trees.md)** - correct the "what already exists" table (the tutor
    IS told the map exists, and does get live statuses); restate the gap as boundary + frontier + stop

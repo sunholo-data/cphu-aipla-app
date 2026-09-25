@@ -1,6 +1,20 @@
 # Class-level concept graph — aggregating across activities and the year, and linking activities together
 
-**Status:** Design (OPEN) — **1.1.121**
+**Status:** **SHIPPED 2026-09-25** by [CONCEPT-2](concept-map-steering-sprint.md) (M0/M1/M2a), **with M0's union replaced by a distribution** — **1.1.121**
+
+> ⚠️ **Three corrections this doc needed, all found in the code or from M:**
+>
+> 1. **The union is out.** M, 2026-09-25: *"the class level may disagree with group level mastery, and
+>    indeed we want to help link groups that are mastering different trees."* A union destroys exactly
+>    that. Class level is a **derived distribution** over the class's groups; the per-(group, concept)
+>    record stays the only stored truth. See `db/class_concept_rollup.py`.
+> 2. **There is no `class_id` on `concept_progress`.** It is keyed `{group_id}:{activity_id}`. Writes
+>    now stamp it from the signed group tag — never derived from the class's *current* codes, because
+>    revoking one would erase that group's year from the aggregate. Existing rows are stamped by
+>    `scripts/backfill_concept_progress_class_id.py`.
+> 3. **Activities do not share node ids.** Template copies do — 55 of the 56 maps on prod came from
+>    three templates, so a test built only on those passes against the bug — but two independently
+>    authored maps never will. Concepts join on a **normalised label**.
 **Priority:** **P2** — high conceptual value, directly requested twice in one meeting; not pilot-blocking, but the earlier the aggregation key is fixed the less any future migration costs
 **Estimated:** ~4–6d phased (M0 aggregation store + activity-linking edges ~1.5–2d · M1 class-level graph view (teacher) ~1.5d · M2 co-pilot/proposal-assisted generation across activities ~1–1.5d · M3 eval/calibration ~1d — **not estimated with confidence; M2's scope depends on the open question below**)
 **Scope:** Backend — a `class_id`-keyed aggregation over the existing per-activity `conceptMap` + `concept_progress` stores, plus an `edges` layer that links **activities** to each other via shared/prerequisite concepts. Frontend — a class-level graph view (teacher/researcher), and an "activities that connect here" affordance on the activity builder. No change to ADR-001, no consent change, no new identity mechanism.
