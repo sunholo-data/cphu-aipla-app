@@ -275,3 +275,16 @@ def test_the_rollup_flags_a_provenance_disagreement_for_the_teacher():
 
     body = _client(User(uid="t-1", is_teacher=True)).get("/api/classes/cls-1/concept-rollup").json()
     assert body["concepts"][0]["flags"] == [{"groupId": "grp-a", "kind": "provenance"}]
+
+
+def test_group_pairings_are_owner_only():
+    """Teacher-facing by construction: there is no student route to this, and
+    the same data arranged as "how far ahead is each group" is a leaderboard."""
+    aid = _class_with_activity()
+    record_checkpoint_state("grp-a", aid, "n1", "demonstrated", "x", class_id="cls-1")
+
+    ok = _client(User(uid="t-1", is_teacher=True)).get("/api/classes/cls-1/group-pairings")
+    assert ok.status_code == 200 and "pairs" in ok.json()
+    assert _client(User(uid="t-other", is_teacher=True)).get("/api/classes/cls-1/group-pairings").status_code == 404
+    # a student carries a group claim, never a teacher uid — 404, not a peek
+    assert _client(_student()).get("/api/classes/cls-1/group-pairings").status_code == 404

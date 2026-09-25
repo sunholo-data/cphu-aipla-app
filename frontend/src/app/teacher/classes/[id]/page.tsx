@@ -37,6 +37,7 @@ import { ClassDetailsPanel } from "@/components/teacher/ClassDetailsPanel";
 import { ClassVoiceSettingsPanel } from "@/components/teacher/ClassVoiceSettingsPanel";
 import { TutorPicker } from "@/components/teacher/TutorPicker";
 import { ClassConceptGraph } from "@/components/teacher/ClassConceptGraph";
+import { ClassGroupPairings } from "@/components/teacher/ClassGroupPairings";
 import { SettingsSection } from "@/components/teacher/ui/SettingsSection";
 import { SettingsMap } from "@/components/teacher/SettingsMap";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
@@ -712,6 +713,18 @@ export default function TeacherClassDetailPage() {
         defaultOpen={false}
       >
         <ClassConceptGraph classId={cls.classId} />
+      </SettingsSection>
+
+      {/* CONCEPT-2 M7 — the payoff of not flattening the class into an average
+          at M4: a class average has no pairings in it. Suggestions for who
+          could talk to whom, never a standing. */}
+      <SettingsSection
+        title="Grupper der kan hjælpe hinanden"
+        description="Forslag til hvem der kunne tale sammen, ud fra hvad grupperne har vist."
+        collapsible
+        defaultOpen={false}
+      >
+        <ClassGroupPairings classId={cls.classId} />
       </SettingsSection>
 
       <div

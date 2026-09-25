@@ -22,6 +22,7 @@ from auth import User, get_current_user
 from db.activities import get_activity, list_activities_by_owner, save_activity
 from db.class_concept_rollup import (
     class_concept_distribution,
+    complementary_pairs,
     normalise_concept,
     suggest_activity_links,
     targets_for_concept,
@@ -195,3 +196,21 @@ async def put_concept_override(
         len(targets),
     )
     return {"concept": key, "groupId": body.group_id, "status": body.status, "activities": len(targets)}
+
+
+@class_router.get("/{class_id}/group-pairings")
+async def get_group_pairings(
+    class_id: str,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """Groups in this class that would have something to give each other (M7).
+
+    Owner-only, and teacher-facing by construction: there is no student route to
+    this and it reports no score. See ``complementary_pairs`` for why that
+    matters — the same data arranged as "how far ahead is each group" is a
+    leaderboard a class can read off a teacher's screen.
+    """
+    cls = get_class(class_id)
+    if cls is None or cls.owner_uid != user.uid:
+        raise HTTPException(status_code=404, detail="class not found")
+    return complementary_pairs(class_id)

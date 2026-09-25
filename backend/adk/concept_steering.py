@@ -46,6 +46,7 @@ import logging
 
 from adk.prompt_budget import fit_lines
 from auth.firebase_auth import User
+from db.class_concept_rollup import frontier_nodes
 from db.concept_progress import get_node_states
 from db.models.activity_config import ActivityConfig, ConceptMapElement
 
@@ -77,22 +78,21 @@ _BOUNDARY = (
 
 
 def _frontier(cmap: ConceptMapElement, states: dict[str, dict]) -> list[str]:
-    """Node ids whose prerequisites are all demonstrated and which are not.
+    """This activity's frontier for this group.
 
-    With nothing recorded this returns the DAG's roots, which is the right
-    answer for turn one and needs no special case: a root has no prerequisites,
-    so "all of them are demonstrated" is vacuously true.
-
-    A node that is ``partial`` is not demonstrated, so it stays ON the frontier —
-    half-understood is exactly where the tutor should still be working. A node
-    whose prerequisite is only ``partial`` is NOT on it.
+    The graph rule itself lives in ``db.class_concept_rollup.frontier_nodes``
+    and is shared with the class-level pairing (CONCEPT-2 M7), which asks the
+    same question — what is this group ready for — across every activity a class
+    has run. Two implementations that could drift apart is the split this repo
+    keeps paying for; this function is the per-activity adapter and nothing
+    more.
     """
     done = {node_id for node_id, s in states.items() if (s or {}).get("status") == _DEMONSTRATED}
-    prereqs: dict[str, list[str]] = {n.id: [] for n in cmap.nodes}
-    for edge in cmap.edges:
-        if edge.to in prereqs:
-            prereqs[edge.to].append(edge.from_)
-    return [n.id for n in cmap.nodes if n.id not in done and all(p in done for p in prereqs[n.id])]
+    return frontier_nodes(
+        [n.id for n in cmap.nodes],
+        [(e.from_, e.to) for e in cmap.edges],
+        done,
+    )
 
 
 def build_concept_steering_block(cfg: ActivityConfig | None, user: User) -> str:

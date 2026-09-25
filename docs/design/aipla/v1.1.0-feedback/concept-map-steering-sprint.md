@@ -267,7 +267,9 @@ override it"*. **Nothing implements that.** M6 makes the promise true:
 The second half of the refinement, and [2.9](../post-pilot/knowledge-graph-and-student-matching.md)
 capability 3's teacher-facing slice: *"group A has what group B is stuck on"*.
 
-- **It reuses M0's frontier function**, which is the reason this is under a day. For each group in the
+- **It reuses M0's frontier function** — literally, not by analogy: the graph rule moved to
+  `db.class_concept_rollup.frontier_nodes` and `adk.concept_steering` became its per-activity adapter,
+  with M0's 17 tests green against the shared implementation. That is the reason this is under a day. For each group in the
   class: the frontier (what it is ready for) and the demonstrated set (what it has). A pair is
   complementary when one group's demonstrated set covers the other's frontier - strongest when it runs
   both ways on different concepts, which is a genuine exchange rather than tutoring.
@@ -368,5 +370,5 @@ What remains open, and does **not** block any milestone:
       node showing how its groups are spread rather than one averaged colour.
 - [x] **M6:** a teacher override outranks every AI record, survives later AI marks, is stated to the
       tutor, and the two conflict classes are flagged rather than hunted for.
-- [ ] **M7:** a teacher sees candidate group pairings naming the concept each would exchange, with no
+- [x] **M7:** a teacher sees candidate group pairings naming the concept each would exchange, with no
       ranking and no student-facing surface.

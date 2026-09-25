@@ -47,6 +47,31 @@ logger = logging.getLogger(__name__)
 STATUSES = ("not_yet", "partial", "demonstrated")
 
 
+def frontier_nodes(
+    node_ids: list[str],
+    edges: list[tuple[str, str]],
+    demonstrated: set[str],
+) -> list[str]:
+    """Nodes not demonstrated whose prerequisites all are — the "what's next".
+
+    ONE definition, used twice: by the tutor's steering block for one group in
+    one activity (``adk.concept_steering``), and by the class-level pairing
+    below across every activity a class has run. Two implementations of "what is
+    this group ready for" that could drift apart is the kind of split this repo
+    keeps paying for.
+
+    With nothing demonstrated this returns the roots, which needs no special
+    case: a root has no prerequisites, so "all of them are demonstrated" is
+    vacuously true. A ``partial`` node is not demonstrated, so it stays ON the
+    frontier — half-understood is exactly where the work still is.
+    """
+    prereqs: dict[str, list[str]] = {node_id: [] for node_id in node_ids}
+    for src, dst in edges:
+        if dst in prereqs:
+            prereqs[dst].append(src)
+    return [n for n in node_ids if n not in demonstrated and all(p in demonstrated for p in prereqs[n])]
+
+
 def normalise_concept(label: str) -> str:
     """The join key: case-folded, whitespace-collapsed. Nothing cleverer."""
     return " ".join(label.lower().split())
@@ -282,8 +307,75 @@ def _stronger(current: str | None, incoming: str | None) -> str:
 __all__ = [
     "STATUSES",
     "class_concept_distribution",
+    "complementary_pairs",
     "concept_flags",
+    "frontier_nodes",
     "normalise_concept",
     "suggest_activity_links",
     "targets_for_concept",
 ]
+
+
+def complementary_pairs(class_id: str) -> dict[str, Any]:
+    """Which groups in this class would have something to give each other (M7).
+
+    *"We want to help link groups that are mastering different trees of the
+    class levels"* (M, 2026-09-25). This is [2.9]'s capability 3 at class scope,
+    and it is cheap only because the class rollup and ``frontier_nodes`` already
+    exist: for each group, what it has DEMONSTRATED and what it is READY FOR;
+    a pair is complementary when one group's demonstrated set covers something
+    on the other's frontier.
+
+    Mutual pairs — each has something for the other, on different concepts — are
+    listed first, because that is an exchange rather than one group tutoring
+    another, and it is the shape a teacher can act on without singling anyone
+    out.
+
+    ⚠️ **This must never become a ranking.** It names the CONCEPT a pair would
+    exchange and no score, it is teacher-facing only, and nothing here reports
+    how far ahead any group is. "Which groups are ahead" is one careless change
+    from "which groups are behind", and a class can read that off a teacher's
+    screen.
+    """
+    rollup = class_concept_distribution(class_id)
+    concepts = rollup["concepts"]
+    if not concepts:
+        return {"classId": class_id, "pairs": []}
+
+    keys = [c["key"] for c in concepts]
+    label_of = {c["key"]: c["concept"] for c in concepts}
+    edges = [(e["from"], e["to"]) for e in rollup["edges"]]
+
+    demonstrated: dict[str, set[str]] = {}
+    for concept in concepts:
+        for group_id, status in concept["byGroup"].items():
+            if status == "demonstrated":
+                demonstrated.setdefault(group_id, set()).add(concept["key"])
+    for group_id in rollup["groups"]:
+        demonstrated.setdefault(group_id, set())
+
+    frontier = {g: set(frontier_nodes(keys, edges, have)) for g, have in demonstrated.items()}
+
+    pairs = []
+    ordered = sorted(demonstrated)
+    for i, a in enumerate(ordered):
+        for b in ordered[i + 1 :]:
+            a_gives = sorted(demonstrated[a] & frontier[b])
+            b_gives = sorted(demonstrated[b] & frontier[a])
+            if not a_gives and not b_gives:
+                continue
+            pairs.append(
+                {
+                    "groups": [a, b],
+                    "aGives": [label_of[k] for k in a_gives],
+                    "bGives": [label_of[k] for k in b_gives],
+                    "mutual": bool(a_gives and b_gives),
+                }
+            )
+
+    # Mutual first, then the larger exchange, then alphabetical so the list is
+    # stable between reads. Ordering PAIRS by the shape of the exchange is not
+    # ranking groups — nothing here says who is further on.
+    pairs.sort(key=lambda p: (not p["mutual"], -(len(p["aGives"]) + len(p["bGives"])), p["groups"]))
+    logger.info("class pairings: class=%s %d candidate pair(s)", class_id, len(pairs))
+    return {"classId": class_id, "pairs": pairs}

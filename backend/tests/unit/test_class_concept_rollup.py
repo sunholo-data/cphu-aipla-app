@@ -19,6 +19,7 @@ from db import firestore as fs_module
 from db.activities import create_activity
 from db.class_concept_rollup import (
     class_concept_distribution,
+    complementary_pairs,
     normalise_concept,
     suggest_activity_links,
 )
@@ -260,3 +261,82 @@ def test_link_suggestion_never_proposes_an_activity_against_itself_or_a_mapless_
     create_activity(Activity(activityId="act-bare", ownerUid="t-1"))
     assert suggest_activity_links("act-1", ["act-1", "act-bare", "act-missing"]) == []
     assert suggest_activity_links("act-bare", ["act-1"]) == []
+
+
+# --- complementary groups (M7) ---------------------------------------------
+
+
+def test_a_group_that_has_what_another_is_ready_for_is_a_candidate_pair():
+    """The ask: "help link groups that are mastering different trees"."""
+    _activity("act-1", ("v", "Vektorer"), ("t", "Trigonometri"), ("p", "Projektil"))
+    _link("act-1", "v", "p")
+    _link("act-1", "t", "p")
+    # A has vektorer; B has trigonometri. Each is ready for what the other has.
+    _mark("grp-a", "act-1", "v", "demonstrated")
+    _mark("grp-b", "act-1", "t", "demonstrated")
+
+    pairs = complementary_pairs(CLASS)["pairs"]
+    assert len(pairs) == 1
+    assert pairs[0]["groups"] == ["grp-a", "grp-b"]
+    assert pairs[0]["aGives"] == ["Vektorer"]
+    assert pairs[0]["bGives"] == ["Trigonometri"]
+    assert pairs[0]["mutual"] is True
+
+
+def test_a_one_way_pair_is_offered_but_not_as_a_mutual_one():
+    """One group tutoring another is worth knowing and is a different thing
+    from an exchange — the panel says which, rather than flattening them."""
+    _activity("act-1", ("v", "Vektorer"), ("t", "Trigonometri"))
+    _mark("grp-a", "act-1", "v", "demonstrated")
+    _mark("grp-b", "act-1", "v", "not_yet")
+
+    pairs = complementary_pairs(CLASS)["pairs"]
+    assert len(pairs) == 1 and pairs[0]["mutual"] is False
+    assert pairs[0]["aGives"] == ["Vektorer"] and pairs[0]["bGives"] == []
+
+
+def test_mutual_pairs_come_first():
+    _activity("act-1", ("v", "Vektorer"), ("t", "Trigonometri"), ("b", "Bølger"))
+    _mark("grp-a", "act-1", "v", "demonstrated")
+    _mark("grp-b", "act-1", "t", "demonstrated")
+    _mark("grp-c", "act-1", "b", "not_yet")
+    pairs = complementary_pairs(CLASS)["pairs"]
+    assert pairs[0]["mutual"] is True
+    assert all(not p["mutual"] for p in pairs[1:])
+
+
+def test_two_groups_at_the_same_place_are_not_paired():
+    """No exchange to offer. Pairing them anyway would fill the panel with
+    every pair in the class and say nothing."""
+    _activity("act-1", ("v", "Vektorer"))
+    _mark("grp-a", "act-1", "v", "demonstrated")
+    _mark("grp-b", "act-1", "v", "demonstrated")
+    assert complementary_pairs(CLASS)["pairs"] == []
+
+
+def test_a_concept_behind_an_undemonstrated_prerequisite_is_not_offered():
+    """The pairing is the FRONTIER, not "anything you have that they lack" —
+    handing a group a concept it is not ready for is not help."""
+    _activity("act-1", ("v", "Vektorer"), ("p", "Projektil"))
+    _link("act-1", "v", "p")
+    _mark("grp-a", "act-1", "v", "demonstrated")
+    _mark("grp-a", "act-1", "p", "demonstrated")
+    # B has neither, so only vektorer (a root) is on its frontier.
+    _mark("grp-b", "act-1", "v", "not_yet")
+    pairs = complementary_pairs(CLASS)["pairs"]
+    assert pairs[0]["aGives"] == ["Vektorer"]
+
+
+def test_no_pairing_reports_a_score_or_a_standing():
+    """The guard against this becoming a leaderboard. "Which groups are ahead"
+    is one careless change from "which groups are behind", and a class can read
+    that off a teacher's screen."""
+    _activity("act-1", ("v", "Vektorer"), ("t", "Trigonometri"))
+    _mark("grp-a", "act-1", "v", "demonstrated")
+    _mark("grp-b", "act-1", "t", "demonstrated")
+    pair = complementary_pairs(CLASS)["pairs"][0]
+    assert set(pair) == {"groups", "aGives", "bGives", "mutual"}
+
+
+def test_an_empty_class_pairs_nobody():
+    assert complementary_pairs("cls-empty") == {"classId": "cls-empty", "pairs": []}
