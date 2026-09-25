@@ -218,15 +218,22 @@ carries `groupId`/`activityId` only. Two halves, both needed:
 - **Stamp on write.** `record_checkpoint_state` (and `mark_concept`) resolve the class from the
   **verified** group tag (`class:<owner>:<id>`, the same source `resolve_active_config` uses - never a
   model-supplied value) and write `classId`.
-- **Backfill.** Trivial today - two documents - but scripted rather than hand-edited, because the same
-  script is what makes the rollup honest about history.
+- **Backfill.** `scripts/backfill_concept_progress_class_id.py`, idempotent, dry-run by default. It
+  resolves each document's group through `anon_groups/{group_id}.classId` — the binding the code was
+  minted with. Unstamped documents are **invisible** to the rollup until it runs, deliberately: a rollup
+  that quietly filled in what it could not read is the "checker answers when it could not read its
+  subject" failure this repo has shipped twice.
 - **Join key.** The doc assumes activities "share node ids". Template copies do; two independently
   authored maps will **not** - the same concept gets a different slug in each. So the rollup joins on a
   normalised concept **label**, or on an explicit `ActivityLink.via_concept_ids`, and never assumes id
   equality. This is the correction that keeps M5 from showing a class a graph of duplicated nodes.
-- **`ActivityLink`** (`from_activity_id`, `to_activity_id`, `via_concept_ids`, `kind:
-  "prerequisite"|"related"`) on the Activity, teacher-authored, with a cheap proposal: two activities
-  whose maps carry the same normalised label are a candidate link, no NLP required.
+- **`ActivityLink`** (`to_activity_id`, `via_concepts`, `kind: "prerequisite"|"related"`) on the
+  Activity — `from` is implicit in the document it lives on, so it cannot drift; and `via_concepts`
+  carries teacher **labels** rather than node ids, for the same reason the rollup joins on labels.
+  Teacher-authored, with a cheap proposal: two activities whose maps carry the same normalised label are
+  a candidate link, no NLP required. ⚠️ It gets its **own** `PUT /links` endpoint rather than a field on
+  `ActivityUpsert`: that body is a full replace, so a client that saved without rendering links would
+  silently clear them — the full-overwrite footgun this repo has already shipped.
 - **`get_class_concept_distribution(class_id)`** - per concept, the *distribution* of its groups'
   statuses plus the per-group detail, **not** a union. One read, no new store. The per-group records
   remain the only truth; this function is derivation and stays that way.
@@ -348,7 +355,7 @@ What remains open, and does **not** block any milestone:
       trust card, and is in `_CLIENT_RENDER_TOOLS` with the CI guard green.
 - [x] **M3:** a new activity offers a map by default; one click drafts one; the teacher can turn it off
       per activity and per account.
-- [ ] **M4:** checkpoints stamp `classId` (existing documents get it by the same read-migration route as M2, not a rewrite); the rollup joins
+- [x] **M4:** checkpoints stamp `classId` (existing documents are stamped by an idempotent script, since a QUERY cannot be read-migrated); the rollup joins
       on labels/links, not id equality; `get_class_concept_distribution` returns a per-group
       distribution and **no test anywhere asserts a union**.
 - [ ] **M5:** a teacher sees one graph for the class spanning every mapped activity it has run, with each

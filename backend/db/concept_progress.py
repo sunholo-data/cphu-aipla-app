@@ -8,7 +8,7 @@ no individual profiling; progress is group-level and formative).
 Shape::
 
     {
-      "groupId": ..., "activityId": ...,
+      "groupId": ..., "activityId": ..., "classId": ...,
       "nodeStates": {
         "<node_id>": {
           "evidence": [                       # append-only, oldest first
@@ -184,12 +184,21 @@ def record_concept_evidence(
     evidence_summary: str,
     *,
     kind: EvidenceKind = "checkpoint",
+    class_id: str = "",
 ) -> dict[str, dict[str, Any]]:
     """Append one evidence record and return the updated state map.
 
     Merge-write: other nodes are untouched, and this node's earlier records are
-    kept. The caller supplies ``group_id`` from the VERIFIED session identity —
-    it must never be a model-controlled parameter.
+    kept. The caller supplies ``group_id`` AND ``class_id`` from the VERIFIED
+    session identity (the signed ``class:<owner>:<id>`` group tag) — neither may
+    ever be a model-controlled parameter.
+
+    ``class_id`` (CONCEPT-2 M4) is what makes the class rollup ONE indexed query.
+    It is stamped rather than derived at read time on purpose: a revoked group
+    code is removed from its class, so deriving the class from the class's
+    CURRENT codes would erase that group's year from the aggregate the moment a
+    teacher tidied up. Empty for an unbound group (a workshop session), which
+    then simply does not appear in any class's rollup.
     """
     now = datetime.now(UTC).isoformat()
     doc = get_document(_COLLECTION, _doc_id(group_id, activity_id))
@@ -214,12 +223,15 @@ def record_concept_evidence(
     next_states = {nid: {"evidence": _records(st), "updatedAt": now} for nid, st in stored.items()}
     next_states[node_id] = {"evidence": records, "updatedAt": now}
 
-    set_document(
-        _COLLECTION,
-        _doc_id(group_id, activity_id),
-        {"groupId": group_id, "activityId": activity_id, "nodeStates": next_states, "updatedAt": now},
-        merge=True,
-    )
+    doc_fields: dict[str, Any] = {
+        "groupId": group_id,
+        "activityId": activity_id,
+        "nodeStates": next_states,
+        "updatedAt": now,
+    }
+    if class_id:
+        doc_fields["classId"] = class_id
+    set_document(_COLLECTION, _doc_id(group_id, activity_id), doc_fields, merge=True)
     return states_from_stored(next_states)
 
 
@@ -229,9 +241,29 @@ def record_checkpoint_state(
     node_id: str,
     status: NodeStatus,
     evidence_summary: str,
+    *,
+    class_id: str = "",
 ) -> dict[str, dict[str, Any]]:
     """Record a deliberate checkpoint outcome (``kind="checkpoint"``)."""
-    return record_concept_evidence(group_id, activity_id, node_id, status, evidence_summary, kind="checkpoint")
+    return record_concept_evidence(
+        group_id, activity_id, node_id, status, evidence_summary, kind="checkpoint", class_id=class_id
+    )
+
+
+def docs_for_class(class_id: str) -> list[dict[str, Any]]:
+    """Every ``concept_progress`` document stamped with this class (M4).
+
+    Documents written before the stamp existed carry no ``classId`` and are
+    invisible here until ``scripts/backfill_concept_progress_class_id.py`` runs.
+    That is deliberate: a rollup that silently guessed at unstamped history
+    would be the "checker answers when it could not read its subject" failure,
+    and the script is idempotent.
+    """
+    from db.firestore import query_documents
+
+    if not class_id:
+        return []
+    return query_documents(collection=_COLLECTION, filters=[("classId", "==", class_id)])
 
 
 def clear_progress_for_group(group_id: str, activity_id: str | None = None) -> int:
@@ -264,6 +296,7 @@ __all__ = [
     "NodeStatus",
     "clear_progress_for_group",
     "derive_status",
+    "docs_for_class",
     "get_node_states",
     "record_checkpoint_state",
     "record_concept_evidence",

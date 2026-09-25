@@ -26,6 +26,7 @@ from typing import Any
 from google.adk.tools import FunctionTool
 
 from adk.prompt_budget import fit_lines, short_date
+from adk.teacher_focus import class_id_from_group_tags
 from auth.firebase_auth import User
 from db.concept_progress import get_node_states, record_checkpoint_state, record_concept_evidence
 from db.models.activity_config import ActivityConfig, ConceptMapElement
@@ -57,6 +58,11 @@ def build_checkpoint_tools(cfg: ActivityConfig | None, user: User) -> list[Funct
     cmap = cfg.concept_map[0]
     group_id = user.group_id
     activity_id = cfg.activity_id
+    # CONCEPT-2 M4 — stamped on every write so the class rollup is one indexed
+    # query. From the SIGNED group tag, like every other identity here: never a
+    # tool parameter, and never derived from the class's current group codes
+    # (revoking a code would then erase that group's year from the aggregate).
+    class_id = class_id_from_group_tags(user.group_tags) or ""
 
     def run_checkpoint(node_id: str) -> dict[str, Any]:
         """Start a checkpoint on one concept: get its check questions to ask in chat.
@@ -137,7 +143,9 @@ def build_checkpoint_tools(cfg: ActivityConfig | None, user: User) -> list[Funct
         if node is None:
             return {"ok": False, "error": f"unknown node {node_id!r}", "nodes": _node_list(cmap)}
         status = "demonstrated" if passed else "partial"
-        states = record_checkpoint_state(group_id, activity_id, node_id, status, evidence_summary.strip())
+        states = record_checkpoint_state(
+            group_id, activity_id, node_id, status, evidence_summary.strip(), class_id=class_id
+        )
         logger.info(
             "checkpoint: %s -> %s for group=%s activity=%s",
             node_id,
@@ -193,7 +201,9 @@ def build_checkpoint_tools(cfg: ActivityConfig | None, user: User) -> list[Funct
         summary = evidence_summary.strip()
         if not summary:
             return {"ok": False, "error": "evidence_summary is required — say what the student did"}
-        states = record_concept_evidence(group_id, activity_id, node_id, status, summary, kind="observed")
+        states = record_concept_evidence(
+            group_id, activity_id, node_id, status, summary, kind="observed", class_id=class_id
+        )
         logger.info(
             "mark_concept: %s -> %s (observed) for group=%s activity=%s",
             node_id,

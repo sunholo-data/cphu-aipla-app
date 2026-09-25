@@ -63,6 +63,28 @@ def mint_activity_id() -> str:
     return f"{_ID_PREFIX}{secrets.token_hex(8)}"
 
 
+class ActivityLink(BaseModel):
+    """ "This activity builds on that one" — CONCEPT-2 M4.
+
+    Stored on the **from** activity, so ``from`` is implicit and cannot drift
+    from the document it lives in. ``via_concepts`` names the concepts the two
+    share, as the teacher's **labels** rather than node ids: ids are minted per
+    activity (``_concept_slug`` on the label, or ``node-<n>`` in the builder), so
+    two independently authored maps never share one even for the same concept.
+    That is the correction 1.1.121's "shares node ids" assumption needed, and
+    the rollup joins the same way.
+
+    Cheap to propose (``suggest_activity_links``) and cheap to be wrong about: a
+    link is navigation and provenance, not a gate on anything.
+    """
+
+    to_activity_id: str = Field(alias="toActivityId", max_length=128)
+    via_concepts: list[str] = Field(default_factory=list, alias="viaConcepts", max_length=20)
+    kind: Literal["prerequisite", "related"] = "prerequisite"
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 class Activity(BaseModel):
     """Firestore document at ``activities/{activity_id}``.
 
@@ -101,6 +123,10 @@ class Activity(BaseModel):
     document: list[DocumentElement] = Field(default_factory=list)
     concept_map: list[ConceptMapElement] = Field(default_factory=list, alias="conceptMap")
     materials: list[MaterialRef] = Field(default_factory=list)
+    # CONCEPT-2 M4 — "a way to help link classes and activities together (start
+    # with activities)". A class-level graph is downstream of activities being
+    # linked, not a second authoring surface.
+    links: list[ActivityLink] = Field(default_factory=list, max_length=50)
     # 1.1.61 — the teacher's OWN organising facets, sharing the document
     # vocabulary (db/models/taxonomy.py) so the two libraries compose.
     #
