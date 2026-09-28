@@ -1,0 +1,1354 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sekantbænk</title>
+<!--
+  sekant-intro — a coordinate bench for introductory differential calculus (stx A/B).
+  The apparatus is a plotted parabola on a grid; the instruments are the grid, a
+  coordinate probe and a slope triangle. The student measures coordinates and works
+  out slopes.
+
+  IT DELIBERATELY DOES NOT SHOW:
+    - any quotient dy/dx, for any line
+    - any derivative or tangent slope
+    - the word "tangent" anywhere in the interface
+  The bench reports dx and dy. The division is the exercise, and judging whether a
+  line fits the curve is the student's job.
+
+  The probe snaps x to the grid and reports y as the function's value there, so a
+  probed point always lies on the curve. The grid controls WHICH x values can be
+  measured, not how precisely y is reported; with the grid off, any x can be
+  measured.
+
+  The axes do not share a scale; one x-unit and one y-unit are different sizes on
+  screen. Visual steepness is therefore not comparable across the two axes.
+
+  DELIBERATE NON-FEATURE — PLEASE DO NOT "FIX" THIS:
+  The bench does NOT check whether the points typed into the secant fields lie on
+  a curve, and does not warn or refuse. A wrong y draws a line that visibly misses
+  the curve, and that is the feedback. Two reasons it has to stay that way:
+    - a milieu that prevents the error stops being a-didactical (Brousseau); the
+      milieu should return the consequence of the action, not forbid the action;
+    - "your y is wrong" is a CONCLUSION, and this bench is used in a study whose
+      whole manipulation is which tutor configuration withholds conclusions. A
+      validating bench would leak one arm's behaviour into all three, through the
+      interface, where the logs would not show it.
+-->
+<style>
+  :root {
+    --bg: #ffffff; --fg: #0f172a; --muted: #64748b; --border: #e2e8f0;
+    --accent: #2563eb; --accent-soft: #eff6ff;
+    --ok: #16a34a; --warn: #d97706; --bad: #dc2626;
+    --surface: #f8fafc;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; background: var(--bg); color: var(--fg);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-size: 14px; line-height: 1.45;
+  }
+  .wrap { padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+
+  .panel { border: 1px solid var(--border); border-radius: 6px; padding: 12px; background: var(--bg); }
+  .phead {
+    font-size: 11px; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--muted); margin: 0 0 8px 0; font-weight: 600;
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  }
+  .orient { color: var(--muted); font-size: 13px; margin: 0 0 2px 0; }
+
+  button {
+    font: inherit; font-size: 12px; padding: 6px 10px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--bg); color: var(--fg);
+    cursor: pointer;
+  }
+  button:hover:not(:disabled) { border-color: #cbd5e1; }
+  button:disabled { opacity: .5; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+
+  .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .stack { display: flex; flex-direction: column; gap: 10px; }
+  .sub { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+
+  .iconbtn { padding: 5px 8px; line-height: 1; }
+  .bars { display: inline-block; width: 14px; }
+  .bars span { display: block; height: 2px; background: var(--fg); border-radius: 1px; margin: 3px 0; }
+
+  canvas { display: block; width: 100%; height: 420px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); touch-action: none; cursor: grab; }
+  /* Three cursor states: crosshair over a curve (you can read a point there),
+     grab elsewhere (you can move the window), grabbing while dragging. The
+     dragging rule comes last so it wins when both classes are present. */
+  canvas.over-curve { cursor: crosshair; }
+  canvas.dragging { cursor: grabbing; }
+  @media (min-width: 720px) { canvas { height: 480px; } }
+
+  .readout {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 8px; text-align: right; font-size: 13px;
+  }
+  /* Variables set as LaTeX sets inline maths: italic serif. Numbers stay
+     monospace and tabular so columns line up. No maths renderer is possible
+     here — external resources are forbidden — so this is the typography. */
+  .wrap i, .mv { font-family: "Cambria Math", Cambria, Georgia, "Times New Roman", serif;
+                 font-style: italic; font-size: 1.05em; }
+  .n { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .toolnote { font-size: 12px; color: var(--muted); margin: 2px 0 8px 0; }
+  .readout .unit { color: var(--muted); font-size: 11px; margin-left: 4px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+  label.fieldlab { font-size: 11px; color: var(--muted); display: block; margin-bottom: 3px; }
+  input[type="text"] {
+    font: inherit; font-family: var(--mono); font-size: 13px; width: 100%;
+    padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px;
+    background: var(--bg); color: var(--fg); font-variant-numeric: tabular-nums;
+  }
+  input[type="text"]:focus { outline: 2px solid var(--accent-soft); border-color: var(--accent); }
+  .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+  .fields3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+
+  .lines-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .lines-list li {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 8px; font-size: 12px; display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap;
+  }
+  .swatch { width: 10px; height: 10px; border-radius: 2px; flex: 0 0 auto; }
+  .del { margin-left: auto; border: none; background: none; color: var(--muted);
+         font-size: 14px; line-height: 1; padding: 2px 6px; cursor: pointer; }
+  .del:hover { color: var(--bad); }
+  /* Finger-sized targets on touch devices only, so the desktop look is unchanged. */
+  @media (pointer: coarse) {
+    button { padding: 13px 12px; }
+    .del { padding: 12px 14px; }
+    input[type="text"] { padding: 12px 8px; }
+  }
+  .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .empty { color: var(--muted); font-size: 12px; }
+  .note { color: var(--muted); font-size: 11px; }
+  .hidden { display: none; }
+  .langbar { display: flex; gap: 4px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="orient" data-t="orient"></p>
+
+  <!-- PLOT -->
+  <div class="panel">
+    <div class="phead">
+      <span data-t="plotHead"></span>
+      <span class="row">
+        <span class="langbar">
+          <button id="lang-da" class="iconbtn" aria-pressed="true">Dansk</button>
+          <button id="lang-en" class="iconbtn" aria-pressed="false">English</button>
+        </span>
+        <button id="menu-toggle" class="iconbtn" aria-expanded="false" aria-controls="menu">
+          <span class="bars" aria-hidden="true"><span></span><span></span><span></span></span>
+        </button>
+      </span>
+    </div>
+    <canvas id="plot"></canvas>
+    <div style="margin-top:8px">
+      <div class="sub" data-t="probeHead"></div>
+      <div id="probe-out" class="readout"></div>
+      <div id="probe-note" class="note" style="margin-top:4px"></div>
+    </div>
+  </div>
+
+  <!-- VIEW — always visible. Choosing a curve and a grid is what the student
+       does from the first minute; these are not tools, they are how you look. -->
+  <div class="panel">
+    <div class="phead"><span data-t="viewHead"></span></div>
+    <div class="stack">
+
+      <div>
+        <div class="sub" data-t="curveHead"></div>
+        <div class="row" style="margin-top:6px">
+          <button id="view-fg" aria-pressed="true" data-th="viewFG"></button>
+          <button id="view-h" aria-pressed="false" data-th="viewH"></button>
+        </div>
+      </div>
+
+      <div>
+        <div class="sub" data-t="gridHead"></div>
+        <div class="row" style="margin-top:6px">
+          <button class="grid-opt" data-step="0" aria-pressed="true" data-t="gridNone"></button>
+          <button class="grid-opt" data-step="1" aria-pressed="false" data-t="gridWhole"></button>
+          <button class="grid-opt" data-step="0.5" aria-pressed="false" data-t="gridHalf"></button>
+          <button class="grid-opt" data-step="0.25" aria-pressed="false" data-t="gridQuarter"></button>
+        </div>
+      </div>
+
+      <div>
+        <div class="sub" data-t="windowHead"></div>
+        <p class="toolnote" data-t="windowNote"></p>
+        <button id="reset-window" data-t="resetWindow"></button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- TOOLS — collapsed on load. Drawing lines makes no sense before the student
+       knows what a secant is, so the construction tools stay behind the button
+       until they are needed. The orienting line says where they are. -->
+  <div class="panel hidden" id="menu">
+    <div class="phead"><span data-t="menuHead"></span></div>
+    <div class="stack">
+
+      <div>
+        <div class="sub" data-t="secantHead"></div>
+        <p class="toolnote" data-th="secantNote"></p>
+        <div class="fields">
+          <div><label class="fieldlab" for="sx1"><i>x</i>&#8321;</label><input type="text" id="sx1" inputmode="decimal" autocomplete="off"></div>
+          <div><label class="fieldlab" for="sy1"><i>y</i>&#8321;</label><input type="text" id="sy1" inputmode="decimal" autocomplete="off"></div>
+          <div><label class="fieldlab" for="sx2"><i>x</i>&#8322;</label><input type="text" id="sx2" inputmode="decimal" autocomplete="off"></div>
+          <div><label class="fieldlab" for="sy2"><i>y</i>&#8322;</label><input type="text" id="sy2" inputmode="decimal" autocomplete="off"></div>
+        </div>
+        <button id="add-secant" class="primary" data-t="addSecant"></button>
+        <div id="secant-err" class="note" style="margin-top:4px"></div>
+      </div>
+
+      <div>
+        <div class="sub" data-t="lineHead"></div>
+        <p class="toolnote" data-th="lineNote"></p>
+        <div class="fields3">
+          <div><label class="fieldlab" for="px"><i>x</i>&#8320;</label><input type="text" id="px" inputmode="decimal" autocomplete="off"></div>
+          <div><label class="fieldlab" for="py"><i>y</i>&#8320;</label><input type="text" id="py" inputmode="decimal" autocomplete="off"></div>
+          <div><label class="fieldlab" for="pa" data-t="slopeField"></label><input type="text" id="pa" inputmode="decimal" autocomplete="off"></div>
+        </div>
+        <button id="add-line" data-t="addLine"></button>
+        <div id="line-err" class="note" style="margin-top:4px"></div>
+      </div>
+
+      <div>
+        <button id="clear-lines" data-t="clearLines"></button>
+      </div>
+
+      <div>
+        <div class="sub" data-t="linesHead"></div>
+        <ul id="lines-list" class="lines-list" style="margin-top:6px"></ul>
+      </div>
+
+    </div>
+  </div>
+
+</div>
+
+<!-- @aipla-bridge:start -->
+<script>
+/* ============================================================================
+ * AIPLA MCP App guest bridge — ONE canonical transport for every host.
+ *
+ * SOURCE OF TRUTH. This file is inlined verbatim into every artefact's
+ * index.html between the `@aipla-bridge:start … @aipla-bridge:end` markers by
+ * `scripts/build-artefact-bridge.mjs` (run `make sim-build`). NEVER hand-edit
+ * the inlined copy — edit THIS file and rebuild. CI (`--check`) fails on drift.
+ *
+ * It speaks whichever host is present:
+ *   - AIPLA app / SEP-1865 hosts  → JSON-RPC `ui/update-model-context` over
+ *                                   window.parent.postMessage (the app reads
+ *                                   structuredContent + renders the trust card).
+ *   - ChatGPT (OpenAI Apps SDK)   → window.openai.setWidgetState (durable state)
+ *                                   + window.openai.sendFollowUpMessage (turns a
+ *                                   deliberate commit into an immediate turn).
+ *   - Claude Desktop / Inspector  → the same SEP-1865 postMessage + `content`.
+ *
+ * The window.openai block is guarded end-to-end: absent in the AIPLA app and
+ * Claude, so it is a pure no-op there and the postMessage path stays
+ * authoritative. See docs/design/aipla/v1.1.0-feedback/shared-mcp-app-bridge.md.
+ *
+ * Public surface (window.AIPLA_BRIDGE):
+ *   emit(kind, extra)                 — report a student interaction. `kind` is
+ *                                       the FULL event kind (e.g. "boldkast.play").
+ *                                       `extra.label` (a curated string) marks a
+ *                                       DELIBERATE COMMIT — only labelled emits
+ *                                       inject a ChatGPT follow-up turn.
+ *   init({ name, version })           — run the ui/initialize handshake. Call once
+ *                                       at the bottom of the artefact script.
+ *   onChatFlush(cb)                   — cb() runs on ui/notifications/chat-flush.
+ *   onHostNotification(method, cb)    — cb(params, msg) runs on any host→iframe
+ *                                       JSON-RPC notification with that method.
+ *   hostContext()                     — the hostContext returned by ui/initialize.
+ *
+ * Conservative JS (var/function) so it runs unchanged in any host iframe engine.
+ * ========================================================================== */
+(function () {
+  "use strict";
+
+  var __rpcNextId = 1;
+  var __initialized = false;
+  var __pendingEmits = [];
+  var __hostContext = null;
+  var __handlers = {}; // method -> [cb]
+  var __lastReportedHeight = 0;
+  var __appLinkShown = false;
+  var __appLinkOpts = null;
+  var __hostIsExternal = false; // a non-AIPLA host (any MCP-Apps host OR ChatGPT)
+  var __hostIsAipla = false; // our own app — identified by serverInfo.name below
+
+  // Our app self-identifies in its ui/initialize response so host detection
+  // uses the OPEN STANDARD, not the OpenAI-specific window.openai shim. Every
+  // other SEP-1865 host (Claude, Inspector, Goose, Copilot) returns a different
+  // serverInfo; ChatGPT never answers the handshake (caught by window.openai).
+  var AIPLA_HOST_NAME = "aipla-host";
+
+  // Deployed AIPLA app — the deep-link target for the external-host "advertising
+  // → app" CTA (design 1.1.55 §0). Public URL; update per env / when a custom
+  // domain lands. Overridable per-sim via init({ appUrl: "…" }).
+  var APP_URL = "https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app";
+
+  function __post(msg) {
+    try {
+      // targetOrigin "*" is safe: the outer sandbox proxy validates origin on
+      // its side per ADR-013, then re-postMessages to the host with the host's
+      // specific origin. In standalone (artefact opened directly) parent may not
+      // exist — swallow.
+      window.parent.postMessage(msg, "*");
+    } catch (e) {
+      /* no host */
+    }
+  }
+
+  function rpcNotify(method, params) {
+    __post({ jsonrpc: "2.0", method: method, params: params || {} });
+  }
+
+  function rpcRequest(method, params) {
+    return new Promise(function (resolve, reject) {
+      var id = __rpcNextId++;
+      var listener = function (e) {
+        var d = e.data;
+        if (!d || d.id !== id) return;
+        window.removeEventListener("message", listener);
+        if (d.result !== undefined) resolve(d.result);
+        else reject(new Error((d.error && d.error.message) || "rpc error"));
+      };
+      window.addEventListener("message", listener);
+      __post({ jsonrpc: "2.0", id: id, method: method, params: params || {} });
+    });
+  }
+
+  // Single host→iframe listener: respond to ping (spec), dispatch registered
+  // notification handlers. rpcRequest installs its own short-lived id-matched
+  // listener separately for responses.
+  window.addEventListener("message", function (e) {
+    var d = e.data;
+    if (!d || d.jsonrpc !== "2.0") return;
+    if (d.method === "ping" && d.id !== undefined && d.id !== null) {
+      __post({ jsonrpc: "2.0", id: d.id, result: {} });
+      return;
+    }
+    if (d.method && __handlers[d.method]) {
+      var cbs = __handlers[d.method];
+      for (var i = 0; i < cbs.length; i++) {
+        try {
+          cbs[i](d.params, d);
+        } catch (err) {
+          /* a handler throwing must not break the bridge */
+        }
+      }
+    }
+  });
+
+  // Derive a human-readable `content` text for generic MCP hosts (ChatGPT /
+  // Claude feed `content` to the model and treat `structuredContent` as
+  // schema-validated app data — without a text the model never sees the
+  // interaction). Prefers the curated `label`; else summarises the payload.
+  // The AIPLA frontend reads structuredContent and IGNORES content, so this is
+  // purely additive for our own app.
+  function __contentText(kind, p) {
+    if (p && typeof p.label === "string" && p.label) return p.label;
+    if (!p) return kind;
+    var parts = [];
+    for (var k in p) {
+      if (k === "label") continue;
+      var v = p[k];
+      if (Array.isArray(v)) {
+        parts.push(k + "=[" + v.length + "]");
+      } else if (v && typeof v === "object") {
+        for (var k2 in v) {
+          if (v[k2] == null || typeof v[k2] !== "object") parts.push(k2 + "=" + v[k2]);
+        }
+      } else {
+        parts.push(k + "=" + v);
+      }
+    }
+    return kind + (parts.length ? " (" + parts.join(", ") + ")" : "");
+  }
+
+  function emit(kind, extra) {
+    extra = extra || {};
+    var sc = Object.assign({}, extra, { kind: kind });
+    var params = { structuredContent: sc };
+    var label = typeof extra.label === "string" && extra.label ? extra.label : "";
+    var text = label || __contentText(kind, extra);
+    if (text) params.content = [{ type: "text", text: text }];
+
+    // ── ChatGPT (OpenAI Apps SDK) ──────────────────────────────────────────
+    // Absent in the AIPLA app / Claude → whole block no-ops. Guard every call.
+    var oa = typeof window !== "undefined" ? window.openai : undefined;
+    if (oa) {
+      try {
+        if (oa.setWidgetState) oa.setWidgetState(sc);
+      } catch (e) {
+        /* best effort */
+      }
+      // Inject a turn ONLY on a deliberate commit (has a curated label) — never
+      // on a passive settle or a derived-text event. Gated on `label`, NOT on
+      // `content` (content is near-always present via __contentText).
+      if (label && oa.sendFollowUpMessage) {
+        try {
+          oa.sendFollowUpMessage({ prompt: label });
+        } catch (e) {
+          /* best effort */
+        }
+      }
+    }
+
+    // ── SEP-1865 postMessage (AIPLA app + native hosts) — authoritative ─────
+    var msg = { jsonrpc: "2.0", method: "ui/update-model-context", params: params };
+    if (!__initialized) {
+      __pendingEmits.push(msg);
+      return;
+    }
+    __post(msg);
+  }
+
+  function onHostNotification(method, cb) {
+    if (!__handlers[method]) __handlers[method] = [];
+    __handlers[method].push(cb);
+  }
+
+  function onChatFlush(cb) {
+    onHostNotification("ui/notifications/chat-flush", function () {
+      cb();
+    });
+  }
+
+  // The initial widget state a host restored for this render (ChatGPT/Copilot
+  // persist setWidgetState across navigate-away-and-back). A sim that wants to
+  // restore its UI reads this in its own init: e.g. AIPLA_BRIDGE.initialState().
+  // Returns null in the AIPLA app / Claude (no window.openai). Opt-in per sim.
+  function initialState() {
+    var oa = typeof window !== "undefined" ? window.openai : undefined;
+    return oa && oa.widgetState ? oa.widgetState : null;
+  }
+
+  // Report our content height so a host frame fits it. ChatGPT/Copilot default
+  // the widget iframe to ~600px and only shrink on this signal; we route it
+  // through window.openai only (the AIPLA app owns the workspace-pane height and
+  // Claude/Inspector default frames are fine — sending nothing there avoids
+  // noise). Guarded + best-effort: no-op where the API/host is absent. For a
+  // full-bleed sim (html,body height:100%) body.scrollHeight is the frame
+  // height, so this harmlessly reports the current size.
+  function reportSize() {
+    var oa = typeof window !== "undefined" ? window.openai : undefined;
+    if (!oa || typeof oa.notifyIntrinsicHeight !== "function") return;
+    var doc = typeof window !== "undefined" ? window.document : undefined;
+    if (!doc || !doc.body) return;
+    var rect = doc.body.getBoundingClientRect ? doc.body.getBoundingClientRect() : { height: 0 };
+    var h = Math.ceil(Math.max(doc.body.scrollHeight || 0, rect.height || 0));
+    if (!h || h === __lastReportedHeight) return;
+    __lastReportedHeight = h;
+    try {
+      oa.notifyIntrinsicHeight(h);
+    } catch (e) {
+      /* best effort */
+    }
+  }
+
+  // Deep-link CTA — external-host "advertising → app" (design 1.1.55 §0). The
+  // low-level injector: drops one unobtrusive floating pill that opens the
+  // deployed app for the full tutor (agent + persona + research capture).
+  // Idempotent + guarded. The SHOW DECISION (which host) is made by
+  // __maybeShowAppLink via the standard handshake — see __hostIsExternal.
+  function showAppLink(opts) {
+    opts = opts || {};
+    if (__appLinkShown || opts.disabled) return;
+    var oa = typeof window !== "undefined" ? window.openai : undefined;
+    var doc = typeof window !== "undefined" ? window.document : undefined;
+    if (!doc || !doc.body || typeof doc.createElement !== "function") return;
+    __appLinkShown = true;
+
+    var href = opts.href || APP_URL + (opts.sim ? "?sim=" + encodeURIComponent(opts.sim) : "");
+    var a = doc.createElement("a");
+    a.textContent = opts.label || "Open the full tutor in AIPLA ↗";
+    a.href = href;
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.setAttribute("role", "button");
+    a.style.cssText =
+      "position:fixed;right:12px;bottom:12px;z-index:2147483647;" +
+      "font:600 12px/1 ui-sans-serif,system-ui,-apple-system,sans-serif;" +
+      "padding:8px 12px;border-radius:999px;background:#1e40af;color:#fff;" +
+      "text-decoration:none;box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer";
+    a.addEventListener("click", function (e) {
+      // Prefer the host's vetted external-open affordance; else the <a> opens natively.
+      if (oa && typeof oa.openExternal === "function") {
+        try {
+          e.preventDefault();
+          oa.openExternal({ href: href });
+        } catch (err) {
+          try {
+            window.open(href, "_blank");
+          } catch (e2) {
+            /* best effort */
+          }
+        }
+      }
+    });
+    try {
+      doc.body.appendChild(a);
+    } catch (e) {
+      /* best effort */
+    }
+  }
+
+  // Show the CTA only when we KNOW we're in a host that isn't the AIPLA app.
+  // external (ChatGPT via window.openai, or any host whose ui/initialize
+  // serverInfo isn't "aipla-host") AND not our app.
+  function __maybeShowAppLink() {
+    if (__appLinkOpts && __appLinkOpts.disabled) return;
+    if (__hostIsAipla || !__hostIsExternal) return;
+    showAppLink(__appLinkOpts || {});
+  }
+
+  function __setupHostAdaptation() {
+    if (typeof window === "undefined") return;
+    // ChatGPT never answers the ui/initialize handshake, so it can't be detected
+    // via serverInfo — but it injects window.openai, which is a definitive
+    // "external, not our app" signal. window.openai may arrive slightly after
+    // load → also react to its (re)injection.
+    if (window.openai) __hostIsExternal = true;
+    try {
+      window.addEventListener("openai:set_globals", function () {
+        __hostIsExternal = true;
+        reportSize();
+        __maybeShowAppLink();
+      });
+    } catch (e) {
+      /* older engine */
+    }
+    var doc = window.document;
+    if (typeof ResizeObserver !== "undefined" && doc && doc.body) {
+      try {
+        new ResizeObserver(reportSize).observe(doc.body);
+      } catch (e) {
+        /* best effort */
+      }
+    }
+    reportSize();
+    __maybeShowAppLink();
+  }
+
+  function init(clientInfo) {
+    clientInfo = clientInfo || {};
+    var ci = {
+      name: clientInfo.name || "aipla-sim",
+      version: clientInfo.version || "1.0.0",
+    };
+    // Deep-link CTA options (external-host only). Disable per-sim with
+    // init({ appLink: false }); customise with appUrl / appLinkLabel.
+    __appLinkOpts = {
+      sim: ci.name,
+      href: clientInfo.appUrl,
+      label: clientInfo.appLinkLabel,
+      disabled: clientInfo.appLink === false,
+    };
+    // If parent isn't a sandbox proxy (standalone testing) this rejects and we
+    // flip __initialized so queued emits stop queuing (they become __post
+    // no-ops via the try/catch).
+    rpcRequest("ui/initialize", {
+      protocolVersion: "2026-01-26",
+      capabilities: {},
+      clientInfo: ci,
+    })
+      .then(function (result) {
+        __hostContext = (result && result.hostContext) || null;
+        // Standard host identification: our own app answers with
+        // serverInfo.name === "aipla-host"; every other SEP-1865 host (Claude,
+        // Inspector, Goose, Copilot) is external → eligible for the app CTA.
+        var srvName = result && result.serverInfo && result.serverInfo.name;
+        if (srvName === AIPLA_HOST_NAME) {
+          __hostIsAipla = true;
+        } else {
+          __hostIsExternal = true;
+        }
+        rpcNotify("ui/notifications/initialized", { clientInfo: ci });
+        __initialized = true;
+        while (__pendingEmits.length) __post(__pendingEmits.shift());
+        __maybeShowAppLink();
+      })
+      .catch(function () {
+        __initialized = true;
+        __pendingEmits.length = 0;
+      });
+    // Independent of the postMessage handshake (which never resolves under
+    // ChatGPT): adapt to a window.openai host + report our size.
+    __setupHostAdaptation();
+  }
+
+  window.AIPLA_BRIDGE = {
+    emit: emit,
+    init: init,
+    onChatFlush: onChatFlush,
+    onHostNotification: onHostNotification,
+    hostContext: function () {
+      return __hostContext;
+    },
+    initialState: initialState,
+    reportSize: reportSize,
+    showAppLink: showAppLink,
+  };
+})();
+</script>
+<!-- @aipla-bridge:end -->
+
+<script>
+"use strict";
+
+/* ------------------------------------------------------------------ strings */
+
+const strings = {
+  da: {
+    title: "Sekantbænk",
+    orient: "Et koordinatsystem med parabler. Klik på en kurve for at aflæse et punkt, og træk i grafen for at se mere; værktøjer til at tegne linjer ligger bag knappen med de tre streger.",
+    plotHead: "Koordinatsystem",
+    viewHead: "Visning",
+    menuHead: "Værktøjer",
+    curveHead: "Kurver",
+    viewFG: "<i>f</i> og <i>g</i>",
+    viewH: "<i>h</i>",
+    gridHead: "Gitter",
+    gridNone: "Intet",
+    gridWhole: "Hver hele",
+    gridHalf: "Hver halve",
+    gridQuarter: "Hver kvarte",
+    secantHead: "Indsæt sekant",
+    secantNote: "Gennem to punkter, der begge ligger på grafen.",
+    addSecant: "Indsæt sekant",
+    lineHead: "Indsæt linje",
+    lineNote: "Gennem punktet <i>P</i>(<i>x</i>&#8320;, <i>y</i>&#8320;) med en fast hældning.",
+    slopeField: "hældning",
+    addLine: "Indsæt linje",
+    clearLines: "Ryd linjer",
+    linesHead: "Indsatte linjer",
+    linesEmpty: "Ingen linjer endnu.",
+    probeHead: "Aflæsning",
+    probeEmpty: "Klik på en kurve.",
+    probeMiss: "Ingen kurve dér. Klik tættere på en af graferne.",
+    windowHead: "Vindue",
+    windowNote: "Træk i grafen for at flytte vinduet.",
+    resetWindow: "Nulstil vindue",
+    deleteLine: "Slet linjen",
+    probeNote: "x følger gitteret; y er funktionens værdi i punktet.",
+    probeNoteFree: "Uden gitter kan ethvert punkt måles. y er funktionens værdi i punktet.",
+    errNum: "Udfyld alle felter med tal.",
+    errSame: "De to punkter skal have forskellig x.",
+    secantLabel: "Indsatte sekant gennem",
+    lineLabel: "Indsatte linje gennem",
+    withSlope: "med hældning",
+    and: "og",
+    dx: "Δx",
+    dy: "Δy",
+    slopeA: "hældning",
+    secantWord: "Sekant",
+    lineWord: "Linje",
+  },
+  en: {
+    title: "Secant bench",
+    orient: "A coordinate system with parabolas. Click a curve to read off a point, and drag the graph to see more; tools for drawing lines are behind the button with three bars.",
+    plotHead: "Coordinate system",
+    viewHead: "View",
+    menuHead: "Tools",
+    curveHead: "Curves",
+    viewFG: "<i>f</i> and <i>g</i>",
+    viewH: "<i>h</i>",
+    gridHead: "Grid",
+    gridNone: "None",
+    gridWhole: "Every unit",
+    gridHalf: "Every half",
+    gridQuarter: "Every quarter",
+    secantHead: "Insert secant",
+    secantNote: "Through two points that both lie on the graph.",
+    addSecant: "Insert secant",
+    lineHead: "Insert line",
+    lineNote: "Through the point <i>P</i>(<i>x</i>&#8320;, <i>y</i>&#8320;) with a fixed slope.",
+    slopeField: "slope",
+    addLine: "Insert line",
+    clearLines: "Clear lines",
+    linesHead: "Inserted lines",
+    linesEmpty: "No lines yet.",
+    probeHead: "Reading",
+    probeEmpty: "Click a curve.",
+    probeMiss: "No curve there. Click closer to one of the graphs.",
+    windowHead: "Window",
+    windowNote: "Drag the graph to move the window.",
+    resetWindow: "Reset window",
+    deleteLine: "Delete line",
+    probeNote: "x follows the grid; y is the function's value at that point.",
+    probeNoteFree: "With no grid, any point can be measured. y is the function's value there.",
+    errNum: "Fill in every field with a number.",
+    errSame: "The two points must have different x.",
+    secantLabel: "Inserted secant through",
+    lineLabel: "Inserted line through",
+    withSlope: "with slope",
+    and: "and",
+    dx: "Δx",
+    dy: "Δy",
+    slopeA: "slope",
+    secantWord: "Secant",
+    lineWord: "Line",
+  },
+};
+
+// Decimals shown for values the student typed and for the legs of the slope
+// triangle. Four, not two: the legs have to survive being divided. From
+// x=1 to x=1.01 on h, dy = 0.026733 — shown as "0.03" a student dividing the
+// displayed numbers gets 3 instead of 2.67. The probe is NOT governed by this;
+// it reads to the grid's resolution and says so with an approximate sign.
+const DP = 4;
+
+let lang = "da";
+let langLockedByStudent = false;
+const t = (k) => (strings[lang] || strings.da)[k];
+
+// Danish writes 4,74 — English writes 4.74.
+function num(v, dp) {
+  const s = Number(v).toFixed(dp);
+  return lang === "da" ? s.replace(".", ",") : s;
+}
+
+// Accept both decimal comma and decimal point on input.
+function parseNum(s) {
+  if (typeof s !== "string") return NaN;
+  const cleaned = s.trim().replace(/\s+/g, "").replace(",", ".");
+  if (cleaned === "" || !/^[-+]?\d*\.?\d+$/.test(cleaned)) return NaN;
+  return parseFloat(cleaned);
+}
+
+const TEST_MODE = new URLSearchParams(location.search).get("test") === "1";
+
+/* -------------------------------------------------------------- mathematics */
+
+// Pure. The bench draws these; it never differentiates them.
+const CURVES = {
+  f: { key: "f", expr: "f(x) = x²",        fn: (x) => x * x,                 colour: "#2563eb" },
+  g: { key: "g", expr: "g(x) = 2x² − 4x",  fn: (x) => 2 * x * x - 4 * x,     colour: "#d97706" },
+  h: { key: "h", expr: "h(x) = ⅓x² + 2x + 1", fn: (x) => (x * x) / 3 + 2 * x + 1, colour: "#16a34a" },
+};
+
+// Default windows. The live windows below can be dragged, so these are the
+// state "Nulstil vindue" returns to.
+const VIEW_DEFAULTS = {
+  fg: { curves: ["f", "g"], xmin: -2.4, xmax: 3.4, ymin: -3, ymax: 17 },
+  // The h window reaches past the vertex at (-3, -2) on purpose: in a narrow
+  // window around x = 1 the curve is monotonically increasing and does not read
+  // as a parabola at all, which is confusing in a lesson about parabolas.
+  h:  { curves: ["h"],      xmin: -5.2, xmax: 3.2, ymin: -2.6, ymax: 11 },
+};
+const VIEWS = {
+  fg: Object.assign({}, VIEW_DEFAULTS.fg),
+  h:  Object.assign({}, VIEW_DEFAULTS.h),
+};
+
+// Pure: snap a value to the nearest multiple of step. step 0 means no snapping.
+// This is the mechanism that keeps h(1) = 10/3 off the instrument: no offered
+// step (1, 0.5, 0.25) has 10/3 as a multiple.
+function gridSnap(v, step) {
+  if (!step) return v;
+  return Math.round(v / step) * step;
+}
+
+// Pure: the two legs of the slope triangle. The bench never divides them.
+function legs(p1, p2) {
+  return { dx: p2.x - p1.x, dy: p2.y - p1.y };
+}
+
+/* -------------------------------------------------------------------- state */
+
+const LINE_COLOURS = ["#dc2626", "#7c3aed", "#0891b2", "#be185d", "#4d7c0f"];
+
+let view = "fg";
+// No grid to begin with: free clicking is the first thing you try, and the grid
+// is what you reach for when hitting the right spot turns out to be hard. That
+// makes switching it on a response to a felt need rather than a setting handed
+// over in advance.
+let gridStep = 0;
+let lines = [];          // {kind:"secant"|"point", p1, p2?, a?, colour}
+let probe = null;        // {x, hits:[{curve,y}]} — x snapped, y from the function
+let probeMissed = false; // last click landed on no curve
+let lineSeq = 0;
+let toolsOpen = false;
+
+const pendingChanges = {};
+
+const canvas = document.getElementById("plot");
+const ctx = canvas.getContext("2d");
+
+function simState() {
+  const v = VIEWS[view];
+  return {
+    view: view,
+    curves_shown: v.curves.map((k) => CURVES[k].expr),
+    grid_step_units: gridStep,
+    tools_panel_open: toolsOpen,
+    window: { x_min: v.xmin, x_max: v.xmax, y_min: v.ymin, y_max: v.ymax },
+    last_reading: probe ? {
+      x: probe.x,
+      readings: probe.hits.map(function (h) { return { curve: h.curve, y: h.y }; }),
+      x_snapped_to_grid_step: gridStep,
+    } : null,
+    inserted_lines: lines.slice(-20).map((L) =>
+      L.kind === "secant"
+        ? { kind: "secant", x1: L.p1.x, y1: L.p1.y, x2: L.p2.x, y2: L.p2.y, dx: legs(L.p1, L.p2).dx, dy: legs(L.p1, L.p2).dy }
+        : { kind: "line_through_point", x0: L.p1.x, y0: L.p1.y, slope_a: L.a }
+    ),
+    inserted_line_count: lines.length,
+  };
+}
+
+/* ---------------------------------------------------------------- telemetry */
+
+const ARTEFACT_NAME = "sekant-intro";
+const bridge = () => (typeof AIPLA_BRIDGE === "undefined" ? null : AIPLA_BRIDGE);
+function emit(type, extra) {
+  const b = bridge();
+  return b && b.emit(ARTEFACT_NAME + "." + type, extra);
+}
+
+function flushPendingChanges(triggeredBy) {
+  const changed = Object.keys(pendingChanges);
+  if (!changed.length) return;
+  emit("state-change", { changed: changed, state: simState(), triggeredBy: triggeredBy });
+  changed.forEach((k) => delete pendingChanges[k]);
+}
+
+/* ------------------------------------------------------------------ drawing */
+
+let W = 0, H = 0;
+
+function sizeCanvas() {
+  const r = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  W = Math.max(1, Math.round(r.width));
+  H = Math.max(1, Math.round(r.height));
+  canvas.width = Math.round(W * dpr);
+  canvas.height = Math.round(H * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+
+const PAD = { l: 38, r: 10, t: 10, b: 26 };
+
+function sx(x) {
+  const v = VIEWS[view];
+  return PAD.l + ((x - v.xmin) / (v.xmax - v.xmin)) * (W - PAD.l - PAD.r);
+}
+function sy(y) {
+  const v = VIEWS[view];
+  return H - PAD.b - ((y - v.ymin) / (v.ymax - v.ymin)) * (H - PAD.t - PAD.b);
+}
+function wx(px) {
+  const v = VIEWS[view];
+  return v.xmin + ((px - PAD.l) / (W - PAD.l - PAD.r)) * (v.xmax - v.xmin);
+}
+
+function drawGrid() {
+  const v = VIEWS[view];
+  if (gridStep) {
+    const minPx = 4;
+    const xPx = (gridStep / (v.xmax - v.xmin)) * (W - PAD.l - PAD.r);
+    const yPx = (gridStep / (v.ymax - v.ymin)) * (H - PAD.t - PAD.b);
+    ctx.lineWidth = 1;
+    if (xPx >= minPx) {
+      for (let x = Math.ceil(v.xmin / gridStep) * gridStep; x <= v.xmax + 1e-9; x += gridStep) {
+        const isInt = Math.abs(x - Math.round(x)) < 1e-9;
+        ctx.strokeStyle = isInt ? "#e2e8f0" : "#f1f5f9";
+        ctx.beginPath(); ctx.moveTo(sx(x), PAD.t); ctx.lineTo(sx(x), H - PAD.b); ctx.stroke();
+      }
+    }
+    if (yPx >= minPx) {
+      for (let y = Math.ceil(v.ymin / gridStep) * gridStep; y <= v.ymax + 1e-9; y += gridStep) {
+        const isInt = Math.abs(y - Math.round(y)) < 1e-9;
+        ctx.strokeStyle = isInt ? "#e2e8f0" : "#f1f5f9";
+        ctx.beginPath(); ctx.moveTo(PAD.l, sy(y)); ctx.lineTo(W - PAD.r, sy(y)); ctx.stroke();
+      }
+    }
+  }
+
+  // axes
+  ctx.strokeStyle = "#94a3b8"; ctx.lineWidth = 1;
+  if (v.ymin <= 0 && v.ymax >= 0) { ctx.beginPath(); ctx.moveTo(PAD.l, sy(0)); ctx.lineTo(W - PAD.r, sy(0)); ctx.stroke(); }
+  if (v.xmin <= 0 && v.xmax >= 0) { ctx.beginPath(); ctx.moveTo(sx(0), PAD.t); ctx.lineTo(sx(0), H - PAD.b); ctx.stroke(); }
+
+  // integer ticks and labels
+  ctx.fillStyle = "#64748b";
+  ctx.font = "11px system-ui, sans-serif";
+  ctx.textAlign = "center"; ctx.textBaseline = "top";
+  for (let x = Math.ceil(v.xmin); x <= v.xmax; x += 1) {
+    if (Math.abs(x) < 1e-9) continue;
+    ctx.fillText(num(x, 0), sx(x), H - PAD.b + 5);
+  }
+  ctx.textAlign = "right"; ctx.textBaseline = "middle";
+  const yStep = (v.ymax - v.ymin) > 12 ? 2 : 1;
+  for (let y = Math.ceil(v.ymin / yStep) * yStep; y <= v.ymax; y += yStep) {
+    if (Math.abs(y) < 1e-9) continue;
+    ctx.fillText(num(y, 0), PAD.l - 6, sy(y));
+  }
+}
+
+function drawCurve(key) {
+  const c = CURVES[key];
+  const v = VIEWS[view];
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(PAD.l, PAD.t, W - PAD.l - PAD.r, H - PAD.t - PAD.b);
+  ctx.clip();
+  ctx.strokeStyle = c.colour; ctx.lineWidth = 2;
+  ctx.beginPath();
+  const steps = 400;
+  let started = false;
+  for (let i = 0; i <= steps; i++) {
+    const x = v.xmin + ((v.xmax - v.xmin) * i) / steps;
+    const y = c.fn(x);
+    const px = sx(x), py = sy(y);
+    if (!started) { ctx.moveTo(px, py); started = true; } else { ctx.lineTo(px, py); }
+  }
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Expressions live in a legend rather than at the end of each curve: g leaves
+// the top of the frame, so an end-label would be clipped.
+function drawLegend() {
+  const items = VIEWS[view].curves.map((k) => CURVES[k]);
+  ctx.save();
+  ctx.font = "italic 15px 'Cambria Math', Cambria, Georgia, 'Times New Roman', serif";
+  let wmax = 0;
+  items.forEach((c) => { wmax = Math.max(wmax, ctx.measureText(c.expr).width); });
+  const bx = PAD.l + 10, by = PAD.t + 8;
+  const bw = wmax + 44, bh = items.length * 22 + 10;
+  ctx.globalAlpha = 0.92; ctx.fillStyle = "#ffffff";
+  ctx.fillRect(bx, by, bw, bh);
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = "#e2e8f0"; ctx.lineWidth = 1;
+  ctx.strokeRect(bx + 0.5, by + 0.5, bw, bh);
+  ctx.textAlign = "left"; ctx.textBaseline = "middle";
+  items.forEach((c, i) => {
+    const y = by + 16 + i * 22;
+    ctx.fillStyle = c.colour;
+    ctx.fillRect(bx + 10, y - 2, 20, 3);
+    ctx.fillStyle = "#0f172a";
+    ctx.fillText(c.expr, bx + 36, y);
+  });
+  ctx.restore();
+}
+
+function drawLines() {
+  const v = VIEWS[view];
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(PAD.l, PAD.t, W - PAD.l - PAD.r, H - PAD.t - PAD.b);
+  ctx.clip();
+
+  lines.filter((L) => L.view === view).forEach((L) => {
+    let a, b;
+    if (L.kind === "secant") {
+      const d = legs(L.p1, L.p2);
+      a = d.dy / d.dx;            // geometry of the drawn line, never displayed
+      b = L.p1.y - a * L.p1.x;
+    } else {
+      a = L.a;
+      b = L.p1.y - a * L.p1.x;
+    }
+    ctx.strokeStyle = L.colour; ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(sx(v.xmin), sy(a * v.xmin + b));
+    ctx.lineTo(sx(v.xmax), sy(a * v.xmax + b));
+    ctx.stroke();
+
+    // slope triangle for secants only
+    if (L.kind === "secant") {
+      ctx.setLineDash([3, 3]);
+      ctx.strokeStyle = L.colour; ctx.globalAlpha = 0.8; ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(sx(L.p1.x), sy(L.p1.y));
+      ctx.lineTo(sx(L.p2.x), sy(L.p1.y));
+      ctx.lineTo(sx(L.p2.x), sy(L.p2.y));
+      ctx.stroke();
+      ctx.setLineDash([]); ctx.globalAlpha = 1;
+
+      const d = legs(L.p1, L.p2);
+      ctx.fillStyle = L.colour;
+      ctx.font = "11px system-ui, sans-serif";
+      ctx.textAlign = "center"; ctx.textBaseline = "top";
+      ctx.fillText(t("dx") + " " + num(d.dx, DP), (sx(L.p1.x) + sx(L.p2.x)) / 2, sy(L.p1.y) + 3);
+      // Right of the vertical leg, unless that runs off the plot — a secant
+      // ending near the window's right edge otherwise loses its dy entirely.
+      const dyText = t("dy") + " " + num(d.dy, DP);
+      const fitsRight = sx(L.p2.x) + 4 + ctx.measureText(dyText).width <= W - PAD.r;
+      ctx.textAlign = fitsRight ? "left" : "right"; ctx.textBaseline = "middle";
+      ctx.fillText(dyText, sx(L.p2.x) + (fitsRight ? 4 : -4), (sy(L.p1.y) + sy(L.p2.y)) / 2);
+    }
+
+    // the points the student typed
+    [L.p1, L.p2].forEach((p) => {
+      if (!p) return;
+      ctx.fillStyle = L.colour;
+      ctx.beginPath(); ctx.arc(sx(p.x), sy(p.y), 3.5, 0, Math.PI * 2); ctx.fill();
+    });
+  });
+  ctx.restore();
+}
+
+function drawProbe() {
+  if (!probe) return;
+  ctx.save();
+  probe.hits.forEach((hit) => {
+    ctx.strokeStyle = "#94a3b8"; ctx.setLineDash([4, 3]); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(sx(probe.x), sy(hit.y)); ctx.lineTo(sx(probe.x), sy(VIEWS[view].ymin)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(sx(probe.x), sy(hit.y)); ctx.lineTo(PAD.l, sy(hit.y)); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#0f172a";
+    ctx.beginPath(); ctx.arc(sx(probe.x), sy(hit.y), 4, 0, Math.PI * 2); ctx.fill();
+  });
+  ctx.restore();
+}
+
+function render() {
+  if (!W || !H) sizeCanvas();
+  ctx.clearRect(0, 0, W, H);
+  drawGrid();
+  VIEWS[view].curves.forEach(drawCurve);
+  drawLines();
+  drawProbe();
+  drawLegend();
+}
+
+/* ---------------------------------------------------------------- readouts */
+
+function renderReadouts() {
+  const out = document.getElementById("probe-out");
+  const note = document.getElementById("probe-note");
+  if (probeMissed) {
+    out.textContent = t("probeMiss");
+    note.textContent = "";
+  } else if (!probe) {
+    out.textContent = t("probeEmpty");
+    note.textContent = "";
+  } else {
+    // Function notation, not "y": the probe computes the value from the
+    // function, so this is what it actually did. The curve prefix is dropped
+    // because the name is now inside the notation. The inserted-lines list
+    // below deliberately does NOT use this form — those points are whatever
+    // the student typed, and may not lie on any curve.
+    out.innerHTML =
+      '<i>x</i> = <span class="n">' + num(probe.x, DP) + '</span>' +
+      probe.hits.map(function (hit) {
+        return '&nbsp;&nbsp;&nbsp;&nbsp;<i>' + hit.curve + '</i>(<span class="n">' +
+               num(probe.x, DP) + '</span>) = <span class="n">' + num(hit.y, DP) + '</span>';
+      }).join("");
+    // gridStep 0 means no snapping: any point on the curve can be measured.
+    note.textContent = gridStep ? t("probeNote") : t("probeNoteFree");
+  }
+}
+
+function renderTable() {
+  const ul = document.getElementById("lines-list");
+  ul.textContent = "";
+  if (!lines.filter((L) => L.view === view).length) {
+    const li = document.createElement("li");
+    li.className = "empty";
+    li.textContent = t("linesEmpty");
+    ul.appendChild(li);
+    return;
+  }
+  lines.filter((L) => L.view === view).slice().reverse().forEach((L) => {
+    const li = document.createElement("li");
+    const sw = document.createElement("span");
+    sw.className = "swatch"; sw.style.background = L.colour;
+    li.appendChild(sw);
+    const txt = document.createElement("span");
+    if (L.kind === "secant") {
+      const d = legs(L.p1, L.p2);
+      txt.innerHTML = "<strong>" + t("secantWord") + "</strong> " +
+        "<span class=\"mono\">(" + num(L.p1.x, DP) + "; " + num(L.p1.y, DP) + ")</span> " + t("and") + " " +
+        "<span class=\"mono\">(" + num(L.p2.x, DP) + "; " + num(L.p2.y, DP) + ")</span> &nbsp; " +
+        "<span class=\"mono\">" + t("dx") + " = " + num(d.dx, DP) + "</span> &nbsp; " +
+        "<span class=\"mono\">" + t("dy") + " = " + num(d.dy, DP) + "</span>";
+    } else {
+      txt.innerHTML = "<strong>" + t("lineWord") + "</strong> " +
+        "<span class=\"mono\">(" + num(L.p1.x, DP) + "; " + num(L.p1.y, DP) + ")</span> &nbsp; " +
+        "<span class=\"mono\">" + t("slopeA") + " = " + num(L.a, DP) + "</span>";
+    }
+    li.appendChild(txt);
+    const del = document.createElement("button");
+    del.className = "del"; del.type = "button";
+    del.textContent = "\u00d7";
+    del.setAttribute("aria-label", t("deleteLine"));
+    del.addEventListener("click", () => removeLine(L));
+    li.appendChild(del);
+    ul.appendChild(li);
+  });
+}
+
+/* ---------------------------------------------------------------- language */
+
+function applyLang() {
+  document.documentElement.lang = lang;
+  if (!TEST_MODE) document.title = t("title");
+  document.querySelectorAll("[data-t]").forEach((el) => {
+    const v = t(el.dataset.t);
+    if (v !== undefined) el.textContent = v;
+  });
+  // data-th carries strings with mathematical markup (<i> for variables).
+  // The content comes only from the strings object above, never from input.
+  document.querySelectorAll("[data-th]").forEach((el) => {
+    const v = t(el.dataset.th);
+    if (v !== undefined) el.innerHTML = v;
+  });
+  document.getElementById("lang-da").setAttribute("aria-pressed", String(lang === "da"));
+  document.getElementById("lang-en").setAttribute("aria-pressed", String(lang === "en"));
+  render();
+  renderReadouts();
+  renderTable();
+}
+
+/* ------------------------------------------------------------------ actions */
+
+function setView(v) {
+  if (view === v) return;
+  view = v;
+  probe = null;
+  document.getElementById("view-fg").setAttribute("aria-pressed", String(v === "fg"));
+  document.getElementById("view-h").setAttribute("aria-pressed", String(v === "h"));
+  pendingChanges.view = true;
+  render(); renderReadouts();
+}
+
+function setGrid(step) {
+  if (gridStep === step) return;
+  gridStep = step;
+  document.querySelectorAll(".grid-opt").forEach((b) => {
+    b.setAttribute("aria-pressed", String(parseFloat(b.dataset.step) === step));
+  });
+  pendingChanges.grid_step_units = true;
+  render(); renderReadouts();
+}
+
+function addSecant() {
+  const err = document.getElementById("secant-err");
+  const p1 = { x: parseNum(document.getElementById("sx1").value), y: parseNum(document.getElementById("sy1").value) };
+  const p2 = { x: parseNum(document.getElementById("sx2").value), y: parseNum(document.getElementById("sy2").value) };
+  if ([p1.x, p1.y, p2.x, p2.y].some((v) => !isFinite(v))) { err.textContent = t("errNum"); return; }
+  if (Math.abs(p2.x - p1.x) < 1e-12) { err.textContent = t("errSame"); return; }
+  err.textContent = "";
+  const colour = LINE_COLOURS[lineSeq++ % LINE_COLOURS.length];
+  lines.push({ kind: "secant", p1: p1, p2: p2, colour: colour, view: view });
+  const d = legs(p1, p2);
+  flushPendingChanges("insert-secant");
+  emit("reading", {
+    state: simState(),
+    label: t("secantLabel") + " (" + num(p1.x, DP) + "; " + num(p1.y, DP) + ") " + t("and") +
+           " (" + num(p2.x, DP) + "; " + num(p2.y, DP) + ") — " +
+           t("dx") + " = " + num(d.dx, DP) + ", " + t("dy") + " = " + num(d.dy, DP),
+  });
+  render(); renderTable();
+}
+
+function addLine() {
+  const err = document.getElementById("line-err");
+  const p = { x: parseNum(document.getElementById("px").value), y: parseNum(document.getElementById("py").value) };
+  const a = parseNum(document.getElementById("pa").value);
+  if ([p.x, p.y, a].some((v) => !isFinite(v))) { err.textContent = t("errNum"); return; }
+  err.textContent = "";
+  const colour = LINE_COLOURS[lineSeq++ % LINE_COLOURS.length];
+  lines.push({ kind: "point", p1: p, a: a, colour: colour, view: view });
+  flushPendingChanges("insert-line");
+  emit("commit", {
+    state: simState(),
+    label: t("lineLabel") + " (" + num(p.x, DP) + "; " + num(p.y, DP) + ") " + t("withSlope") + " " + num(a, DP),
+  });
+  render(); renderTable();
+}
+
+function removeLine(L) {
+  const i = lines.indexOf(L);
+  if (i < 0) return;
+  lines.splice(i, 1);
+  // Not `reset`: kinds ending .reset never reach the tutor, which would leave
+  // it marking a line the student has deleted.
+  emit("state-change", { changed: ["inserted_lines"], state: simState(), triggeredBy: "delete-line" });
+  render(); renderTable();
+}
+
+function resetWindow() {
+  VIEWS[view] = Object.assign({}, VIEW_DEFAULTS[view]);
+  pendingChanges.window = true;
+  render();
+}
+
+function panBy(dxPx, dyPx) {
+  const v = VIEWS[view];
+  const wpx = (v.xmax - v.xmin) / (W - PAD.l - PAD.r);
+  const wpy = (v.ymax - v.ymin) / (H - PAD.t - PAD.b);
+  v.xmin -= dxPx * wpx; v.xmax -= dxPx * wpx;
+  v.ymin += dyPx * wpy; v.ymax += dyPx * wpy;
+  render();
+}
+
+function clearLines() {
+  if (!lines.filter((L) => L.view === view).length) return;
+  lines = lines.filter((L) => L.view !== view);
+  // Not `reset`: kinds ending .reset are dropped before the tutor, which would
+  // leave it marking lines the student has cleared.
+  emit("state-change", { changed: ["inserted_lines"], state: simState(), triggeredBy: "clear" });
+  render(); renderTable();
+}
+
+// Every curve within tolerance of a point on the canvas, nearest first. Not
+// just the nearest one: f and g both pass through (0,0), which is one of the
+// lesson's points, and picking either arbitrarily mislabels the reading and
+// puts the wrong curve in the log.
+const HIT_PX = 26;     // how close a click has to be to register on a curve
+const AMBIG_PX = 13;   // how close the runners-up have to be to count as well
+function curvesNear(px, py) {
+  const xw = wx(px);
+  const hits = [];
+  VIEWS[view].curves.forEach((k) => {
+    const d = Math.abs(sy(CURVES[k].fn(xw)) - py);
+    if (d < HIT_PX) hits.push({ key: k, d: d });
+  });
+  hits.sort((a, b) => a.d - b.d);
+  // A second curve is reported only where it is genuinely indistinguishable
+  // from the nearest one — measured against the nearest, not against the
+  // click, so it does not depend on how high in the gap the student aimed.
+  return hits.filter((h) => h.d - hits[0].d <= AMBIG_PX);
+}
+
+function handleProbe(evt) {
+  const r = canvas.getBoundingClientRect();
+  const px = evt.clientX - r.left;
+  const py = evt.clientY - r.top;
+  const hits = curvesNear(px, py);
+  if (!hits.length) {
+    probe = null;
+    probeMissed = true;          // a miss is reported, not silently ignored
+    render(); renderReadouts();
+    return;
+  }
+  // Only x follows the grid. y is the function's value there, so the probed
+  // point lies ON the curve — snapping y as well put the marker at a nearby
+  // grid intersection instead, and a student typing that pair into the secant
+  // fields got a line through a point that was never on the graph.
+  const xs = gridSnap(wx(px), gridStep);
+  probeMissed = false;
+  probe = { x: xs, hits: hits.map((h) => ({ curve: h.key, y: CURVES[h.key].fn(xs) })) };
+  pendingChanges.last_reading = true;
+  render(); renderReadouts();
+}
+
+/* --------------------------------------------------------------------- wire */
+
+document.getElementById("menu-toggle").addEventListener("click", function () {
+  const m = document.getElementById("menu");
+  const open = m.classList.toggle("hidden") === false;
+  this.setAttribute("aria-expanded", String(open));
+  // Worth recording: the tools start collapsed, so opening them marks the move
+  // from measuring to constructing. Unlabelled — it is not a commit.
+  pendingChanges.tools_panel_open = true;
+  toolsOpen = open;
+});
+document.getElementById("view-fg").addEventListener("click", () => setView("fg"));
+document.getElementById("view-h").addEventListener("click", () => setView("h"));
+document.querySelectorAll(".grid-opt").forEach((b) => {
+  b.addEventListener("click", () => setGrid(parseFloat(b.dataset.step)));
+});
+document.getElementById("add-secant").addEventListener("click", addSecant);
+document.getElementById("add-line").addEventListener("click", addLine);
+document.getElementById("clear-lines").addEventListener("click", clearLines);
+document.getElementById("reset-window").addEventListener("click", resetWindow);
+// Drag to pan, click to probe. A pointer that moved less than 4 px is a click;
+// anything more is a drag, so a slightly shaky finger still reads a point.
+let drag = null;
+canvas.addEventListener("pointerdown", (e) => {
+  drag = { x: e.clientX, y: e.clientY, moved: 0 };
+  canvas.setPointerCapture(e.pointerId);
+  canvas.classList.add("dragging");
+});
+canvas.addEventListener("pointermove", (e) => {
+  if (!drag) {
+    // Hover only: say which gesture is available here. Harmless on touch,
+    // where there is no hover to report.
+    const b = canvas.getBoundingClientRect();
+    canvas.classList.toggle("over-curve",
+      curvesNear(e.clientX - b.left, e.clientY - b.top).length > 0);
+    return;
+  }
+  const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+  drag.moved += Math.abs(dx) + Math.abs(dy);
+  if (drag.moved > 4) panBy(dx, dy);
+  drag.x = e.clientX; drag.y = e.clientY;
+});
+canvas.addEventListener("pointerup", (e) => {
+  if (!drag) return;
+  const wasClick = drag.moved <= 4;
+  const moved = drag.moved;
+  drag = null;
+  canvas.classList.remove("dragging");
+  if (wasClick) handleProbe(e);
+  else if (moved > 4) { pendingChanges.window = true; }
+});
+canvas.addEventListener("pointercancel", () => { drag = null; canvas.classList.remove("dragging"); });
+canvas.addEventListener("pointerleave", () => { canvas.classList.remove("over-curve"); });
+
+document.getElementById("lang-da").addEventListener("click", () => { lang = "da"; langLockedByStudent = true; applyLang(); });
+document.getElementById("lang-en").addEventListener("click", () => { lang = "en"; langLockedByStudent = true; applyLang(); });
+
+window.addEventListener("resize", () => { sizeCanvas(); render(); });
+
+sizeCanvas();
+applyLang();
+
+/* --------------------------------------------------------------- self-test */
+
+if (new URLSearchParams(location.search).get("test") === "1") {
+  // A probe on g with the quarter grid, from a click landing near x = 1.3:
+  // x snaps to 1.25, and y = g(1.25) = 2*1.5625 - 4*1.25 = 3.125 - 5 = -1.875.
+  // Snapping y as well would have reported -1.75, which is not on the curve.
+  const got = CURVES.g.fn(gridSnap(1.3, 0.25));
+  const ok = Math.abs(got - -1.875) < 1e-9;
+  document.title = (ok ? "TEST PASS" : "TEST FAIL") + " — " + strings.da.title;
+  if (!ok) console.error("Self-test failed: " + got);
+}
+
+/* ------------------------------------------------------------------ handshake */
+
+const b = bridge();
+if (b) {
+  b.init({ name: ARTEFACT_NAME, version: "1.0.0" });
+  b.onChatFlush(function () { flushPendingChanges("chat-submit"); });
+  emit("open", { state: simState() });
+  // adopt the host locale if the student has not chosen one
+  let waited = 0;
+  const poll = setInterval(function () {
+    waited += 50;
+    let hc = null;
+    try { hc = b.hostContext && b.hostContext(); } catch (e) { hc = null; }
+    if (hc && typeof hc.locale === "string") {
+      const two = hc.locale.slice(0, 2);
+      if (!langLockedByStudent && (two === "da" || two === "en") && two !== lang) {
+        lang = two; applyLang();
+      }
+      clearInterval(poll);
+    }
+    if (waited >= 2000) clearInterval(poll);
+  }, 50);
+}
+</script>
+</body>
+</html>

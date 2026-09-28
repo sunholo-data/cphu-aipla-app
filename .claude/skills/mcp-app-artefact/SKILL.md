@@ -351,6 +351,7 @@ Current as of 2026-09-24. Fix or delete these lines when they change.
 | `wave-speed` | Bølgefart — v = f·λ | catalogue-only; shows f, λ and T and never the speed |
 | `wave-interference` | Interferens — to bølger lægges sammen | catalogue-only; one medium owns the speed, so f is DERIVED from λ |
 | `sol-jord-maane` | Sol, Jord og Måne | first **author-supplied** port (author I) and first **three.js** sim (vendored); dark by exception (it is space); missions + diagnostic quiz stay in the iframe because they reconfigure the scene; 9.9 KB tutorBlock with the author's construct map; not offered on `/mcp` (vendored lib) |
+| `sekant-intro` | Sekantbænk — hældning på parabler | first **maths** sim (stx A/B intro calculus); author-supplied and conforming to the authoring prompt, so imported as-is (fixes: `levels` A/B, a clipped Δy label); commits are numeric text fields, which is why `verify_sim.mjs` types numbers into `inputmode="decimal"` boxes; the bench never divides dy by dx |
 
 Keep this table current — it is the fastest answer to "what do we already have".
 

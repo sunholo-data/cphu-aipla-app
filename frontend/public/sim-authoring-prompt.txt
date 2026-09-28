@@ -346,7 +346,7 @@ version: v1
 displayName: "<Danish title a teacher sees>"
 description: "<one Danish sentence: what does the student DO?>"
 topics: [<Danish curriculum words — how a teacher would search for this>]
-levels: [<every stx level the sim SUITS, not only the one in the brief>]
+levels: [<every stx level the sim SUITS, not only the one in the brief — exactly A, B or C, e.g. [A, B]; "stx A" fails to load>]
 language: da
 eventVocabulary: [<the verbs you emitted, unprefixed>]
 tutorBlock: |
