@@ -305,6 +305,9 @@ class StudentActivitySummary(BaseModel):
     title: str = ""
     artefact_id: str | None = Field(default=None, alias="artefactId")
     workbench_type: str = Field(default="none", alias="workbenchType")
+    # 1.1.108 M1 — lets the lesson picker speak the class's language when every
+    # assigned activity shares one (and stay bilingual when they don't).
+    language: str = "da"
 
     model_config = {"populate_by_name": True}
 
@@ -352,6 +355,7 @@ async def get_my_activities(
                             title=a.title,
                             artefactId=a.artefact_id,
                             workbenchType=a.workbench_type,
+                            language=a.language,
                         )
                     )
                 # Rollout safety (ALS-1 M0) — ADDITIVE legacy fallback. A class not

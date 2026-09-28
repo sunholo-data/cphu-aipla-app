@@ -421,6 +421,27 @@ def test_active_returns_empty_when_no_config(client):
     resp = student.get("/api/activity-configs/active/missing-activity")
     assert resp.status_code == 200
     assert resp.json()["checklist"] == []
+    # 1.1.108 M1 — no config still names a language, so the student UI never
+    # has to guess (and never falls back to the browser's).
+    assert resp.json()["language"] == "da"
+
+
+def test_active_carries_the_activity_language(client):
+    """1.1.108 M1: the student UI's locale comes from the same field as the
+    tutor's language directive — an English activity gets English buttons."""
+    from db.activity_configs import upsert_activity_config
+
+    upsert_activity_config(
+        teacher_uid="t-99",
+        class_id="cls-9",
+        activity_id="act-en",
+        teaching_goal="g",
+        language="en",
+    )
+    student = _group_client({"class:t-99:cls-9"})
+    resp = student.get("/api/activity-configs/active/act-en")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["language"] == "en"
 
 
 def test_active_surfaces_all_material_names_with_visibility(client):

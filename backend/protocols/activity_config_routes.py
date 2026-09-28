@@ -23,7 +23,12 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from adk.element_manifest import describe_elements
-from adk.teacher_focus import build_ilo_precedence_block, compose_teacher_focus, resolve_active_config
+from adk.teacher_focus import (
+    DEFAULT_ACTIVITY_LANGUAGE,
+    build_ilo_precedence_block,
+    compose_teacher_focus,
+    resolve_active_config,
+)
 from adk.tutor_resolution import resolve_active_teaching
 from artefacts.loader import is_known_artefact, load_artefact
 from auth import User, get_current_user
@@ -305,6 +310,10 @@ async def get_active_activity_config(
         return {
             "activityId": activity_id,
             "title": "",
+            # 1.1.108 M1 — the student UI's locale. Same field, same default as
+            # the tutor's language directive, so the buttons and the replies
+            # cannot disagree about which language the activity is in.
+            "language": DEFAULT_ACTIVITY_LANGUAGE,
             **_element_block(None),
             "artefact": None,
             "workbenchType": "none",
@@ -334,6 +343,7 @@ async def get_active_activity_config(
     return {
         "activityId": activity_id,
         "title": cfg.title,
+        "language": cfg.language,
         **_element_block(cfg),
         # The resolved artefact (public view — never the tutorBlock) so the
         # student workspace has the render path; None if unset or de-catalogued

@@ -78,6 +78,19 @@ def test_lists_two_concept_activities_in_one_class():
     assert {a["activityId"] for a in body["activities"]} == {"act-1", "act-2"}
 
 
+def test_each_activity_carries_its_language():
+    """1.1.108 M1 — the lesson picker speaks the class's language when every
+    activity shares one, so each summary must say which language it is in."""
+    create_activity(Activity(activityId="act-da", skillId="concept-skill", title="Energi", ownerUid=OWNER))
+    create_activity(
+        Activity(activityId="act-en", skillId="concept-skill", title="Energy", ownerUid=OWNER, language="en")
+    )
+    _bind_class_with_activities(["act-da", "act-en"])
+
+    body = _student_client().get("/api/auth/group/my-activities").json()
+    assert {a["activityId"]: a["language"] for a in body["activities"]} == {"act-da": "da", "act-en": "en"}
+
+
 def test_skips_dangling_activity_reference():
     create_activity(Activity(activityId="act-live", skillId="concept-skill", title="Live", ownerUid=OWNER))
     _bind_class_with_activities(["act-live", "act-deleted"])  # second id has no doc
