@@ -5,6 +5,7 @@ import { useCallback, useState } from "react";
 import { ImageStagingRow, ImageUploadButtons } from "@/components/chat/ImageComposer";
 import { useImageAttachments, MAX_IMAGES } from "@/hooks/useImageAttachments";
 import { useOptionalProactiveSimOptsRef } from "@/contexts/ProactiveSimContext";
+import { useT } from "@/i18n";
 import { SolutionWhiteboard } from "./SolutionWhiteboard";
 import type { SolutionElement } from "@/lib/elementTypes";
 
@@ -16,7 +17,6 @@ export type SolutionElementDef = SolutionElement;
 // The turn the image(s) ride on. The work IS the image (the tutor is multimodal,
 // 1.1.7) — no LaTeX. Non-empty (ag_ui_adk drops empty turns); the tutor matches
 // the student's language regardless.
-const SOLUTION_SUBMIT_TEXT = "Her er min løsning — giv mig feedback på den.";
 
 /**
  * SolutionElementMount (1.1.48, JB-2 "din løsning") — a freehand **whiteboard
@@ -27,6 +27,7 @@ const SOLUTION_SUBMIT_TEXT = "Her er min løsning — giv mig feedback på den."
  * replaced the TipTap LaTeX editor, which was wrong for students.
  */
 export function SolutionElementMount({ solution }: { solution: SolutionElementDef[] }) {
+  const t = useT("SolutionElementMount");
   const def = solution[0];
   const photo = useImageAttachments();
   const proactiveRef = useOptionalProactiveSimOptsRef();
@@ -39,20 +40,20 @@ export function SolutionElementMount({ solution }: { solution: SolutionElementDe
     setSubmitting(true);
     try {
       // Send the drawing(s)/photo(s) as a turn → the tutor sees the work.
-      proactiveRef?.current?.onProactiveTrigger(SOLUTION_SUBMIT_TEXT, photo.attachments);
+      proactiveRef?.current?.onProactiveTrigger(t("submitText"), photo.attachments);
       photo.clear();
       setSent(true);
     } finally {
       setSubmitting(false);
     }
-  }, [photo, proactiveRef]);
+  }, [photo, proactiveRef, t]);
 
   if (!def) return null;
 
   return (
-    <section className="flex min-h-0 flex-col gap-2 p-2" aria-label="Din løsning">
+    <section className="flex min-h-0 flex-col gap-2 p-2" aria-label={t("label")}>
       <p className="text-sm font-medium text-foreground">
-        {def.prompt || "Tegn din løsning på tavlen — eller upload et billede af din håndskrevne løsning."}
+        {def.prompt || t("defaultPrompt")}
       </p>
 
       {/* Whiteboard first — the primary surface. "Tilføj tegning" stages it. */}
@@ -63,7 +64,7 @@ export function SolutionElementMount({ solution }: { solution: SolutionElementDe
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1.5">
-          <span className="text-xs text-muted-foreground">Eller upload et billede:</span>
+          <span className="text-xs text-muted-foreground">{t("orUpload")}</span>
           <ImageUploadButtons onFiles={photo.addFiles} disabled={submitting} full={full} />
         </div>
         <button
@@ -72,11 +73,11 @@ export function SolutionElementMount({ solution }: { solution: SolutionElementDe
           disabled={photo.count === 0 || submitting}
           className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
-          Send løsning
+          {t("send")}
         </button>
       </div>
       {sent && photo.count === 0 ? (
-        <p className="text-xs text-muted-foreground">Løsning sendt — tutoren svarer i chatten.</p>
+        <p className="text-xs text-muted-foreground">{t("sent")}</p>
       ) : null}
     </section>
   );

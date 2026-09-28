@@ -283,3 +283,60 @@ describe("class banner on /lessons", () => {
     expect(screen.queryByText(/klasse \/ class/i)).toBeNull();
   });
 });
+
+// 1.1.108 audit item 2 — no single activity is open on the picker, so it speaks
+// the class's language only when every assigned activity agrees.
+describe("lesson picker language", () => {
+  async function joinedAs(activities: Array<{ activityId: string; title: string; language?: string }>) {
+    const anonAuth = await import("@/lib/anonymousGroupAuth");
+    vi.mocked(anonAuth.isAnonymousGroupAuthMode).mockReturnValue(true);
+    const groupAuthProvider = await import("@/contexts/AnonymousGroupAuthProvider");
+    (groupAuthProvider as { useAnonymousGroupAuth: () => unknown }).useAnonymousGroupAuth = () => ({
+      status: "joined",
+      user: { uid: "anon-u", email: "", displayName: null, photoURL: null },
+      token: "fake-token",
+      expiresAt: Date.now() + 3600_000,
+      groupCode: "HOLD-9A",
+      skillIds: [],
+      className: "Hold 9A",
+      classId: "cls-abc123",
+      error: null,
+      join: vi.fn(),
+      markExpired: vi.fn(),
+      clearStoredToken: vi.fn(),
+    });
+    vi.mocked(fetchWithAuth).mockResolvedValue(
+      jsonResponse({
+        activities: activities.map((a) => ({ skillId: "concept-skill", ...a })),
+        class_name: "Hold 9A",
+      }),
+    );
+    render(<LessonsPage />);
+    await waitFor(() => expect(screen.getByRole("heading", { level: 3, name: activities[0].title })).toBeInTheDocument());
+  }
+
+  it("is English — with no Danish letters — when every activity is English", async () => {
+    await joinedAs([
+      { activityId: "act-1", title: "Energy", language: "en" },
+      { activityId: "act-2", title: "Momentum", language: "en" },
+    ]);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^Activities$/);
+    // The page's own content. The site footer is shared chrome, bilingual on
+    // every page by design (site-wide language is M3's decision, not this one).
+    expect(screen.getByRole("main").textContent ?? "").not.toMatch(/[æøåÆØÅ]/);
+    expect(screen.getByRole("button", { name: "Change code" })).toBeInTheDocument();
+  });
+
+  it("is Danish when every activity is Danish", async () => {
+    await joinedAs([{ activityId: "act-1", title: "Energi", language: "da" }]);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^Aktiviteter$/);
+  });
+
+  it("stays bilingual when the activities disagree", async () => {
+    await joinedAs([
+      { activityId: "act-1", title: "Energi", language: "da" },
+      { activityId: "act-2", title: "Momentum", language: "en" },
+    ]);
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Aktiviteter / Activities");
+  });
+});

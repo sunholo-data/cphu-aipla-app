@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
 import { useSimSnapshotPush } from "@/hooks/useSimSnapshotPush";
+import { DEFAULT_LOCALE, useLocaleMode } from "@/i18n";
 
-import { StaticArtefactFrame, type StaticArtefactFrameHandle } from "./StaticArtefactFrame";
+import { StaticArtefactFrame, type McpAppHostContext, type StaticArtefactFrameHandle } from "./StaticArtefactFrame";
 
 // Host → artefact signal sent right before a student chat message goes out, so
 // an artefact that buffers continuous input (e.g. Boldkast's commit-on-submit
@@ -93,6 +94,20 @@ export function GenericArtefactFrame({
   onRegisterFlush,
 }: GenericArtefactFrameProps) {
   const frameRef = useRef<StaticArtefactFrameHandle | null>(null);
+  // 1.1.108 rule 5 — the supply side. A sim reads `locale` from the host context
+  // it receives at ui/initialize; until this was passed, every sim fell back to
+  // its own default. The locale is the ACTIVITY's (via the provider), never the
+  // browser's. A sim cannot render two languages at once, so "bilingual" (no
+  // single activity known) resolves to the platform default.
+  const localeMode = useLocaleMode();
+  const hostContext = useMemo<McpAppHostContext>(
+    () => ({
+      displayMode: "inline",
+      locale: localeMode === "bilingual" ? DEFAULT_LOCALE : localeMode,
+      timeZone: "Europe/Copenhagen",
+    }),
+    [localeMode],
+  );
   const pushSnapshot = useSimSnapshotPush<Record<string, unknown>>(sessionId ?? null, artefact.id);
   // Trust-card dispatcher. No-op fallback when rendered outside a
   // HumanToolEventsProvider (the builder preview), so this stays safe there.
@@ -166,6 +181,7 @@ export function GenericArtefactFrame({
         ref={frameRef}
         sandboxOrigin={sandboxOrigin}
         artefactPath={artefact.artefactPath}
+        hostContext={hostContext}
         onUpdateModelContext={handleStructuredContent}
         title={artefact.displayName}
         className="w-full min-h-[700px] border-0"

@@ -18,6 +18,7 @@
 import { Lock } from "lucide-react";
 
 import { useVoiceLang, SUPPORTED_LANGS, type SupportedLang } from "@/hooks/useVoiceLang";
+import { useT } from "@/i18n";
 
 interface LangToggleProps {
   /** Class- or skill-resolved default lang from /api/voice/config. When
@@ -32,6 +33,8 @@ const LABEL: Record<SupportedLang, string> = {
   en: "EN",
 };
 
+// Each language named in itself (an endonym) — deliberately NOT translated, so a
+// student can always find their own language whatever the surface speaks.
 const FULL: Record<SupportedLang, string> = {
   da: "Dansk",
   en: "English",
@@ -42,6 +45,7 @@ function isSupported(lang: string | null | undefined): lang is SupportedLang {
 }
 
 export function LangToggle({ defaultLang, className }: LangToggleProps) {
+  const t = useT("LangToggle");
   const { lang, setLang } = useVoiceLang();
 
   // Locked mode: skill or class has committed to a language. The
@@ -55,7 +59,7 @@ export function LangToggle({ defaultLang, className }: LangToggleProps) {
           className ??
           "inline-flex items-center gap-1 rounded-full border bg-background px-2 py-0.5 text-[10px] text-muted-foreground"
         }
-        title={`This lesson is in ${FULL[defaultLang]} — the tutor responds in ${FULL[defaultLang]}, so the audio language is locked to match.`}
+        title={t("lockedTitle", { language: FULL[defaultLang] })}
       >
         <Lock className="h-3 w-3" aria-hidden="true" />
         <span className="font-medium">{LABEL[defaultLang]}</span>
@@ -71,7 +75,7 @@ export function LangToggle({ defaultLang, className }: LangToggleProps) {
         "inline-flex items-center gap-0.5 rounded-full border bg-background p-0.5 text-[10px] text-muted-foreground"
       }
       role="group"
-      aria-label="Read-aloud language"
+      aria-label={t("groupLabel")}
     >
       {SUPPORTED_LANGS.map((l) => {
         const isPicked = lang === l;
@@ -83,8 +87,8 @@ export function LangToggle({ defaultLang, className }: LangToggleProps) {
             aria-pressed={isPicked}
             title={
               isPicked
-                ? `${LABEL[l]} — your choice`
-                : `Switch read-aloud to ${LABEL[l]}`
+                ? t("yourChoice", { code: LABEL[l] })
+                : t("switchTo", { code: LABEL[l] })
             }
             className={
               isPicked

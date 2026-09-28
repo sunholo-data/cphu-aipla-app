@@ -1,0 +1,172 @@
+{
+  "ChatRevealTab": {
+    "showChat": "Show chat"
+  },
+  "ConceptMapGraph": {
+    "label": "Concept map"
+  },
+  "ConceptMapView": {
+    "untitled": "Concept map",
+    "notYet": "not yet",
+    "partial": "on the way",
+    "demonstrated": "understood"
+  },
+  "DocumentViewer": {
+    "label": "Document viewer",
+    "files": "Files",
+    "openFailed": "Couldn't open {name}.",
+    "downloadFile": "Download {name}",
+    "pdfFailed": "Couldn't render this PDF.",
+    "prevPage": "Previous page",
+    "nextPage": "Next page",
+    "zoomOut": "Zoom out",
+    "zoomIn": "Zoom in",
+    "fullscreen": "Fullscreen",
+    "download": "Download"
+  },
+  "DocumentsPanel": {
+    "image": "Image",
+    "noAccess": "You don't have access to this document's content.",
+    "loadFailed": "Couldn't load this document.",
+    "heading": "Documents",
+    "basedOn": "This activity is based on",
+    "hiddenHeading": "Also used by the tutor — name shown, contents not shared",
+    "yourUploads": "Your uploads",
+    "yourUploadAlt": "your upload",
+    "openDocLabel": "Document: {title}",
+    "closeDoc": "Close document",
+    "loading": "Loading…",
+    "unavailable": "The content of this document isn't available to read here yet.",
+    "empty": "Nothing was extracted from this document.",
+    "truncated": "Showing the first {shown, number} of {total, number} characters.",
+    "imageLoadFailed": "{name} — couldn't load"
+  },
+  "ProblemStatementCard": {
+    "label": "Problem statement"
+  },
+  "ProgressChecklist": {
+    "markedCard": "Marked ''{label}'' as done",
+    "unmarkedCard": "Unmarked ''{label}''",
+    "label": "Progress checklist",
+    "heading": "Progress",
+    "evidenceTitle": "AI: {evidence}",
+    "markedByAi": "marked by AI",
+    "footerShared": "The AI can mark steps based on your conversation — tap to change a mark. Progress is shared with your group.",
+    "footerLocal": "You decide when a step is done — the marks are just for your own overview."
+  },
+  "SimLauncher": {
+    "tooNarrowTitle": "{name} needs a bigger screen",
+    "tooNarrowBody": "The simulation needs at least {px} px of width — open the activity on a tablet or laptop. You can still chat with the tutor here.",
+    "open": "Open {name}",
+    "hint": "Virtual simulation — open it to explore."
+  },
+  "SolutionElementMount": {
+    "submitText": "Here is my solution — please give me feedback on it.",
+    "label": "Your solution",
+    "defaultPrompt": "Draw your solution on the whiteboard — or upload a photo of your handwritten solution.",
+    "orUpload": "Or upload a photo:",
+    "send": "Send solution",
+    "sent": "Solution sent — the tutor will reply in the chat."
+  },
+  "SolutionWhiteboard": {
+    "textPrompt": "Text (e.g. F_g or v₀ = 5 m/s)",
+    "fileBase": "drawing",
+    "toolbar": "Drawing tools",
+    "pen": "Pen",
+    "text": "Text",
+    "eraser": "Eraser",
+    "colour": "Colour {colour}",
+    "undo": "Undo",
+    "clear": "Clear",
+    "textHint": "Tap the whiteboard to place some text (e.g. a formula or a name).",
+    "canvas": "Drawing area",
+    "download": "Download drawing",
+    "add": "Add drawing"
+  },
+  "StaticArtefactFrame": {
+    "defaultTitle": "Simulation"
+  },
+  "StudentDocumentWorkbench": {
+    "upload": "Upload a file or photo",
+    "emptyTitle": "You haven't uploaded anything yet.",
+    "emptyHint": "Upload your assignment or a photo of your work, and the tutor can give you feedback.",
+    "yourFiles": "Your files",
+    "yourDocuments": "Your documents",
+    "retry": "Try again",
+    "listFailed": "Couldn't load your existing files. You can still upload a new one above.",
+    "deleteFailed": "Couldn't delete the file. Try again.",
+    "uploadFailed": "Couldn't upload the file. Try again.",
+    "unsupported": "This file type isn't supported here. Allowed types: PDF, Word, Excel, PowerPoint, text, Markdown, CSV or a photo (JPG, PNG, HEIC).",
+    "tooLarge": "The file is too large ({mb} MB). The limit is {max} MB — try compressing it, or upload fewer pages at a time.",
+    "tooLargeServer": "The file is too large. The limit is {max} MB — try compressing it, or upload fewer pages at a time.",
+    "parseFailed": "The file was uploaded but couldn't be read, so the tutor can't see it. Try saving it as a PDF and uploading again.",
+    "deleteLabel": "Delete {name}"
+  },
+  "StudentWorkspace": {
+    "closeSimLabel": "Close {name}",
+    "close": "Close",
+    "fullscreen": "Full screen"
+  },
+  "WorkbenchCalculator": {
+    "commitCard": "Calculated {results}",
+    "untitled": "Calculator",
+    "result": "Result"
+  },
+  "WorkbenchChart": {
+    "plotLabel": "{x} vs {y}",
+    "untitled": "Chart",
+    "fillTable": "Fill in the data table to see the chart.",
+    "needsTable": "This chart needs a data table with two number columns."
+  },
+  "WorkbenchNote": {
+    "untitled": "Note"
+  },
+  "WorkbenchTable": {
+    "sharedCard": "{title} shared with the tutor ({count, plural, one {# cell} other {# cells}})",
+    "untitled": "Data table",
+    "untitledLower": "table",
+    "saving": "Saving…",
+    "saved": "Saved for the group",
+    "saveError": "Not saved — retrying",
+    "cellLabel": "{table} {column} row {row}",
+    "footer": "Enter your measurements — they're shared with the tutor, so you can ask about them."
+  },
+  "WorkbenchTabs": {
+    "label": "Workbench",
+    "work": "Work",
+    "documents": "Documents"
+  },
+  "WorkbenchWriting": {
+    "formatRtf": "Word / Docs (.rtf)",
+    "formatTxt": "Text (.txt)",
+    "formatMd": "Markdown (.md)",
+    "sharedCard": "Your text shared with the tutor ({count, plural, one {# word} other {# words}})",
+    "feedbackFallbackTitle": "my text",
+    "feedbackRequest": "Can you give me feedback on {title}? Here is what I've written:\n\n{text}",
+    "untitled": "Writing area",
+    "placeholder": "Write here…",
+    "wordCount": "{count, plural, one {# word} other {# words}}",
+    "wordTarget": " of {target}",
+    "charCount": " · {length} / {max} characters",
+    "saving": "Saving…",
+    "saved": "Saved",
+    "saveError": "Not saved — retrying",
+    "downloadLabel": "Download {title} as a file",
+    "downloadFallbackTitle": "the text",
+    "downloadAs": "Download as…",
+    "askFeedback": "Ask for feedback"
+  },
+  "WorkspaceDivider": {
+    "label": "Resize the workspace"
+  },
+  "WorkspaceShell": {
+    "title": "Workspace",
+    "label": "Workspace",
+    "collapsedLabel": "Workspace (collapsed)",
+    "expand": "Expand workspace",
+    "collapse": "Collapse workspace"
+  },
+  "elementRenderers": {
+    "checklistHeading": "Progress"
+  }
+}

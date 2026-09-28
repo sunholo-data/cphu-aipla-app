@@ -12,6 +12,7 @@
 "use client";
 
 import { BrandAvatar } from "@/components/chat/BrandAvatar";
+import { useT } from "@/i18n";
 
 interface TypingIndicatorProps {
   /**
@@ -24,6 +25,7 @@ interface TypingIndicatorProps {
 }
 
 export function TypingIndicator({ stageLabel, activeToolName }: TypingIndicatorProps) {
+  const t = useT("TypingIndicator");
   const labelText = stageLabel ?? null;
   const toolText = !labelText && activeToolName ? activeToolName : null;
 
@@ -39,7 +41,7 @@ export function TypingIndicator({ stageLabel, activeToolName }: TypingIndicatorP
         ) : toolText ? (
           <>
             <span className="text-xs text-muted-foreground">
-              Using <span className="font-medium text-orange-600">{toolText}</span>…
+              {t("using")} <span className="font-medium text-orange-600">{toolText}</span>…
             </span>
             <span className="h-1.5 w-1.5 rounded-full bg-orange-400 animate-pulse" />
           </>

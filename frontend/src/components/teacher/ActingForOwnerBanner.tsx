@@ -3,6 +3,8 @@
 import { Microscope, PenLine } from "lucide-react";
 
 import { useTeacherAuth } from "@/hooks/useTeacherAuth";
+// 1.1.108: teacher surfaces are English until M2 extracts them; pinned so the
+// relative time does not turn Danish inside an English sentence.
 import { formatRelativeTime } from "@/lib/relativeTime";
 
 /** 1.1.108 M4 — copy lives here, never inline in JSX. */
@@ -71,7 +73,7 @@ export function LastEditedLine({ resource }: { resource: LastEditedResource }) {
   const stamp = resource.lastEditedBy;
   if (!stamp) return null;
   const who = resource.lastEditedByLabel ?? copy.someoneElse;
-  const when = formatRelativeTime(stamp.at) || stamp.at;
+  const when = formatRelativeTime(stamp.at, Date.now(), "en") || stamp.at;
   return (
     <p
       data-testid="last-edited-line"

@@ -233,6 +233,7 @@ export function ActivityBuilderBody({
       <div className="lg:sticky lg:top-2 lg:max-h-[calc(100vh-1rem)] lg:overflow-y-auto">
         <ActivityPreview
           artefactId={b.artefactId}
+          language={b.language}
           materials={b.materials}
           activityId={activityId}
           state={{

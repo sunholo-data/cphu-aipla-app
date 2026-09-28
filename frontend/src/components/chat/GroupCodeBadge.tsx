@@ -3,12 +3,15 @@
 import { useState } from "react";
 import { Check, Copy, Users } from "lucide-react";
 
+import { useT } from "@/i18n";
+
 /**
  * GroupCodeBadge — shows the anonymous group code (e.g. "lazy-flute-39") in the
  * chat header so students can read out / share it for others to join. Click to
  * copy. No-op render when there's no code (non-group sessions).
  */
 export function GroupCodeBadge({ code }: { code: string | null }) {
+  const t = useT("GroupCodeBadge");
   const [copied, setCopied] = useState(false);
   if (!code) return null;
 
@@ -27,8 +30,8 @@ export function GroupCodeBadge({ code }: { code: string | null }) {
     <button
       type="button"
       onClick={copy}
-      title="Kopiér gruppekode så andre kan deltage"
-      aria-label={`Gruppekode ${code}. Klik for at kopiere.`}
+      title={t("copyTitle")}
+      aria-label={t("ariaLabel", { code })}
       className="flex shrink-0 items-center gap-1.5 rounded-full border border-border bg-muted/50 px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted"
     >
       <Users className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />

@@ -1,0 +1,172 @@
+{
+  "ChatRevealTab": {
+    "showChat": "Vis chat"
+  },
+  "ConceptMapGraph": {
+    "label": "Begrebskort"
+  },
+  "ConceptMapView": {
+    "untitled": "Begrebskort",
+    "notYet": "ikke endnu",
+    "partial": "på vej",
+    "demonstrated": "forstået"
+  },
+  "DocumentViewer": {
+    "label": "Dokumentfremviser",
+    "files": "Filer",
+    "openFailed": "Kunne ikke åbne {name}.",
+    "downloadFile": "Hent {name}",
+    "pdfFailed": "Kunne ikke vise denne PDF.",
+    "prevPage": "Forrige side",
+    "nextPage": "Næste side",
+    "zoomOut": "Zoom ud",
+    "zoomIn": "Zoom ind",
+    "fullscreen": "Fuld skærm",
+    "download": "Hent"
+  },
+  "DocumentsPanel": {
+    "image": "Billede",
+    "noAccess": "Du har ikke adgang til indholdet af dette dokument.",
+    "loadFailed": "Kunne ikke hente dette dokument.",
+    "heading": "Dokumenter",
+    "basedOn": "Aktiviteten bygger på",
+    "hiddenHeading": "Bruges også af tutoren — navnet vises, indholdet deles ikke",
+    "yourUploads": "Dine uploads",
+    "yourUploadAlt": "din upload",
+    "openDocLabel": "Dokument: {title}",
+    "closeDoc": "Luk dokument",
+    "loading": "Indlæser…",
+    "unavailable": "Indholdet af dette dokument kan ikke læses her endnu.",
+    "empty": "Der blev ikke fundet noget tekst i dette dokument.",
+    "truncated": "Viser de første {shown, number} af {total, number} tegn.",
+    "imageLoadFailed": "{name} — kunne ikke hentes"
+  },
+  "ProblemStatementCard": {
+    "label": "Opgavetekst"
+  },
+  "ProgressChecklist": {
+    "markedCard": "Markerede ''{label}'' som klar",
+    "unmarkedCard": "Fjernede ''{label}'' fra klare",
+    "label": "Fremgangstjekliste",
+    "heading": "Fremgang",
+    "evidenceTitle": "AI: {evidence}",
+    "markedByAi": "markeret af AI",
+    "footerShared": "AI'en kan markere trin ud fra jeres samtale — tryk for at ændre en markering. Fremgangen deles med din gruppe.",
+    "footerLocal": "Du bestemmer selv hvornår en delopgave er klar — markeringen er kun til din egen oversigt."
+  },
+  "SimLauncher": {
+    "tooNarrowTitle": "{name} kræver en større skærm",
+    "tooNarrowBody": "Simulationen har brug for mindst {px} px i bredden — åbn aktiviteten på en tablet eller computer. Du kan godt chatte med tutoren her imens.",
+    "open": "Åbn {name}",
+    "hint": "Virtuel simulation — åbn for at udforske."
+  },
+  "SolutionElementMount": {
+    "submitText": "Her er min løsning — giv mig feedback på den.",
+    "label": "Din løsning",
+    "defaultPrompt": "Tegn din løsning på tavlen — eller upload et billede af din håndskrevne løsning.",
+    "orUpload": "Eller upload et billede:",
+    "send": "Send løsning",
+    "sent": "Løsning sendt — tutoren svarer i chatten."
+  },
+  "SolutionWhiteboard": {
+    "textPrompt": "Tekst (fx F_g eller v₀ = 5 m/s)",
+    "fileBase": "tegning",
+    "toolbar": "Tegneværktøjer",
+    "pen": "Pen",
+    "text": "Tekst",
+    "eraser": "Viskelæder",
+    "colour": "Farve {colour}",
+    "undo": "Fortryd",
+    "clear": "Ryd",
+    "textHint": "Tryk på tavlen for at placere en tekst (fx en formel eller et navn).",
+    "canvas": "Tegneflade",
+    "download": "Hent tegning",
+    "add": "Tilføj tegning"
+  },
+  "StaticArtefactFrame": {
+    "defaultTitle": "Simulation"
+  },
+  "StudentDocumentWorkbench": {
+    "upload": "Upload fil eller billede",
+    "emptyTitle": "Du har ikke uploadet noget endnu.",
+    "emptyHint": "Upload din opgave eller et billede af dit arbejde, så kan tutoren give dig feedback.",
+    "yourFiles": "Dine filer",
+    "yourDocuments": "Dine dokumenter",
+    "retry": "Prøv igen",
+    "listFailed": "Kunne ikke hente dine eksisterende filer. Du kan stadig uploade en ny ovenfor.",
+    "deleteFailed": "Kunne ikke slette filen. Prøv igen.",
+    "uploadFailed": "Kunne ikke uploade filen. Prøv igen.",
+    "unsupported": "Denne filtype understøttes ikke her. Tilladte typer: PDF, Word, Excel, PowerPoint, tekst, Markdown, CSV eller et billede (JPG, PNG, HEIC).",
+    "tooLarge": "Filen er for stor ({mb} MB). Maks er {max} MB — prøv at komprimere den, eller upload færre sider ad gangen.",
+    "tooLargeServer": "Filen er for stor. Maks er {max} MB — prøv at komprimere den, eller upload færre sider ad gangen.",
+    "parseFailed": "Filen blev uploadet, men kunne ikke læses, så tutoren kan ikke se den. Prøv at gemme den som PDF og uploade igen.",
+    "deleteLabel": "Slet {name}"
+  },
+  "StudentWorkspace": {
+    "closeSimLabel": "Luk {name}",
+    "close": "Luk",
+    "fullscreen": "Fuld skærm"
+  },
+  "WorkbenchCalculator": {
+    "commitCard": "Beregnede {results}",
+    "untitled": "Beregner",
+    "result": "Resultat"
+  },
+  "WorkbenchChart": {
+    "plotLabel": "{x} mod {y}",
+    "untitled": "Graf",
+    "fillTable": "Udfyld datatabellen for at se grafen.",
+    "needsTable": "Denne graf kræver en datatabel med to talkolonner."
+  },
+  "WorkbenchNote": {
+    "untitled": "Note"
+  },
+  "WorkbenchTable": {
+    "sharedCard": "{title} delt med vejlederen ({count, plural, one {# felt} other {# felter}})",
+    "untitled": "Datatabel",
+    "untitledLower": "tabel",
+    "saving": "Gemmer…",
+    "saved": "Gemt for gruppen",
+    "saveError": "Ikke gemt — prøver igen",
+    "cellLabel": "{table} {column} række {row}",
+    "footer": "Indtast dine målinger — de deles med vejlederen, så du kan spørge til dem."
+  },
+  "WorkbenchTabs": {
+    "label": "Arbejdsområde",
+    "work": "Arbejde",
+    "documents": "Dokumenter"
+  },
+  "WorkbenchWriting": {
+    "formatRtf": "Word / Docs (.rtf)",
+    "formatTxt": "Tekst (.txt)",
+    "formatMd": "Markdown (.md)",
+    "sharedCard": "Din tekst delt med vejlederen ({count} ord)",
+    "feedbackFallbackTitle": "min tekst",
+    "feedbackRequest": "Kan du give mig feedback på {title}? Her er hvad jeg har skrevet:\n\n{text}",
+    "untitled": "Skrivefelt",
+    "placeholder": "Skriv her…",
+    "wordCount": "{count} ord",
+    "wordTarget": " af {target}",
+    "charCount": " · {length} / {max} tegn",
+    "saving": "Gemmer…",
+    "saved": "Gemt",
+    "saveError": "Ikke gemt — prøver igen",
+    "downloadLabel": "Hent {title} som fil",
+    "downloadFallbackTitle": "teksten",
+    "downloadAs": "Hent som…",
+    "askFeedback": "Bed om feedback"
+  },
+  "WorkspaceDivider": {
+    "label": "Tilpas arbejdsområdets bredde"
+  },
+  "WorkspaceShell": {
+    "title": "Arbejdsområde",
+    "label": "Arbejdsområde",
+    "collapsedLabel": "Arbejdsområde (skjult)",
+    "expand": "Vis arbejdsområde",
+    "collapse": "Skjul arbejdsområde"
+  },
+  "elementRenderers": {
+    "checklistHeading": "Fremgang"
+  }
+}

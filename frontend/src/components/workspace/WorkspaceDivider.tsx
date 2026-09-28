@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { RATIO_MAX, RATIO_MIN } from "@/hooks/useResizableWorkspaceRatio";
+import { useT } from "@/i18n";
 
 /** Snap points the divider locks to when dragged within ±SNAP_RANGE. */
 const SNAP_POINTS: ReadonlyArray<number> = [0.3, 0.5, 0.7, 1.0];
@@ -44,6 +45,7 @@ export function WorkspaceDivider({
   onChange,
   className,
 }: WorkspaceDividerProps) {
+  const t = useT("WorkspaceDivider");
   const dividerRef = useRef<HTMLDivElement | null>(null);
   const [dragging, setDragging] = useState(false);
   const [flashKey, setFlashKey] = useState(0);
@@ -167,7 +169,7 @@ export function WorkspaceDivider({
       ref={dividerRef}
       role="separator"
       aria-orientation="vertical"
-      aria-label="Tilpas arbejdsområdets bredde"
+      aria-label={t("label")}
       aria-valuenow={Math.round(ratio * 100)}
       aria-valuemin={Math.round(RATIO_MIN * 100)}
       aria-valuemax={Math.round(RATIO_MAX * 100)}

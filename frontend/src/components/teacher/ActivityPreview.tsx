@@ -8,6 +8,7 @@ import { SimThumbnail } from "@/components/teacher/SimThumbnail";
 import { StudentWorkspace } from "@/components/workspace/StudentWorkspace";
 import { type ActivityArtefact } from "@/components/workspace/GenericArtefactFrame";
 import { HumanToolEventsProvider } from "@/hooks/useHumanToolEvents";
+import { LocaleProvider, toLocale } from "@/i18n";
 import {
   builderToElementDefs,
   hasAnyElement,
@@ -28,6 +29,9 @@ interface ActivityPreviewProps {
    *  bytes from the right activity slot and curriculum content ACLs correctly.
    *  Falls back to the preview sandbox id when absent (e.g. a brand-new draft). */
   activityId?: string;
+  /** 1.1.108 — the draft's language, so the preview shows the student surface in
+   *  the language the student will actually get. Absent → Danish. */
+  language?: string;
 }
 
 // A fixed, non-student skill id so the preview's scratch state (table cells in
@@ -55,6 +59,7 @@ export function ActivityPreview({
   artefactId,
   materials = [],
   activityId,
+  language,
 }: ActivityPreviewProps) {
   const [open, setOpen] = useState(true);
   const [expanded, setExpanded] = useState(false);
@@ -116,13 +121,13 @@ export function ActivityPreview({
           ) : expanded ? (
             <p className="px-4 py-6 text-center text-xs text-slate-400">Åbnet i fuld skærm.</p>
           ) : (
-            <PreviewBody artefactId={artefactId} sim={sim} defs={defs} materials={materials} activityId={activityId} />
+            <PreviewBody artefactId={artefactId} sim={sim} defs={defs} materials={materials} activityId={activityId} language={language} />
           )}
         </div>
       )}
 
       <PreviewModal open={expanded} onOpenChange={setExpanded}>
-        <PreviewBody artefactId={artefactId} sim={sim} defs={defs} materials={materials} activityId={activityId} />
+        <PreviewBody artefactId={artefactId} sim={sim} defs={defs} materials={materials} activityId={activityId} language={language} />
       </PreviewModal>
     </div>
   );
@@ -138,14 +143,19 @@ function PreviewBody({
   defs,
   materials,
   activityId,
+  language,
 }: {
   artefactId?: string | null;
   sim: ArtefactSummary | null;
   defs: ActivityElementDefs;
   materials: MaterialRef[];
   activityId?: string;
+  language?: string;
 }) {
+  // No `syncHtmlLang`: the page around the preview is the teacher's, not the
+  // student's — only the embedded workspace switches language.
   return (
+    <LocaleProvider locale={toLocale(language)}>
     <HumanToolEventsProvider>
       {artefactId && !SANDBOX_ORIGIN ? (
         <div className="flex items-start gap-2.5 border-b border-slate-200 px-4 py-3 text-xs text-slate-500">
@@ -182,6 +192,7 @@ function PreviewBody({
         documentViewerRole="teacher"
       />
     </HumanToolEventsProvider>
+    </LocaleProvider>
   );
 }
 

@@ -55,6 +55,8 @@ import { GettingStartedCard } from "./_GettingStartedCard";
 import { SetUpForTeacherDialog, setUpForTeacherCopy } from "./_SetUpForTeacherDialog";
 import { StageChip } from "@/components/teacher/StageChip";
 import { classStage } from "@/lib/onboardingStage";
+// 1.1.108: teacher surfaces are English until M2 extracts them; pinned so the
+// relative time does not turn Danish inside an English sentence.
 import { formatRelativeTime } from "@/lib/relativeTime";
 import { TutorFace } from "@/components/teacher/research/TutorFace";
 
@@ -700,7 +702,7 @@ export default function TeacherClassesPage() {
                 label="Last activity"
                 value={
                   insightsTotals.lastActivity
-                    ? formatRelativeTime(insightsTotals.lastActivity)
+                    ? formatRelativeTime(insightsTotals.lastActivity, Date.now(), "en")
                     : "none"
                 }
               />
@@ -760,7 +762,7 @@ export default function TeacherClassesPage() {
                         {label}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {row.turnCount} turn{row.turnCount === 1 ? "" : "s"} · {formatRelativeTime(row.lastMessageAt)}
+                        {row.turnCount} turn{row.turnCount === 1 ? "" : "s"} · {formatRelativeTime(row.lastMessageAt, Date.now(), "en")}
                       </span>
                     </div>
                     <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground">
@@ -780,7 +782,7 @@ export default function TeacherClassesPage() {
                       {label}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {row.turnCount} turn{row.turnCount === 1 ? "" : "s"} · {formatRelativeTime(row.lastMessageAt)}
+                      {row.turnCount} turn{row.turnCount === 1 ? "" : "s"} · {formatRelativeTime(row.lastMessageAt, Date.now(), "en")}
                     </span>
                   </div>
                 </li>
@@ -866,7 +868,7 @@ function ClassRow({
             </span>
             {activity.lastMessageAt ? (
               <span className="text-xs" title={activity.lastMessageAt}>
-                {formatRelativeTime(activity.lastMessageAt)}
+                {formatRelativeTime(activity.lastMessageAt, Date.now(), "en")}
               </span>
             ) : null}
           </div>

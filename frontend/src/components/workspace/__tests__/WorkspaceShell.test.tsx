@@ -16,7 +16,7 @@ describe("WorkspaceShell", () => {
       </WorkspaceShell>,
     );
     expect(screen.getByText("workspace body")).toBeInTheDocument();
-    expect(screen.getByLabelText(/Collapse workspace/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Skjul arbejdsområde/i)).toBeInTheDocument();
   });
 
   it("uses default Danish title", () => {
@@ -43,10 +43,10 @@ describe("WorkspaceShell", () => {
         <p>workspace body</p>
       </WorkspaceShell>,
     );
-    const collapseBtn = screen.getByLabelText(/Collapse workspace/i);
+    const collapseBtn = screen.getByLabelText(/Skjul arbejdsområde/i);
     fireEvent.click(collapseBtn);
     expect(screen.queryByText("workspace body")).not.toBeInTheDocument();
-    expect(screen.getByLabelText(/Expand workspace/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Vis arbejdsområde/i)).toBeInTheDocument();
   });
 
   it("persists collapse state to sessionStorage", () => {
@@ -55,9 +55,9 @@ describe("WorkspaceShell", () => {
         <p>x</p>
       </WorkspaceShell>,
     );
-    fireEvent.click(screen.getByLabelText(/Collapse workspace/i));
+    fireEvent.click(screen.getByLabelText(/Skjul arbejdsområde/i));
     expect(window.sessionStorage.getItem(COLLAPSE_KEY)).toBe("1");
-    fireEvent.click(screen.getByLabelText(/Expand workspace/i));
+    fireEvent.click(screen.getByLabelText(/Vis arbejdsområde/i));
     expect(window.sessionStorage.getItem(COLLAPSE_KEY)).toBe("0");
   });
 
@@ -69,7 +69,7 @@ describe("WorkspaceShell", () => {
       </WorkspaceShell>,
     );
     expect(screen.queryByText("workspace body")).not.toBeInTheDocument();
-    expect(screen.getByLabelText(/Expand workspace/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/Vis arbejdsområde/i)).toBeInTheDocument();
   });
 
   it("hideOnMobile=false (default): aside has `flex`, no `hidden` — visible at all breakpoints", () => {

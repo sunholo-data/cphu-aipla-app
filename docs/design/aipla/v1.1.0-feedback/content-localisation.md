@@ -1,13 +1,13 @@
 # Content localisation — the Danish sweep, the locale layer, and the rule that stops it getting harder
 
-**Status:** **P1 — OPEN (design) 2026-09-11.** M0 is scheduled (extension plan, workstream C). M1–M2 follow M0 and are sized. M3 is a **decision for JB/AR**, not scheduled work. M4 is a standing rule, in force from today.
+**Status:** **P1 — IN PROGRESS 2026-09-28.** Audited against the tree 2026-09-28 (see [Audit](#audit-2026-09-28) — six corrections, one reordering). M0's engineering half + M1 started 2026-09-28, **decoupled from the SH call**: `da.json` lands byte-identical to today's Danish, and the language fixes follow as a reviewable diff to that one file. M2 follows and is sized. M3 is a **decision for JB/AR**, not scheduled work. M4 is a standing rule, in force since 2026-09-11.
 **Priority:** **P1** — a researcher's first-contact reaction to the product was *the Danish is confusing*, and the two people whose reactions most shape the programme's view of the platform (SH, and Aswin before her — [1.1.7x](tutor-register-citation-and-language.md)) have both now hit the language layer first. Below the discipline layer (D) because it is finish, not capability; above the rest of C because every later string we write without this in place is one more to extract.
 **Estimated:** M0 sweep-as-extraction ~2–2.5d (absorbs the ~1.5–2d "Danish sweep" already on C **and** the deferred ~2–3d M3 of 1.1.7x, because they are the same files read twice) · M1 locale resolution ~0.5d · M2 teacher surface ~2–3d (**gated**) · M3 `/project` in Danish ~1d plumbing + translation (**decision**) · M4 rule + guard ~0.25d (**do first**).
 **Scope:** `frontend/src/components/{workspace,chat,teacher,site}`, `frontend/src/app/{lessons,chat,teacher}` — the string surface; `frontend/content/project/` + `frontend/src/lib/projectContent.ts` — the public site; `backend/skills/templates/*/SKILL.md` + `backend/frameworks/*.yaml` — prompt prose; `infrastructure/mcp-sandbox/artefacts/` + `frontend/src/_sim-template/` — sims; `.eslintrc.json` / `scripts/` — the guard.
-**Dependencies:** [1.1.7x tutor-register-citation-and-language](tutor-register-citation-and-language.md) (**M1+M2 shipped**, `activity.language` drives the tutor; **M3 deferred — this doc absorbs it**); [1.1.38 activity-elements-palette](activity-elements-palette.md) (**shipped** — the student components to localise); `docs/guides/` `.da.qmd` twins (**shipped** — the one content surface that already does this right, and the pattern M3 copies); [1.1.91 researcher-configurable-tutors](researcher-configurable-tutors.md) (the frameworks YAML is a new prose surface — M4 applies to it).
+**Dependencies:** [1.1.7x tutor-register-citation-and-language](tutor-register-citation-and-language.md) (**M1+M2 shipped**, `activity.language` drives the tutor; **M3 deferred — this doc absorbs it**); [1.1.38 activity-elements-palette](activity-elements-palette.md) (**shipped** — the student components to localise); `frontend/content/guides/` `.da.md` twins (**shipped** — the one content surface that already does this right, and the pattern M3 copies); [1.1.91 researcher-configurable-tutors](researcher-configurable-tutors.md) (the frameworks YAML is a new prose surface — M4 applies to it).
 **Source:** SH (researcher; granted prod access 2026-09-11) — *the Danish is confusing*. M, same day: *"lets make sure we are not making this more difficult as we go on."* Prior: Aswin 2026-08-06, *"When using English in the setup, the language is still in Danish in students' interface."*
 **Created:** 2026-09-11 (M)
-**Last Updated:** 2026-09-11 (M)
+**Last Updated:** 2026-09-28 (audit + start of M0/M1)
 
 ## Problem Statement
 
@@ -24,7 +24,7 @@ connected:
 | **App UI** — teacher surfaces | ~104 Danish literals in `components/teacher`, `app/teacher`; the shared co-pilot shell defaults English with Danish overrides per surface | Hardcoded, mixed | **No.** And the mix is itself the confusion — a teacher sees *New class* beside *Anvend* |
 | **Public site** `/project` | 15 Markdown pages in `frontend/content/project/` with frontmatter | English only | **Nearly.** Design and text are already separated; the loader just has no locale axis |
 | **Sims** | Boldkast, LED Planck (Danish), KineBot (English **by design**) | Hardcoded per artefact | **No**, and partly shouldn't be — see M4 |
-| **Guides** | `docs/guides/<slug>.qmd` + `<slug>.da.qmd` | Twin files, shared screenshots | **Yes.** The reference pattern |
+| **Guides** | `frontend/content/guides/<slug>.md` + `<slug>.da.md` (Quarto until 1.1.116) | Twin files, shared screenshots | **Yes.** The reference pattern |
 
 Two consequences, both observed rather than predicted:
 
@@ -46,6 +46,58 @@ Two consequences, both observed rather than predicted:
 The second consequence is the one M asked about. **This doc's most important
 deliverable is not the sweep; it is M4 — the rule and the guard that make the
 next string cheap to translate instead of one more to extract.**
+
+## Audit (2026-09-28)
+
+Checked every claim above against the tree seventeen days after writing. The
+design holds — activity language as the source, one message layer, twin
+content files, a crude guard. Six things did not, and one ordering changes.
+
+1. **The scope was sized by the wrong half.** "~109 Danish literals" counts
+   `[æøå]`, i.e. *what an English activity must lose*. It does not count the
+   English that a **Danish** activity shows today — the lesson picker's
+   *Available activities*, most element chrome, the chat composer. The student
+   surface is mixed in **both** directions, so the real job is every visible
+   string on it: ~60 files, ~200+ strings, not ~109. The ~2–2.5d estimate
+   survives only because most are short labels. The success metric gains a
+   twin: the `da` render must contain none of the `en` message values (zero
+   `[æøå]` in `en` proves one direction only).
+2. **Two student surfaces have no activity yet.** The join page
+   (`app/(site)/group`) and the lesson picker (`app/lessons`) render before a
+   single activity is chosen, and today they are deliberately bilingual
+   (*"Indlæser… / Loading…"*). `my-activities` does not carry `language`.
+   **Decision:** the picker takes the class's language when every assigned
+   activity shares one (`language` added to `StudentActivitySummary`) and stays
+   bilingual when they are mixed; the join page stays bilingual — no class is
+   known yet, and rule 3 forbids guessing from the browser.
+3. **The locale is resolved on the client, not server-side.** Axiom 1's note
+   was wrong: the chat page learns the language from
+   `GET /api/activity-configs/active/{id}` after mount, and `<html lang>` is
+   written by the server root layout. So: `NextIntlClientProvider` with an
+   explicit `locale` (not next-intl's per-request `i18n/request.ts` mode, which
+   has no activity to read), both message files bundled (a few KB), and
+   `document.documentElement.lang` set on the client when the locale resolves.
+4. **The student directory list was incomplete.** Add `app/(site)/group` (the
+   join page), `components/protocols` and `components/doc-browser` — all three
+   are student-reachable.
+5. **The guides reference is stale.** Since 1.1.116 the guides are
+   `frontend/content/guides/<slug>.md` + `<slug>.da.md`, not `docs/guides/*.qmd`.
+   `r1-researcher-onboarding` and `r2-propose-a-simulation` are English-only
+   **without** the rule-2 comment — researcher-facing, so en-only is defensible,
+   but it has to be said on purpose.
+6. **The sim supply gap is still open.** `GenericArtefactFrame` still passes no
+   `hostContext`, so no sim receives `locale`. It moves into M1 proper.
+7. **`teacher_prefs.locale` defaulting to `da` would flip the teacher UI.**
+   Teacher surfaces are predominantly English today; an absent pref meaning
+   `da` turns every existing teacher's product Danish on the day M2 lands.
+   Decide the default at M2 with that in view (open question 3 widens).
+
+**Reordering:** M0 no longer waits on the SH call. The call routes *which
+Danish to fix*; it does not change the plumbing, and the plumbing makes the fix
+cheap — once every student string sits in `messages/da.json`, the native read is
+a review of one file, not of sixty components. So: extract with `da.json`
+**byte-identical** to today (the snapshot proves nothing moved), author
+`en.json`, turn the guard on — then the sweep lands as a diff to `da.json`.
 
 ## Goals
 
@@ -118,7 +170,7 @@ pronunciation data, not UI copy. It stays.
   `locale` field is one more key, not a new store.
 - **`projectContent.ts` is already a filesystem reader over frontmatter** —
   M3 is a locale parameter and a fallback branch, not a new loader.
-- **The guides pipeline already renders `.da.qmd` twins** — M3's content
+- **The guides pipeline already renders `.da.md` twins** — M3's content
   convention copies it rather than inventing one.
 - **`_sim-template/` + `aiplatform sim scaffold`** already generate every new
   sim's frontend wiring — M4's sim rule lands in the scaffold, so a new sim
@@ -254,7 +306,77 @@ or *class code* clearer is a product question, not a copy one — open for SH.
 ⚠️ `manage-class/SKILL.md` changed, so this needs a **seed** to reach a deployed
 environment (`make seed ENV=…`), not just a deploy.
 
+### M0a — Extraction, as built (2026-09-28)
+
+**The layer.** `frontend/src/i18n/` — `useT("Namespace")` returns a typed
+translator (keys typed from `messages/da/*.json`; a typo is a compile error),
+`t.rich()` for a sentence with markup in it, `LocaleProvider` for a subtree.
+next-intl's `createTranslator` does the ICU work; the locale comes from **our**
+context rather than next-intl's provider, so a component rendered with no
+provider (a unit test, an embedded preview) renders Danish instead of throwing,
+and a key missing at runtime falls back to the Danish string, never a raw key.
+Messages live in `frontend/messages/{da,en}/<area>.json` — one file per surface
+area (`chat`, `chat-page`, `workspace`, `lessons`, `join`), top-level keys are
+component-named namespaces. `messages.test.ts` fails on a key or namespace in
+one locale and not the other, on two areas claiming one namespace, on
+mismatched ICU placeholders, and on any æøå in the English catalogue.
+
+**Where the locale comes from** (M1, done in the same pass):
+
+| Surface | Locale |
+|---|---|
+| Chat + workspace | `activity.language` from `GET /api/activity-configs/active/{id}` (now carried — same field as the tutor's directive). No activity → the skill/class voice language → Danish. `<html lang>` follows |
+| Lesson picker | the class's language when every assigned activity agrees (`language` now on `StudentActivitySummary`), else bilingual |
+| Join page | both, Danish leading, English dimmed beneath — no class is known yet |
+| Teacher's live preview | the draft's `language`, so the teacher sees what the student will get. `<html lang>` untouched |
+| Sims | `GenericArtefactFrame` now passes `hostContext.locale` — the rule-5 supply gap is closed |
+
+**Scale:** ~260 keys across ~50 student components + three pages. Guard
+`make check-i18n` in CI: 62 hits on the pre-extraction tree, 0 after.
+Every English value is new or unchanged; every Danish value that was Danish
+before is byte-identical, **except** the deliberate changes below.
+
+**Deliberate changes to what a student sees:**
+- Strings that were **English in a Danish activity** now have Danish — as
+  *first drafts* (list below). The biggest visible change: the chat composer,
+  error banner, document viewer and documents panel speak Danish.
+- Stacked-bilingual lines inside an activity (`SimLauncher`'s narrow-screen
+  note, `ResumeWelcomeBanner`) now show only the activity's language.
+- Numbers get locale grouping ("1.234 ord", not "1234 ord").
+- `StreamError` gained a `code`; the banner translates by code, and the budget
+  branch still shows the backend's own sentence.
+- "Skill not found" → "This activity could not be found." (rule 6 — *skill* is
+  our word, not the student's).
+
+**For the native read (M0b) — first-draft Danish, written by a non-native
+speaker, one pass:**
+- `chat.json`: HumanToolUseCard (you/pending/confirmed/failed), ResumeWelcomeBanner.dismiss,
+  AutoReadToggle.manual, ReadAloudButton (read/stop), LangToggle (all),
+  ImageComposer (attachmentAlt/imageFallback/remove), ChatMessageList (earlier/emptyPrompt),
+  ContextBanner.analyzing, TypingIndicator.using, ThinkingPanel (all), ToolCallChip (all),
+  MessageBubble.attachmentAlt, ZoomableImage (all), PDFCard (open/pages),
+  LessonRecordingPanel (all), VoiceComposerControls (all), ArtefactRefused.appeal
+- `chat-page.json`: every key except tabsLabel/tabWork (which were Danish)
+- `workspace.json`: DocumentsPanel (all 15), DocumentViewer (all 11),
+  ProblemStatementCard.label, ProgressChecklist.label, StaticArtefactFrame.defaultTitle,
+  WorkbenchChart.plotLabel, WorkbenchNote.untitled, WorkbenchTabs.label,
+  WorkspaceShell (collapsedLabel/label)
+- `lessons.json`: gridLabel · `join.json`: the four error sentences
+- One inconsistency kept byte-identical for the reader to rule on: a trust card
+  says *vejlederen* where the rest of the product says *tutoren*.
+
+**Still outside the message layer (student-visible, found during extraction):**
+`BudgetBanner` (backend-authored sentence + English countdown) ·
+`useImageAttachments` notices · `TypingIndicator`'s `stageLabel` from the page ·
+`ArtefactReviewer` decision messages · `lib/resolveChartBinding.ts` chart notes
+(Danish) · `lib/exportDocument.ts` (unchecked) · the doc-browser, which is
+teacher/dev-only (`showDocumentUI = !isAnonymousGroupAuthMode()`). The guard
+does not see `lib/` or `hooks/` — widen it when these move.
+
 ### M1 — Locale resolution (~0.5d)
+
+> **Done with M0a, 2026-09-28** — see the table above. The teacher half
+> (`teacher_prefs.locale`) moves to M2, where it is needed.
 
 - Student surfaces: `activity.language` → `next-intl` locale → `<html lang>`.
   The workspace already fetches the activity config; this reads one field.
@@ -298,8 +420,9 @@ No work is scheduled and none should be until there is an audience.
 | Milestone | Est | Order | Gate |
 |---|---|---|---|
 | **M4** rule + CLAUDE.md + skills + memory (guard script ships with M0) | ~0.25d | **first — done 2026-09-11** | none |
-| **M0** sweep-as-extraction (student surfaces) | ~2–2.5d | Oct, with AD if timing allows | SH call first |
-| **M1** locale resolution | ~0.5d | with M0 | none |
+| **M0a** extraction + guard (student surfaces), `da.json` byte-identical | ~2d | **started 2026-09-28** | none (audit reordering) |
+| **M0b** the Danish sweep, as a diff to `da.json` + native read | ~0.5–1d | after M0a | SH call routes it |
+| **M1** locale resolution (incl. sim `hostContext`, picker language) | ~0.5d | with M0a | none |
 | **M2** teacher surfaces | ~2–3d | Nov–Dec | M0's guard has held a month; AD present |
 | **M3** `/project` Danish | ~1d + translation | unscheduled | JB/AR say yes and name owners |
 
@@ -336,8 +459,9 @@ existing activity config write path, which is teacher-authenticated.
 
 - [x] M4: CLAUDE.md footgun row, memory, skill notes — **done 2026-09-11**. The guard script (`make check-i18n`) lands **with M0**: scoped to nothing it guards nothing, and scoped to the student surfaces it fails on every current file, which is the point of running it before extraction, not before
 - [ ] M0: SH call held; which layer recorded here
-- [ ] M0: student surfaces render from `messages/`, guard green in CI, native read signed off
-- [ ] M1: `language: en` activity → English product end to end, incl. read-aloud voice
+- [x] M0a: student surfaces render from `messages/`, guard green in CI (62 → 0) — 2026-09-28
+- [ ] M0b: native read signed off (list under "M0a — as built")
+- [x] M1: `language: en` activity → English student UI, sims receive `locale` — 2026-09-28. Read-aloud voice already followed `activity.language` (1.1.63 M4). ⚠️ Not yet verified on a deployed env in a browser
 - [ ] M2: teacher surfaces render from `messages/`
 - [ ] M3: decision recorded (yes/no/some); if yes, owners named per page
 
@@ -357,6 +481,6 @@ existing activity config write path, which is teacher-authenticated.
 - [1.1.7x tutor-register-citation-and-language](tutor-register-citation-and-language.md) — M2 shipped the mechanism; M3 deferred, absorbed here
 - [activity-copilot-shared-shell-migration](activity-copilot-shared-shell-migration.md) — where the English-shell/Danish-override split came from
 - [1.1.91 researcher-configurable-tutors](researcher-configurable-tutors.md) — the frameworks YAML as a prose surface
-- `docs/guides/README.md` — the `.da.qmd` twin convention this copies
+- `frontend/content/guides/` — the `.da.md` twin convention this copies
 - [Extension plan, workstream C](../v2.1.0-extension/plan-2026-09-to-2027-04.md) — where M0 is scheduled
 - Memory: `feedback-content-must-be-translatable`; KineBot language decision: memory `project-kinebot-language-audience`

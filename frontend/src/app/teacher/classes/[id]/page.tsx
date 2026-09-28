@@ -45,6 +45,8 @@ import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 import { handleExportSessions } from "./_exportHelpers";
 import { ClassAnalyticsCopilot } from "./_ClassAnalyticsCopilot";
 import { LiveClassView } from "./_LiveClassView";
+// 1.1.108: teacher surfaces are English until M2 extracts them; pinned so the
+// relative time does not turn Danish inside an English sentence.
 import { formatRelativeTime } from "@/lib/relativeTime";
 import { useTeacherAuth } from "@/hooks/useTeacherAuth";
 
@@ -369,7 +371,7 @@ export default function TeacherClassDetailPage() {
                     </code>
                     {latest ? (
                       <span className="text-xs text-muted-foreground">
-                        Last active {formatRelativeTime(latest.lastMessageAt)} · {latest.turnCount} turn{latest.turnCount === 1 ? "" : "s"}
+                        Last active {formatRelativeTime(latest.lastMessageAt, Date.now(), "en")} · {latest.turnCount} turn{latest.turnCount === 1 ? "" : "s"}
                         {latest.title ? ` · ${latest.title}` : ""}
                       </span>
                     ) : (
@@ -673,7 +675,7 @@ export default function TeacherClassDetailPage() {
                         {row.title ?? skillNameById.get(row.skillId) ?? row.skillId}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {row.turnCount} turn{row.turnCount === 1 ? "" : "s"} · {formatRelativeTime(row.lastMessageAt)}
+                        {row.turnCount} turn{row.turnCount === 1 ? "" : "s"} · {formatRelativeTime(row.lastMessageAt, Date.now(), "en")}
                       </span>
                     </div>
                     <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground">
@@ -693,7 +695,7 @@ export default function TeacherClassDetailPage() {
                       {row.title ?? skillNameById.get(row.skillId) ?? row.skillId}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {row.turnCount} turn{row.turnCount === 1 ? "" : "s"} · {formatRelativeTime(row.lastMessageAt)}
+                      {row.turnCount} turn{row.turnCount === 1 ? "" : "s"} · {formatRelativeTime(row.lastMessageAt, Date.now(), "en")}
                     </span>
                   </div>
                 </li>

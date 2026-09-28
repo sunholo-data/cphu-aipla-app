@@ -26,6 +26,7 @@ import { BookOpen, RefreshCw } from "lucide-react";
 import { SiteFooter } from "@/components/site/SiteFooter";
 
 import { skillHref } from "@/components/navigation/skillHref";
+import { LocaleProvider, localeForActivities, useT, type LocaleMode } from "@/i18n";
 import { useAnonymousGroupAuth } from "@/contexts/AnonymousGroupAuthProvider";
 import { fetchWithAuth } from "@/lib/apiClient";
 import { isAnonymousGroupAuthMode } from "@/lib/anonymousGroupAuth";
@@ -54,6 +55,9 @@ interface StudentActivity {
   title: string;
   artefactId?: string | null;
   workbenchType?: string;
+  /** 1.1.108 M1 — the activity's language; the picker speaks the class's
+   *  language when every activity shares one. */
+  language?: string;
 }
 
 function AnonGroupLessonsPage() {
@@ -98,34 +102,72 @@ function AnonGroupLessonsPage() {
   }
 
   const ready = groupAuth.status === "joined" || groupAuth.status === "expired";
+  // 1.1.108 audit item 2: no single activity is open here, so the picker takes
+  // the class's language only when every activity agrees — and stays bilingual
+  // until the list arrives, when it is mixed, and when it is empty. Never the
+  // browser's language (rule M4.3).
+  const locale: LocaleMode = activities ? localeForActivities(activities.map((a) => a.language)) : "bilingual";
+  return (
+    <LocaleProvider locale={locale} syncHtmlLang>
+      <AnonGroupLessonsView
+        ready={ready}
+        groupCode={groupAuth.groupCode}
+        className={liveClassName}
+        activities={activities}
+        loadError={loadError}
+        onLeave={handleLeave}
+        onRetry={() => router.refresh()}
+      />
+    </LocaleProvider>
+  );
+}
+
+function AnonGroupLessonsView({
+  ready,
+  groupCode,
+  className: liveClassName,
+  activities,
+  loadError,
+  onLeave: handleLeave,
+  onRetry,
+}: {
+  ready: boolean;
+  groupCode: string | null;
+  className: string | null;
+  activities: StudentActivity[] | null;
+  loadError: boolean;
+  onLeave: () => void;
+  onRetry: () => void;
+}) {
+  const t = useT("LessonsPage");
   return (
     <>
       {ready ? (
         <div className="border-b border-border bg-muted/40 px-4 py-2 text-sm">
           <div className="mx-auto flex max-w-5xl items-center justify-between gap-2">
-            {groupAuth.groupCode ? (
+            {groupCode ? (
               <span className="text-muted-foreground">
-                Gruppe / Group:{" "}
+                {t("groupLabel")}:{" "}
                 <code className="font-mono font-medium text-foreground">
-                  {groupAuth.groupCode}
+                  {groupCode}
                 </code>
               </span>
             ) : (
-              <span className="text-muted-foreground">Tilmeldt / Joined</span>
+              <span className="text-muted-foreground">{t("joined")}</span>
             )}
             <div className="flex items-center gap-3">
               <Link
                 href="/guides"
                 className="text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
               >
-                Sådan virker det / How it works
+                {t("howItWorks")}
               </Link>
               <button
                 type="button"
                 onClick={handleLeave}
                 className="rounded border border-border px-2.5 py-1 text-xs font-medium hover:bg-accent"
               >
-                Skift kode / Change code
+                {t("changeCode")}
               </button>
             </div>
           </div>
@@ -133,28 +175,26 @@ function AnonGroupLessonsPage() {
       ) : null}
       <main className="mx-auto flex max-w-5xl flex-col gap-6 p-4 sm:p-6">
         <header className="flex flex-col gap-1">
-          <h1 className="text-xl font-semibold sm:text-2xl">Aktiviteter / Activities</h1>
-          <p className="text-sm text-muted-foreground">
-            Vælg en aktivitet at arbejde med. / Pick an activity to work on.
-          </p>
+          <h1 className="text-xl font-semibold sm:text-2xl">{t("title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
         </header>
         {liveClassName ? (
           <div className="rounded border border-border bg-muted/40 px-3 py-2 text-sm">
-            <span className="text-muted-foreground">Klasse / Class: </span>
+            <span className="text-muted-foreground">{t("classLabel")}: </span>
             <span className="font-medium">{liveClassName}</span>
           </div>
         ) : null}
 
-        {loadError ? <ErrorBanner message="kunne ikke hentes" onRetry={() => router.refresh()} /> : null}
+        {loadError ? <ErrorBanner message={t("fetchFailed")} onRetry={onRetry} /> : null}
 
         {!ready || activities === null ? (
-          <p className="text-sm text-muted-foreground">Indlæser… / Loading…</p>
+          <p className="text-sm text-muted-foreground">{t("loading")}</p>
         ) : activities.length === 0 ? (
           <EmptyState className={liveClassName} />
         ) : (
           <section aria-labelledby="lessons-grid-label" className="grid gap-4 sm:grid-cols-2">
             <h2 id="lessons-grid-label" className="sr-only">
-              Available activities
+              {t("gridLabel")}
             </h2>
             {activities.map((a) => (
               <ActivityLessonCard key={a.activityId} activity={a} />
@@ -173,7 +213,8 @@ function ActivityLessonCard({ activity }: { activity: StudentActivity }) {
   const href = `/chat/${encodeURIComponent(activity.skillId)}?activity_id=${encodeURIComponent(
     activity.activityId,
   )}`;
-  const title = activity.title || "Aktivitet";
+  const t = useT("LessonsPage");
+  const title = activity.title || t("untitled");
   return (
     <Link
       href={href}
@@ -238,18 +279,37 @@ function UniversalLessonsPage({
     if (groupAuthStatus === "ready") void refresh();
   }, [groupAuthStatus, refresh]);
 
+  // Teacher / LOCAL_MODE view of the skill list: no activity carries a language
+  // here, so it stays bilingual (the pre-1.1.108 behaviour).
+  return (
+    <LocaleProvider locale="bilingual">
+      <UniversalLessonsView className={className} skills={skills} error={error} onRetry={refresh} />
+    </LocaleProvider>
+  );
+}
+
+function UniversalLessonsView({
+  className,
+  skills,
+  error,
+  onRetry: refresh,
+}: {
+  className: string | null;
+  skills: Skill[] | null;
+  error: string | null;
+  onRetry: () => void;
+}) {
+  const t = useT("LessonsPage");
   return (
     <>
     <main className="mx-auto flex max-w-5xl flex-col gap-6 p-4 sm:p-6">
       <header className="flex flex-col gap-1">
-        <h1 className="text-xl font-semibold sm:text-2xl">Aktiviteter / Activities</h1>
-        <p className="text-sm text-muted-foreground">
-          Vælg en aktivitet at arbejde med. / Pick an activity to work on.
-        </p>
+        <h1 className="text-xl font-semibold sm:text-2xl">{t("title")}</h1>
+        <p className="text-sm text-muted-foreground">{t("subtitle")}</p>
       </header>
       {className ? (
         <div className="rounded border border-border bg-muted/40 px-3 py-2 text-sm">
-          <span className="text-muted-foreground">Klasse / Class: </span>
+          <span className="text-muted-foreground">{t("classLabel")}: </span>
           <span className="font-medium">{className}</span>
         </div>
       ) : null}
@@ -257,7 +317,7 @@ function UniversalLessonsPage({
       {error ? <ErrorBanner message={error} onRetry={refresh} /> : null}
 
       {skills === null && !error ? (
-        <p className="text-sm text-muted-foreground">Indlæser… / Loading…</p>
+        <p className="text-sm text-muted-foreground">{t("loading")}</p>
       ) : skills && skills.length === 0 ? (
         <EmptyState className={className} />
       ) : skills ? (
@@ -266,7 +326,7 @@ function UniversalLessonsPage({
           className="grid gap-4 sm:grid-cols-2"
         >
           <h2 id="lessons-grid-label" className="sr-only">
-            Available activities
+            {t("gridLabel")}
           </h2>
           {skills.map((skill) => (
             <LessonCard key={skill.skillId} skill={skill} />
@@ -332,18 +392,11 @@ function LessonCover({ avatar, title }: { avatar: string; title: string }) {
 function EmptyState({ className = null }: { className?: string | null }) {
   // The class resolved but has no activity assigned yet — say so plainly (vs a
   // blank "nothing here") so the student knows it's a setup step, not a bug.
-  const da = className
-    ? `Din lærer har ikke tilføjet en aktivitet til ${className} endnu.`
-    : "Din lærer har ikke tilføjet en aktivitet endnu.";
-  const en = className
-    ? `Your teacher hasn't added an activity to ${className} yet.`
-    : "Your teacher hasn't added an activity yet.";
+  const t = useT("LessonsPage");
   return (
     <div className="flex flex-col items-start gap-2 rounded border border-dashed border-border p-6">
-      <p className="text-sm font-medium">{da}</p>
-      <p className="text-sm text-muted-foreground">
-        <span className="italic">{en}</span> Tjek igen om lidt. / Check back soon.
-      </p>
+      <p className="text-sm font-medium">{className ? t("emptyForClass", { className }) : t("empty")}</p>
+      <p className="text-sm text-muted-foreground">{t("checkBack")}</p>
     </div>
   );
 }
@@ -355,19 +408,20 @@ function ErrorBanner({
   message: string;
   onRetry: () => void;
 }) {
+  const t = useT("LessonsPage");
   return (
     <div
       role="alert"
       className="flex flex-wrap items-center justify-between gap-2 rounded border border-destructive bg-destructive/10 px-3 py-2 text-sm text-destructive"
     >
-      <span>Kunne ikke indlæse aktiviteter: {message}</span>
+      <span>{t("loadFailed", { message })}</span>
       <button
         type="button"
         onClick={onRetry}
         className="flex items-center gap-1 rounded border border-destructive px-2 py-1 text-xs font-medium hover:bg-destructive/20"
       >
         <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
-        Prøv igen / Retry
+        {t("retry")}
       </button>
     </div>
   );

@@ -26,6 +26,6 @@ describe("ProblemStatementCard", () => {
 
   it("has the Problem statement aria-label", () => {
     render(<ProblemStatementCard content="x" />);
-    expect(screen.getByLabelText("Problem statement")).toBeInTheDocument();
+    expect(screen.getByLabelText("Opgavetekst")).toBeInTheDocument();
   });
 });

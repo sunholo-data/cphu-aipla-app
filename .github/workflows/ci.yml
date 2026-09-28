@@ -184,6 +184,12 @@ jobs:
         # KU coat-of-arms. Semantic reds (error, recording) are allowlisted with
         # reasons in the script.
         run: bash scripts/check-brand-literals.sh
+      - name: Localisation gate (no inline Danish on student surfaces)
+        # 1.1.108: an English activity showed Danish buttons for months because
+        # the student UI's strings were typed into JSX, where no locale could
+        # switch them. They now live in frontend/messages/{da,en}/; this keeps
+        # the next string from being typed inline. Scope widens per surface (M2).
+        run: bash scripts/check-i18n-literals.sh
       - name: Home-screen icons are opaque
         # 2026-08-14: the PWA shipped with apple-touch-icon cut from the ROUNDED
         # mark, so its corners were rgba(0,0,0,0). iOS applies its own rounding

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
 import { useSimSnapshotPush } from "@/hooks/useSimSnapshotPush";
+import { useT, type Translate } from "@/i18n";
 import { evaluateFormula } from "@/lib/safeFormula";
 import type { CalcInput, CalculatorElement } from "@/lib/elementTypes";
 
@@ -38,11 +39,11 @@ function fmt(n: number): string {
 /** Human-readable card label for a commit — names the computed value(s) so the
  *  student sees what reached the tutor. Returns null when nothing has a result
  *  yet (a card for an incomplete calculator would be noise). */
-function commitLabel(snap: CalcSnapshot): string | null {
+function commitLabel(snap: CalcSnapshot, t: Translate<"WorkbenchCalculator">): string | null {
   const computed = snap.calculators.filter((c) => c.result !== null);
   if (computed.length === 0) return null;
   const parts = computed.map((c) => `${c.title.trim() || c.formula} = ${c.result}`);
-  return `Beregnede ${parts.join(", ")}`;
+  return t("commitCard", { results: parts.join(", ") });
 }
 
 /** Pure: the current inputs + computed results, for the tutor snapshot. */
@@ -89,6 +90,7 @@ function buildCalcSnapshot(
  * (docs/design/aipla/v1.1.0-feedback/activity-elements-palette.md).
  */
 export function WorkbenchCalculator({ skillId: _skillId, sessionId = null, calculators }: WorkbenchCalculatorProps) {
+  const t = useT("WorkbenchCalculator");
   const [values, setValues] = useState<Record<string, string>>({});
   const pushCalc = useSimSnapshotPush<CalcSnapshot>(sessionId, "calculator");
   const humanToolEvents = useHumanToolEvents();
@@ -105,10 +107,10 @@ export function WorkbenchCalculator({ skillId: _skillId, sessionId = null, calcu
     // Surface the push as a chat card so the student sees the computed value
     // reached the tutor. Only once something is actually computed; the catch-up
     // sync below stays silent (no card), matching ProgressChecklist.
-    const label = commitLabel(snap);
+    const label = commitLabel(snap, t);
     if (label) humanToolEvents.dispatch({ label, push: () => req });
     else void req.catch(() => {});
-  }, [calculators, values, pushCalc, humanToolEvents]);
+  }, [calculators, values, pushCalc, humanToolEvents, t]);
 
   // Catch-up push when sessionId arrives: a student may compute before the first
   // chat turn (sessionId null → push short-circuits). Push any computed result.
@@ -139,7 +141,7 @@ export function WorkbenchCalculator({ skillId: _skillId, sessionId = null, calcu
           <section
             key={calc.id}
             className="rounded-lg border border-border bg-card p-4 text-sm"
-            aria-label={calc.title || "Beregner"}
+            aria-label={calc.title || t("untitled")}
           >
             {calc.title && (
               <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -169,7 +171,7 @@ export function WorkbenchCalculator({ skillId: _skillId, sessionId = null, calcu
             </div>
             <div className="mt-3 flex items-center justify-between border-t border-border pt-2">
               <span className="font-mono text-xs text-muted-foreground">{calc.formula} =</span>
-              <span className="font-semibold tabular-nums" aria-label="Resultat">
+              <span className="font-semibold tabular-nums" aria-label={t("result")}>
                 {result === null ? "—" : fmt(result)}
               </span>
             </div>

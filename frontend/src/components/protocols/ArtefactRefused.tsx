@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { fetchWithAuth } from "@/lib/apiClient";
 import type { ArtefactDecision } from "./ArtefactReviewer";
+import { useT } from "@/i18n";
 
 /**
  * Renders the refusal panel when an ArtefactReviewer returns
@@ -43,6 +44,7 @@ export function ArtefactRefused({
   // Fire the audit POST exactly once per mount. React 18 Strict-Mode
   // double-mounts in dev; the ref guard makes the POST idempotent
   // without depending on the dev-only behaviour.
+  const t = useT("ArtefactRefused");
   const auditFired = useRef(false);
 
   useEffect(() => {
@@ -98,7 +100,7 @@ export function ArtefactRefused({
           className="text-rose-700 hover:text-rose-900 underline text-sm font-medium focus:outline-none focus:ring-2 focus:ring-rose-400 rounded"
           data-testid="artefact-refused-appeal"
         >
-          Appeal →
+          {t("appeal")} →
         </a>
       )}
     </div>

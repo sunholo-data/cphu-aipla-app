@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
 import { useSimSnapshotPush } from "@/hooks/useSimSnapshotPush";
+import { useT } from "@/i18n";
 import { fetchTable, saveTableCells } from "@/lib/tableApi";
 import type { TableColumn, TableElement } from "@/lib/elementTypes";
 
@@ -86,6 +87,7 @@ export function WorkbenchTable({ skillId, tables, sessionId, activityId }: Workb
   // 1.1.88 — the group's store is the source of truth. `revisionRef` is the last
   // revision this client has seen; the store bumps it on every write, so a jump
   // is how we learn another group member typed something from another device.
+  const t = useT("WorkbenchTable");
   const revisionRef = useRef(0);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
   // Last-pushed value per cell — a blur with no change is a no-op (no duplicate
@@ -103,12 +105,11 @@ export function WorkbenchTable({ skillId, tables, sessionId, activityId }: Workb
     pendingCard.current = null;
     cardTimer.current = null;
     if (!p || p.filled === 0) return; // nothing entered → no card
-    const unit = p.filled === 1 ? "felt" : "felter";
     humanToolEvents.dispatch({
-      label: `${p.title || "Datatabel"} delt med vejlederen (${p.filled} ${unit})`,
+      label: t("sharedCard", { title: p.title || t("untitled"), count: p.filled }),
       push: () => p.req,
     });
-  }, [humanToolEvents]);
+  }, [humanToolEvents, t]);
 
   // Clear any pending card timer on unmount (avoids a dispatch after teardown).
   useEffect(() => () => {
@@ -282,7 +283,7 @@ export function WorkbenchTable({ skillId, tables, sessionId, activityId }: Workb
         <section
           key={table.id}
           className="rounded-lg border border-border bg-card p-4 text-sm"
-          aria-label={table.title || "Datatabel"}
+          aria-label={table.title || t("untitled")}
         >
           <div className="mb-2 flex items-baseline justify-between gap-2">
             {table.title ? (
@@ -296,9 +297,9 @@ export function WorkbenchTable({ skillId, tables, sessionId, activityId }: Workb
                 only one who can tell us it did not. Same copy as the writing
                 element, because it is the same promise. */}
             <span className="text-xs text-muted-foreground" aria-live="polite">
-              {saveState === "saving" ? "Gemmer…" : null}
-              {saveState === "saved" ? "Gemt for gruppen" : null}
-              {saveState === "error" ? "Ikke gemt — prøver igen" : null}
+              {saveState === "saving" ? t("saving") : null}
+              {saveState === "saved" ? t("saved") : null}
+              {saveState === "error" ? t("saveError") : null}
             </span>
           </div>
           <div className="overflow-x-auto">
@@ -332,7 +333,7 @@ export function WorkbenchTable({ skillId, tables, sessionId, activityId }: Workb
                             }
                             onBlur={() => commit(table, key)}
                             className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 focus:border-primary focus:outline-none"
-                            aria-label={`${table.title || "tabel"} ${col.label} række ${r + 1}`}
+                            aria-label={t("cellLabel", { table: table.title || t("untitledLower"), column: col.label, row: r + 1 })}
                           />
                         </td>
                       );
@@ -343,7 +344,7 @@ export function WorkbenchTable({ skillId, tables, sessionId, activityId }: Workb
             </table>
           </div>
           <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">
-            Indtast dine målinger — de deles med vejlederen, så du kan spørge til dem.
+            {t("footer")}
           </p>
         </section>
       ))}

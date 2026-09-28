@@ -6,6 +6,7 @@ import { Download, MessageSquareText } from "lucide-react";
 import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
 import { useSimSnapshotPush } from "@/hooks/useSimSnapshotPush";
 import { useOptionalProactiveSimOptsRef } from "@/contexts/ProactiveSimContext";
+import { useT } from "@/i18n";
 import { readStoredGroupSession } from "@/lib/anonymousGroupAuth";
 import { exportWriting, type ExportFormat } from "@/lib/exportDocument";
 import { fetchWriting, saveWriting } from "@/lib/writingApi";
@@ -101,10 +102,10 @@ interface WorkbenchWritingProps {
 
 /** Offered download formats. `.docx` is deliberately absent — see the header of
  *  `lib/exportDocument.ts` and human gate 1 in the design doc. */
-const EXPORT_FORMATS: { value: ExportFormat; label: string }[] = [
-  { value: "rtf", label: "Word / Docs (.rtf)" },
-  { value: "txt", label: "Tekst (.txt)" },
-  { value: "md", label: "Markdown (.md)" },
+const EXPORT_FORMATS: { value: ExportFormat; label: "formatRtf" | "formatTxt" | "formatMd" }[] = [
+  { value: "rtf", label: "formatRtf" },
+  { value: "txt", label: "formatTxt" },
+  { value: "md", label: "formatMd" },
 ];
 
 /**
@@ -139,6 +140,7 @@ export function WorkbenchWriting({
   activityTitle,
   writing,
 }: WorkbenchWritingProps) {
+  const t = useT("WorkbenchWriting");
   const storeId = activityId ?? skillId;
   const storageKey = writingStorageKey(storeId);
   const [values, setValues] = useState<Record<string, string>>({});
@@ -211,10 +213,10 @@ export function WorkbenchWriting({
     cardTimer.current = null;
     if (!pending || pending.words === 0) return; // nothing written → no card
     humanToolEvents.dispatch({
-      label: `Din tekst delt med vejlederen (${pending.words} ord)`,
+      label: t("sharedCard", { count: pending.words }),
       push: () => pending.req,
     });
-  }, [humanToolEvents]);
+  }, [humanToolEvents, t]);
 
   /** Persist + share one element's text. Called on the idle debounce and on blur. */
   const commit = useCallback(
@@ -312,10 +314,8 @@ export function WorkbenchWriting({
   const askForFeedback = (w: WritingElementDef) => {
     const text = (values[w.id] ?? "").trim();
     if (!text) return;
-    const label = w.title?.trim() || "min tekst";
-    proactiveRef?.current?.onProactiveTrigger(
-      `Kan du give mig feedback på ${label}? Her er hvad jeg har skrevet:\n\n${text}`,
-    );
+    const label = w.title?.trim() || t("feedbackFallbackTitle");
+    proactiveRef?.current?.onProactiveTrigger(t("feedbackRequest", { title: label, text }));
   };
 
   /** Download the text as a file the student keeps. Entirely client-side — the
@@ -373,10 +373,10 @@ export function WorkbenchWriting({
               ref={(el) => {
                 textareaRefs.current[w.id] = el;
               }}
-              aria-label={w.title || "Skrivefelt"}
+              aria-label={w.title || t("untitled")}
               value={text}
               maxLength={maxChars}
-              placeholder={w.placeholder || "Skriv her…"}
+              placeholder={w.placeholder || t("placeholder")}
               onChange={(e) => onChange(w.id, e.target.value)}
               onBlur={() => commit(w.id)}
               rows={10}
@@ -385,13 +385,13 @@ export function WorkbenchWriting({
 
             <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
               <span>
-                {words} ord
-                {target > 0 ? ` af ${target}` : ""}
-                {nearLimit ? ` · ${text.length} / ${maxChars} tegn` : ""}
+                {t("wordCount", { count: words })}
+                {target > 0 ? t("wordTarget", { target }) : ""}
+                {nearLimit ? t("charCount", { length: String(text.length), max: String(maxChars) }) : ""}
                 <span className="ml-2" aria-live="polite">
-                  {state === "saving" ? "Gemmer…" : null}
-                  {state === "saved" ? "Gemt" : null}
-                  {state === "error" ? "Ikke gemt — prøver igen" : null}
+                  {state === "saving" ? t("saving") : null}
+                  {state === "saved" ? t("saved") : null}
+                  {state === "error" ? t("saveError") : null}
                 </span>
               </span>
               <span className="flex items-center gap-1.5">
@@ -404,9 +404,9 @@ export function WorkbenchWriting({
                     action and three of them is clutter in a ~700px pane. */}
                 <label className="inline-flex items-center gap-1.5">
                   <Download className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span className="sr-only">{`Hent ${w.title || "teksten"} som fil`}</span>
+                  <span className="sr-only">{t("downloadLabel", { title: w.title || t("downloadFallbackTitle") })}</span>
                   <select
-                    aria-label={`Hent ${w.title || "teksten"} som fil`}
+                    aria-label={t("downloadLabel", { title: w.title || t("downloadFallbackTitle") })}
                     value=""
                     disabled={words === 0}
                     onChange={(e) => {
@@ -416,10 +416,10 @@ export function WorkbenchWriting({
                     }}
                     className="rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground disabled:opacity-50"
                   >
-                    <option value="">Hent som…</option>
+                    <option value="">{t("downloadAs")}</option>
                     {EXPORT_FORMATS.map((f) => (
                       <option key={f.value} value={f.value}>
-                        {f.label}
+                        {t(f.label)}
                       </option>
                     ))}
                   </select>
@@ -430,7 +430,7 @@ export function WorkbenchWriting({
                   disabled={words === 0}
                   className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs text-foreground hover:bg-muted disabled:opacity-50"
                 >
-                  <MessageSquareText className="h-3.5 w-3.5" aria-hidden="true" /> Bed om feedback
+                  <MessageSquareText className="h-3.5 w-3.5" aria-hidden="true" /> {t("askFeedback")}
                 </button>
               </span>
             </div>

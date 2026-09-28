@@ -1,5 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor, type RenderOptions } from "@testing-library/react";
+import type { ReactElement, ReactNode } from "react";
+
+import { LocaleProvider } from "@/i18n";
 import { PDFCard } from "@/components/chat/media/PDFCard";
 import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
 
@@ -9,6 +12,16 @@ vi.mock("@/hooks/usePDFInfo", () => ({
 }));
 
 import { usePDFInfo } from "@/hooks/usePDFInfo";
+
+// 1.1.108: these assertions are about behaviour, written against the English
+// labels — render under an English activity. The Danish default is covered by
+// the component's own `da` assertions / i18n tests.
+const EnglishActivity = ({ children }: { children: ReactNode }) => (
+  <LocaleProvider locale="en">{children}</LocaleProvider>
+);
+const render = (ui: ReactElement, options?: RenderOptions) =>
+  rtlRender(ui, { wrapper: EnglishActivity, ...options });
+
 const mockUsePDFInfo = vi.mocked(usePDFInfo);
 
 const PDF_URL = "https://storage.googleapis.com/bucket/users/uid/docs/report.pdf";

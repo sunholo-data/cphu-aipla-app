@@ -1,6 +1,17 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
 import { DocumentsPanel } from "@/components/workspace/DocumentsPanel";
+import type React from "react";
+import { LocaleProvider } from "@/i18n";
+
+// 1.1.108 — these assertions are about the English copy, so render in English
+// (the component default with no provider is Danish, the activity default).
+function render(ui: React.ReactElement) {
+  return rtlRender(ui, {
+    wrapper: ({ children }) => <LocaleProvider locale="en">{children}</LocaleProvider>,
+  });
+}
+
 
 afterEach(() => vi.clearAllMocks());
 

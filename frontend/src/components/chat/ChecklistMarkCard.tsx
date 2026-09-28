@@ -15,6 +15,8 @@
 
 import { CheckCircle2, CircleDashed, Sparkles } from "lucide-react";
 
+import { useT } from "@/i18n";
+
 export interface ChecklistMarkResult {
   itemLabel: string;
   done: boolean;
@@ -46,6 +48,7 @@ export function parseChecklistMarkResult(
 }
 
 export function ChecklistMarkCard({ result }: { result: ChecklistMarkResult }) {
+  const t = useT("ChecklistMarkCard");
   return (
     <div
       data-testid="checklist-mark-card"
@@ -61,13 +64,11 @@ export function ChecklistMarkCard({ result }: { result: ChecklistMarkResult }) {
       <div className="min-w-0">
         <p className={`flex items-center gap-1 font-medium ${result.done ? "text-emerald-900" : "text-slate-800"}`}>
           <Sparkles className="h-3 w-3 shrink-0" aria-hidden="true" />
-          {result.done ? `Markeret som klar: ${result.itemLabel}` : `Ikke længere klar: ${result.itemLabel}`}
+          {result.done ? t("markedDone", { item: result.itemLabel }) : t("unmarked", { item: result.itemLabel })}
         </p>
         {result.evidence ? <p className="text-xs text-slate-600">{result.evidence}</p> : null}
         {/* The override is the point — say so where the student is looking. */}
-        <p className="mt-0.5 text-[10px] text-slate-500">
-          Du kan ændre markeringen i din oversigt.
-        </p>
+        <p className="mt-0.5 text-[10px] text-slate-500">{t("canChange")}</p>
       </div>
     </div>
   );

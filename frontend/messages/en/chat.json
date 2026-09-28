@@ -1,0 +1,117 @@
+{
+  "CallTeacherButton": {
+    "call": "Call the teacher",
+    "raised": "Hand is raised",
+    "acknowledged": "The teacher is on the way"
+  },
+  "ChecklistMarkCard": {
+    "markedDone": "Marked as done: {item}",
+    "unmarked": "No longer done: {item}",
+    "canChange": "You can change the mark in your overview."
+  },
+  "CheckpointCard": {
+    "observed": "noticed",
+    "demonstrated": "understood",
+    "onTheWay": "on the way"
+  },
+  "HumanToolUseCard": {
+    "you": "You",
+    "pending": "Pending",
+    "confirmed": "Confirmed",
+    "failed": "Failed"
+  },
+  "ResumeWelcomeBanner": {
+    "continuing": "Continuing from your last session",
+    "dismiss": "Dismiss"
+  },
+  "GroupCodeBadge": {
+    "copyTitle": "Copy the group code so others can join",
+    "ariaLabel": "Group code {code}. Click to copy."
+  },
+  "AutoReadToggle": {
+    "on": "Auto read-aloud: ON",
+    "off": "Auto read-aloud: OFF",
+    "auto": "Auto",
+    "manual": "Manual"
+  },
+  "PinnedWelcome": {
+    "heading": "How to get started"
+  },
+  "ReadAloudButton": {
+    "read": "Read aloud",
+    "stop": "Stop reading aloud"
+  },
+  "LangToggle": {
+    "lockedTitle": "This lesson is in {language} — the tutor responds in {language}, so the audio language is locked to match.",
+    "groupLabel": "Read-aloud language",
+    "yourChoice": "{code} — your choice",
+    "switchTo": "Switch read-aloud to {code}"
+  },
+  "SymbolStrip": {
+    "toggle": "Physics symbols",
+    "show": "Show physics symbols",
+    "hide": "Hide physics symbols"
+  },
+  "ImageComposer": {
+    "attach": "Attach image",
+    "photo": "Take photo",
+    "full": "Maximum images reached",
+    "attachmentAlt": "attachment",
+    "imageFallback": "image",
+    "remove": "Remove {name}"
+  },
+  "ChatMessageList": {
+    "olderHidden": "Earlier interactions are hidden",
+    "earlier": "Earlier in this conversation",
+    "emptyPrompt": "Send a message to start the conversation."
+  },
+  "ContextBanner": {
+    "analyzing": "Analyzing <b>{count}</b> {count, plural, one {document} other {documents}} from <b>{folder}</b>"
+  },
+  "TypingIndicator": {
+    "using": "Using"
+  },
+  "ThinkingPanel": {
+    "thinkingAria": "Thinking",
+    "thinking": "Thinking…",
+    "thoughtProcess": "Thought process"
+  },
+  "ToolCallChip": {
+    "running": "Running",
+    "success": "Success",
+    "error": "Error"
+  },
+  "MessageBubble": {
+    "attachmentAlt": "attachment"
+  },
+  "ZoomableImage": {
+    "unavailable": "image unavailable",
+    "preview": "Image preview",
+    "close": "Close"
+  },
+  "PDFCard": {
+    "open": "Open PDF: {filename}",
+    "pages": "{count}p"
+  },
+  "LessonRecordingPanel": {
+    "segmentFailed": "A recording segment failed to upload — recording continues.",
+    "micUnavailable": "Microphone unavailable — recording couldn't start.",
+    "saved": "Lesson recording saved.",
+    "finishFailed": "Couldn't finish the recording cleanly — some segments may be saved.",
+    "transcript": "Lesson transcript",
+    "stop": "Stop recording",
+    "record": "Record this class",
+    "recording": "Recording this class…",
+    "noTranscript": "No transcript yet — it appears about a minute after recording starts."
+  },
+  "VoiceComposerControls": {
+    "micUnavailable": "Microphone unavailable — you can type instead.",
+    "noSpeech": "Didn't catch that — try again, or type.",
+    "transcribeFailed": "Couldn't transcribe — you can type instead.",
+    "stopDictation": "Stop dictation",
+    "talkToType": "Talk to type"
+  },
+  "ArtefactRefused": {
+    "appeal": "Appeal"
+  }
+}

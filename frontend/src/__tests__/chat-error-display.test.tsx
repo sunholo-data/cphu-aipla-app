@@ -47,6 +47,21 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => ({ get: vi.fn().mockReturnValue(null) }),
 }));
 
+// 1.1.108 — these tests are about error BEHAVIOUR, asserted in English. A chat
+// with no activity takes the skill's voice language, so pin that to English;
+// the Danish default has its own test at the bottom.
+const voiceLanguage = vi.hoisted(() => ({ value: "en" as string | null }));
+vi.mock("@/hooks/useVoiceConfig", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/hooks/useVoiceConfig")>();
+  return {
+    ...mod,
+    useVoiceConfig: (...args: Parameters<typeof mod.useVoiceConfig>) => {
+      const real = mod.useVoiceConfig(...args);
+      return { ...real, tts: { ...real.tts, language: voiceLanguage.value } };
+    },
+  };
+});
+
 vi.mock("@/hooks/useSlugResolution", () => ({
   useSlugResolution: () => ({ skillId: "test-skill-id", loading: false, notFound: false, error: null }),
 }));
@@ -58,6 +73,7 @@ const paramsPromise = Promise.resolve({ path: ["@user-1", "test-slug"] });
 
 const retryableError: StreamError = {
   kind: "http",
+  code: "serverError",
   status: 500,
   message: "Something went wrong on our end. Try again.",
   retryable: true,
@@ -66,6 +82,7 @@ const retryableError: StreamError = {
 
 const nonRetryableError: StreamError = {
   kind: "http",
+  code: "sessionExpired",
   status: 401,
   message: "Session expired — please refresh the page",
   retryable: false,
@@ -76,6 +93,7 @@ beforeEach(() => {
   // JSDOM does not implement scrollTo — stub it so the scroll useEffect doesn't throw.
   Element.prototype.scrollTo = vi.fn() as unknown as typeof Element.prototype.scrollTo;
   vi.clearAllMocks();
+  voiceLanguage.value = "en";
 });
 
 describe("ChatShell — error display", () => {
@@ -141,5 +159,14 @@ describe("ChatShell — error display", () => {
     render(<ChatPage params={paramsPromise} />);
     const input = await screen.findByPlaceholderText(/message/i);
     expect(input).toHaveProperty("disabled", false);
+  });
+
+  it("speaks Danish when nothing says otherwise (1.1.108 default)", async () => {
+    voiceLanguage.value = null;
+    vi.mocked(useSkillAgent).mockReturnValue(makeReturn({ error: retryableError }));
+    render(<ChatPage params={paramsPromise} />);
+    expect(await screen.findByText("Noget gik galt hos os. Prøv igen.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Prøv igen" })).toBeTruthy();
+    expect(screen.getByPlaceholderText("Skriv en besked…")).toBeTruthy();
   });
 });

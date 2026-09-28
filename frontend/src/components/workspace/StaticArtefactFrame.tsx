@@ -40,6 +40,8 @@ import {
   useState,
 } from "react";
 
+import { useT } from "@/i18n";
+
 /** Subset of MCP Apps §Host Context we currently pass through to the
  *  artefact during the ui/initialize handshake. Add fields here as
  *  artefacts need them; defaults (`theme: "light"`, no locale) cover
@@ -122,10 +124,11 @@ export const StaticArtefactFrame = forwardRef<
     hostContext,
     innerSandbox = "allow-scripts allow-same-origin",
     className,
-    title = "MCP App artefact",
+    title,
   },
   ref,
 ) {
+  const t = useT("StaticArtefactFrame");
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const [iframeUrl] = useState(() => {
     const origin = sandboxOrigin.replace(/\/$/, "");
@@ -260,7 +263,7 @@ export const StaticArtefactFrame = forwardRef<
     <iframe
       ref={iframeRef}
       src={iframeUrl}
-      title={title}
+      title={title ?? t("defaultTitle")}
       // The outer (proxy) iframe needs allow-same-origin per spec line
       // 475 so the proxy script can document.write the artefact HTML
       // into its inner frame. The INNER frame (the artefact) runs with

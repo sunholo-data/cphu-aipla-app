@@ -1,5 +1,5 @@
 import { afterEach, describe, it, expect, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen } from "@testing-library/react";
 
 // react-pdf can't render in jsdom (canvas/worker) — mock it; assert the chrome.
 vi.mock("react-pdf", () => ({
@@ -17,6 +17,17 @@ vi.mock("@/lib/documentApi", () => ({
 URL.revokeObjectURL = vi.fn();
 
 import { DocumentViewer } from "../DocumentViewer";
+import type React from "react";
+import { LocaleProvider } from "@/i18n";
+
+// 1.1.108 — these assertions are about the English copy, so render in English
+// (the component default with no provider is Danish, the activity default).
+function render(ui: React.ReactElement) {
+  return rtlRender(ui, {
+    wrapper: ({ children }) => <LocaleProvider locale="en">{children}</LocaleProvider>,
+  });
+}
+
 
 afterEach(() => vi.clearAllMocks());
 

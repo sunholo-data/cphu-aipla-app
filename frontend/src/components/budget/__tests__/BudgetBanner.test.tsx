@@ -6,6 +6,7 @@ import type { StreamError } from "@/hooks/useSkillAgent";
 function makeBudgetError(overrides: Partial<StreamError> = {}): StreamError {
   return {
     kind: "budget_exceeded",
+    code: "budget",
     message: "Cohort PHYS-7K2N is over its monthly budget.",
     retryable: true,
     rawMessage: "Cohort PHYS-7K2N is over its monthly budget.",
@@ -30,6 +31,7 @@ describe("BudgetBanner", () => {
   it("renders nothing when error is a non-budget kind", () => {
     const err: StreamError = {
       kind: "run_error",
+      code: "agentError",
       message: "Agent run failed",
       retryable: true,
       rawMessage: "Agent run failed",

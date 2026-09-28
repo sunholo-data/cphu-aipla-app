@@ -561,6 +561,9 @@ check-doc-status: ## Advisory: design docs claiming 'not shipped' that have ship
 check-brand-literals: ## Fail if a brand surface hardcodes a red-* utility instead of the brand token (CI-gated)
 	@bash scripts/check-brand-literals.sh
 
+check-i18n: ## Fail if a localised (student) surface has Danish text in code instead of frontend/messages/ (CI-gated, 1.1.108)
+	@bash scripts/check-i18n-literals.sh
+
 .PHONY: tutor-docs check-tutor-docs
 tutor-docs: ## Regenerate the per-tutor design docs + public /project/tutors pages from backend/frameworks/*.yaml
 	@cd backend && uv run python scripts/generate_tutor_docs.py
@@ -667,6 +670,7 @@ help:
 	@echo "make seed-job           — P1.3: seed SKILL.md->Firestore via the aipla-seed-skills Cloud Run job (ENV=dev; same path Cloud Build runs post-deploy)"
 	@echo "make check-skills       — verify CLAUDE.md skill catalogue matches .claude/skills/ (CI-gated)"
 	@echo "make check-brand-literals — brand-drift gate: fail if a brand surface hardcodes red-* instead of the KU-red token (CI-gated)"
+	@echo "make check-i18n — localisation gate: fail if a student surface has Danish text in code instead of frontend/messages/ (CI-gated)"
 	@echo "make check-local-path-links — fail if a doc links to a file:///Users/ path that resolves on one machine only (CI-gated)"
 	@echo "make check-doc-status — advisory: design docs whose Status header disagrees with the commit history"
 	@echo "make check-guides       — fail if a how-to guide has bad front matter, a stranded translation or a missing screenshot (CI-gated)"

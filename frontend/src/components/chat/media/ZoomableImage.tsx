@@ -3,6 +3,8 @@
 import { useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
 
+import { useT } from "@/i18n";
+
 interface ZoomableImageProps {
   src: string;
   alt?: string;
@@ -17,6 +19,7 @@ interface ZoomableImageProps {
 }
 
 function BrokenImageFallback({ alt }: { alt?: string }) {
+  const t = useT("ZoomableImage");
   return (
     <span className="inline-flex items-center gap-1 rounded border border-border bg-muted px-2 py-1 text-xs text-muted-foreground">
       {/* broken image icon */}
@@ -36,7 +39,7 @@ function BrokenImageFallback({ alt }: { alt?: string }) {
         <polyline points="21 15 16 10 5 21" />
         <line x1="1" y1="1" x2="23" y2="23" />
       </svg>
-      {alt ?? "image unavailable"}
+      {alt ?? t("unavailable")}
     </span>
   );
 }
@@ -55,6 +58,7 @@ export function ZoomableImage({
   triggerStyle,
   onOpen,
 }: ZoomableImageProps) {
+  const t = useT("ZoomableImage");
   const [errored, setErrored] = useState(false);
   const [open, setOpen] = useState(false);
 
@@ -86,7 +90,7 @@ export function ZoomableImage({
           className="fixed left-1/2 top-1/2 z-50 -translate-x-1/2 -translate-y-1/2 outline-none"
           aria-describedby={undefined}
         >
-          <Dialog.Title className="sr-only">{alt ?? "Image preview"}</Dialog.Title>
+          <Dialog.Title className="sr-only">{alt ?? t("preview")}</Dialog.Title>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={src}
@@ -95,7 +99,7 @@ export function ZoomableImage({
           />
           <Dialog.Close
             className="absolute -right-3 -top-3 flex h-6 w-6 items-center justify-center rounded-full bg-white text-black shadow-md hover:bg-muted"
-            aria-label="Close"
+            aria-label={t("close")}
           >
             ×
           </Dialog.Close>

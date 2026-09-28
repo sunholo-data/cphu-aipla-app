@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronRight, FileText, Loader2, Radio, Square } from "lucide-react";
 
+import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { fetchWithAuth } from "@/lib/apiClient";
 import { fetchMyTranscript, type GroupTranscript } from "@/lib/transcriptApi";
@@ -38,6 +39,7 @@ interface Props {
  * transcribed yet" (or STT disabled).
  */
 export function LessonRecordingPanel({ lang, disabled, onRecordingChange, onNotice }: Props) {
+  const t = useT("LessonRecordingPanel");
   const segRef = useRef<SegmentedRecorder | null>(null);
   // True between a Record press and start() settling — see `start` below.
   const startingRef = useRef<boolean>(false);
@@ -85,10 +87,10 @@ export function LessonRecordingPanel({ lang, disabled, onRecordingChange, onNoti
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         void load();
       } catch {
-        onNotice?.("A recording segment failed to upload — recording continues.");
+        onNotice?.(t("segmentFailed"));
       }
     },
-    [lang, load, onNotice],
+    [lang, load, onNotice, t],
   );
 
   const start = useCallback(async () => {
@@ -112,11 +114,11 @@ export function LessonRecordingPanel({ lang, disabled, onRecordingChange, onNoti
       setRecording(true);
       onRecordingChange?.(true);
     } catch {
-      onNotice?.("Microphone unavailable — recording couldn't start.");
+      onNotice?.(t("micUnavailable"));
     } finally {
       startingRef.current = false;
     }
-  }, [onNotice, onRecordingChange, uploadSegment]);
+  }, [onNotice, onRecordingChange, uploadSegment, t]);
 
   const stop = useCallback(async () => {
     setBusy(true);
@@ -126,14 +128,14 @@ export function LessonRecordingPanel({ lang, disabled, onRecordingChange, onNoti
       segRef.current = null;
       setRecording(false);
       onRecordingChange?.(false);
-      onNotice?.("Lesson recording saved.");
+      onNotice?.(t("saved"));
       void load();
     } catch {
-      onNotice?.("Couldn't finish the recording cleanly — some segments may be saved.");
+      onNotice?.(t("finishFailed"));
     } finally {
       setBusy(false);
     }
-  }, [load, onNotice, onRecordingChange]);
+  }, [load, onNotice, onRecordingChange, t]);
 
   if (!isAudioCaptureSupported()) return null;
 
@@ -155,7 +157,7 @@ export function LessonRecordingPanel({ lang, disabled, onRecordingChange, onNoti
         >
           <ChevronRight className={cn("h-4 w-4 transition-transform", open && "rotate-90")} aria-hidden="true" />
           <FileText className="h-4 w-4" aria-hidden="true" />
-          Lesson transcript
+          {t("transcript")}
           {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null}
         </button>
 
@@ -167,18 +169,18 @@ export function LessonRecordingPanel({ lang, disabled, onRecordingChange, onNoti
             className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-red-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
           >
             {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Square className="h-3.5 w-3.5" />}
-            Stop recording
+            {t("stop")}
           </button>
         ) : (
           <button
             type="button"
             onClick={() => void start()}
             disabled={disabled || busy}
-            aria-label="Record this class"
+            aria-label={t("record")}
             className="ml-auto inline-flex items-center gap-1.5 rounded-md border border-red-300 px-2.5 py-1 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-40 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40"
           >
             <Radio className="h-3.5 w-3.5" />
-            Record this class
+            {t("record")}
           </button>
         )}
       </div>
@@ -186,7 +188,7 @@ export function LessonRecordingPanel({ lang, disabled, onRecordingChange, onNoti
       {recording ? (
         <div className="flex items-center gap-2 border-t border-border bg-red-50 px-3 py-1.5 text-xs text-red-700 dark:bg-red-950/30 dark:text-red-300">
           <Radio className="h-3.5 w-3.5 animate-pulse" aria-hidden="true" />
-          <span className="font-medium">Recording this class…</span>
+          <span className="font-medium">{t("recording")}</span>
           <RecordingLevelMeter getLevel={() => segRef.current?.getLevel() ?? 0} className="ml-1" />
         </div>
       ) : null}
@@ -196,9 +198,7 @@ export function LessonRecordingPanel({ lang, disabled, onRecordingChange, onNoti
           {hasText ? (
             <TranscriptRows segments={data!.segments} />
           ) : (
-            <p className="text-muted-foreground">
-              No transcript yet — it appears about a minute after recording starts.
-            </p>
+            <p className="text-muted-foreground">{t("noTranscript")}</p>
           )}
         </div>
       ) : null}

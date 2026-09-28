@@ -1,0 +1,28 @@
+{
+  "ChatPage": {
+    "loading": "Indlæser…",
+    "notFound": "Aktiviteten blev ikke fundet.",
+    "backHome": "Tilbage til forsiden",
+    "tabsLabel": "Skift mellem chat og arbejdsområde",
+    "tabChat": "💬 Chat",
+    "tabWork": "📐 Arbejde",
+    "sessions": "Samtaler",
+    "tidyingUp": "Rydder op i samtalehistorikken — du kan bare skrive videre.",
+    "compacted": "Den tidligere samtale er opsummeret ({count} {count, plural, one {indlæg} other {indlæg}} samlet), så tutoren kan have hele forløbet i tankerne.",
+    "classmateQueued": "En fra din gruppe spørger tutoren — din besked bliver sendt, når det er jeres tur.",
+    "classmateAsking": "En fra din gruppe spørger tutoren…",
+    "groupHere": "{count} fra din gruppe er her",
+    "placeholder": "Skriv en besked…",
+    "stop": "Stop",
+    "send": "Send",
+    "tryAgain": "Prøv igen",
+    "dismiss": "Luk",
+    "error_sessionExpired": "Din session er udløbet — genindlæs siden.",
+    "error_notFound": "Aktiviteten blev ikke fundet.",
+    "error_unreachable": "Kan ikke få forbindelse til serveren. Prøv igen.",
+    "error_serverError": "Noget gik galt hos os. Prøv igen.",
+    "error_requestFailed": "Forespørgslen mislykkedes. Prøv igen.",
+    "error_connectionLost": "Forbindelsen blev afbrudt. Prøv igen.",
+    "error_agentError": "Tutoren løb ind i en fejl. Prøv igen."
+  }
+}

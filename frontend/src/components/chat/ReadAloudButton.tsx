@@ -28,6 +28,7 @@
 
 import { Volume2, VolumeX } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { useT } from "@/i18n";
 import { fetchWithAuth } from "@/lib/apiClient";
 import { rulesForLang } from "@/lib/voice-pronunciation";
 import { stripCitationMarkers } from "@/lib/citationMarkers";
@@ -194,6 +195,7 @@ export function ReadAloudButton({
   className,
   autoSpeakOnMount = false,
 }: ReadAloudButtonProps) {
+  const t = useT("ReadAloudButton");
   const useGCP = provider !== "browser";
   // We only need Web Speech availability for the browser-native path.
   // GCP path uses the standard Audio() element which is universally
@@ -464,7 +466,7 @@ export function ReadAloudButton({
     }
   }
 
-  const label = isSpeaking ? "Stop reading aloud" : "Read aloud";
+  const label = isSpeaking ? t("stop") : t("read");
   const Icon = isSpeaking ? VolumeX : Volume2;
   return (
     <button

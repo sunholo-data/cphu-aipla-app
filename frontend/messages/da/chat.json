@@ -1,0 +1,117 @@
+{
+  "CallTeacherButton": {
+    "call": "Tilkald lærer",
+    "raised": "Hånden er rakt op",
+    "acknowledged": "Læreren er på vej"
+  },
+  "ChecklistMarkCard": {
+    "markedDone": "Markeret som klar: {item}",
+    "unmarked": "Ikke længere klar: {item}",
+    "canChange": "Du kan ændre markeringen i din oversigt."
+  },
+  "CheckpointCard": {
+    "observed": "bemærket",
+    "demonstrated": "forstået",
+    "onTheWay": "på vej"
+  },
+  "HumanToolUseCard": {
+    "you": "Dig",
+    "pending": "Sender",
+    "confirmed": "Delt",
+    "failed": "Kunne ikke deles"
+  },
+  "ResumeWelcomeBanner": {
+    "continuing": "Fortsætter fra din forrige session",
+    "dismiss": "Luk"
+  },
+  "GroupCodeBadge": {
+    "copyTitle": "Kopiér gruppekode så andre kan deltage",
+    "ariaLabel": "Gruppekode {code}. Klik for at kopiere."
+  },
+  "AutoReadToggle": {
+    "on": "Auto-læs op: TIL",
+    "off": "Auto-læs op: FRA",
+    "auto": "Auto",
+    "manual": "Manuel"
+  },
+  "PinnedWelcome": {
+    "heading": "Sådan kommer du i gang"
+  },
+  "ReadAloudButton": {
+    "read": "Læs op",
+    "stop": "Stop oplæsning"
+  },
+  "LangToggle": {
+    "lockedTitle": "Denne lektion er på {language} — tutoren svarer på {language}, så oplæsningssproget er låst, så det passer.",
+    "groupLabel": "Sprog for oplæsning",
+    "yourChoice": "{code} — dit valg",
+    "switchTo": "Skift oplæsning til {code}"
+  },
+  "SymbolStrip": {
+    "toggle": "Fysiksymboler",
+    "show": "Vis fysiksymboler",
+    "hide": "Skjul fysiksymboler"
+  },
+  "ImageComposer": {
+    "attach": "Vedhæft billede",
+    "photo": "Tag et billede",
+    "full": "Du kan højst vedhæfte et par billeder ad gangen",
+    "attachmentAlt": "vedhæftet billede",
+    "imageFallback": "billede",
+    "remove": "Fjern {name}"
+  },
+  "ChatMessageList": {
+    "olderHidden": "Tidligere interaktioner er skjult",
+    "earlier": "Tidligere i samtalen",
+    "emptyPrompt": "Skriv en besked for at starte samtalen."
+  },
+  "ContextBanner": {
+    "analyzing": "Analyserer <b>{count}</b> {count, plural, one {dokument} other {dokumenter}} fra <b>{folder}</b>"
+  },
+  "TypingIndicator": {
+    "using": "Bruger"
+  },
+  "ThinkingPanel": {
+    "thinkingAria": "Tænker",
+    "thinking": "Tænker…",
+    "thoughtProcess": "Tankegang"
+  },
+  "ToolCallChip": {
+    "running": "I gang",
+    "success": "Færdig",
+    "error": "Fejl"
+  },
+  "MessageBubble": {
+    "attachmentAlt": "vedhæftet billede"
+  },
+  "ZoomableImage": {
+    "unavailable": "billedet kan ikke vises",
+    "preview": "Billedvisning",
+    "close": "Luk"
+  },
+  "PDFCard": {
+    "open": "Åbn PDF: {filename}",
+    "pages": "{count} s."
+  },
+  "LessonRecordingPanel": {
+    "segmentFailed": "Et stykke af optagelsen kunne ikke uploades — optagelsen fortsætter.",
+    "micUnavailable": "Mikrofonen er ikke tilgængelig — optagelsen kunne ikke starte.",
+    "saved": "Lektionsoptagelsen er gemt.",
+    "finishFailed": "Optagelsen kunne ikke afsluttes helt — nogle dele kan være gemt.",
+    "transcript": "Lektionsudskrift",
+    "stop": "Stop optagelse",
+    "record": "Optag denne time",
+    "recording": "Optager denne time…",
+    "noTranscript": "Ingen udskrift endnu — den kommer cirka et minut efter, at optagelsen er startet."
+  },
+  "VoiceComposerControls": {
+    "micUnavailable": "Mikrofonen er ikke tilgængelig — du kan skrive i stedet.",
+    "noSpeech": "Det fangede jeg ikke — prøv igen, eller skriv.",
+    "transcribeFailed": "Kunne ikke omsætte tale til tekst — du kan skrive i stedet.",
+    "stopDictation": "Stop diktering",
+    "talkToType": "Tal for at skrive"
+  },
+  "ArtefactRefused": {
+    "appeal": "Klag"
+  }
+}

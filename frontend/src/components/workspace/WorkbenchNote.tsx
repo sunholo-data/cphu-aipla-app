@@ -1,6 +1,7 @@
 "use client";
 
 import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
+import { useT } from "@/i18n";
 import type { NoteElement } from "@/lib/elementTypes";
 
 /** Canonical NoteElement re-exported under the render-side name. */
@@ -20,13 +21,14 @@ const noNavigate = () => {};
  * (files in the Documents tab); this is inline teacher-written reference text.
  */
 export function WorkbenchNote({ notes }: WorkbenchNoteProps) {
+  const t = useT("WorkbenchNote");
   return (
     <div className="space-y-4 p-4">
       {notes.map((note) => (
         <section
           key={note.id}
           className="rounded-lg border border-border bg-card p-4 text-sm"
-          aria-label={note.title || "Note"}
+          aria-label={note.title || t("untitled")}
         >
           {note.title && (
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">

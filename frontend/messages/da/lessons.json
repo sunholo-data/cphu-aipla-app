@@ -1,0 +1,20 @@
+{
+  "LessonsPage": {
+    "groupLabel": "Gruppe",
+    "joined": "Tilmeldt",
+    "howItWorks": "Sådan virker det",
+    "changeCode": "Skift kode",
+    "title": "Aktiviteter",
+    "subtitle": "Vælg en aktivitet at arbejde med.",
+    "classLabel": "Klasse",
+    "loading": "Indlæser…",
+    "gridLabel": "Tilgængelige aktiviteter",
+    "untitled": "Aktivitet",
+    "emptyForClass": "Din lærer har ikke tilføjet en aktivitet til {className} endnu.",
+    "empty": "Din lærer har ikke tilføjet en aktivitet endnu.",
+    "checkBack": "Tjek igen om lidt.",
+    "loadFailed": "Kunne ikke indlæse aktiviteter: {message}",
+    "fetchFailed": "kunne ikke hentes",
+    "retry": "Prøv igen"
+  }
+}

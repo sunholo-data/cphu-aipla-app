@@ -1,0 +1,28 @@
+{
+  "ChatPage": {
+    "loading": "Loading…",
+    "notFound": "This activity could not be found.",
+    "backHome": "Back to home",
+    "tabsLabel": "Switch between chat and workspace",
+    "tabChat": "💬 Chat",
+    "tabWork": "📐 Work",
+    "sessions": "Sessions",
+    "tidyingUp": "Tidying up the conversation history — you can keep typing.",
+    "compacted": "Earlier conversation summarised ({count} {count, plural, one {entry} other {entries}} condensed) so the tutor can keep the whole session in mind.",
+    "classmateQueued": "A classmate is asking the tutor — your message will send when it's your group's turn.",
+    "classmateAsking": "A classmate is asking the tutor…",
+    "groupHere": "{count} in your group are here",
+    "placeholder": "Message…",
+    "stop": "Stop",
+    "send": "Send",
+    "tryAgain": "Try again",
+    "dismiss": "Dismiss",
+    "error_sessionExpired": "Session expired — please refresh the page",
+    "error_notFound": "This activity could not be found.",
+    "error_unreachable": "Can't reach the server. Try again.",
+    "error_serverError": "Something went wrong on our end. Try again.",
+    "error_requestFailed": "Request failed. Try again.",
+    "error_connectionLost": "Connection lost. Try again.",
+    "error_agentError": "The tutor ran into an error. Try again."
+  }
+}

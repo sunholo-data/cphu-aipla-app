@@ -232,6 +232,10 @@ vi.mock("@/components/workspace/StudentWorkspace", () => ({
 import ChatPage from "@/app/chat/[...path]/page";
 import { useSkillAgent } from "@/hooks/useSkillAgent";
 
+// The composer is the "chat has mounted" marker. Its placeholder follows the
+// activity's language (1.1.108) — Danish by default — so match either.
+const COMPOSER = /message|besked/i;
+
 const paramsPromise = Promise.resolve({ path: ["@user-1", "test-slug"] });
 
 // ChatPage calls `use(params)` (React 19). On the FIRST render of an unsettled
@@ -381,7 +385,7 @@ describe("workspace mounting — gated on anon-group mode + non-empty activity c
 
     // Let mount-time fetches settle.
     await waitFor(() => {
-      expect(screen.getByPlaceholderText(/message/i)).toBeTruthy();
+      expect(screen.getByPlaceholderText(COMPOSER)).toBeTruthy();
     });
     // No WorkspaceShell — the workspace column is absent.
     expect(screen.queryByTestId("workspace-shell-stub")).toBeNull();
@@ -468,7 +472,7 @@ describe("workspace mounting — gated on anon-group mode + non-empty activity c
     await renderChatPage();
 
     await waitFor(() => {
-      expect(screen.getByPlaceholderText(/message/i)).toBeTruthy();
+      expect(screen.getByPlaceholderText(COMPOSER)).toBeTruthy();
     });
     // NOTE: the config fetch effect early-returns when !isAnonymousGroupAuthMode
     // (page.tsx:460-473) so the active* slices are never even set here — but the
@@ -568,7 +572,7 @@ describe("session resume / threadId wiring (reachable in jsdom)", () => {
     searchParamsState.params = {};
     await renderChatPage();
     await waitFor(() => {
-      expect(screen.getByPlaceholderText(/message/i)).toBeTruthy();
+      expect(screen.getByPlaceholderText(COMPOSER)).toBeTruthy();
     });
     // The only router.replace that should ever fire here is the post-first-turn
     // URL writeback — which needs messages.length > 0. With an idle mocked
@@ -659,7 +663,7 @@ describe("session resume / threadId wiring (reachable in jsdom)", () => {
     try {
       await renderChatPage();
       await waitFor(() => {
-        expect(screen.getByPlaceholderText(/message/i)).toBeTruthy();
+        expect(screen.getByPlaceholderText(COMPOSER)).toBeTruthy();
       });
       // Give the async active-session fetch a tick to (not) write.
       await act(async () => {
@@ -686,7 +690,7 @@ describe("session resume / threadId wiring (reachable in jsdom)", () => {
 
     await renderChatPage();
 
-    const input = (await screen.findByPlaceholderText(/message/i)) as HTMLInputElement;
+    const input = (await screen.findByPlaceholderText(COMPOSER)) as HTMLInputElement;
     // Type + submit.
     fireEvent.change(input, { target: { value: "hello tutor" } });
     fireEvent.submit(input.closest("form")!);

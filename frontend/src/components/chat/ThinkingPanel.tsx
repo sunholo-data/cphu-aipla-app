@@ -2,12 +2,15 @@
 
 import { useEffect, useState } from "react";
 
+import { useT } from "@/i18n";
+
 interface ThinkingPanelProps {
   content: string;
   isThinking: boolean;
 }
 
 export function ThinkingPanel({ content, isThinking }: ThinkingPanelProps) {
+  const t = useT("ThinkingPanel");
   const [expanded, setExpanded] = useState(true);
 
   // Auto-collapse when thinking finishes
@@ -27,7 +30,7 @@ export function ThinkingPanel({ content, isThinking }: ThinkingPanelProps) {
             className="h-3 w-3 animate-spin shrink-0"
             viewBox="0 0 24 24"
             fill="none"
-            aria-label="Thinking"
+            aria-label={t("thinkingAria")}
           >
             <circle
               className="opacity-25"
@@ -44,7 +47,7 @@ export function ThinkingPanel({ content, isThinking }: ThinkingPanelProps) {
             />
           </svg>
         )}
-        <span className="font-medium">{isThinking ? "Thinking…" : "Thought process"}</span>
+        <span className="font-medium">{isThinking ? t("thinking") : t("thoughtProcess")}</span>
         <svg
           className={`ml-auto h-3 w-3 shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`}
           viewBox="0 0 16 16"

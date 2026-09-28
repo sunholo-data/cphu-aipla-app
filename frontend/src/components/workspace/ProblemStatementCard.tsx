@@ -1,6 +1,7 @@
 "use client";
 
 import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
+import { useT } from "@/i18n";
 
 interface ProblemStatementCardProps {
   /** Markdown body — full problem text + sub-parts. Sourced from the
@@ -26,6 +27,7 @@ interface ProblemStatementCardProps {
  * empty card.
  */
 export function ProblemStatementCard({ content }: ProblemStatementCardProps) {
+  const t = useT("ProblemStatementCard");
   if (!content) return null;
 
   // navigateToBlock is a no-op — the problem statement doesn't carry
@@ -36,7 +38,7 @@ export function ProblemStatementCard({ content }: ProblemStatementCardProps) {
   return (
     <section
       className="rounded-lg border border-border bg-card p-4 text-sm text-foreground"
-      aria-label="Problem statement"
+      aria-label={t("label")}
     >
       <ChatMarkdown content={content} navigateToBlock={noopNavigate} />
     </section>

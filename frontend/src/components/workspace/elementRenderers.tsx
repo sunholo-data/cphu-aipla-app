@@ -2,6 +2,7 @@
 
 import { Fragment, type ReactNode } from "react";
 
+import { useT } from "@/i18n";
 import { ELEMENT_KINDS, isWorkspaceElement, type ElementKind } from "@/lib/activityElements";
 
 import { ProgressChecklist, type ChecklistItem, type ChecklistItemState } from "./ProgressChecklist";
@@ -79,11 +80,18 @@ export interface ElementRenderContext {
  * header + `ProgressChecklist`) so re-homing it onto the registry is a no-op
  * visual change.
  */
+/** A component (not inline text) so the renderer table stays hook-free — the
+ *  renderers are plain functions called during WorkspaceElements' render. */
+function ChecklistHeading() {
+  const t = useT("elementRenderers");
+  return <h2 className="text-sm font-semibold text-foreground">{t("checklistHeading")}</h2>;
+}
+
 export const elementRenderers: Record<ElementKind, (ctx: ElementRenderContext) => ReactNode> = {
   checklist: (ctx) =>
     ctx.checklist.length > 0 ? (
       <div className="space-y-3 p-4">
-        <h2 className="text-sm font-semibold text-foreground">Fremgang</h2>
+        <ChecklistHeading />
         <ProgressChecklist
           skillId={ctx.skillId}
           activityId={ctx.activityId}

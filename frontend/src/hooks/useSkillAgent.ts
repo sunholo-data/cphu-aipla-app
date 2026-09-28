@@ -57,8 +57,22 @@ export function buildUserMessageContent(
   return parts;
 }
 
+/** 1.1.108 — which student-facing sentence explains the error. The banner
+ *  translates this; `message` stays the English diagnostic for logs and for the
+ *  budget branch, whose text comes from the backend. */
+export type StreamErrorCode =
+  | "sessionExpired"
+  | "notFound"
+  | "unreachable"
+  | "serverError"
+  | "requestFailed"
+  | "connectionLost"
+  | "agentError"
+  | "budget";
+
 export interface StreamError {
   kind: "http" | "run_error" | "network" | "budget_exceeded";
+  code: StreamErrorCode;
   status?: number;
   message: string;
   retryable: boolean;
@@ -198,16 +212,16 @@ function classifyError(err: unknown): StreamError {
   if (httpMatch) {
     const status = parseInt(httpMatch[1]);
     if (status === 401)
-      return { kind: "http", status, message: "Session expired — please refresh the page", retryable: false, rawMessage: msg };
+      return { kind: "http", code: "sessionExpired", status, message: "Session expired — please refresh the page", retryable: false, rawMessage: msg };
     if (status === 404)
-      return { kind: "http", status, message: "Skill not found", retryable: false, rawMessage: msg };
+      return { kind: "http", code: "notFound", status, message: "Skill not found", retryable: false, rawMessage: msg };
     if (status === 502)
-      return { kind: "http", status, message: "Can't reach the server. Try again.", retryable: true, rawMessage: msg };
+      return { kind: "http", code: "unreachable", status, message: "Can't reach the server. Try again.", retryable: true, rawMessage: msg };
     if (status >= 500)
-      return { kind: "http", status, message: "Something went wrong on our end. Try again.", retryable: true, rawMessage: msg };
-    return { kind: "http", status, message: "Request failed. Try again.", retryable: true, rawMessage: msg };
+      return { kind: "http", code: "serverError", status, message: "Something went wrong on our end. Try again.", retryable: true, rawMessage: msg };
+    return { kind: "http", code: "requestFailed", status, message: "Request failed. Try again.", retryable: true, rawMessage: msg };
   }
-  return { kind: "network", message: "Connection lost. Try again.", retryable: true, rawMessage: msg };
+  return { kind: "network", code: "connectionLost", message: "Connection lost. Try again.", retryable: true, rawMessage: msg };
 }
 
 function classifyRunError(event: unknown): StreamError {
@@ -227,13 +241,14 @@ function classifyRunError(event: unknown): StreamError {
     const retryAfterSeconds = typeof rawRetry === "number" ? rawRetry : undefined;
     return {
       kind: "budget_exceeded",
+      code: "budget",
       message: msg,
       retryable: retryAfterSeconds !== undefined,
       rawMessage: msg,
       retryAfterSeconds,
     };
   }
-  return { kind: "run_error", message: "The agent encountered an error. Try again.", retryable: true, rawMessage: msg };
+  return { kind: "run_error", code: "agentError", message: "The agent encountered an error. Try again.", retryable: true, rawMessage: msg };
 }
 
 /**
@@ -528,7 +543,7 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
     if (!isLoading || runStarted) return;
     const timer = setTimeout(() => {
       agent.abortRun();
-      setError({ kind: "network", message: "Connection lost. Try again.", retryable: true, rawMessage: "stream_hang_timeout_30s" });
+      setError({ kind: "network", code: "connectionLost", message: "Connection lost. Try again.", retryable: true, rawMessage: "stream_hang_timeout_30s" });
       setIsLoading(false);
     }, hangTimeoutMs);
     return () => clearTimeout(timer);
