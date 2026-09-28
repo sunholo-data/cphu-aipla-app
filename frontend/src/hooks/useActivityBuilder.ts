@@ -299,6 +299,7 @@ export function useActivityBuilder(): ActivityBuilder {
         : null,
     );
     setArtefactId(t.artefactId ?? null);
+    if (t.subject) setSubject(t.subject);
     setWorkbenchType("none");
   }
 

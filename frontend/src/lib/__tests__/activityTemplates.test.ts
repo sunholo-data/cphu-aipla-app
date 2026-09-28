@@ -1,3 +1,6 @@
+import { readFileSync, readdirSync } from "node:fs";
+import path from "node:path";
+
 import { describe, expect, it } from "vitest";
 
 import { ACTIVITY_TEMPLATES } from "@/lib/activityTemplates";
@@ -137,5 +140,56 @@ describe("agent-design template (RUBRIC-1 M2 / 1.1.57)", () => {
   it("the teaching goal is refutation-oriented, not confirmation-oriented", () => {
     expect(t.teachingGoal).toContain("AFVISE");
     expect(t.teachingGoal).toContain("hypotese");
+  });
+});
+
+describe("sim starters (2026-09-28) — one per live catalogue sim", () => {
+  // The catalogue is backend YAML; read it straight off disk so a new live sim
+  // without a starter fails here rather than reaching teachers as a blank form.
+  const dir = path.resolve(__dirname, "../../../../backend/artefacts");
+  const live = readdirSync(dir)
+    .filter((f) => f.endsWith(".yaml"))
+    .map((f) => readFileSync(path.join(dir, f), "utf8"))
+    .filter((y) => /^status:\s*live\s*$/m.test(y))
+    .map((y) => y.match(/^id:\s*(\S+)/m)?.[1])
+    .filter((id): id is string => Boolean(id));
+
+  it("reads the catalogue (a guard that read nothing would pass vacuously)", () => {
+    expect(live.length).toBeGreaterThanOrEqual(9);
+  });
+
+  it.each(live)("live sim %s has a starter template", (id) => {
+    expect(ACTIVITY_TEMPLATES.some((t) => t.artefactId === id)).toBe(true);
+  });
+
+  // Each of these sims withholds one result because working it out IS the
+  // exercise. A calculator would hand it straight back.
+  it.each(["kettle-efficiency", "phase-change", "wave-speed", "wave-interference", "sol-jord-maane", "sekant-intro"])(
+    "%s ships no calculator and names its subject",
+    (id) => {
+      const t = ACTIVITY_TEMPLATES.find((x) => x.artefactId === id)!;
+      expect(t.calculator).toBeUndefined();
+      expect(t.subject).toBeTruthy();
+    },
+  );
+
+  it("sekant-intro is filed under Matematik and never shows the student the conclusion", () => {
+    const t = ACTIVITY_TEMPLATES.find((x) => x.artefactId === "sekant-intro")!;
+    expect(t.subject).toBe("Matematik");
+    // Everything a STUDENT sees: checklist, note, table, writing, and every
+    // concept-map label (shown from the first minute, "not yet" nodes too).
+    // The sim's tutorBlock forbids "tangent" before the student has the idea.
+    const studentVisible = [
+      ...t.checklist,
+      t.note?.body ?? "",
+      ...(t.table?.columns.map((c) => c.label) ?? []),
+      ...(t.writing ?? []).map((w) => w.prompt),
+      ...(t.conceptMap?.nodes.map((n) => n.label) ?? []),
+    ]
+      .join(" ")
+      .toLowerCase();
+    for (const word of ["tangent", "differentialkvotient", "afledt", "gitter"]) {
+      expect(studentVisible, word).not.toContain(word);
+    }
   });
 });
