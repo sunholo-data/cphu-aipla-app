@@ -166,12 +166,11 @@ Verify deployed, as a teacher sees it:
 make smoke-sim ENV=dev ID=<id>    # sandbox HTML + /vendor libs + teacher catalogue + no tutorBlock leak
 ```
 
-It signs in as the test teacher (`test-teacher@example.dk`, dev and test;
+It signs in as the test teacher (`test-teacher@example.dk`, on all three envs;
 `scripts/mint-test-teacher-token.sh`). The catalogue is teacher-only, so an
-unauthenticated curl only ever returns 401. **Prod has no test teacher, by
-design**: that password is in this repo. There, steps 1–2 plus
-`make deploy-status` (prod's backend is test's promoted digest) are the check,
-or pass `TEACHER_EMAIL`/`TEACHER_PASSWORD` for a real account.
+unauthenticated curl only ever returns 401. The account exists on prod too and
+its password is in this repo; that is accepted, since it is a test account
+(2026-09-28). Pass `TEACHER_EMAIL`/`TEACHER_PASSWORD` to check as a real account.
 
 test and prod are reached by the tag-based release triggers, not by this push —
 see `infrastructure/env/cloudbuild.tf` and the deploy runbook.
