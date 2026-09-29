@@ -5,14 +5,14 @@ import { Camera, Paperclip, X } from "lucide-react";
 
 import { toLocale, useT } from "@/i18n";
 import { cn } from "@/lib/utils";
-import type { StagedImage } from "@/hooks/useImageAttachments";
+import { MAX_IMAGES, type ImageNotice, type StagedImage } from "@/hooks/useImageAttachments";
 
 /** Accept list shared by both inputs — images only (docs go via the doc path). */
 const IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,image/heic,image/heif";
 
 interface StagingRowProps {
   staged: StagedImage[];
-  notice: string | null;
+  notice: ImageNotice | null;
   onRemove: (id: string) => void;
 }
 
@@ -27,7 +27,9 @@ export function ImageStagingRow({ staged, notice, onRemove }: StagingRowProps) {
   return (
     <div className="mb-2 space-y-2">
       {notice && (
-        <p className="text-xs text-amber-600 dark:text-amber-500">{notice}</p>
+        <p className="text-xs text-amber-600 dark:text-amber-500">
+          {t(`notice_${notice}`, { max: MAX_IMAGES })}
+        </p>
       )}
       {staged.length > 0 && (
         <ul className="flex flex-wrap gap-2">

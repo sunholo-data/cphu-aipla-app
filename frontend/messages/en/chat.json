@@ -58,7 +58,11 @@
     "full": "Maximum images reached",
     "attachmentAlt": "attachment",
     "imageFallback": "image",
-    "remove": "Remove {name}"
+    "remove": "Remove {name}",
+    "notice_tooMany": "You can attach up to {max} images per message.",
+    "notice_processFailed": "Couldn't process that image. Please try another.",
+    "notice_retake": "That photo looks like it has a person in it. Please retake it without people in frame before sending.",
+    "notice_degraded": "Heads up: this device can't auto-check photos for people. Please make sure there are no classmates in shot before sending."
   },
   "ChatMessageList": {
     "olderHidden": "Earlier interactions are hidden",

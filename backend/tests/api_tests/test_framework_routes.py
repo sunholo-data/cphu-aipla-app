@@ -671,3 +671,51 @@ def test_sharing_an_approach_is_its_own_act_and_an_edit_never_does_it():
     assert "custom-warm-coach" in {
         r["id"] for r in _client(OTHER_TEACHER).get("/api/research/frameworks/custom/list").json()["approaches"]
     }
+
+
+# --- TUTOR-2 M1: the teacher's read of the published approaches --------------
+
+
+def test_a_teacher_can_read_the_published_approaches():
+    """1.1.135's premise: a teacher authoring a tutor must pick an approach
+    somebody can read. Invisible approaches make that impossible."""
+    body = _client(TEACHER).get("/api/research/frameworks/catalogue").json()
+    ids = {a["id"] for a in body["approaches"]}
+    assert ids == {"5e", "accountable-talk", "authentic-dialogue", "cer", "esru", "poe", "toulmin"}
+
+    esru = next(a for a in body["approaches"] if a["id"] == "esru")
+    # What the tutor is actually told — the reviewability principle TutorPicker
+    # already states, honoured on this screen too.
+    assert esru["instruction"]
+    assert esru["constructs"]
+
+
+def test_the_teacher_catalogue_is_a_different_shape_not_a_narrowed_one():
+    """⚠️ The decision this route exists to respect. `GET /frameworks`'s own test
+    says a teacher must 403 rather than receive a degraded researcher payload —
+    so this carries reading material and NONE of the editor machinery (override
+    state, the git default, the revert delta)."""
+    esru = next(
+        a for a in _client(TEACHER).get("/api/research/frameworks/catalogue").json()["approaches"] if a["id"] == "esru"
+    )
+    for editor_only in ("isOverridden", "defaultInstruction", "defaultConstructs", "overrideMode", "overrideVersion"):
+        assert editor_only not in esru
+
+
+def test_the_catalogue_route_is_not_swallowed_by_the_id_catch_all():
+    """The trap `/crossview` documents: a single-segment catch-all declared
+    earlier answers 404 framework not found for every literal after it."""
+    res = _client(TEACHER).get("/api/research/frameworks/catalogue")
+    assert res.status_code == 200
+    assert "approaches" in res.json()
+
+
+def test_reading_the_catalogue_still_does_not_let_a_teacher_edit():
+    c = _client(TEACHER)
+    assert c.get("/api/research/frameworks/catalogue").status_code == 200
+    assert c.put("/api/research/frameworks/esru/structure", json={"summary": "x"}).status_code == 403
+    assert c.get("/api/research/frameworks").status_code == 403
+
+
+def test_a_student_gets_no_catalogue():
+    assert _client(STUDENTISH).get("/api/research/frameworks/catalogue").status_code == 403

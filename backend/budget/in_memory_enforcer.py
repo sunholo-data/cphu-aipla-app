@@ -169,6 +169,7 @@ class InMemoryBudgetEnforcer:
                     f"Budget exhausted for {request.identity_value} this {self.period} period. Resets at {period_end}."
                 ),
                 retry_after_seconds=retry_after,
+                reason="period_exhausted",
             )
 
         if projected_total >= soft:

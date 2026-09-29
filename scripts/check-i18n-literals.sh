@@ -22,7 +22,10 @@ set -euo pipefail
 
 cd "$(dirname "$0")/../frontend"
 
-read -r -a I18N_PATHS <<< "${I18N_PATHS:-src/components/workspace src/components/chat src/components/protocols src/components/doc-browser src/app/lessons src/app/chat src/app/(site)/group}"
+# Directories, plus the individual lib/ and hooks/ files whose text reaches a
+# student (lib/ as a whole also holds teacher template DATA in Danish, which is
+# content, not UI copy — it is M2's to move).
+read -r -a I18N_PATHS <<< "${I18N_PATHS:-src/components/workspace src/components/chat src/components/protocols src/components/doc-browser src/components/budget src/app/lessons src/app/chat src/app/(site)/group src/hooks/useImageAttachments.ts src/hooks/useSkillAgent.ts src/lib/resolveChartBinding.ts src/lib/personGuardrail.ts src/lib/relativeTime.ts}"
 
 # Files allowed to hold Danish in code. Each needs a reason. Do not add to this
 # list to silence the check; move the string into messages/ instead.
@@ -43,9 +46,9 @@ line = re.compile(r"(^|[^:\"'`])//.*$", re.M)
 
 hits = []
 for root in roots:
-    if not root.is_dir():
+    if not root.exists():
         continue
-    for f in sorted(root.rglob("*")):
+    for f in sorted(root.rglob("*")) if root.is_dir() else [root]:
         if f.suffix not in {".ts", ".tsx"} or "__tests__" in f.parts or ".test." in f.name:
             continue
         if str(f) in allowed:

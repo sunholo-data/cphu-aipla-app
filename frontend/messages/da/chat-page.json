@@ -24,5 +24,23 @@
     "error_requestFailed": "Forespørgslen mislykkedes. Prøv igen.",
     "error_connectionLost": "Forbindelsen blev afbrudt. Prøv igen.",
     "error_agentError": "Tutoren løb ind i en fejl. Prøv igen."
+  },
+  "StageProgress": {
+    "thinking": "Tænker…",
+    "callingTool": "Bruger {tool}…",
+    "readingDocuments": "Læser {count, plural, one {# dokument} other {# dokumenter}}…"
+  },
+  "BudgetBanner": {
+    "reason_paused": "AI-brugen er sat på pause for denne klasse. Kontakt AIPLA-teamet for at genoptage den.",
+    "reason_class_monthly": "Klassen har brugt sit månedlige AI-budget. Tutoren er tilbage i starten af næste måned — eller kontakt AIPLA-teamet for at hæve grænsen.",
+    "reason_programme_daily": "AIPLA-programmet har brugt sit daglige AI-budget. Tutoren er tilbage i morgen — eller kontakt AIPLA-teamet.",
+    "reason_unavailable": "Tutoren er ikke tilgængelig for denne konto lige nu. Kontakt AIPLA-teamet.",
+    "reason_period_exhausted": "Budgettet for denne periode er brugt.",
+    "resetsIn": "Nulstilles om {duration}.",
+    "days": "{n, plural, one {# dag} other {# dage}}",
+    "hours": "{n, plural, one {# time} other {# timer}}",
+    "minutes": "{n, plural, one {# minut} other {# minutter}}",
+    "seconds": "{n, plural, one {# sekund} other {# sekunder}}",
+    "dismiss": "OK"
   }
 }

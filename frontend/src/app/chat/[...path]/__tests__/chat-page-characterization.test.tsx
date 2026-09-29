@@ -144,6 +144,7 @@ function makeAgentReturn(
     thinkingContent: "",
     isThinking: false,
     stageLabel: null,
+    stage: null,
     sendMessage: mockSendMessage,
     isLoading: false,
     tidyingUp: false,

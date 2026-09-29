@@ -253,7 +253,7 @@ def make_document_injector() -> Any:
         # TTFT: mark the end of the before-model chain on every entry.
         from observability.timing import STAGE_BEFORE_MODEL_DONE, get_current_tracker
 
-        get_current_tracker().mark(STAGE_BEFORE_MODEL_DONE, user_label="Thinking…")
+        get_current_tracker().mark(STAGE_BEFORE_MODEL_DONE, user_label="Thinking…", label_key="thinking")
 
         state = getattr(callback_context, "state", None)
         if state is None:

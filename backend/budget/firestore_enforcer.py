@@ -140,6 +140,7 @@ class FirestoreBudgetEnforcer:
                 period_end=None,
                 message="AI usage is paused for this class. Contact the AIPLA team to resume it.",
                 retry_after_seconds=None,
+                reason="paused",
             )
 
         if projected >= cap:
@@ -160,6 +161,7 @@ class FirestoreBudgetEnforcer:
                     "to raise the limit."
                 ),
                 retry_after_seconds=None,
+                reason="class_monthly",
             )
 
         if projected >= cap * self._soft_threshold:
@@ -303,6 +305,7 @@ class FirestoreBudgetEnforcer:
                 "resume tomorrow, or contact the AIPLA team."
             ),
             retry_after_seconds=None,
+            reason="programme_daily",
         )
 
     def _billing_key(self, identity_value: str) -> str:

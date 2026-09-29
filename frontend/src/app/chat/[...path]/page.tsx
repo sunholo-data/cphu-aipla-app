@@ -81,7 +81,15 @@ import { DocumentsPanel, type ActivityMaterial } from "@/components/workspace/Do
 import { reportDocumentEvent } from "@/lib/documentApi";
 import { workspaceContentKind } from "./workspaceContent";
 import { useResizableWorkspaceRatio } from "@/hooks/useResizableWorkspaceRatio";
-import { LocaleProvider, toLocale, useT, type Locale } from "@/i18n";
+import {
+  LocaleProvider,
+  recallActivityLanguage,
+  rememberActivityLanguages,
+  toLocale,
+  useT,
+  type Locale,
+  type MessageKey,
+} from "@/i18n";
 
 // Sandbox origin for the sim artefact iframes. NEXT_PUBLIC_MCP_SANDBOX_URL
 // points at /sandbox.html on the sandbox service; strip the suffix so we
@@ -396,6 +404,7 @@ function ChatShell({
     thinkingContent,
     isThinking,
     stageLabel,
+    stage,
     sendMessage,
     isLoading,
     tidyingUp,
@@ -449,7 +458,9 @@ function ChatShell({
   // 1.1.108 M1 — the activity's language, from the same config field the tutor's
   // language directive reads. null until the config arrives (or when this chat
   // has no activity), in which case the skill's voice language decides below.
-  const [activeLanguage, setActiveLanguage] = useState<Locale | null>(null);
+  // Seeded from what the lesson picker already knew, so an English activity
+  // does not paint Danish while its config is in flight.
+  const [activeLanguage, setActiveLanguage] = useState<Locale | null>(() => recallActivityLanguage(activityId));
   // 1.1.45 M4 — the rich-text solution editor element (JB-2 "din løsning").
   const [activeSolution, setActiveSolution] = useState<SolutionElementDef[]>([]);
   // 1.1.41 M1 — the vetted sim artefact this activity hosts (resolved from the
@@ -523,10 +534,13 @@ function ChatShell({
       setActiveArtefact(null);
       setActivePersona(null);
       setActiveMaterials([]);
-      setActiveLanguage(null);
+      setActiveLanguage(recallActivityLanguage(activityId));
       return;
     }
     let alive = true;
+    // Switching activity: paint in the new one's remembered language, not the
+    // previous activity's, while its config is in flight.
+    setActiveLanguage(recallActivityLanguage(activityId));
     // ALS-1 M0: resolve the workbench config (checklist/tables/persona/materials)
     // by ACTIVITY id, not skill id — so two concept activities in one class show
     // their own elements. The /active endpoint is dual-read (act- → new store,
@@ -542,7 +556,9 @@ function ChatShell({
         if (Array.isArray(data.note)) setActiveNote(data.note as NoteElementDef[]);
         if (Array.isArray(data.writing)) setActiveWriting(data.writing as WritingElementDef[]);
         if (typeof data.title === "string") setActiveTitle(data.title);
-        setActiveLanguage(toLocale(typeof data.language === "string" ? data.language : null));
+        const language = toLocale(typeof data.language === "string" ? data.language : null);
+        setActiveLanguage(language);
+        if (activityId) rememberActivityLanguages([[activityId, language]]);
         if (Array.isArray(data.solution)) setActiveSolution(data.solution as SolutionElementDef[]);
         if (Array.isArray(data.document)) setActiveDocument(data.document as DocumentElementDef[]);
         if (Array.isArray(data.conceptMap)) setActiveConceptMap(data.conceptMap as ConceptMapElementDef[]);
@@ -633,6 +649,13 @@ function ChatShell({
   // never to the browser's.
   const locale: Locale = activeLanguage ?? toLocale(composerVoice.tts.language);
   const t = useT("ChatPage", locale);
+  const tStage = useT("StageProgress", locale);
+  // The typing indicator's stage, in the activity's language when the backend
+  // sent a key this client knows; its English label otherwise (1.1.108).
+  const stageText =
+    stage?.key && ["thinking", "callingTool", "readingDocuments"].includes(stage.key)
+      ? tStage(stage.key as MessageKey<"StageProgress">, stage.params)
+      : stageLabel;
   const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
   // A lesson recording holds the mic — block dictation so only one
   // getUserMedia stream is ever live at a time.
@@ -1290,7 +1313,7 @@ function ChatShell({
             persona={activePersona}
             userInitial={userInitial}
             userDisplayName={userDisplayName}
-            stageLabel={stageLabel}
+            stageLabel={stageText}
             onAction={handleAction}
             mcpServerIds={mcpServerIds}
             sessionId={sessionId ?? agentSessionId}

@@ -24,5 +24,23 @@
     "error_requestFailed": "Request failed. Try again.",
     "error_connectionLost": "Connection lost. Try again.",
     "error_agentError": "The tutor ran into an error. Try again."
+  },
+  "StageProgress": {
+    "thinking": "Thinking…",
+    "callingTool": "Calling {tool}…",
+    "readingDocuments": "Reading {count, plural, one {# document} other {# documents}}…"
+  },
+  "BudgetBanner": {
+    "reason_paused": "AI usage is paused for this class. Contact the AIPLA team to resume it.",
+    "reason_class_monthly": "This class has reached its monthly AI budget. The tutor will resume at the start of next month, or contact the AIPLA team to raise the limit.",
+    "reason_programme_daily": "The AIPLA programme has reached its daily AI budget. The tutor will resume tomorrow, or contact the AIPLA team.",
+    "reason_unavailable": "The tutor is unavailable for this account right now. Please contact the AIPLA team.",
+    "reason_period_exhausted": "The budget for this period is used up.",
+    "resetsIn": "Resets in {duration}.",
+    "days": "{n, plural, one {# day} other {# days}}",
+    "hours": "{n, plural, one {# hour} other {# hours}}",
+    "minutes": "{n, plural, one {# minute} other {# minutes}}",
+    "seconds": "{n, plural, one {# second} other {# seconds}}",
+    "dismiss": "Got it"
   }
 }

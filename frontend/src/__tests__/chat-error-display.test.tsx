@@ -17,6 +17,7 @@ function makeReturn(overrides: Partial<UseSkillAgentReturn>): UseSkillAgentRetur
     thinkingContent: "",
     isThinking: false,
     stageLabel: null,
+    stage: null,
     sendMessage: mockSendMessage,
     isLoading: false,
     tidyingUp: false,
@@ -169,4 +170,29 @@ describe("ChatShell — error display", () => {
     expect(screen.getByRole("button", { name: "Prøv igen" })).toBeTruthy();
     expect(screen.getByPlaceholderText("Skriv en besked…")).toBeTruthy();
   });
+
+  it("paints in the remembered activity language before any config arrives (cold-start flash)", async () => {
+    // No voice language, no config yet: only the lesson picker's note says English.
+    voiceLanguage.value = null;
+    sessionStorage.setItem("aipla.activityLanguage", JSON.stringify({ "test-skill-id": "en" }));
+    vi.mocked(useSkillAgent).mockReturnValue(makeReturn({ error: null }));
+    render(<ChatPage params={paramsPromise} />);
+    expect(await screen.findByPlaceholderText("Message…")).toBeTruthy();
+    sessionStorage.clear();
+  });
+
+  it("says the backend's stage by key, in the activity's language (1.1.108)", async () => {
+    voiceLanguage.value = null; // → Danish
+    vi.mocked(useSkillAgent).mockReturnValue(
+      makeReturn({
+        isLoading: true,
+        stageLabel: "Reading 2 documents…",
+        stage: { label: "Reading 2 documents…", key: "readingDocuments", params: { count: 2 } },
+      }),
+    );
+    render(<ChatPage params={paramsPromise} />);
+    expect(await screen.findByText(/Læser 2 dokumenter…/)).toBeTruthy();
+    expect(screen.queryByText(/Reading 2 documents/)).toBeNull();
+  });
 });
+

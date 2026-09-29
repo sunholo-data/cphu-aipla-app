@@ -31,3 +31,47 @@ export function localeForActivities(langs: Array<string | null | undefined>): Lo
   const set = new Set(langs.map(toLocale));
   return set.size === 1 ? [...set][0] : "bilingual";
 }
+
+// ---------------------------------------------------------------------------
+// The first-paint language of an activity chat.
+//
+// The chat page learns `activity.language` from the config fetch, a moment
+// after first paint — and until 2026-09-29 it fell back to the skill's voice
+// language meanwhile, which (fetched without the activity) is Danish. On a cold
+// start an English activity showed Danish chrome for several seconds, verified
+// on deployed dev. The lesson picker already knows every activity's language,
+// so it leaves a note here and the chat page reads it before its fetch lands.
+//
+// sessionStorage, because this is a per-tab convenience: the config fetch is
+// still the source of truth and overwrites it. Every access is guarded —
+// storage can be absent or throw (private windows, blocked site data).
+
+const ACTIVITY_LANGUAGE_KEY = "aipla.activityLanguage";
+
+function readActivityLanguages(): Record<string, Locale> {
+  try {
+    const raw = typeof sessionStorage === "undefined" ? null : sessionStorage.getItem(ACTIVITY_LANGUAGE_KEY);
+    const parsed = raw ? (JSON.parse(raw) as unknown) : null;
+    return parsed && typeof parsed === "object" ? (parsed as Record<string, Locale>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Remember activities' languages for the next chat page's first paint. */
+export function rememberActivityLanguages(entries: Array<[string, string | null | undefined]>): void {
+  if (entries.length === 0) return;
+  try {
+    const map = readActivityLanguages();
+    for (const [id, lang] of entries) map[id] = toLocale(lang);
+    sessionStorage.setItem(ACTIVITY_LANGUAGE_KEY, JSON.stringify(map));
+  } catch {
+    /* storage unavailable — the chat page falls back as before */
+  }
+}
+
+/** The remembered language of one activity, or null when nothing is known. */
+export function recallActivityLanguage(activityId: string | null | undefined): Locale | null {
+  if (!activityId) return null;
+  return readActivityLanguages()[activityId] ?? null;
+}

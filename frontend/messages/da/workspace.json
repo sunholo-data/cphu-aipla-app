@@ -116,7 +116,9 @@
     "plotLabel": "{x} mod {y}",
     "untitled": "Graf",
     "fillTable": "Udfyld datatabellen for at se grafen.",
-    "needsTable": "Denne graf kræver en datatabel med to talkolonner."
+    "needsTable": "Denne graf kræver en datatabel med to talkolonner.",
+    "note_tableGone": "Tabellen findes ikke længere — viser de to første talkolonner.",
+    "note_columnGone": "En valgt kolonne findes ikke længere — viser de to første talkolonner."
   },
   "WorkbenchNote": {
     "untitled": "Note"

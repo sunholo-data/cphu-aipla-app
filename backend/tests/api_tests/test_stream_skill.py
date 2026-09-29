@@ -580,6 +580,7 @@ def test_stream_skill_translates_budget_exceeded_to_typed_run_error(client):
         period_end="2026-06-01T00:00:00Z",
         message="Cohort PHYS-7K2N is over its monthly budget.",
         retry_after_seconds=3600,
+        reason="class_monthly",
     )
 
     async def _budget_blocked_stream(input_data):
@@ -605,6 +606,8 @@ def test_stream_skill_translates_budget_exceeded_to_typed_run_error(client):
     assert err["code"] == "BUDGET_EXCEEDED"
     assert err["message"] == "Cohort PHYS-7K2N is over its monthly budget."
     assert err.get("retry_after_seconds") == 3600
+    # 1.1.108 — the stable reason rides too, so the banner can translate it.
+    assert err.get("reason") == "class_monthly"
 
 
 def test_stream_skill_drops_events_after_run_error(client):

@@ -635,7 +635,12 @@ def create_agent(
         if loaded:
             suffix = "s" if len(loaded) != 1 else ""
             label = f"Reading {len(loaded)} document{suffix}…"
-        get_current_tracker().mark(STAGE_BEFORE_AGENT_DONE, user_label=label)
+        get_current_tracker().mark(
+            STAGE_BEFORE_AGENT_DONE,
+            user_label=label,
+            label_key="readingDocuments" if loaded else None,
+            label_params={"count": len(loaded)} if loaded else None,
+        )
 
     # TUTOR-5: what taught this turn, resolved once here and CARRIED to the
     # chat log, rather than re-derived at the emit site. Reuses `_active_cfg`,

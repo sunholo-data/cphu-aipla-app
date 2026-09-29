@@ -70,6 +70,14 @@ export type StreamErrorCode =
   | "agentError"
   | "budget";
 
+/** A STAGE_PROGRESS event: the backend's English label plus, since 1.1.108, a
+ *  stable key (`thinking`, `callingTool`, `readingDocuments`) and its values. */
+export interface StageProgress {
+  label: string;
+  key: string | null;
+  params: Record<string, string | number>;
+}
+
 export interface StreamError {
   kind: "http" | "run_error" | "network" | "budget_exceeded";
   code: StreamErrorCode;
@@ -77,6 +85,10 @@ export interface StreamError {
   message: string;
   retryable: boolean;
   rawMessage: string;
+  /** 1.1.108 — on `budget_exceeded`, the backend's stable reason code
+   *  (`paused`, `class_monthly`, `programme_daily`, `unavailable`,
+   *  `period_exhausted`), so the banner can translate it. */
+  reason?: string;
   /**
    * Seconds until budget recovery (period rollover). Present only on
    * ``kind === "budget_exceeded"`` — backend pulls this off the
@@ -126,6 +138,10 @@ export interface UseSkillAgentReturn {
    * see docs/design/v6.1.0/ttft-instrumentation.md.
    */
   stageLabel: string | null;
+  /** 1.1.108 — the same stage as a stable key + values, so the page can say it
+   *  in the activity's language. `key` is null from a backend that predates it;
+   *  fall back to `stageLabel` then. */
+  stage: StageProgress | null;
   sendMessage: (
     text: string,
     opts?: {
@@ -239,6 +255,7 @@ function classifyRunError(event: unknown): StreamError {
       (event as { code: unknown }).code === "BUDGET_EXCEEDED") {
     const rawRetry = (event as { retry_after_seconds?: unknown }).retry_after_seconds;
     const retryAfterSeconds = typeof rawRetry === "number" ? rawRetry : undefined;
+    const rawReason = (event as { reason?: unknown }).reason;
     return {
       kind: "budget_exceeded",
       code: "budget",
@@ -246,6 +263,7 @@ function classifyRunError(event: unknown): StreamError {
       retryable: retryAfterSeconds !== undefined,
       rawMessage: msg,
       retryAfterSeconds,
+      reason: typeof rawReason === "string" ? rawReason : undefined,
     };
   }
   return { kind: "run_error", code: "agentError", message: "The agent encountered an error. Try again.", retryable: true, rawMessage: msg };
@@ -279,7 +297,8 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
   const [isLoading, setIsLoading] = useState(false);
   const [runStarted, setRunStarted] = useState(false);
   const [error, setError] = useState<StreamError | null>(null);
-  const [stageLabel, setStageLabel] = useState<string | null>(null);
+  const [stage, setStage] = useState<StageProgress | null>(null);
+  const stageLabel = stage?.label ?? null;
   const [tidyingUp, setTidyingUp] = useState(false);
   const [compactions, setCompactions] = useState<CompactionNoticeItem[]>([]);
   const compactionSeqRef = useRef(0);
@@ -375,9 +394,16 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
         //   LATENCY_REPORT  — final per-stage timings (only when ?probe=1)
         // Backend definitions in observability/timing.py.
         if (event.name === "STAGE_PROGRESS") {
-          const value = event.value as { label?: unknown } | null | undefined;
+          const value = event.value as { label?: unknown; key?: unknown; params?: unknown } | null | undefined;
           if (!value || typeof value.label !== "string") return;
-          setStageLabel(value.label);
+          setStage({
+            label: value.label,
+            key: typeof value.key === "string" ? value.key : null,
+            params:
+              value.params && typeof value.params === "object"
+                ? (value.params as Record<string, string | number>)
+                : {},
+          });
           recordFirstStageLabel(performance.now());
           return;
         }
@@ -396,7 +422,7 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
         // RUN_FINISHED.
         if (event.name === "COMPACTION_STARTED") {
           setIsLoading(false);
-          setStageLabel(null);
+          setStage(null);
           setTidyingUp(true);
           return;
         }
@@ -423,7 +449,7 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
       onTextMessageStartEvent: ({ event }: { event: { messageId?: string } }) => {
         // First model token reached the wire — clear the stage label so
         // the UI handoff (TypingIndicator → StreamingBubble) is clean.
-        setStageLabel(null);
+        setStage(null);
         recordFirstTextChunk(performance.now());
         // F2a fix (part 2): back-attribute any tool calls whose parentMessageId
         // was deferred (tools-before-text ADK pattern). TOOL_CALL_START fires
@@ -454,7 +480,7 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
       onRunFinalized: () => {
         setIsLoading(false);
         setRunStarted(false);
-        setStageLabel(null);
+        setStage(null);
         setTidyingUp(false);
         // Resolve any still-running tool calls as success on clean finish
         setToolCalls((prev) =>
@@ -468,7 +494,7 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
         setError(streamErr);
         setIsLoading(false);
         setRunStarted(false);
-        setStageLabel(null);
+        setStage(null);
         setTidyingUp(false);
         setToolCalls((prev) =>
           prev.map((tc) => tc.status === "running" ? { ...tc, status: "error" } : tc),
@@ -560,7 +586,7 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
     ) => {
       clearError();
       setRunStarted(false);
-      setStageLabel(null);
+      setStage(null);
       setTidyingUp(false);
       runFailedRef.current = false;
       // 1.1.11 follow-up — when the student takes action (typing AND
@@ -645,6 +671,7 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
     thinkingContent,
     isThinking,
     stageLabel,
+    stage,
     sendMessage,
     isLoading,
     tidyingUp,

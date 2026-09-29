@@ -116,7 +116,9 @@
     "plotLabel": "{x} vs {y}",
     "untitled": "Chart",
     "fillTable": "Fill in the data table to see the chart.",
-    "needsTable": "This chart needs a data table with two number columns."
+    "needsTable": "This chart needs a data table with two number columns.",
+    "note_tableGone": "The table no longer exists — showing the first two number columns.",
+    "note_columnGone": "A chosen column no longer exists — showing the first two number columns."
   },
   "WorkbenchNote": {
     "untitled": "Note"

@@ -365,13 +365,43 @@ speaker, one pass:**
 - One inconsistency kept byte-identical for the reader to rule on: a trust card
   says *vejlederen* where the rest of the product says *tutoren*.
 
-**Still outside the message layer (student-visible, found during extraction):**
-`BudgetBanner` (backend-authored sentence + English countdown) ·
-`useImageAttachments` notices · `TypingIndicator`'s `stageLabel` from the page ·
-`ArtefactReviewer` decision messages · `lib/resolveChartBinding.ts` chart notes
-(Danish) · `lib/exportDocument.ts` (unchecked) · the doc-browser, which is
-teacher/dev-only (`showDocumentUI = !isAnonymousGroupAuthMode()`). The guard
-does not see `lib/` or `hooks/` — widen it when these move.
+**Stragglers, closed 2026-09-29.** Four student-visible sources sat outside the
+message layer because their text was authored somewhere other than the
+component that shows it. The fix is the same shape each time — **the source
+emits a code, the renderer translates it**, and any English sentence stays as
+the fallback for a client that predates the code:
+- **Budget banner** — `BudgetDecision.reason` (`paused` · `class_monthly` ·
+  `programme_daily` · `unavailable` · `period_exhausted`) rides the RUN_ERROR;
+  the countdown uses ICU plurals. An unknown reason shows the backend sentence.
+- **Typing-indicator stage** — `STAGE_PROGRESS` now carries `key` + `params`
+  (`thinking` · `callingTool{tool}` · `readingDocuments{count}`) beside `label`.
+- **Image notices** — `useImageAttachments().notice` is a code; the privacy
+  screen (`personGuardrail`) returns one beside its English message.
+- **Chart fallback notes** — `resolveChartBinding` returns `tableGone` /
+  `columnGone` instead of a Danish sentence.
+
+The guard now covers `components/budget` and the individual `lib/` + `hooks/`
+files whose text reaches a student. `lib/` as a whole is NOT in scope:
+`activityTemplates.ts` (~380 lines) and `activityElements.ts` labels are
+teacher-facing template data — M2's.
+
+**Cold-start flash, fixed 2026-09-29.** Verified on deployed dev: an English
+activity could paint Danish for several seconds, because before the config
+fetch landed the page fell back to the voice config fetched *without* the
+activity (`da`). The lesson picker now leaves each activity's language in
+`sessionStorage` (`rememberActivityLanguages`) and the chat page seeds its first
+paint from it; the config fetch still overwrites it.
+
+**Not a student surface:** `ArtefactReviewer` (researcher review of a
+submitted sim) and the doc-browser (`showDocumentUI =
+!isAnonymousGroupAuthMode()` — teacher/dev only).
+
+**Verified on deployed dev 2026-09-29** (headless Chromium, as a student, fresh
+codes on the test teacher's classes): the English class's picker and chat were
+English end to end (`<html lang="en">`, no æøå on the page); the Danish class
+Danish; Boldkast received `hostContext.locale: "da"` read from inside its
+iframe. An English sim was not checked on dev — no English activity there
+carries one.
 
 ### M1 — Locale resolution (~0.5d)
 

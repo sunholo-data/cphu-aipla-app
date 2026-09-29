@@ -35,8 +35,13 @@ def test_mode_full_records_marks_emits_span_attrs_and_stage_events(monkeypatch):
     tracker.mark(timing.STAGE_REQUEST_RECEIVED)
     tracker.mark(timing.STAGE_AGENT_FACTORY_DONE)
     tracker.mark(timing.STAGE_RUNNER_SETUP_DONE)
-    tracker.mark(timing.STAGE_BEFORE_AGENT_DONE, user_label="Reading 1 document…")
-    tracker.mark(timing.STAGE_BEFORE_MODEL_DONE, user_label="Thinking…")
+    tracker.mark(
+        timing.STAGE_BEFORE_AGENT_DONE,
+        user_label="Reading 1 document…",
+        label_key="readingDocuments",
+        label_params={"count": 1},
+    )
+    tracker.mark(timing.STAGE_BEFORE_MODEL_DONE, user_label="Thinking…", label_key="thinking")
 
     payload = tracker.report_payload()
     assert "request_received_ms" in payload
@@ -50,6 +55,12 @@ def test_mode_full_records_marks_emits_span_attrs_and_stage_events(monkeypatch):
     assert len(events) == 2
     labels = [e.value["label"] for e in events]
     assert labels == ["Reading 1 document…", "Thinking…"]
+    # 1.1.108 — a stable key + params ride with the English label, so the
+    # student UI can render it in the activity's language.
+    assert [(e.value["key"], e.value["params"]) for e in events] == [
+        ("readingDocuments", {"count": 1}),
+        ("thinking", {}),
+    ]
     # Once drained, queue is empty.
     assert tracker.drain_stage_events() == []
 

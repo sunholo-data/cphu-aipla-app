@@ -16,6 +16,7 @@ vi.mock("@/lib/personGuardrail", () => ({
     degraded: false,
     faceCount: 0,
     message: null,
+    notice: null,
   })),
 }));
 
@@ -68,7 +69,7 @@ describe("useImageAttachments", () => {
       await result.current.addFiles(files);
     });
     expect(result.current.count).toBe(MAX_IMAGES);
-    expect(result.current.notice).toMatch(/up to/i);
+    expect(result.current.notice).toBe("tooMany");
   });
 
   it("does not stage a guardrail-blocked image and surfaces the message", async () => {
@@ -77,13 +78,14 @@ describe("useImageAttachments", () => {
       degraded: false,
       faceCount: 1,
       message: "retake please",
+      notice: "retake",
     });
     const { result } = renderHook(() => useImageAttachments());
     await act(async () => {
       await result.current.addFiles([img("face.png")]);
     });
     expect(result.current.count).toBe(0);
-    expect(result.current.notice).toBe("retake please");
+    expect(result.current.notice).toBe("retake");
   });
 
   it("remove() drops the image and revokes its object URL", async () => {
@@ -159,6 +161,7 @@ describe("handlePaste — 1.1.85 M2", () => {
       degraded: false,
       faceCount: 1,
       message: "Someone is in this photo.",
+      notice: "retake",
     });
     const { result } = renderHook(() => useImageAttachments());
     const { e } = pasteEvent([img("me.png")]);
@@ -172,6 +175,6 @@ describe("handlePaste — 1.1.85 M2", () => {
     const { e } = pasteEvent(Array.from({ length: MAX_IMAGES + 2 }, (_, i) => img(`p${i}.png`)));
     act(() => result.current.handlePaste(e));
     await waitFor(() => expect(result.current.count).toBe(MAX_IMAGES));
-    expect(result.current.notice).toMatch(new RegExp(String(MAX_IMAGES)));
+    expect(result.current.notice).toBe("tooMany");
   });
 });

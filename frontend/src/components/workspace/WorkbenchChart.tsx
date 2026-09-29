@@ -263,7 +263,7 @@ export function WorkbenchChart({ skillId, charts, tables }: WorkbenchChartProps)
           )}
           {binding?.note && (
             <p className="mb-2 rounded border border-amber-200 bg-amber-50/60 px-2 py-1 text-[10px] text-amber-900">
-              {binding.note}
+              {t(`note_${binding.note}`)}
             </p>
           )}
           {plots[i] && plots[i]!.points.length > 0 ? (

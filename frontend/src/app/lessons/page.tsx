@@ -26,7 +26,7 @@ import { BookOpen, RefreshCw } from "lucide-react";
 import { SiteFooter } from "@/components/site/SiteFooter";
 
 import { skillHref } from "@/components/navigation/skillHref";
-import { LocaleProvider, localeForActivities, useT, type LocaleMode } from "@/i18n";
+import { LocaleProvider, localeForActivities, rememberActivityLanguages, useT, type LocaleMode } from "@/i18n";
 import { useAnonymousGroupAuth } from "@/contexts/AnonymousGroupAuthProvider";
 import { fetchWithAuth } from "@/lib/apiClient";
 import { isAnonymousGroupAuthMode } from "@/lib/anonymousGroupAuth";
@@ -87,6 +87,9 @@ function AnonGroupLessonsPage() {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = (await res.json()) as { activities: StudentActivity[]; class_name: string | null };
         setActivities(data.activities ?? []);
+        // Lets the chat page paint in the activity's language before its own
+        // config fetch lands (1.1.108 — the cold-start Danish flash).
+        rememberActivityLanguages((data.activities ?? []).map((a) => [a.activityId, a.language]));
         if (data.class_name) setLiveClassName(data.class_name);
       })
       .catch(() => {

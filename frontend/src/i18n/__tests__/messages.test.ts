@@ -83,3 +83,21 @@ describe("locale resolution", () => {
     expect(localeForActivities([])).toBe("bilingual");
   });
 });
+
+describe("remembered activity language (first paint)", () => {
+  it("round-trips through sessionStorage and normalises", async () => {
+    const { rememberActivityLanguages, recallActivityLanguage } = await import("@/i18n");
+    sessionStorage.clear();
+    expect(recallActivityLanguage("act-1")).toBeNull();
+    rememberActivityLanguages([["act-1", "en"], ["act-2", undefined]]);
+    expect(recallActivityLanguage("act-1")).toBe("en");
+    expect(recallActivityLanguage("act-2")).toBe("da");
+    expect(recallActivityLanguage(null)).toBeNull();
+  });
+
+  it("survives unreadable storage", async () => {
+    const { recallActivityLanguage } = await import("@/i18n");
+    sessionStorage.setItem("aipla.activityLanguage", "{not json");
+    expect(recallActivityLanguage("act-1")).toBeNull();
+  });
+});

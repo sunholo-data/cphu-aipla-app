@@ -141,6 +141,7 @@ def _deny_callbacks(identity_key: str) -> tuple[Any, Any]:
                 period_end=None,
                 message=("The tutor is unavailable for this account right now. Please contact the AIPLA team."),
                 retry_after_seconds=None,
+                reason="unavailable",
             )
         )
 

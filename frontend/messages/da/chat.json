@@ -58,7 +58,11 @@
     "full": "Du kan højst vedhæfte et par billeder ad gangen",
     "attachmentAlt": "vedhæftet billede",
     "imageFallback": "billede",
-    "remove": "Fjern {name}"
+    "remove": "Fjern {name}",
+    "notice_tooMany": "Du kan vedhæfte op til {max} billeder pr. besked.",
+    "notice_processFailed": "Billedet kunne ikke behandles. Prøv et andet.",
+    "notice_retake": "Der ser ud til at være en person på billedet. Tag det om uden personer i billedet, før du sender det.",
+    "notice_degraded": "Bemærk: denne enhed kan ikke selv tjekke billeder for personer. Sørg for, at der ikke er klassekammerater med på billedet, før du sender det."
   },
   "ChatMessageList": {
     "olderHidden": "Tidligere interaktioner er skjult",

@@ -50,14 +50,14 @@ describe("resolveChartBinding", () => {
   it("falls back WITH A NOTE when a bound column no longer exists", () => {
     const r = resolveChartBinding({ tableId: "t1", xColumn: "gone", yColumn: "h" }, [TABLE]);
     expect(r).not.toBeNull();
-    expect(r?.note).toMatch(/findes ikke længere/);
+    expect(r?.note).toBe("columnGone");
     // Fell back to auto-bind rather than plotting something arbitrary.
     expect([r?.x.id, r?.y.id]).toEqual(["h", "t"]);
   });
 
   it("falls back WITH A NOTE when the bound table no longer exists", () => {
     const r = resolveChartBinding({ tableId: "gone", xColumn: "t", yColumn: "h" }, [TABLE]);
-    expect(r?.note).toMatch(/Tabellen findes ikke længere/);
+    expect(r?.note).toBe("tableGone");
   });
 
   it("never silently plots the wrong variables", () => {

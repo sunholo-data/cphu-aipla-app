@@ -411,6 +411,8 @@ async def _run_skill_turn(
             "message": decision.message or "Budget exceeded.",
             "code": "BUDGET_EXCEEDED",
             "retry_after_seconds": decision.retry_after_seconds,
+            # 1.1.108 — lets the banner speak the activity's language.
+            "reason": decision.reason,
         }
     except ClientError as exc:
         # Vertex AI / Gemini API failures bubble up as ClientError. Translate
