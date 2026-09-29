@@ -54,8 +54,15 @@ MAX_MESSAGE_CHARS = 500
 MAX_STACK_CHARS = 4000
 MAX_URL_CHARS = 300
 
-#: What produced the error. A closed enum — never free text.
-KINDS = ("render", "window.onerror", "unhandledrejection")
+#: What produced the report. A closed enum — never free text. ``recovered`` is
+#: not an error: it is the page an automatic stale-deploy reload landed on,
+#: saying it rendered (1.1.138 M0).
+KINDS = ("render", "window.onerror", "unhandledrejection", "recovered")
+
+#: A build id is an opaque build stamp (``b20260929101500-k3x9``, a SHA, a tag).
+#: Anything else is dropped rather than logged: this field arrives on an
+#: unauthenticated endpoint and must not become a free-text channel.
+_BUILD_ID = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
 #: Who was looking at it. Three-valued, identifies nobody.
 ROLES = ("teacher", "student", "anon")
@@ -105,6 +112,14 @@ def clean_url(raw: str) -> str:
     return path[:MAX_URL_CHARS]
 
 
+def clean_build_id(raw: str | None) -> str | None:
+    """A well-formed build id, or ``None``. Never the raw value on a mismatch."""
+    if not raw or not isinstance(raw, str):
+        return None
+    raw = raw.strip()
+    return raw if _BUILD_ID.match(raw) else None
+
+
 def surface_of(path: str) -> str:
     """The first path segment — ``teacher``, ``lessons``, ``project``, ``chat``.
 
@@ -123,6 +138,10 @@ def emit_client_error(
     url: str = "",
     role: str = "anon",
     user_agent: str = "",
+    build_id: str | None = None,
+    auto_reloaded: bool | None = None,
+    after_auto_reload: bool | None = None,
+    previous_build_id: str | None = None,
 ) -> None:
     """Emit one browser-side error. **Never raises.**
 
@@ -134,20 +153,31 @@ def emit_client_error(
     ``user_agent`` comes from the request header, not from the body — a field the
     caller cannot choose is worth more than one it can, on an endpoint with no
     auth.
+
+    ``build_id`` / ``auto_reloaded`` / ``after_auto_reload`` /
+    ``previous_build_id`` (1.1.138 M0) tell a stale-deploy crash from a real
+    bug, and a reload that cured it from one that did not. All optional: an
+    older client that sends none of them still logs, with ``None`` in each.
     """
     kind = kind if kind in KINDS else "render"
     role = role if role in ROLES else "anon"
     message = redact(message)[:MAX_MESSAGE_CHARS]
     stack = redact(stack)[:MAX_STACK_CHARS]
     path = clean_url(url)
+    build_id = clean_build_id(build_id)
+    previous_build_id = clean_build_id(previous_build_id)
 
     # Unconditional, and first: if the structured emit below is a no-op (local
-    # dev, no creds), this line is the only visibility there is.
-    logger.warning(
-        "client_error: kind=%s role=%s path=%s message=%s",
+    # dev, no creds), this line is the only visibility there is. A recovery is
+    # good news, so it does not log at warning.
+    logger.log(
+        logging.INFO if kind == "recovered" else logging.WARNING,
+        "client_error: kind=%s role=%s path=%s build=%s auto_reloaded=%s message=%s",
         kind,
         role,
         path or "-",
+        build_id or "-",
+        auto_reloaded,
         message or "-",
     )
 
@@ -162,6 +192,14 @@ def emit_client_error(
         "path": path,
         "surface": surface_of(path),
         "user_agent": user_agent[:300],
+        # 1.1.138 M0. `client_build_id` is the build the TAB ran; the server's
+        # build is `revision` / `app_version` below. On a `recovered` row,
+        # `previous_build_id` != `client_build_id` means the reload moved the
+        # tab onto a new build — a real stale deploy, cured.
+        "client_build_id": build_id,
+        "previous_build_id": previous_build_id,
+        "auto_reloaded": auto_reloaded,
+        "after_auto_reload": after_auto_reload,
         # Frontend and backend ship in ONE container (the backend is a sidecar
         # inside `aipla-v01-frontend`), so the server's revision/app_version
         # describes the same build that served the broken JS. The client does not
@@ -181,6 +219,7 @@ __all__ = [
     "MAX_STACK_CHARS",
     "MAX_URL_CHARS",
     "ROLES",
+    "clean_build_id",
     "clean_url",
     "emit_client_error",
     "redact",

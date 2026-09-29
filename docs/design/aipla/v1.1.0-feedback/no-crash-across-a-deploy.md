@@ -1,6 +1,6 @@
 # No crash across a deploy — tell stale clients apart, and do not deploy into a lesson
 
-**Status:** Design (OPEN) — **1.1.138**
+**Status:** **M0–M2 shipped 2026-09-29** (CLASSVISIT-1 lane B, not yet deployed) · M3 gated on M0 data · M4 open — **1.1.138**
 **Priority:** **P1** — the second cause behind *"the platform crashed, refreshing fixed it"*. Teachers and students both hit it, and every instance so far lines up with a school-hours prod deploy. **Un-gated**
 **Estimated:** ~1.25–1.75d (M0 know what happened ~0.25d · M1 school-hours promote guard ~0.25d · M2 `deploymentId` ~0.5d · M3 service-worker fallback ~0.25–0.5d · M4 re-measure ~0.25d)
 **Scope:** Frontend: `lib/staleDeployReload.ts`, `components/GlobalErrorReporter.tsx`, `app/error.tsx`, `next.config.*`, `public/sw.js`. Ops: `scripts/promote-env.sh`
@@ -75,6 +75,89 @@ reach the tutor anyway. Recommend (b).
 
 After one week of lessons on the new build: count `autoReloaded=false`
 crashes. Target **zero** outside a real bug. Write the number here.
+
+## What shipped — 2026-09-29
+
+CLASSVISIT-1 lane B. Nothing is deployed yet; M0's data starts with the first
+prod promote that carries it.
+
+### M0 — every client report says which build and whether it reloaded
+
+- **One build id per frontend build**, `frontend/build-id.mjs`, used for Next's
+  `generateBuildId`, its `deploymentId` and `NEXT_PUBLIC_BUILD_ID` (verified on
+  a local `next build`: `.next/BUILD_ID`, the client chunks, the server bundle
+  and `required-server-files.json` all carry the same value). `AIPLA_BUILD_ID`
+  wins when set; **nothing sets it today** — the image is built from
+  `frontend/` with no `.git` and no SHA build-arg, and `APP_VERSION` is a
+  *runtime* var (and just `dev` for every dev build). So the id is the UTC build
+  time plus a random suffix, `b20260929125221-ge6l`: unique per build, which is
+  all skew detection needs, and orderable against revision creation times.
+- **The report body** (`lib/clientErrorReporting.ts`) gains `buildId`,
+  `autoReloaded` (this crash started a reload), `afterAutoReload` (this page
+  load is itself the product of one) and, on a recovery, `previousBuildId`.
+- **`recovered`** is a new `kind`. `reloadIfStaleDeploy` leaves a one-shot
+  sessionStorage marker naming the build the tab was on; `GlobalErrorReporter`
+  (root layout) takes it after `RECOVERY_SETTLE_MS` (3 s) and reports
+  `recovered`. If the reloaded page crashes first, the boundary takes the marker
+  instead and its crash row says `afterAutoReload: true`, so one reload yields
+  exactly one of the two. A marker older than the 60 s cooldown is ignored.
+- **The server's build is not sent by the client.** The backend already stamps
+  `revision` + `app_version` on every row, from its own environment, which the
+  client cannot misreport. No fetch was added to the error path.
+- **Backend** (`protocols/client_error_routes.py`, `observability/client_error.py`):
+  the four fields are optional, so an old tab still reports; build ids that are
+  not `[A-Za-z0-9._-]{1,64}` are dropped, not logged (the endpoint has no auth).
+  Logged as `client_build_id`, `previous_build_id`, `auto_reloaded`,
+  `after_auto_reload`.
+
+**How to read it after a week (feeds M4).** In
+`logName:"aipla_client_error"` on prod:
+
+| Row | Reading |
+|---|---|
+| `kind="recovered"`, `previous_build_id != client_build_id` | reading 1 — a real stale tab, and the reload cured it |
+| `kind="recovered"`, `previous_build_id == client_build_id` | the skew did not come from an old build — reading 2 (the service worker) or an ordinary bug the reload happened to clear |
+| `kind="render"`, `after_auto_reload=true` | the reload did **not** cure it |
+| `kind="render"`, `auto_reloaded=false`, stale signature | inside the 60 s cooldown, or storage blocked: the boundary was shown |
+
+### M1 — no prod promote in school hours
+
+`scripts/promote-env.sh` refuses `--to prod` Mon–Fri 08:00–16:00
+Europe/Copenhagen unless `FORCE=1` (`make promote … FORCE=1`, which make passes
+through to the script's environment) or `--force`, and says why. The dry-run is
+never refused; it prints the plan plus a warning. An unreadable Copenhagen clock
+(no tz database — `date` would silently answer in UTC) fails closed.
+`PROMOTE_NOW=<epoch>` pins the clock for the 12 tests in
+`backend/tests/unit/test_promote_school_hours.py`, which run the real script with
+a fake `gcloud`. Documented in [deploy.md](../../../ops/runbooks/deploy.md).
+**Route B is not covered**: approving the held `aipla-prod-promote-on-tag` build
+in the console bypasses the script, and deploy.md says so.
+
+### M2 — `deploymentId`, and what it does NOT do self-hosted
+
+Set from the same build id. **A correction to the design above:** Next 15's app
+router *already* does a full page load when an RSC response's build id differs
+from the tab's (`fetch-server-response.js`: `getAppBuildId() !== response.b →
+doMpaNavigation`), with or without `deploymentId`. What `deploymentId` adds,
+self-hosted, is `?dpl=<id>` on every chunk and stylesheet URL and an
+`x-deployment-id` header on RSC fetches. **The server does not reject a
+mismatched header** — that is Vercel's skew protection, not Next's. So the
+teacher case ("a tab open all morning, then a click") was probably already
+covered by the build-id check, and the crashes in the log must be reaching the
+module map by another path: a lazy chunk loaded without an RSC round-trip, or
+the service worker's cached page (reading 2). That makes M0's data more
+important, not less. `?dpl=` does mean two builds can never share an asset URL,
+in the browser cache or in `sw.js`'s cache-first `/_next/static/` handler.
+
+Not done: the "verify on dev by deploying under an open tab" step — deploying
+was out of scope for this lane.
+
+### Follow-ups
+
+- Pass a real SHA/tag as `AIPLA_BUILD_ID`: a Dockerfile `ARG`/`ENV` plus a
+  `--build-arg` in **both** `cloudbuild.yaml` and `cloudbuild.promote.yaml` (the
+  twin rule). Nice for reading, not needed for correctness.
+- M3 once M0 has a week of rows. M4 after that.
 
 ## Out of scope
 

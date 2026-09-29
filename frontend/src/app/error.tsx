@@ -3,7 +3,12 @@
 import { useEffect, useState } from "react";
 
 import { reportClientError } from "@/lib/clientErrorReporting";
-import { canAutoReload, isStaleDeployError, reloadIfStaleDeploy } from "@/lib/staleDeployReload";
+import {
+  canAutoReload,
+  isStaleDeployError,
+  reloadIfStaleDeploy,
+  takePendingReload,
+} from "@/lib/staleDeployReload";
 
 // 1.1.108 content-localisation — user-facing copy lives in one object, never
 // inline in JSX. No locale axis yet: this boundary renders when the app is
@@ -50,11 +55,16 @@ export default function RouteError({
 
   useEffect(() => {
     // Reported either way — `keepalive` carries it across the reload, and the
-    // count of stale-deploy crashes is itself worth seeing.
+    // count of stale-deploy crashes is itself worth seeing. `autoReloaded` says
+    // which it was; `afterAutoReload` flags a crash on the page a reload just
+    // produced, i.e. one the reload did NOT cure (1.1.138 M0). Taking the
+    // marker here also stops the root layout reporting this load as recovered.
     reportClientError({
       kind: "render",
       message: error.message || "render error",
       stack: error.stack ?? "",
+      autoReloaded: reloading,
+      afterAutoReload: takePendingReload() !== null,
     });
     if (reloading) reloadIfStaleDeploy(error);
   }, [error, reloading]);

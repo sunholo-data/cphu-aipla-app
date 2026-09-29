@@ -214,3 +214,69 @@ def test_no_cloud_logger_is_a_silent_no_op(client, monkeypatch):
     monkeypatch.setattr(ce, "_get_logger", lambda _log_id: None)
     resp = client.post("/api/client-errors", json={"kind": "render", "message": "boom"})
     assert resp.status_code == 204
+
+
+# ─── 1.1.138 M0 — which crash it was ────────────────────────────────────────
+
+
+def test_stale_deploy_fields_are_logged(client, emitted):
+    """A crash that started an auto-reload says so, and names the tab's build
+    beside the server's revision — the comparison the M0 query runs."""
+    resp = client.post(
+        "/api/client-errors",
+        json={
+            "kind": "render",
+            "message": "Cannot read properties of undefined (reading 'call')",
+            "url": "/teacher/classes",
+            "role": "teacher",
+            "buildId": "b20260925093000-k3x9",
+            "autoReloaded": True,
+            "afterAutoReload": False,
+        },
+    )
+    assert resp.status_code == 204
+    row = emitted[0]
+    assert row["client_build_id"] == "b20260925093000-k3x9"
+    assert row["auto_reloaded"] is True
+    assert row["after_auto_reload"] is False
+    assert row["previous_build_id"] is None
+    assert row["revision"] == "rev-1"  # the server's build, stamped server-side
+
+
+def test_recovered_is_an_accepted_kind(client, emitted):
+    resp = client.post(
+        "/api/client-errors",
+        json={
+            "kind": "recovered",
+            "message": "page rendered after an automatic stale-deploy reload",
+            "buildId": "b20260929080000-new1",
+            "previousBuildId": "b20260925093000-old1",
+            "afterAutoReload": True,
+        },
+    )
+    assert resp.status_code == 204
+    row = emitted[0]
+    # Not coerced to "render": a recovery must not be counted as a crash.
+    assert row["kind"] == "recovered"
+    assert row["previous_build_id"] == "b20260925093000-old1"
+    assert row["client_build_id"] == "b20260929080000-new1"
+
+
+def test_an_old_client_without_the_new_fields_still_logs(client, emitted):
+    """Backward compatible: a tab that outlived the deploy adding these fields
+    is precisely the client we most want to hear from."""
+    resp = client.post("/api/client-errors", json={"kind": "render", "message": "boom"})
+    assert resp.status_code == 204
+    row = emitted[0]
+    assert row["client_build_id"] is None
+    assert row["auto_reloaded"] is None
+    assert row["after_auto_reload"] is None
+
+
+@pytest.mark.parametrize("bad", ["has spaces", "a/b", "x" * 65, "b1?code=SECRET", "<script>"])
+def test_a_malformed_build_id_is_dropped_not_logged(client, emitted, bad):
+    """The endpoint is unauthenticated: the build-id field must not become a
+    free-text channel into the log."""
+    resp = client.post("/api/client-errors", json={"kind": "render", "message": "boom", "buildId": bad})
+    assert resp.status_code == 204
+    assert emitted[0]["client_build_id"] is None

@@ -87,6 +87,12 @@ class ClientErrorRequest(BaseModel):
     stack: str = Field(default="", max_length=MAX_STACK_CHARS * 4)
     url: str = Field(default="", max_length=MAX_URL_CHARS * 4)
     role: str = Field(default="anon", max_length=16)
+    # 1.1.138 M0 — all optional, so an older client (or a tab that outlived the
+    # deploy that added them) still reports. Shape-checked in the emitter.
+    buildId: str | None = Field(default=None, max_length=128)  # wire name (camelCase)
+    previousBuildId: str | None = Field(default=None, max_length=128)
+    autoReloaded: bool | None = None
+    afterAutoReload: bool | None = None
 
     model_config = {"extra": "ignore"}
 
@@ -121,6 +127,10 @@ async def post_client_error(body: ClientErrorRequest, request: Request) -> None:
             # From the header, not the body: a field the caller cannot choose is
             # worth more than one it can, on an endpoint with no auth.
             user_agent=request.headers.get("user-agent", ""),
+            build_id=body.buildId,
+            previous_build_id=body.previousBuildId,
+            auto_reloaded=body.autoReloaded,
+            after_auto_reload=body.afterAutoReload,
         )
     except Exception as exc:  # pragma: no cover - emit_client_error never raises
         # Belt and braces. The one thing this endpoint must never do is fail.

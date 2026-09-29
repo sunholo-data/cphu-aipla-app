@@ -67,22 +67,104 @@ export function canAutoReload(now: number = Date.now()): boolean {
   }
 }
 
+export interface ReloadOptions {
+  /** Trust only a definite chunk-load failure (the window listener's test). */
+  chunkLoadOnly?: boolean;
+}
+
+/**
+ * Would `reloadIfStaleDeploy` reload for this error, right now? Pure — no
+ * reload, no write. Lets a caller put the answer in its crash report BEFORE the
+ * reload starts (1.1.138 M0: `autoReloaded`).
+ */
+export function shouldAutoReload(error: unknown, { chunkLoadOnly = false }: ReloadOptions = {}): boolean {
+  if (typeof window === "undefined") return false;
+  const stale = chunkLoadOnly ? isChunkLoadFailure(error) : isStaleDeployError(error);
+  return stale && canAutoReload();
+}
+
 /**
  * Reload once if `error` looks like a stale deploy and the cooldown allows it.
  * Returns whether a reload was started.
  */
-export function reloadIfStaleDeploy(
-  error: unknown,
-  { chunkLoadOnly = false }: { chunkLoadOnly?: boolean } = {},
-): boolean {
-  if (typeof window === "undefined") return false;
-  const stale = chunkLoadOnly ? isChunkLoadFailure(error) : isStaleDeployError(error);
-  if (!stale || !canAutoReload()) return false;
+export function reloadIfStaleDeploy(error: unknown, options: ReloadOptions = {}): boolean {
+  if (!shouldAutoReload(error, options)) return false;
   try {
-    window.sessionStorage.setItem(STORAGE_KEY, String(Date.now()));
+    const now = Date.now();
+    window.sessionStorage.setItem(STORAGE_KEY, String(now));
+    // Tells the NEXT page load that it is the product of an automatic reload,
+    // and which build the crashed tab was on (1.1.138 M0). Best effort: a
+    // failure here costs the `recovered` report, never the reload.
+    try {
+      const pending: PendingReload = { at: now, fromBuildId: clientBuildId() };
+      window.sessionStorage.setItem(PENDING_KEY, JSON.stringify(pending));
+    } catch {
+      // ignore
+    }
     window.location.reload();
     return true;
   } catch {
     return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 1.1.138 M0 — know which crash it was.
+//
+// The crash report goes out "either way", before the reload, so a successful
+// recovery used to be indistinguishable in the log from a crash nobody got out
+// of. Four prod crashes on revision 00061 came 1–3 days after its deploy, and
+// the log could not say whether those tabs recovered. Three facts settle it:
+//   - which build the crashing tab ran            → `buildId` on every report
+//   - whether that crash triggered a reload        → `autoReloaded`
+//   - whether the reloaded page then rendered      → a `recovered` report,
+//     carrying the build it came FROM (`previousBuildId`) beside the build it
+//     landed on (`buildId`). Different ids = a real stale deploy that the
+//     reload cured. Equal ids = the skew came from somewhere else (the service
+//     worker's cached page is the suspect) or it was an ordinary bug.
+// The server's own build is not sent: the backend stamps its Cloud Run
+// `revision` + `app_version` on every row, which the client cannot misreport.
+// ---------------------------------------------------------------------------
+
+const PENDING_KEY = "aipla:stale-deploy-reload-pending";
+
+/** How long a reloaded page must render without crashing to count as recovered. */
+export const RECOVERY_SETTLE_MS = 3_000;
+
+export interface PendingReload {
+  /** When the reload was started (ms epoch). */
+  at: number;
+  /** The build the crashed tab was running. */
+  fromBuildId: string | null;
+}
+
+/** This bundle's build id, inlined at build time by next.config (build-id.mjs). */
+export function clientBuildId(): string | null {
+  const id = process.env.NEXT_PUBLIC_BUILD_ID;
+  return id ? id : null;
+}
+
+/**
+ * Consume the marker an automatic reload left behind. Returns it when this page
+ * load is the product of a reload in the last `RELOAD_COOLDOWN_MS`, else null.
+ * One-shot: the first caller takes it — the recovery check if the page settled,
+ * an error boundary if it crashed again. Never throws.
+ */
+export function takePendingReload(now: number = Date.now()): PendingReload | null {
+  try {
+    const raw = window.sessionStorage.getItem(PENDING_KEY);
+    if (!raw) return null;
+    window.sessionStorage.removeItem(PENDING_KEY);
+    const parsed = JSON.parse(raw) as Partial<PendingReload>;
+    const at = Number(parsed.at);
+    // A marker from a reload whose page never ran (the tab was closed, the
+    // network died) must not be claimed by some later, unrelated load.
+    if (!Number.isFinite(at) || now - at > RELOAD_COOLDOWN_MS || now < at) return null;
+    return {
+      at,
+      fromBuildId: typeof parsed.fromBuildId === "string" ? parsed.fromBuildId : null,
+    };
+  } catch {
+    return null;
   }
 }

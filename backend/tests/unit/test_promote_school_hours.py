@@ -1,6 +1,6 @@
 """A prod promote does not land in a lesson (1.1.138 M1).
 
-`scripts/promote-env.sh … --to prod` refuses Mon–Fri 08:00–16:00
+`scripts/promote-env.sh … --to prod` refuses Mon-Fri 08:00-16:00
 Europe/Copenhagen unless FORCE=1 / --force. Four prod promotes in the week of
 21 Sep 2026 landed in school hours — one mid-lesson — and lined up with the
 "the platform crashed, refreshing fixed it" reports.

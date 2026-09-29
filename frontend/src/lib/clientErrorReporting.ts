@@ -38,11 +38,16 @@
 
 import { ANON_GROUP_TOKEN_STORAGE_KEY } from "@/lib/anonymousGroupAuth";
 import { isLocalMode } from "@/lib/localMode";
+import { clientBuildId } from "@/lib/staleDeployReload";
 
 export const CLIENT_ERROR_ENDPOINT = "/api/proxy/api/client-errors";
 
-/** What produced the error. Mirrors the backend's closed enum. */
-export type ClientErrorKind = "render" | "window.onerror" | "unhandledrejection";
+/**
+ * What produced the report. Mirrors the backend's closed enum. `recovered` is
+ * not an error: it is the page an automatic stale-deploy reload landed on,
+ * saying it rendered (1.1.138 M0).
+ */
+export type ClientErrorKind = "render" | "window.onerror" | "unhandledrejection" | "recovered";
 
 /** Who was looking at it. Three-valued; identifies nobody. */
 export type ClientErrorRole = "teacher" | "student" | "anon";
@@ -125,13 +130,27 @@ export interface ClientErrorReport {
   stack?: string;
   /** React's component stack, when the caller is an error boundary. */
   componentStack?: string;
+  /** This crash started an automatic stale-deploy reload (1.1.138 M0). */
+  autoReloaded?: boolean;
+  /** This page load is itself the product of an automatic reload. */
+  afterAutoReload?: boolean;
+  /** On `recovered`: the build the crashed tab was running before the reload. */
+  previousBuildId?: string | null;
 }
 
 /**
  * Report one client-side error. Best-effort and **never throws** — a throw
  * inside the error reporter is the worst bug this file could have.
  */
-export function reportClientError({ kind, message, stack = "", componentStack = "" }: ClientErrorReport): void {
+export function reportClientError({
+  kind,
+  message,
+  stack = "",
+  componentStack = "",
+  autoReloaded = false,
+  afterAutoReload = false,
+  previousBuildId = null,
+}: ClientErrorReport): void {
   try {
     if (typeof window === "undefined") return; // SSR
     if (isLocalMode()) return;
@@ -161,6 +180,12 @@ export function reportClientError({ kind, message, stack = "", componentStack = 
         // highest-risk field the browser could send.
         url: window.location.pathname,
         role: detectRole(),
+        // 1.1.138 M0 — which build this tab runs, and whether a stale-deploy
+        // reload was involved. Build ids are opaque build stamps, not identity.
+        buildId: clientBuildId(),
+        autoReloaded,
+        afterAutoReload,
+        ...(previousBuildId ? { previousBuildId } : {}),
       }),
     })
       .then((resp) => {

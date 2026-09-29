@@ -121,6 +121,84 @@ describe("app/error.tsx — the route boundary", () => {
   });
 });
 
+describe("1.1.138 M0 — a stale-deploy reload, and whether it worked", () => {
+  const PENDING = "aipla:stale-deploy-reload-pending";
+  const staleError = () => new TypeError("Cannot read properties of undefined (reading 'call')");
+
+  beforeEach(() => {
+    reportClientError.mockClear();
+    window.sessionStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  function markReloaded(fromBuildId: string | null = "b-old") {
+    window.sessionStorage.setItem(PENDING, JSON.stringify({ at: Date.now(), fromBuildId }));
+  }
+
+  it("the reloaded page reports `recovered` once it has rendered for a moment", () => {
+    vi.useFakeTimers();
+    markReloaded("b-old");
+    render(<GlobalErrorReporter />);
+    expect(reportClientError).not.toHaveBeenCalled(); // not on mount — a boundary may still claim it
+    vi.advanceTimersByTime(3_000);
+    expect(reportClientError).toHaveBeenCalledOnce();
+    expect(reportClientError).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "recovered", afterAutoReload: true, previousBuildId: "b-old" }),
+    );
+  });
+
+  it("an ordinary page load reports nothing", () => {
+    vi.useFakeTimers();
+    render(<GlobalErrorReporter />);
+    vi.advanceTimersByTime(10_000);
+    expect(reportClientError).not.toHaveBeenCalled();
+  });
+
+  it("a crash on the reloaded page is flagged afterAutoReload and is NOT also a recovery", () => {
+    vi.useFakeTimers();
+    markReloaded();
+    render(<GlobalErrorReporter />);
+    render(<RouteError error={new Error("still broken")} reset={() => {}} />);
+    expect(reportClientError).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "render", afterAutoReload: true, autoReloaded: false }),
+    );
+    vi.advanceTimersByTime(3_000);
+    expect(reportClientError).not.toHaveBeenCalledWith(expect.objectContaining({ kind: "recovered" }));
+  });
+
+  it("the route boundary says when its crash started a reload", () => {
+    const reload = vi.fn();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...window.location, reload },
+    });
+    render(<RouteError error={staleError()} reset={() => {}} />);
+    expect(reportClientError).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "render", autoReloaded: true, afterAutoReload: false }),
+    );
+    expect(reload).toHaveBeenCalledOnce();
+  });
+
+  it("the window listener says when a chunk-load failure started a reload", () => {
+    const reload = vi.fn();
+    Object.defineProperty(window, "location", {
+      configurable: true,
+      value: { ...window.location, reload },
+    });
+    render(<GlobalErrorReporter />);
+    const event = new Event("unhandledrejection") as Event & { reason: unknown };
+    event.reason = new Error("Loading chunk 1255 failed.");
+    window.dispatchEvent(event);
+    expect(reportClientError).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "unhandledrejection", autoReloaded: true }),
+    );
+    expect(reload).toHaveBeenCalledOnce();
+  });
+});
+
 describe("app/global-error.tsx — the root-layout boundary", () => {
   beforeEach(() => {
     reportClientError.mockClear();

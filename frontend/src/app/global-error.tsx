@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 
 import { reportClientError } from "@/lib/clientErrorReporting";
-import { reloadIfStaleDeploy } from "@/lib/staleDeployReload";
+import { reloadIfStaleDeploy, shouldAutoReload, takePendingReload } from "@/lib/staleDeployReload";
 
 // 1.1.108 content-localisation — copy in one object, not inline JSX. No locale
 // axis: this boundary replaces the whole document (providers, stylesheets and
@@ -38,13 +38,17 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
+    // Decided before reporting so the report can say it (1.1.138 M0).
+    const autoReloaded = shouldAutoReload(error);
     reportClientError({
       kind: "render",
       message: error.message || "root layout error",
       stack: error.stack ?? "",
+      autoReloaded,
+      afterAutoReload: takePendingReload() !== null,
     });
     // A tab that outlived a deploy: one reload fetches the new chunks.
-    reloadIfStaleDeploy(error);
+    if (autoReloaded) reloadIfStaleDeploy(error);
   }, [error]);
 
   return (

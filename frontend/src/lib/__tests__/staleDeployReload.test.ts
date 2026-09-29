@@ -2,9 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   RELOAD_COOLDOWN_MS,
+  clientBuildId,
   isChunkLoadFailure,
   isStaleDeployError,
   reloadIfStaleDeploy,
+  shouldAutoReload,
+  takePendingReload,
 } from "@/lib/staleDeployReload";
 
 const reload = vi.fn();
@@ -91,5 +94,56 @@ describe("reloadIfStaleDeploy", () => {
     });
     expect(reloadIfStaleDeploy(stale)).toBe(false);
     expect(reload).not.toHaveBeenCalled();
+  });
+});
+
+describe("1.1.138 M0 — which crash it was", () => {
+  const stale = new TypeError("Cannot read properties of undefined (reading 'call')");
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("shouldAutoReload predicts the reload without starting it", () => {
+    expect(shouldAutoReload(stale)).toBe(true);
+    expect(reload).not.toHaveBeenCalled();
+    expect(shouldAutoReload(new Error("boom"))).toBe(false);
+    expect(shouldAutoReload(stale, { chunkLoadOnly: true })).toBe(false);
+  });
+
+  it("shouldAutoReload agrees with the cooldown", () => {
+    reloadIfStaleDeploy(stale);
+    expect(shouldAutoReload(stale)).toBe(false);
+  });
+
+  it("clientBuildId reads the inlined build id, null when absent", () => {
+    vi.stubEnv("NEXT_PUBLIC_BUILD_ID", "");
+    expect(clientBuildId()).toBeNull();
+    vi.stubEnv("NEXT_PUBLIC_BUILD_ID", "b20260929080000-abcd");
+    expect(clientBuildId()).toBe("b20260929080000-abcd");
+  });
+
+  it("a reload leaves a marker naming the build it came from; the next load takes it once", () => {
+    vi.stubEnv("NEXT_PUBLIC_BUILD_ID", "b-old");
+    reloadIfStaleDeploy(stale);
+    const pending = takePendingReload();
+    expect(pending?.fromBuildId).toBe("b-old");
+    // One-shot: a boundary that takes it means the recovery check cannot.
+    expect(takePendingReload()).toBeNull();
+  });
+
+  it("no reload, no marker", () => {
+    reloadIfStaleDeploy(new Error("ordinary bug"));
+    expect(takePendingReload()).toBeNull();
+  });
+
+  it("a stale marker (the reloaded page never ran) is not claimed later", () => {
+    reloadIfStaleDeploy(stale);
+    expect(takePendingReload(Date.now() + RELOAD_COOLDOWN_MS + 1)).toBeNull();
+  });
+
+  it("a corrupt marker is ignored, never thrown", () => {
+    window.sessionStorage.setItem("aipla:stale-deploy-reload-pending", "{not json");
+    expect(takePendingReload()).toBeNull();
   });
 });
