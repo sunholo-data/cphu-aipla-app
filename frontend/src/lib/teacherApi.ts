@@ -1684,13 +1684,47 @@ export async function listChatLogSessions(
   return body.sessions;
 }
 
-/** The full transcript of one conversation. */
-export async function getChatLogTranscript(sessionId: string): Promise<ChatLogTurn[]> {
+/** One workbench event in a review timeline (1.1.136 M1). `label` is the trust
+ *  card's text the student saw — null on every row written before 2026-09-29,
+ *  when the UI derives a fallback from `server`/`field`. */
+export interface ChatLogWorkEvent {
+  ts: string | null;
+  server: string | null;
+  tool: string | null;
+  field: string | null;
+  /** The pushed snapshot, stringified (a table's grids, a writing's text…). */
+  value: string | null;
+  label: string | null;
+  activity_id?: string | null;
+  class_id?: string | null;
+}
+
+/** A conversation interleaved with the work it was about. Turns keep their
+ *  transcript order; work sits between them by time. */
+export type ChatLogTimelineItem = ({ kind: "turn" } & ChatLogTurn) | ({ kind: "work" } & ChatLogWorkEvent);
+
+export interface ChatLogTimeline {
+  sessionId: string;
+  items: ChatLogTimelineItem[];
+  /** "unreadable" = the workbench store could not be read. NOT "no work". */
+  workStatus: "ok" | "unreadable";
+}
+
+/** One conversation with its work, for the researcher lens (researcher-only). */
+export async function getChatLogTimeline(sessionId: string): Promise<ChatLogTimeline> {
   const resp = await fetchWithAuth(
-    `/api/proxy/api/research/logs/sessions/${encodeURIComponent(sessionId)}`,
+    `/api/proxy/api/research/logs/sessions/${encodeURIComponent(sessionId)}/timeline`,
   );
-  const body = await readJson<{ turns: ChatLogTurn[] }>(resp, "read transcript");
-  return body.turns;
+  return readJson<ChatLogTimeline>(resp, "read timeline");
+}
+
+/** The same timeline for the teacher group report: the class owner (or a
+ *  researcher) reads one group's session, narrowed server-side to that group. */
+export async function getGroupReportTimeline(groupCode: string, sessionId: string): Promise<ChatLogTimeline> {
+  const resp = await fetchWithAuth(
+    `/api/proxy/api/research/logs/groups/${encodeURIComponent(groupCode)}/sessions/${encodeURIComponent(sessionId)}/timeline`,
+  );
+  return readJson<ChatLogTimeline>(resp, "read group timeline");
 }
 
 

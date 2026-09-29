@@ -19,6 +19,7 @@ vi.mock("@/lib/teacherApi", async () => {
   return {
     ...actual,
     fetchGroupLatestReport: vi.fn(),
+    getGroupReportTimeline: vi.fn(),
   };
 });
 
@@ -27,9 +28,11 @@ import {
   NotFoundError,
   type SessionSummaryPayload,
   fetchGroupLatestReport,
+  getGroupReportTimeline,
 } from "@/lib/teacherApi";
 
 const fetchReport = vi.mocked(fetchGroupLatestReport);
+const fetchTimeline = vi.mocked(getGroupReportTimeline);
 
 const LIVE_REPORT: SessionSummaryPayload = {
   sessionId: "sess-12345678",
@@ -49,6 +52,8 @@ const LIVE_REPORT: SessionSummaryPayload = {
 
 beforeEach(() => {
   fetchReport.mockReset();
+  fetchTimeline.mockReset();
+  fetchTimeline.mockRejectedValue(new NotFoundError());
 });
 
 describe("/teacher/reports/groups/[groupId] — real session report", () => {
@@ -88,6 +93,57 @@ describe("/teacher/reports/groups/[groupId] — real session report", () => {
     for (const turn of LIVE_REPORT.conversation) {
       expect(screen.getByText(turn.content)).toBeInTheDocument();
     }
+  });
+
+  it("interleaves the work with the turns and retires the raw 80-char list (1.1.136)", async () => {
+    const longValue = JSON.stringify({ docs: [{ title: "Rapport", text: "x".repeat(120) + " ENDE" }] });
+    fetchReport.mockResolvedValue({
+      ...LIVE_REPORT,
+      workbenchEvents: [
+        { timestamp: "2026-06-15T09:31:30Z", server: "writing", tool: "state", field: "state", value: longValue },
+      ],
+    });
+    render(<TeacherGroupReportPage />);
+    await waitFor(() => expect(screen.queryByText(/loading report/i)).not.toBeInTheDocument());
+    // The old separate list is gone.
+    expect(screen.queryByText(/^Workbench activity$/)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /view full transcript/i }));
+    // Unlabelled (pre-1.1.136) row → derived label, placed between the turns.
+    const card = await screen.findByText("Writing updated");
+    const q = screen.getByText(LIVE_REPORT.conversation[0].content);
+    const a = screen.getByText(LIVE_REPORT.conversation[1].content);
+    expect(q.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(card.compareDocumentPosition(a) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Expands to the whole text — not cut at 80 characters.
+    await userEvent.click(screen.getByRole("button", { name: /show what they had/i }));
+    expect(screen.getByText(/ENDE$/)).toBeInTheDocument();
+  });
+
+  it("uses the labelled server timeline for this group's session when it can read it", async () => {
+    fetchReport.mockResolvedValue(LIVE_REPORT);
+    fetchTimeline.mockReset();
+    fetchTimeline.mockResolvedValue({
+      sessionId: LIVE_REPORT.sessionId,
+      workStatus: "ok",
+      items: [
+        { kind: "turn", ts: "2026-06-15T09:31:00Z", turn_index: 0, role: "student", content: "Hej" } as never,
+        {
+          kind: "work",
+          ts: "2026-06-15T09:31:10Z",
+          server: "calculator",
+          tool: "state",
+          field: "state",
+          value: null,
+          label: "Calculated Fart = 10",
+        },
+      ],
+    });
+    render(<TeacherGroupReportPage />);
+    await waitFor(() => expect(screen.queryByText(/loading report/i)).not.toBeInTheDocument());
+    await userEvent.click(screen.getByRole("button", { name: /view full transcript/i }));
+    expect(await screen.findByText("Calculated Fart = 10")).toBeInTheDocument();
+    expect(fetchTimeline).toHaveBeenCalledWith(groupId, LIVE_REPORT.sessionId);
   });
 
   it("shows an honest empty state (no mock) when no session exists yet", async () => {

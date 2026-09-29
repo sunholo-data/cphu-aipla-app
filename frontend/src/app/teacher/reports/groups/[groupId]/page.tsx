@@ -4,20 +4,27 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ChevronRight, RefreshCw } from "lucide-react";
-import { ArrowLeft, Download, Sliders } from "lucide-react";
+import { ArrowLeft, Download } from "lucide-react";
 
 import {
   NotFoundError,
+  type ChatLogTimeline,
   type SessionSummaryPayload,
-  type WorkbenchEventPayload,
   fetchGroupLatestReport,
+  getGroupReportTimeline,
 } from "@/lib/teacherApi";
 import { downloadCsv, downloadJson } from "@/lib/download";
+import { ChatLogTranscript, timelineFromSummary } from "@/components/teacher/research/ChatLogTranscript";
 import { GroupTranscriptSection } from "@/components/teacher/GroupTranscriptSection";
 import { TeachingApproachSection } from "@/components/teacher/TeachingApproachSection";
 import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
 
 const TRANSCRIPT_OPEN_KEY = "aipla.report.transcriptOpen";
+
+/** UI copy for the 1.1.136 timeline additions (1.1.108 M4: copy object, not JSX). */
+const copy = {
+  workCount: (n: number) => ` · ${n} workbench event${n === 1 ? "" : "s"}`,
+} as const;
 
 // Mirrors backend analytics/live_class.py LIVE_WINDOW_S: a latest session quiet
 // longer than this is historical, not "live" — the report shows "last active …"
@@ -158,6 +165,32 @@ export default function TeacherGroupReportPage() {
     const id = window.setInterval(() => void load(), 12_000);
     return () => window.clearInterval(id);
   }, [load, sessionId]);
+
+  // 1.1.136 M1 — the transcript with the group's work between the turns,
+  // labelled as the student saw it. Fetched only while the transcript is open,
+  // and again when the live poll brings new messages or work. If the labelled
+  // timeline cannot be read (a session with no BigQuery rows yet), the report's
+  // own payload is interleaved instead, with derived labels.
+  const live = state.kind === "live" ? state.data : null;
+  const liveSession = live?.sessionId ?? null;
+  const liveGroup = live?.groupCode || groupId;
+  const liveMessages = live?.messageCount ?? 0;
+  const liveWork = live?.simRunCount ?? 0;
+  const [timeline, setTimeline] = useState<ChatLogTimeline | null>(null);
+  useEffect(() => {
+    if (!transcriptOpen || !liveSession) return;
+    let cancelled = false;
+    getGroupReportTimeline(liveGroup, liveSession)
+      .then((tl) => {
+        if (!cancelled) setTimeline(tl);
+      })
+      .catch(() => {
+        if (!cancelled) setTimeline(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [transcriptOpen, liveGroup, liveSession, liveMessages, liveWork]);
 
   if (state.kind === "loading") {
     return (
@@ -381,7 +414,11 @@ export default function TeacherGroupReportPage() {
             </span>
             <span className="text-xs font-normal text-muted-foreground">
               ({report.conversation.length} message
-              {report.conversation.length === 1 ? "" : "s"})
+              {report.conversation.length === 1 ? "" : "s"}
+              {live && (live.workbenchEvents?.length ?? 0) > 0
+                ? copy.workCount(live.workbenchEvents?.length ?? 0)
+                : ""}
+              )
             </span>
           </button>
           <div className="flex items-center gap-1.5">
@@ -403,22 +440,17 @@ export default function TeacherGroupReportPage() {
             </button>
           </div>
         </header>
-        {transcriptOpen ? (
-          <ol className="flex flex-col gap-2 rounded border border-border bg-background p-3 text-sm">
-            {report.conversation.length === 0 ? (
-              <li className="text-muted-foreground">
-                No messages exchanged in this session yet.
-              </li>
-            ) : null}
-            {report.conversation.map((turn, i) => (
-              <li key={`${turn.timestamp}-${i}`} className="flex flex-col gap-0.5">
-                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                  [{turn.timestamp}] {turn.role === "student" ? "Student" : "Tutor"}
-                </span>
-                <span>{turn.content}</span>
-              </li>
-            ))}
-          </ol>
+        {transcriptOpen && live ? (
+          // 1.1.136 M1 — one timeline: the turns AND the work, in the order they
+          // happened. Replaces the raw `server · field · value` list that used
+          // to sit below the recording transcript, values cut at 80 chars.
+          <div className="rounded border border-border bg-background p-3">
+            <ChatLogTranscript
+              items={timeline?.items ?? timelineFromSummary(live.conversation, live.workbenchEvents ?? [])}
+              status="ok"
+              workStatus={timeline?.workStatus}
+            />
+          </div>
         ) : null}
       </section>
 
@@ -426,10 +458,6 @@ export default function TeacherGroupReportPage() {
           the two sources read as one provenance block (1.1.36 feedback). Renders only
           when a recorded session produced a transcript. */}
       <GroupTranscriptSection groupId={groupId} />
-
-      {state.kind === "live" && state.data.workbenchEvents && state.data.workbenchEvents.length > 0 ? (
-        <WorkbenchActivitySection events={state.data.workbenchEvents} />
-      ) : null}
     </div>
   );
 }
@@ -463,36 +491,3 @@ function handleDownloadJson(state: ReportState, groupId: string): void {
   downloadJson(`${reportFilenameStem(state, groupId)}.json`, data);
 }
 
-function WorkbenchActivitySection({ events }: { events: WorkbenchEventPayload[] }) {
-  return (
-    <section aria-labelledby="workbench-label" className="flex flex-col gap-2">
-      <h2 id="workbench-label" className="flex items-center gap-2 text-base font-semibold">
-        <Sliders className="h-4 w-4" aria-hidden="true" />
-        Workbench activity
-        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted-foreground">
-          {events.length}
-        </span>
-      </h2>
-      <ol className="flex flex-col gap-1 rounded border border-border bg-background p-3 text-sm">
-        {events.map((evt, i) => (
-          <li
-            key={`${evt.timestamp}-${i}`}
-            className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5"
-          >
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-              [{evt.timestamp.slice(11, 16)}]
-            </span>
-            <span className="font-medium">{evt.server}</span>
-            <span className="text-muted-foreground">·</span>
-            <span className="text-muted-foreground">{evt.field || evt.tool}</span>
-            {evt.value ? (
-              <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-                {evt.value.length > 80 ? `${evt.value.slice(0, 80)}…` : evt.value}
-              </code>
-            ) : null}
-          </li>
-        ))}
-      </ol>
-    </section>
-  );
-}

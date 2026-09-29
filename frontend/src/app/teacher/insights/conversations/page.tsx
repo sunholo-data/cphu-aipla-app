@@ -8,10 +8,10 @@ import {
   type ChatLogFilter,
   type ChatLogSession,
   type ChatLogTab,
-  type ChatLogTurn,
+  type ChatLogTimeline,
   UNASSIGNED_FRAMEWORK,
   fetchChatLogExport,
-  getChatLogTranscript,
+  getChatLogTimeline,
   listChatLogSessions,
   listChatLogTabs,
   listTeachingFrameworks,
@@ -125,7 +125,7 @@ function ResearchLogsPageInner() {
   const [sessions, setSessions] = useState<ChatLogSession[]>([]);
   const [sessionsStatus, setSessionsStatus] = useState<"loading" | "ok" | "error">("loading");
   const [openSession, setOpenSession] = useState<string | null>(null);
-  const [turns, setTurns] = useState<ChatLogTurn[] | null>(null);
+  const [timeline, setTimeline] = useState<ChatLogTimeline | null>(null);
   const [turnsStatus, setTurnsStatus] = useState<"loading" | "ok" | "error">("loading");
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -208,10 +208,10 @@ function ResearchLogsPageInner() {
   const openTranscript = useCallback((sessionId: string) => {
     setOpenSession(sessionId);
     setTurnsStatus("loading");
-    setTurns(null);
-    getChatLogTranscript(sessionId)
-      .then((rows) => {
-        setTurns(rows);
+    setTimeline(null);
+    getChatLogTimeline(sessionId)
+      .then((tl) => {
+        setTimeline(tl);
         setTurnsStatus("ok");
       })
       .catch(() => setTurnsStatus("error"));
@@ -424,7 +424,11 @@ function ResearchLogsPageInner() {
               {copy.close}
             </button>
           </div>
-          <ChatLogTranscript turns={turns} status={turnsStatus} />
+          <ChatLogTranscript
+            items={timeline?.items ?? null}
+            status={turnsStatus}
+            workStatus={timeline?.workStatus}
+          />
         </TeacherCard>
       ) : null}
     </TeacherPage>

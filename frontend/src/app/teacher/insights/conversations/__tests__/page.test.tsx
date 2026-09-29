@@ -196,10 +196,14 @@ describe("researcher chat-log lens", () => {
   it("drills into a transcript and marks the synthetic opener as system, not student", async () => {
     vi.spyOn(teacherApi, "listChatLogTabs").mockResolvedValue({ tabs: [tab()], unassignedKey: UNASSIGNED });
     vi.spyOn(teacherApi, "listChatLogSessions").mockResolvedValue([session()]);
-    const transcript = vi.spyOn(teacherApi, "getChatLogTranscript").mockResolvedValue([
-      turn({ turn_index: 0, role: "student", content: "[session_start]", is_synthetic: true }),
-      turn({ turn_index: 2, role: "tutor", content: "Hvilket fysisk fænomen?" }),
-    ]);
+    const transcript = vi.spyOn(teacherApi, "getChatLogTimeline").mockResolvedValue({
+      sessionId: session().session_id ?? "",
+      workStatus: "ok",
+      items: [
+        { kind: "turn", ...turn({ turn_index: 0, role: "student", content: "[session_start]", is_synthetic: true }) },
+        { kind: "turn", ...turn({ turn_index: 2, role: "tutor", content: "Hvilket fysisk fænomen?" }) },
+      ],
+    });
 
     render(<ResearchLogsPage />);
     await userEvent.click(await screen.findByRole("button", { name: /read/i }));
@@ -207,6 +211,52 @@ describe("researcher chat-log lens", () => {
     await waitFor(() => expect(transcript).toHaveBeenCalledWith(session().session_id));
     expect(await screen.findByText(/system opened the conversation/i)).toBeInTheDocument();
     expect(screen.getByText("Hvilket fysisk fænomen?")).toBeInTheDocument();
+  });
+
+  it("shows the group's work between the turns, labelled as the student saw it (1.1.136)", async () => {
+    vi.spyOn(teacherApi, "listChatLogTabs").mockResolvedValue({ tabs: [tab()], unassignedKey: UNASSIGNED });
+    vi.spyOn(teacherApi, "listChatLogSessions").mockResolvedValue([session()]);
+    vi.spyOn(teacherApi, "getChatLogTimeline").mockResolvedValue({
+      sessionId: session().session_id ?? "",
+      workStatus: "ok",
+      items: [
+        { kind: "turn", ...turn({ turn_index: 1, role: "student", content: "is our slope right?" }) },
+        {
+          kind: "work",
+          ts: "2026-09-22T09:01:00Z",
+          server: "table",
+          tool: "state",
+          field: "state",
+          value: null,
+          label: "Data table shared with the tutor (3 cells)",
+        },
+        { kind: "turn", ...turn({ turn_index: 2, role: "tutor", content: "Look at row 2." }) },
+      ],
+    });
+
+    render(<ResearchLogsPage />);
+    await userEvent.click(await screen.findByRole("button", { name: /read/i }));
+
+    const card = await screen.findByText("Data table shared with the tutor (3 cells)");
+    const question = screen.getByText("is our slope right?");
+    const reply = screen.getByText("Look at row 2.");
+    // In time order: question, then the work, then the reply.
+    expect(question.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(card.compareDocumentPosition(reply) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it("says so when the workbench log could not be read, rather than showing no work", async () => {
+    vi.spyOn(teacherApi, "listChatLogTabs").mockResolvedValue({ tabs: [tab()], unassignedKey: UNASSIGNED });
+    vi.spyOn(teacherApi, "listChatLogSessions").mockResolvedValue([session()]);
+    vi.spyOn(teacherApi, "getChatLogTimeline").mockResolvedValue({
+      sessionId: session().session_id ?? "",
+      workStatus: "unreadable",
+      items: [{ kind: "turn", ...turn({ turn_index: 1, role: "student", content: "hej" }) }],
+    });
+
+    render(<ResearchLogsPage />);
+    await userEvent.click(await screen.findByRole("button", { name: /read/i }));
+    expect(await screen.findByText(/does NOT mean the group did no work/i)).toBeInTheDocument();
   });
 
   it("switching tab refetches that tab's conversations", async () => {
