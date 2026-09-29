@@ -121,3 +121,40 @@ describe("custom teaching approaches (1.1.110)", () => {
     expect(screen.getByLabelText(/What the tutor is told/i)).toHaveValue("Be kind.");
   });
 });
+
+
+describe("sharing a custom approach (TUTOR-2 M0/M1)", () => {
+  it("reads an approach with no visibility field as shared", async () => {
+    // ⚠️ ABSENT IS NOT PRIVATE. Rows written before the field keep the
+    // behaviour they already had; defaulting them to private would make every
+    // existing approach vanish from every other teacher's list at once.
+    render(<CustomApproachPanel />);
+    expect(await screen.findByTestId("approach-visibility-custom-warm-coach")).toHaveTextContent("Shared");
+  });
+
+  it("says what private actually means, rather than implying nobody can see it", async () => {
+    // The research team can see a private approach, by decision. A teacher who
+    // reads "private" as "nobody sees this" and learns otherwise loses trust,
+    // not a bug report — so the panel says it next to the control.
+    vi.spyOn(teacherApi, "listCustomApproaches").mockResolvedValue([approach({ visibility: "private" })]);
+    render(<CustomApproachPanel />);
+    expect(await screen.findByTestId("approach-visibility-custom-warm-coach")).toHaveTextContent("Only you");
+    expect(screen.getByText(/The research team can/)).toBeInTheDocument();
+  });
+
+  it("shares with one control and takes it back with the same one", async () => {
+    const set = vi.spyOn(teacherApi, "setCustomApproachVisibility").mockResolvedValue(approach());
+    vi.spyOn(teacherApi, "listCustomApproaches").mockResolvedValue([approach({ visibility: "private" })]);
+    render(<CustomApproachPanel />);
+
+    await userEvent.click(await screen.findByLabelText(/Share with other teachers: Warm coach/));
+    expect(set).toHaveBeenCalledWith("custom-warm-coach", "shared");
+  });
+
+  it("offers no share control on somebody else's approach", async () => {
+    vi.spyOn(teacherApi, "listCustomApproaches").mockResolvedValue([approach({ canEdit: false })]);
+    render(<CustomApproachPanel />);
+    await screen.findByText("Warm coach");
+    expect(screen.queryByLabelText(/Share with other teachers/)).not.toBeInTheDocument();
+  });
+});

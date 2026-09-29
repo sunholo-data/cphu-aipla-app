@@ -1622,6 +1622,9 @@ export interface CustomApproach {
   /** Computed SERVER-side per row. Never re-derive it here: a second copy of an
    *  access rule disagrees with the first the moment one changes. */
   canEdit: boolean;
+  /** TUTOR-2 M0. Absent on rows written before the field and read as "shared" —
+   *  absent is NOT private, which is what stops old rows vanishing. */
+  visibility?: "private" | "shared" | null;
 }
 
 export interface CustomApproachInput {
@@ -1630,6 +1633,46 @@ export interface CustomApproachInput {
   instructionText: string;
   register?: FrameworkRegister | null;
   materialRefs?: { docId?: string; title?: string | null; origin?: string | null }[];
+}
+
+/** One published approach as a TEACHER reads it (TUTOR-2 M1).
+ *
+ *  A different, smaller shape than the researcher payload — not the same shape
+ *  with fields missing. It carries what you need to CHOOSE an approach (what
+ *  the tutor is told, and the behaviours each construct is built from) and none
+ *  of the editor machinery (override state, the git default, the revert delta).
+ *  See the route docstring for why that distinction is deliberate. */
+export interface PublishedApproach {
+  id: string;
+  label: string;
+  summary: string;
+  status: string;
+  register: string | null;
+  /** What the tutor actually receives. The reviewability principle, on this
+   *  screen too: a teacher can always see what the tutor is told. */
+  instruction: string;
+  constructs: { name: string; summary: string; behaviours: string[] }[];
+}
+
+export async function fetchApproachCatalogue(): Promise<PublishedApproach[]> {
+  const resp = await fetchWithAuth("/api/proxy/api/research/frameworks/catalogue");
+  const body = await readJson<{ approaches: PublishedApproach[] }>(resp, "read approach catalogue");
+  return body.approaches;
+}
+
+/** Share a custom approach, or take it back (TUTOR-2 M0).
+ *
+ *  Its own call rather than a field on the edit body: an edit that could change
+ *  who sees a thing is an edit that shares it by accident. */
+export async function setCustomApproachVisibility(
+  id: string,
+  visibility: "private" | "shared",
+): Promise<CustomApproach> {
+  const resp = await fetchWithAuth(
+    `/api/proxy/api/research/frameworks/custom/${encodeURIComponent(id)}/visibility`,
+    { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ visibility }) },
+  );
+  return readJson<CustomApproach>(resp, "set approach visibility");
 }
 
 export async function listCustomApproaches(): Promise<CustomApproach[]> {

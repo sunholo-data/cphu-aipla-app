@@ -16,6 +16,7 @@ import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 import { TeacherTabs } from "@/components/teacher/ui/TeacherTabs";
 import { FrameworkStructureEditor } from "@/components/teacher/research/FrameworkStructureEditor";
 import { CustomApproachPanel } from "@/components/teacher/research/CustomApproachPanel";
+import { PublishedApproachList } from "@/components/teacher/research/PublishedApproachList";
 import { TutorPreviewPanel } from "@/components/teacher/research/TutorPreviewPanel";
 import { TutorCrossviewPanel } from "@/components/teacher/research/TutorCrossviewPanel";
 import { TutorCopilot } from "./_TutorCopilot";
@@ -49,7 +50,7 @@ const copy = {
   railConstructs: (n: number) => `${n} construct${n === 1 ? "" : "s"}`,
   railLabel: "Which approach",
   teacherTierNote:
-    "The seven published approaches are drawn from the research literature and are maintained by the research team, so they are not editable here. Your own approaches are — write one in your own words and assign it to a class like any other.",
+    "The seven published approaches are drawn from the research literature and are maintained by the research team, so they are not editable here — but you can read every one of them, and build a tutor on any of them. Your own approaches are yours to write and to change.",
   howItWorksTitle: "How a tutor gets its teaching approach",
   howItWorks: [
     "Each published approach is a set of named constructs — the moves the framework is made of. Under each construct sit behaviours: single instructions quoted from the source paper's own coding scheme, and an avoid-list of the moves the paper codes as counter-indicative.",
@@ -321,6 +322,13 @@ export default function ResearchFrameworksPage() {
               // library as teaching training, and that is the thing they came
               // for. Authoring is the second question, not the first.
               { id: "try", label: copy.tabTry, content: <TutorPreviewPanel /> },
+              // TUTOR-2 M1 — READING the seven, which a teacher could not do at
+              // all before. 1.1.135 requires a teacher building a tutor to pick
+              // an approach somebody can read; an invisible one cannot be read.
+              // It sits between trying and writing because that is the order of
+              // the questions: what do these do, what are they made of, can I
+              // write my own.
+              { id: "published", label: copy.tabApproaches, content: <PublishedApproachList /> },
               { id: "yours", label: copy.tabYours, content: <CustomApproachPanel /> },
             ]}
           />

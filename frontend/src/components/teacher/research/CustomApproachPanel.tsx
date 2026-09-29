@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Share2, Trash2 } from "lucide-react";
 
 import {
   type CustomApproach,
@@ -9,6 +9,7 @@ import {
   createCustomApproach,
   deleteCustomApproach,
   listCustomApproaches,
+  setCustomApproachVisibility,
   updateCustomApproach,
 } from "@/lib/teacherApi";
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
@@ -21,6 +22,16 @@ const copy = {
     "An approach you write yourself, in your own words. Unlike the seven above it is not drawn from a published paper and does not claim to be — it carries no constructs and no citations. The tutor is told exactly what you write here.",
   none: "No custom approaches yet.",
   create: "New approach",
+  // TUTOR-2 M0/M1 — the share control. "Shared" is the word the activities
+  // library already uses for the same idea, so a teacher meets one vocabulary.
+  share: "Share with other teachers",
+  unshare: "Make private again",
+  badgeShared: "Shared",
+  badgePrivate: "Only you",
+  // ⚠️ Said plainly, because "private" is otherwise a promise the research
+  // design does not keep. A teacher who reads it as "nobody sees this" and
+  // finds out later loses trust, not a bug report.
+  privateMeaning: "Private means other teachers cannot see it. The research team can.",
   nameLabel: "Name",
   namePlaceholder: "e.g. Warm coach",
   summaryLabel: "One-line summary",
@@ -113,6 +124,19 @@ export function CustomApproachPanel() {
     setBusy(true);
     try {
       await deleteCustomApproach(row.id);
+      load();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** Share, or take it back (TUTOR-2 M0). Re-reads rather than patching local
+   *  state: the server decides, and a list that guessed would be a second copy
+   *  of the rule — the thing `canEdit` is computed server-side to avoid. */
+  const toggleShare = async (row: CustomApproach) => {
+    setBusy(true);
+    try {
+      await setCustomApproachVisibility(row.id, (row.visibility ?? "shared") === "shared" ? "private" : "shared");
       load();
     } finally {
       setBusy(false);
@@ -224,9 +248,35 @@ export function CustomApproachPanel() {
                 </p>
                 {row.summary ? <p className="text-xs text-muted-foreground">{row.summary}</p> : null}
                 {!row.canEdit ? <p className="mt-1 text-xs text-muted-foreground">{copy.readOnly}</p> : null}
+                {row.canEdit ? (
+                  <p className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                    <span
+                      data-testid={`approach-visibility-${row.id}`}
+                      className={`rounded border px-1.5 py-0.5 ${
+                        (row.visibility ?? "shared") === "shared"
+                          ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                          : "border-border bg-muted"
+                      }`}
+                    >
+                      {(row.visibility ?? "shared") === "shared" ? copy.badgeShared : copy.badgePrivate}
+                    </span>
+                    {(row.visibility ?? "shared") === "private" ? copy.privateMeaning : null}
+                  </p>
+                ) : null}
               </div>
               {row.canEdit ? (
                 <div className="flex shrink-0 items-center gap-1">
+                  <button
+                    type="button"
+                    aria-label={`${(row.visibility ?? "shared") === "shared" ? copy.unshare : copy.share}: ${row.label}`}
+                    onClick={() => void toggleShare(row)}
+                    className="rounded border p-1.5 hover:bg-muted"
+                  >
+                    <Share2
+                      className={`h-3.5 w-3.5 ${(row.visibility ?? "shared") === "shared" ? "text-emerald-700" : ""}`}
+                      aria-hidden
+                    />
+                  </button>
                   <button
                     type="button"
                     aria-label={`${copy.edit} ${row.label}`}
