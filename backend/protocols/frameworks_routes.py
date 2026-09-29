@@ -152,6 +152,60 @@ async def list_frameworks_route(
     return {"frameworks": [_serialize(fw) for fw in load_frameworks()]}
 
 
+@router.get("/catalogue")
+async def teacher_catalogue_route(
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """The published approaches as a TEACHER needs them (TUTOR-2 M1).
+
+    1.1.135's argument is that a teacher authoring a tutor must choose an
+    approach **somebody can read** — which is impossible while the seven are
+    invisible to them. It is the reviewability principle ``TutorPicker`` already
+    states: the teacher can always see what the tutor is actually told.
+
+    ⚠️ Deliberately a SEPARATE, SMALLER payload rather than relaxing the
+    researcher list above. That route's own test says *"an ordinary teacher must
+    403, not receive a narrowed view — a researcher surface that silently
+    degrades is worse than one that refuses"*, and that judgement still holds:
+    the researcher payload carries override state, the git default and the
+    revert delta, which are editor machinery, not reading material. So this is
+    a different thing with a different shape, not the same thing with fields
+    missing — the distinction the original decision was protecting.
+
+    ⚠️ Declared BEFORE ``GET /{framework_id}``, and it has to be: FastAPI matches
+    in declaration order, so the single-segment catch-all below would otherwise
+    swallow ``/catalogue`` and answer *404 framework not found* — the trap
+    ``/crossview`` documents a few lines down.
+    """
+    assert_teacher(user)
+    return {
+        "approaches": [
+            {
+                "id": fw.id,
+                "label": fw.label,
+                "summary": " ".join((fw.summary or "").split()),
+                "status": fw.status,
+                "register": fw.teaching_register,
+                # What the tutor is actually told. The point of the screen.
+                "instruction": resolve_framework_instruction(fw.id) or default_framework_instruction(fw.id),
+                # Name + summary + the observable behaviours. The behaviours are
+                # what a generated prompt is BUILT from and what a reviewer
+                # checks it against, so they are the half a teacher choosing an
+                # approach actually needs to read.
+                "constructs": [
+                    {
+                        "name": c.name,
+                        "summary": c.summary or "",
+                        "behaviours": [b.text for b in c.behaviours],
+                    }
+                    for c in (effective_framework(fw.id) or fw).constructs
+                ],
+            }
+            for fw in load_frameworks()
+        ]
+    }
+
+
 # ── researcher cross-view (1.1.91 M4) ────────────────────────────────────────
 #
 # ⚠️ DEFINED BEFORE `GET /{framework_id}`, and it has to be. FastAPI matches in
