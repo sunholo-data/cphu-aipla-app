@@ -14,6 +14,7 @@ and returns the most recently active one.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Any, Literal
@@ -212,11 +213,17 @@ async def summarize_session_bq(session_id: str) -> SessionSummary | None:
     Preserves the exact ``SessionSummary`` shape so the reports route is
     source-agnostic. ``sim_run_count`` is an exact COUNT of workbench events
     (replacing the old ``mcp_app_context.*`` key heuristic).
+
+    1.1.131 M3 — both queries run in a worker thread. ``run_query`` blocks
+    until BigQuery answers, and this is awaited from ``async def`` routes the
+    teacher's live view polls every few seconds; inline, each poll froze every
+    student stream on the instance for the length of the query.
     """
     from db.bigquery import CHAT_TURN_TABLE, WORKBENCH_EVENT_TABLE, run_query, table_ref
 
     try:
-        turn_rows = run_query(
+        turn_rows = await asyncio.to_thread(
+            run_query,
             "SELECT timestamp AS ts, jsonPayload.group_id AS group_id, "
             "jsonPayload.skill_id AS skill_id, jsonPayload.role AS role, "
             "jsonPayload.content AS content, CAST(jsonPayload.turn_index AS INT64) AS turn_index, "
@@ -246,7 +253,8 @@ async def summarize_session_bq(session_id: str) -> SessionSummary | None:
 
     workbench_events: list[WorkbenchEvent] = []
     try:
-        wb_rows = run_query(
+        wb_rows = await asyncio.to_thread(
+            run_query,
             "SELECT timestamp AS ts, jsonPayload.server AS server, jsonPayload.tool AS tool, "
             "jsonPayload.field AS field, jsonPayload.value AS value "
             f"FROM {table_ref(WORKBENCH_EVENT_TABLE)} "
@@ -308,7 +316,8 @@ async def resolve_session_summary(session_id: str) -> SessionSummary | None:
     # 1.1.36 — attach the group's spoken-discussion transcript so the narrative
     # summarises chat + audio. Best-effort; never blocks the report.
     if summary is not None and summary.group_code:
-        text, minutes, segs = _voice_transcript_for_group(summary.group_code)
+        # Firestore, synchronous — off the loop like the BigQuery reads above.
+        text, minutes, segs = await asyncio.to_thread(_voice_transcript_for_group, summary.group_code)
         summary.voice_transcript = text or None
         summary.voice_minutes = minutes
         summary.voice_segments = segs
@@ -326,6 +335,9 @@ def find_latest_session_id_for_group_bq(group_code: str) -> str | None:
     report. Picking the session with the newest *turn* excludes turn-less bare
     joins by construction. Returns None on no rows / BQ error, so the caller
     falls back to the index-based finder.
+
+    Synchronous: an ``async`` caller must ``await asyncio.to_thread(...)`` it
+    (1.1.131 M3 — ``reports_routes.get_group_latest_report`` did not).
     """
     from db.bigquery import CHAT_TURN_TABLE, run_query, table_ref
 

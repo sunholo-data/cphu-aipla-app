@@ -116,3 +116,91 @@ def test_run_query_off_the_loop_is_silent(caplog):
     with caplog.at_level(logging.ERROR, logger="db.bigquery"):
         bigquery._warn_if_on_event_loop()
     assert caplog.text == ""
+
+
+# ---------------------------------------------------------------------------
+# 1.1.131 M3 — the teacher's group report. ``GET /api/reports/groups/{code}``
+# is polled every few seconds by the live view; it resolved the group's latest
+# session with a synchronous BigQuery query, then read the transcript with two
+# more, all on the loop. The runtime guard logged 114 hits on 24 Sep.
+#
+# Here the REAL ``run_query`` is replaced by one that runs the real guard and
+# then blocks, so the test witnesses both halves: ``/ping`` is not held up,
+# AND the detector stays silent (every query on the path ran off the loop).
+# ---------------------------------------------------------------------------
+
+
+def _report_app() -> FastAPI:
+    from protocols.reports_routes import router as reports_router
+
+    app = FastAPI()
+    app.include_router(reports_router)
+
+    async def _override(request: Request) -> User:
+        u = User(uid="teacher-t", email="t@example.test", is_teacher=True)
+        request.state.access = build_access_context(u)
+        return u
+
+    app.dependency_overrides[get_current_user] = _override
+
+    @app.get("/ping")
+    async def ping() -> dict:
+        return {"ok": True}
+
+    return app
+
+
+def _turn_row(role: str, content: str) -> dict:
+    from datetime import UTC, datetime
+
+    return {
+        "ts": datetime(2026, 9, 24, 10, 0, tzinfo=UTC),
+        "group_id": "bold-kazoo-64",
+        "skill_id": "act-1",
+        "role": role,
+        "content": content,
+        "turn_index": 0,
+        "framework_id": None,
+        "tutor_id": None,
+    }
+
+
+def _blocking_run_query_for_reports(per_query_s: float):
+    def _run_query(sql: str, params=None):
+        bigquery._warn_if_on_event_loop()  # the real detector, on whatever thread we are on
+        time.sleep(per_query_s)
+        if "GROUP BY session_id" in sql:
+            return [{"session_id": "sess-1", "last_ts": None}]
+        if "jsonPayload.role" in sql:
+            return [_turn_row("student", "hej")]
+        return []  # workbench events
+
+    return _run_query
+
+
+async def test_group_report_does_not_block_the_loop(monkeypatch, caplog):
+    from unittest.mock import AsyncMock
+
+    # The route makes three queries (latest session, turns, workbench events).
+    monkeypatch.setattr(bigquery, "run_query", _blocking_run_query_for_reports(SLOW_S / 2))
+    monkeypatch.setattr("protocols.reports_routes.resolve_narrative", AsyncMock(return_value=None))
+    monkeypatch.setattr("protocols.reports_routes._fidelity_for", AsyncMock(return_value=None))
+
+    with caplog.at_level(logging.ERROR, logger="db.bigquery"):
+        slow_s, fast_s = await _slow_and_fast(_report_app(), "/api/reports/groups/bold-kazoo-64")
+
+    assert slow_s >= SLOW_S
+    assert fast_s < FAST_BUDGET_S, f"/ping waited {fast_s:.2f}s behind the group report's queries"
+    assert "run_query on the event loop" not in caplog.text, caplog.text
+
+
+async def test_session_report_bq_does_not_block_the_loop(monkeypatch, caplog):
+    """``?source=bq`` (``aiplatform logs verify``) reads the same two transcript queries."""
+    monkeypatch.setattr(bigquery, "run_query", _blocking_run_query_for_reports(SLOW_S / 2))
+
+    with caplog.at_level(logging.ERROR, logger="db.bigquery"):
+        slow_s, fast_s = await _slow_and_fast(_report_app(), "/api/reports/sessions/sess-1?source=bq")
+
+    assert slow_s >= SLOW_S
+    assert fast_s < FAST_BUDGET_S, f"/ping waited {fast_s:.2f}s behind the session report's queries"
+    assert "run_query on the event loop" not in caplog.text, caplog.text

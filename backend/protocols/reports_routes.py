@@ -13,6 +13,7 @@ single-teacher world).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
@@ -96,6 +97,13 @@ def _serialize(summary: SessionSummary, *, fidelity: dict | None = None) -> dict
     return data
 
 
+async def _aserialize(summary: SessionSummary, *, fidelity: dict | None = None) -> dict:
+    """``_serialize`` off the event loop. Its labels + inputs are three
+    synchronous Firestore reads, on a route the teacher's live view polls every
+    few seconds (1.1.131 M3)."""
+    return await asyncio.to_thread(_serialize, summary, fidelity=fidelity)
+
+
 async def _fidelity_for(summary: SessionSummary, user: User, *, force: bool = False) -> dict | None:
     """The fidelity read shaped for the caller. Prose for everyone; bands and
     per-construct scores only for a researcher — fit is not quality, and a
@@ -134,7 +142,7 @@ async def get_session_report(
     if narrative and source != "bq":
         await resolve_narrative(summary)
         fidelity = await _fidelity_for(summary, _user)
-    return _serialize(summary, fidelity=fidelity)
+    return await _aserialize(summary, fidelity=fidelity)
 
 
 @router.get("/groups/{group_code}")
@@ -166,21 +174,28 @@ async def get_group_latest_report(
         if summary.group_code and summary.group_code != group_code:
             raise HTTPException(status_code=404, detail="session not found for this group")
         await resolve_narrative(summary, force=refresh)
-        return _serialize(summary, fidelity=await _fidelity_for(summary, _user, force=refresh))
+        fidelity = await _fidelity_for(summary, _user, force=refresh)
+        return await _aserialize(summary, fidelity=fidelity)
 
     # Prefer the chat-turn log (BigQuery) as the source of truth for the
     # group's latest *real* session. The Firestore chat_sessions index is
     # sparse for anonymous groups, and a bare join (0 turns) can otherwise win
     # "latest" by timestamp — surfacing an empty "no conversation" report when
     # the group actually chatted in another session.
-    bq_session_id = find_latest_session_id_for_group_bq(group_code)
+    #
+    # 1.1.131 M3 — synchronous BigQuery, so it runs in a worker thread. The
+    # teacher's live view polls this route; inline, every poll froze every
+    # student stream on the instance (the runtime guard logged 114 hits on
+    # 24 Sep before anyone read it).
+    bq_session_id = await asyncio.to_thread(find_latest_session_id_for_group_bq, group_code)
     if bq_session_id:
         summary = await resolve_session_summary(bq_session_id)
         if summary is not None:
             await resolve_narrative(summary, force=refresh)
-            return _serialize(summary, fidelity=await _fidelity_for(summary, _user, force=refresh))
+            fidelity = await _fidelity_for(summary, _user, force=refresh)
+            return await _aserialize(summary, fidelity=fidelity)
 
-    idx = find_latest_session_for_group(group_code)
+    idx = await asyncio.to_thread(find_latest_session_for_group, group_code)
     if idx is None:
         raise HTTPException(status_code=404, detail="no sessions for this group yet")
     summary = await resolve_session_summary(idx.session_id)
@@ -188,4 +203,5 @@ async def get_group_latest_report(
         # Race: index existed, ADK session gone. Same UX as "no sessions".
         raise HTTPException(status_code=404, detail="no sessions for this group yet")
     await resolve_narrative(summary, force=refresh)
-    return _serialize(summary, fidelity=await _fidelity_for(summary, _user, force=refresh))
+    fidelity = await _fidelity_for(summary, _user, force=refresh)
+    return await _aserialize(summary, fidelity=fidelity)
