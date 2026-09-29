@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { GraduationCap, Loader2 } from "lucide-react";
+import { GraduationCap, Loader2, Undo2 } from "lucide-react";
 
 import {
   type TutorCatalogue,
   type TutorPayload,
   fetchTutorCatalogue,
+  clearTutorFramework,
   setTutorFramework,
 } from "@/lib/teacherApi";
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
@@ -61,6 +62,24 @@ export function TutorApproachPanel({
     };
   }, []);
 
+  /** Remove the assignment entirely, so the tutor falls back to its own
+   *  approach. Distinct from assigning null, which is an override meaning "this
+   *  tutor teaches with nothing" — the distinction the old copy blurred. */
+  const unassign = async (tutor: TutorPayload) => {
+    setSaving(tutor.id);
+    setError(null);
+    try {
+      await clearTutorFramework(tutor.id);
+      // Re-read: what the tutor falls back TO is the store's answer, not ours.
+      const fresh = await fetchTutorCatalogue();
+      setCatalogue(fresh);
+    } catch {
+      setError("Could not undo that. Try again.");
+    } finally {
+      setSaving(null);
+    }
+  };
+
   const assign = async (tutor: TutorPayload, frameworkId: string) => {
     setSaving(tutor.id);
     setError(null);
@@ -112,6 +131,19 @@ export function TutorApproachPanel({
             </option>
           ))}
         </select>
+        {t.hasAssignment ? (
+          <button
+            type="button"
+            disabled={saving === t.id}
+            aria-label={`Undo my choice for ${t.displayName}`}
+            title="Remove your assignment so this tutor goes back to its own approach"
+            onClick={() => void unassign(t)}
+            className="flex items-center gap-1 rounded border px-2 py-1 text-xs text-muted-foreground hover:bg-accent disabled:opacity-50"
+          >
+            <Undo2 className="h-3.5 w-3.5" aria-hidden />
+            Undo my choice
+          </button>
+        ) : null}
       </div>
     </div>
   );
@@ -124,7 +156,16 @@ export function TutorApproachPanel({
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
         Choosing an approach here changes how that tutor teaches in every class using it. The
-        published catalogue is not modified — set a tutor back to “No stated approach” to undo.
+        published catalogue is not modified.
+      </p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {/* ⚠️ This paragraph used to say "set a tutor back to 'No stated
+            approach' to undo", which was not true and is the reason
+            clearTutorFramework had nothing to render on. The two are different
+            acts and only one of them is an undo. */}
+        “No stated approach” is itself a choice — it tells the tutor to teach with none, overriding
+        whatever it says about itself. <strong>Undo my choice</strong> is the different thing: it
+        removes your assignment so the tutor goes back to its own approach.
       </p>
 
       {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}

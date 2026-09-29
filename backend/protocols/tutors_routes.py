@@ -134,6 +134,17 @@ def _serialize(t: Tutor, *, viewer: User | None = None) -> dict:
         # Firestore row, so "share" and "delete" have nothing to act on. That is
         # why this asks the store rather than trusting the object in hand.
         "canEdit": _may_edit(t, viewer),
+        # Whether a RESEARCHER has assigned this tutor an approach, as distinct
+        # from the tutor carrying one of its own. The two are different acts and
+        # only one of them can be undone:
+        #   PUT  .../framework {null}  = "this tutor teaches with nothing" — an
+        #                                assignment that OVERRIDES what the
+        #                                tutor says about itself.
+        #   DELETE .../framework       = remove my assignment entirely, so the
+        #                                tutor falls back to its own value.
+        # Without this flag the UI cannot offer the second, which is why
+        # `clearTutorFramework` sat unmounted: there was nothing to render it on.
+        "hasAssignment": get_assignment(t.id) is not None,
     }
 
 

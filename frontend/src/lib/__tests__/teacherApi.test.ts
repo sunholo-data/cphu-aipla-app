@@ -104,18 +104,6 @@ describe("teacherApi — activity-configs", () => {
     expect(init.headers).toEqual({ "Content-Type": "application/json" });
     expect(JSON.parse(init.body as string)).toEqual(body);
   });
-
-  it("listMyActivities: GET with no query when classId omitted", async () => {
-    mockResp([]);
-    await api.listMyActivities();
-    expect(lastUrl()).toBe("/api/proxy/api/activity-configs");
-  });
-
-  it("listMyActivities: GET ?classId=<encoded> when classId given", async () => {
-    mockResp([]);
-    await api.listMyActivities("c/1");
-    expect(lastUrl()).toBe("/api/proxy/api/activity-configs?classId=c%2F1");
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -470,26 +458,6 @@ describe("teacherApi — lessons & group codes", () => {
 // skills catalogue — bespoke error handling (not readJson), and field projection
 // ---------------------------------------------------------------------------
 describe("teacherApi — skills catalogue", () => {
-  it("isTeacherOnlySkill: true only when type='tagged' AND tags include role:teacher", () => {
-    expect(
-      api.isTeacherOnlySkill({
-        accessControl: { type: "tagged", tags: ["role:teacher"] },
-      } as never),
-    ).toBe(true);
-    expect(
-      api.isTeacherOnlySkill({
-        accessControl: { type: "tagged", tags: ["role:student"] },
-      } as never),
-    ).toBe(false);
-    expect(
-      api.isTeacherOnlySkill({
-        accessControl: { type: "public", tags: ["role:teacher"] },
-      } as never),
-    ).toBe(false);
-    expect(api.isTeacherOnlySkill({ accessControl: null } as never)).toBe(false);
-    expect(api.isTeacherOnlySkill({} as never)).toBe(false);
-  });
-
   it("listAccessibleSkills: GET /api/skills and projects to the picker shape", async () => {
     mockResp([
       {

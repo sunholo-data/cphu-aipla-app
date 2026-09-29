@@ -18,6 +18,7 @@ import { FrameworkStructureEditor } from "@/components/teacher/research/Framewor
 import { CustomApproachPanel } from "@/components/teacher/research/CustomApproachPanel";
 import { MyTutorsPanel } from "@/components/teacher/research/MyTutorsPanel";
 import { PersonaEditorPanel } from "@/components/teacher/research/PersonaEditorPanel";
+import { SourcePassagePanel } from "@/components/teacher/research/SourcePassagePanel";
 import { PublishedApproachList } from "@/components/teacher/research/PublishedApproachList";
 import { TutorPreviewPanel } from "@/components/teacher/research/TutorPreviewPanel";
 import { TutorCrossviewPanel } from "@/components/teacher/research/TutorCrossviewPanel";
@@ -271,6 +272,13 @@ export default function ResearchFrameworksPage() {
             onRevert={fw.isOverridden ? () => void revert(fw) : undefined}
           />
         ) : null}
+
+        {/* The backend could do this from 1.1.110 and nothing called it, so
+            "vouched by M" stayed a claim a reader had to take on trust — on the
+            one screen whose whole argument is that a prompt can be held against
+            its source. Researcher tier only; the passages are verbatim
+            copyrighted extracts. */}
+        {fw.status !== "placeholder" ? <SourcePassagePanel frameworkId={fw.id} /> : null}
       </TeacherCard>
     );
   };

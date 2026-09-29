@@ -19,13 +19,16 @@
 
 
 # --- superseded, kept until someone confirms the deletion -------------------
+#
+# All three cleared 2026-09-29. listMyActivities and isTeacherOnlySkill were
+# genuinely dead and are deleted. chatLogExportPath was a FALSE POSITIVE — it is
+# used by fetchChatLogExport inside the same file, which the guard excludes from
+# its own search, so an internal helper looked like a dead one. It is now
+# un-exported, which is the right shape for a helper and takes it out of scope.
 
-teacherApi.ts::listMyActivities           # Reads /api/activity-configs, the PRE-ALS-1 per-(teacher,class,activity) store. The activities library replaced it. Almost certainly deletable — needs one check that no legacy class still resolves through it.
-teacherApi.ts::chatLogExportPath          # A URL builder for the researcher log export. The mounted path is fetchChatLogExport (a Blob fetch, insights/conversations/page.tsx:225) because the sandbox blocks link-driven downloads. Deletable once someone confirms no bookmarked URL depends on the shape.
 
 # --- a helper, not an endpoint ---------------------------------------------
 
-teacherApi.ts::isTeacherOnlySkill         # A pure predicate over a SkillSummary, not a fetch. Dead code rather than an unreachable endpoint, so it is a smaller problem than the rest of this list — but it is still dead.
 
 # --- genuinely missing controls, each a real gap ---------------------------
 #
@@ -33,5 +36,3 @@ teacherApi.ts::isTeacherOnlySkill         # A pure predicate over a SkillSummary
 # grew a Revoke control. That is what this list is for: an entry leaves it by
 # being fixed, not by being forgotten.
 
-teacherApi.ts::clearTutorFramework        # Its sibling setTutorFramework IS mounted (TutorApproachPanel), so a researcher can give a tutor an approach and cannot take it away again — only replace it. Asymmetric by accident, not by design.
-teacherApi.ts::searchFrameworkSources     # Searches the private literature corpus for the passage behind a construct's citation — the "check the source rather than trust it" half of 1.1.110. Backend exists; no UI was ever built for it.

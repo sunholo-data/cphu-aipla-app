@@ -383,15 +383,6 @@ export async function saveActivityConfig(
   return readJson<ActivityConfigPayload>(resp, "save activity config");
 }
 
-/** List the current teacher's activities (optionally scoped to one class).
- *  Backs the Activities library index — teacher-scoped by construction. */
-export async function listMyActivities(
-  classId?: string,
-): Promise<ActivityConfigPayload[]> {
-  const qs = classId ? `?classId=${encodeURIComponent(classId)}` : "";
-  const resp = await fetchWithAuth(`/api/proxy/api/activity-configs${qs}`);
-  return readJson<ActivityConfigPayload[]>(resp, "list activities");
-}
 
 // ── ALS-1 M0/M1: the class-independent Activity store ─────────────────────────
 // An Activity is owned by a teacher and minted `act-…` (distinct from any skill
@@ -1044,14 +1035,6 @@ export interface SkillSummary {
   accessControl?: SkillAccessControl | null;
 }
 
-/** A skill gated to teachers (e.g. manage-class, analytics-chat) — it can never
- *  be a student lesson, so it must not appear in the "Add from catalogue"
- *  student-lesson picker (1.1.32). The gate is the synthetic `role:teacher`
- *  tag the backend AccessContext evaluator checks. */
-export function isTeacherOnlySkill(s: SkillSummary): boolean {
-  const ac = s.accessControl;
-  return ac?.type === "tagged" && (ac.tags ?? []).includes("role:teacher");
-}
 
 /** List skills the current teacher can access (their own + class-bound + public).
  *  Returns the same shape as the student-side picker. */
@@ -1365,6 +1348,9 @@ export interface TutorPayload {
   requiresGroupTalk?: boolean;
   skillName?: string | null;
   lineage: { kind: "original" | "variant-of"; parentTutorId?: string | null };
+  /** Whether a RESEARCHER has assigned this tutor an approach, as distinct from
+   *  the tutor carrying one of its own. Only an assignment can be undone. */
+  hasAssignment?: boolean;
   /** TUTOR-2 M0. Absent reads as "shared" — absent is NOT private, which is
    *  what stops tutors written before the field vanishing from every picker. */
   visibility?: "private" | "shared" | null;
@@ -1707,10 +1693,6 @@ export async function getChatLogTranscript(sessionId: string): Promise<ChatLogTu
   return body.turns;
 }
 
-/** The export URL for whatever the current filter shows. */
-export function chatLogExportPath(filter: ChatLogFilter, format: "csv" | "jsonl"): string {
-  return `/api/proxy/api/research/logs/export${chatLogQuery(filter, { format })}`;
-}
 
 /** Fetch an export as a Blob.
  *
@@ -1718,6 +1700,16 @@ export function chatLogExportPath(filter: ChatLogFilter, format: "csv" | "jsonl"
  *  navigation carries no bearer token, so it would 401. The caller turns this
  *  into a download.
  */
+/** The export URL. NOT exported: it is an internal helper for
+ *  `fetchChatLogExport` below, and exporting it made `check-client-api-mounted`
+ *  report it as an unreachable endpoint — the guard excludes the client file
+ *  from its own search, so a helper used only in here looks like a helper used
+ *  nowhere. An internal helper belongs un-exported; that is the fix, not a
+ *  waiver. (It was briefly in the allowlist with a wrong reason attached.) */
+function chatLogExportPath(filter: ChatLogFilter, format: "csv" | "jsonl"): string {
+  return `/api/proxy/api/research/logs/export${chatLogQuery(filter, { format })}`;
+}
+
 export async function fetchChatLogExport(
   filter: ChatLogFilter,
   format: "csv" | "jsonl",
