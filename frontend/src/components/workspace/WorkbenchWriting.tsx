@@ -248,7 +248,12 @@ export function WorkbenchWriting({
         });
 
       const snap = buildSnapshot(valuesRef.current);
-      const req = pushWriting(snap, "writing.commit");
+      // 1.1.136 M0 — the card's own text as a log label (not a card label: one
+      // card per writing burst, so a label per autosave would restore many).
+      const req = pushWriting(snap, "writing.commit", null, {
+        logLabel: t("sharedCard", { count: countWords(text) }),
+        activityId: storeId,
+      });
       if (!req) return; // no session yet — the .sync catch-up re-pushes
       void req.catch(() => {});
       // ONE card per writing burst; the push itself already fired.
@@ -256,7 +261,7 @@ export function WorkbenchWriting({
       if (cardTimer.current) clearTimeout(cardTimer.current);
       cardTimer.current = setTimeout(flushCard, WRITING_CARD_DEBOUNCE_MS);
     },
-    [buildSnapshot, flushCard, pushWriting, storageKey, storeId],
+    [buildSnapshot, flushCard, pushWriting, storageKey, storeId, t],
   );
 
   const onChange = (elementId: string, text: string) => {
@@ -300,7 +305,11 @@ export function WorkbenchWriting({
     if (!sessionId || !loaded) return;
     const snap = buildSnapshot(valuesRef.current);
     if (snap.docs.some((d) => d.words > 0)) {
-      const req = pushWriting(snap, "writing.sync");
+      const words = snap.docs.reduce((n, d) => n + d.words, 0);
+      const req = pushWriting(snap, "writing.sync", null, {
+        logLabel: t("sharedCard", { count: words }),
+        activityId: storeId,
+      });
       if (req) void req.catch(() => {});
     }
     // Only on session arrival / initial load — edits push themselves.

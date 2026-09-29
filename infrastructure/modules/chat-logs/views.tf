@@ -115,6 +115,11 @@ resource "google_bigquery_table" "workbench_events" {
         JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.tool") AS tool,
         JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.field") AS field,
         JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.value") AS value,
+        -- 1.1.136 M0 (2026-09-29): which activity/class, and the trust-card
+        -- text the student saw. NULL on every earlier row — not backfilled.
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.activity_id") AS activity_id,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.class_id") AS class_id,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.label") AS label,
         -- A/B arm key — see the chat_turns view for why this matters.
         JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.revision") AS revision,
         JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.app_version") AS app_version

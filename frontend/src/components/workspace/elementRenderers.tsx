@@ -116,7 +116,12 @@ export const elementRenderers: Record<ElementKind, (ctx: ElementRenderContext) =
     ) : null,
   calculator: (ctx) =>
     ctx.calculator.length > 0 ? (
-      <WorkbenchCalculator skillId={ctx.skillId} sessionId={ctx.sessionId} calculators={ctx.calculator} />
+      <WorkbenchCalculator
+        skillId={ctx.skillId}
+        activityId={ctx.activityId}
+        sessionId={ctx.sessionId}
+        calculators={ctx.calculator}
+      />
     ) : null,
   note: (ctx) =>
     ctx.note.length > 0 ? <WorkbenchNote skillId={ctx.skillId} notes={ctx.note} /> : null,

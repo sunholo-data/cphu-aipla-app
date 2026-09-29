@@ -63,6 +63,29 @@ export interface UseSimSnapshotPushProactiveOpts {
   onProactiveTrigger: (trigger: string, attachments?: EncodedImage[]) => void;
 }
 
+/**
+ * 1.1.136 M0 — what a push WAS, for the review timeline. Every workbench push
+ * says so (CI: `scripts/audit-trust-cards.sh` fails an unlabelled one).
+ *
+ * - `logLabel` — the human text for a push that is NOT a card moment (a table
+ *   cell commit, a writing autosave, a `.sync` catch-up). Logged to BigQuery
+ *   only: it is never stored as the card label, so it neither re-renders a card
+ *   on transcript restore nor bumps the group's revision. Use the SAME text the
+ *   element's trust card shows, so researcher and student read one record.
+ * - `activityId` — the activity the element belongs to (telemetry only).
+ */
+export interface SnapshotPushMeta {
+  logLabel?: string | null;
+  activityId?: string | null;
+}
+
+export type SnapshotPushFn<TSnapshot> = (
+  snap: TSnapshot,
+  latestKind: string,
+  label?: string | null,
+  meta?: SnapshotPushMeta,
+) => Promise<Response> | null;
+
 export function useSimSnapshotPush<TSnapshot extends object>(
   sessionId: string | null,
   serverId: string,
@@ -73,7 +96,7 @@ export function useSimSnapshotPush<TSnapshot extends object>(
    *  explicit override exists for tests and for sims mounted outside
    *  the chat surface that need different wiring. */
   proactiveOpts?: UseSimSnapshotPushProactiveOpts,
-): (snap: TSnapshot, latestKind: string, label?: string | null) => Promise<Response> | null {
+): SnapshotPushFn<TSnapshot> {
   const sessionIdRef = useRef(sessionId);
   sessionIdRef.current = sessionId;
   // Capture the explicit-opts override in a ref so it stays current
@@ -91,7 +114,7 @@ export function useSimSnapshotPush<TSnapshot extends object>(
   const contextOptsRef = useOptionalProactiveSimOptsRef();
 
   return useCallback(
-    (snap, latestKind, label) => {
+    (snap, latestKind, label, meta) => {
       const sid = sessionIdRef.current;
       if (!sid) return null;
       // 1.1.34: carry the human-readable card label so the resumed transcript
@@ -103,12 +126,18 @@ export function useSimSnapshotPush<TSnapshot extends object>(
         toolName: string;
         structuredContent: Record<string, unknown>;
         label?: string;
+        logLabel?: string;
+        activityId?: string;
       } = {
         serverId,
         toolName,
         structuredContent: { ...snap, lastEvent: latestKind },
       };
-      if (label) body.label = label;
+      if (label) body.label = label.slice(0, 200);
+      // Backend caps both at 200 / 128 chars and 422s past that — clip here so
+      // a long table title can never cost the push itself.
+      if (meta?.logLabel) body.logLabel = meta.logLabel.slice(0, 200);
+      if (meta?.activityId) body.activityId = meta.activityId.slice(0, 128);
       const req = fetchWithAuth(
         `/api/proxy/api/sessions/${sid}/iframe-context`,
         {

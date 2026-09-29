@@ -196,8 +196,19 @@ def emit_workbench_event(
     tool: str,
     field: Any,
     value: Any,
+    activity_id: str | None = None,
+    class_id: str | None = None,
+    label: str | None = None,
 ) -> None:
     """Emit one workbench interaction. Never raises.
+
+    ``activity_id`` / ``class_id`` / ``label`` (1.1.136 M0) say WHAT the event
+    was: which activity, which class, and the human-readable text of the trust
+    card the student saw ("Data table shared with the tutor (3 cells)"). All
+    optional so old callers keep working; rows written before 2026-09-29 carry
+    nulls and the review timeline derives a fallback from ``server``/``field``.
+    They are not backfilled — a guessed label that looks like evidence is worse
+    than a null (the TUTOR-5 rule).
 
     ``value`` is stringified (the BQ view's ``value`` column is STRING) so a
     complex artefact payload still lands as a queryable scalar. ``field`` is
@@ -227,6 +238,9 @@ def emit_workbench_event(
         "tool": tool,
         "field": field_str,
         "value": value_str,
+        "activity_id": activity_id,
+        "class_id": class_id,
+        "label": label,
         **_version_fields(),
     }
     try:

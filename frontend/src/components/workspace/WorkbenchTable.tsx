@@ -193,7 +193,14 @@ export function WorkbenchTable({ skillId, tables, sessionId, activityId }: Workb
   /** Push the whole activity's grids to the tutor and ride a trust card on it. */
   const pushAndCard = (vals: Record<string, string>, kind: string, cardTitle: string) => {
     const snap = buildSnapshot(vals);
-    const req = pushTableSnapshot(snap, kind);
+    const filled = snap.tables.reduce((n, t) => n + t.filledCells, 0);
+    // 1.1.136 M0 — every per-cell push says what it was, with the SAME text the
+    // debounced card will show. `logLabel`, not `label`: a card label here would
+    // re-render one card per cell on transcript restore.
+    const req = pushTableSnapshot(snap, kind, null, {
+      logLabel: t("sharedCard", { title: cardTitle || t("untitled"), count: filled }),
+      activityId,
+    });
     if (!req) return;
     void req.catch((err) => {
       if (process.env.NODE_ENV !== "production") {
@@ -205,7 +212,6 @@ export function WorkbenchTable({ skillId, tables, sessionId, activityId }: Workb
     // card rides this push but only flushes once edits settle (see
     // TABLE_CARD_DEBOUNCE_MS). Mirrors the calculator/checklist trust bit
     // without a card per cell.
-    const filled = snap.tables.reduce((n, t) => n + t.filledCells, 0);
     pendingCard.current = { req, filled, title: cardTitle };
     if (cardTimer.current) clearTimeout(cardTimer.current);
     cardTimer.current = setTimeout(flushTableCard, TABLE_CARD_DEBOUNCE_MS);
@@ -270,7 +276,11 @@ export function WorkbenchTable({ skillId, tables, sessionId, activityId }: Workb
     if (!sessionId) return;
     const snap = buildSnapshot(values);
     if (snap.tables.some((t) => t.filledCells > 0)) {
-      const req = pushTableSnapshot(snap, "table.sync");
+      const filled = snap.tables.reduce((n, g) => n + g.filledCells, 0);
+      const req = pushTableSnapshot(snap, "table.sync", null, {
+        logLabel: t("sharedCard", { title: snap.tables[0]?.title || t("untitled"), count: filled }),
+        activityId,
+      });
       if (req) void req.catch(() => {});
     }
     // Only on sessionId arrival — cell commits handle their own pushes.

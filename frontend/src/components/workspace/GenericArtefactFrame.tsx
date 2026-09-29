@@ -44,6 +44,8 @@ interface GenericArtefactFrameProps {
   artefact: ActivityArtefact;
   /** Active chat session id; when set, artefact events push to the tutor. */
   sessionId?: string | null;
+  /** The hosting activity — stamped on the workbench event (1.1.136 M0). */
+  activityId?: string;
   /** Registers a "flush pending state" callback the chat page awaits right
    *  before each outgoing student message (and `null` on unmount). Lets a
    *  buffering artefact commit its latest state to the tutor for that turn —
@@ -91,6 +93,7 @@ export function GenericArtefactFrame({
   sandboxOrigin,
   artefact,
   sessionId,
+  activityId,
   onRegisterFlush,
 }: GenericArtefactFrameProps) {
   const frameRef = useRef<StaticArtefactFrameHandle | null>(null);
@@ -153,7 +156,13 @@ export function GenericArtefactFrame({
     const label = cardLabel(sc);
     // Pass the label through so the backend persists it on the iframe-context
     // state_delta — the chat transcript re-renders the same card on reload.
-    const req = pushSnapshot(sc, kind, label);
+    // 1.1.136 M0 — a label-less event (an artefact with no `label`, no scalar
+    // state) is still named in the log: the sim's name and the event kind are
+    // data, not copy, so they need no translation.
+    const req = pushSnapshot(sc, kind, label, {
+      logLabel: label ?? `${artefact.displayName || artefact.id} · ${kind}`,
+      activityId,
+    });
     // If a flush is awaiting, hand it THIS push so it resolves on commit.
     const awaiting = flushAwaitRef.current;
     if (awaiting) {

@@ -127,6 +127,7 @@ export function StudentWorkspace({
           sandboxOrigin={sandboxOrigin}
           artefact={artefact}
           sessionId={sessionId}
+          activityId={activityId}
           onRegisterFlush={onRegisterArtefactFlush}
         />
       </div>

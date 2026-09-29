@@ -138,7 +138,10 @@ export function ProgressChecklist({
       .map((i) => i.id);
 
   const pushSnapshotSilent = () => {
-    const req = pushChecklistSnapshot(buildSnapshot(currentDoneIds()), "progress.sync");
+    const req = pushChecklistSnapshot(buildSnapshot(currentDoneIds()), "progress.sync", null, {
+      logLabel: t("label"),
+      activityId,
+    });
     if (!req) return;
     void req.catch((err) => {
       if (process.env.NODE_ENV !== "production") {
@@ -182,12 +185,16 @@ export function ProgressChecklist({
     // Kind: marking done → "progress.advance" (maps to step_advance → fires the
     // proactive gate-check). Un-marking → "progress.undo" (not progress).
     const kind = becomingDone ? "progress.advance" : "progress.undo";
-    const req = pushChecklistSnapshot(buildSnapshot(currentDoneIds({ id, done: becomingDone })), kind);
+    const itemLabel = items.find((i) => i.id === id)?.label ?? id;
+    const label = becomingDone ? t("markedCard", { label: itemLabel }) : t("unmarkedCard", { label: itemLabel });
+    // 1.1.136 M0 — the card's text rides the push (a card per action, so it IS
+    // the card label: restored on reload, synced live to a groupmate).
+    const req = pushChecklistSnapshot(buildSnapshot(currentDoneIds({ id, done: becomingDone })), kind, label, {
+      activityId,
+    });
     if (req) {
       // A deliberate student action — card it so the student sees their action
       // reached the agent (workbench-element-builder: push AND card).
-      const itemLabel = items.find((i) => i.id === id)?.label ?? id;
-      const label = becomingDone ? t("markedCard", { label: itemLabel }) : t("unmarkedCard", { label: itemLabel });
       humanToolEvents.dispatch({ label, push: () => req });
     }
   };
