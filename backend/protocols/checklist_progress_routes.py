@@ -16,16 +16,16 @@ so the client reads this endpoint instead (memory
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from auth import User, get_current_user
-from db.activities import get_activity
 from db.checklist_progress import get_item_states, record_item_state
-from db.firestore import query_documents
+from protocols.progress_read_access import read_all_groups
 
 log = logging.getLogger(__name__)
 
@@ -42,21 +42,21 @@ class ChecklistTickBody(BaseModel):
 @router.get("/{activity_id}/checklist-progress")
 async def get_checklist_progress(
     activity_id: str,
+    classId: str | None = Query(default=None, max_length=128),
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict[str, Any]:
-    """Item states for the caller: the student's own group, or (owner) all groups."""
+    """Item states for the caller: the student's own group, or every group the
+    caller may review — the activity owner, a class owner (``?classId=``,
+    narrowed to that class), or a researcher (1.1.136 M3)."""
     # Student branch: keys off the VERIFIED group claim (never email/domain —
-    # both are empty for anonymous-group users).
+    # both are empty for anonymous-group users). A student never reaches the
+    # all-groups view, whatever they pass.
     if user.group_id:
         return {"itemStates": get_item_states(user.group_id, activity_id)}
 
-    activity = get_activity(activity_id)
-    if activity is None or activity.owner_uid != user.uid:
-        raise HTTPException(status_code=404, detail="activity not found")
-
-    docs = query_documents(collection="checklist_progress", filters=[("activityId", "==", activity_id)])
-    groups = {d.get("groupId", d.get("__id", "?")): d.get("itemStates", {}) for d in docs}
-    return {"groups": groups}
+    return await asyncio.to_thread(
+        read_all_groups, user, activity_id, classId, collection="checklist_progress", field="itemStates"
+    )
 
 
 @router.post("/{activity_id}/checklist-progress")

@@ -18,16 +18,16 @@ so the client reads this endpoint instead (memory
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from auth import User, get_current_user
-from db.activities import get_activity
-from db.firestore import query_documents
 from db.writing_progress import MAX_TEXT_CHARS, get_docs, record_doc
+from protocols.progress_read_access import read_all_groups
 
 log = logging.getLogger(__name__)
 
@@ -46,21 +46,21 @@ class WritingSaveBody(BaseModel):
 @router.get("/{activity_id}/writing")
 async def get_writing(
     activity_id: str,
+    classId: str | None = Query(default=None, max_length=128),
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict[str, Any]:
-    """The written text for the caller: the student's own group, or (owner) all groups."""
+    """The written text for the caller: the student's own group, or every group
+    the caller may review — the activity owner, a class owner (``?classId=``,
+    narrowed to that class), or a researcher (1.1.136 M3)."""
     # Student branch: keys off the VERIFIED group claim (never email/domain —
-    # both are empty for anonymous-group users).
+    # both are empty for anonymous-group users). A student never reaches the
+    # all-groups view, whatever they pass.
     if user.group_id:
         return {"docs": get_docs(user.group_id, activity_id)}
 
-    activity = get_activity(activity_id)
-    if activity is None or activity.owner_uid != user.uid:
-        raise HTTPException(status_code=404, detail="activity not found")
-
-    rows = query_documents(collection="writing_progress", filters=[("activityId", "==", activity_id)])
-    groups = {d.get("groupId", d.get("__id", "?")): d.get("docs", {}) for d in rows}
-    return {"groups": groups}
+    return await asyncio.to_thread(
+        read_all_groups, user, activity_id, classId, collection="writing_progress", field="docs"
+    )
 
 
 @router.put("/{activity_id}/writing")

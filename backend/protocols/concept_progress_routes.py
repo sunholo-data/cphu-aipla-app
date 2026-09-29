@@ -12,10 +12,11 @@ identities, so the client polls this endpoint at turn end instead.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from auth import User, get_current_user
@@ -29,8 +30,8 @@ from db.class_concept_rollup import (
 )
 from db.classes import get_class
 from db.concept_progress import NodeStatus, get_node_states, record_concept_evidence, states_from_stored
-from db.firestore import query_documents
 from db.models.activity import ActivityLink
+from protocols.progress_read_access import read_all_groups
 
 log = logging.getLogger(__name__)
 
@@ -41,23 +42,29 @@ class_router = APIRouter(prefix="/api/classes", tags=["concept-progress"])
 @router.get("/{activity_id}/concept-progress")
 async def get_concept_progress(
     activity_id: str,
+    classId: str | None = Query(default=None, max_length=128),
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict[str, Any]:
-    """Node-status map for the caller: the student's own group, or (owner) all groups."""
+    """Node-status map for the caller: the student's own group, or every group
+    the caller may review — the activity owner, a class owner (``?classId=``,
+    narrowed to that class), or a researcher (1.1.136 M3)."""
     # Student branch: keys off the VERIFIED group claim (never email/domain —
-    # both are empty for anonymous-group users).
+    # both are empty for anonymous-group users). A student never reaches the
+    # all-groups view, whatever they pass.
     if user.group_id:
         return {"nodeStates": get_node_states(user.group_id, activity_id)}
 
-    activity = get_activity(activity_id)
-    if activity is None or activity.owner_uid != user.uid:
-        raise HTTPException(status_code=404, detail="activity not found")
-
-    docs = query_documents(collection="concept_progress", filters=[("activityId", "==", activity_id)])
     # Derived through the store's own reducer, never read off the document:
     # since CONCEPT-2 M2 a node holds evidence records and no stored status.
-    groups = {d.get("groupId", d.get("__id", "?")): states_from_stored(d.get("nodeStates", {})) for d in docs}
-    return {"groups": groups}
+    return await asyncio.to_thread(
+        read_all_groups,
+        user,
+        activity_id,
+        classId,
+        collection="concept_progress",
+        field="nodeStates",
+        transform=states_from_stored,
+    )
 
 
 @class_router.get("/{class_id}/concept-rollup")
