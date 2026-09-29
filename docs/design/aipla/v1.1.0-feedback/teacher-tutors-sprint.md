@@ -1,14 +1,16 @@
 # Sprint TUTOR-2 — a teacher can make their own tutor
 
 **Sprint ID:** `TUTOR-2` · **Created:** 2026-09-28 · **Design doc:** [teacher-authored-tutors.md](teacher-authored-tutors.md) (1.1.135)
-**Estimated:** ~5.25d over seven milestones
+**Estimated:** ~4.5d over seven milestones (rescoped 2026-09-29)
 **Source:** M, 2026-09-28 — *"a teacher should be able to make their own tutor, with their own teaching approach and/or adjust the researcher created ones. teachers and researchers should be able to save variants for themselves"*, then *"we use our own avatars for now and we will upload more so there is more choice"*, and *"lets have private and shared versions, but researchers always see all"*.
 
 ## What this sprint is, in one line
 
-**Mostly mounting, not building.** Two finished backends have no controls; one layer (custom personas) does not exist. The acceptance criteria are therefore written as *"a teacher can do X end to end"* — the endpoints already exist and that is precisely the problem.
+⚠️ **Rescoped 2026-09-29, one day in.** The plan opened by claiming two finished backends had no controls. Only **one** does — the tutor variant dialog. Custom approaches were already mounted, teacher tier and all, by 1.1.110; the claim came from grepping a function name that does not exist. See the correction block in the design doc.
 
-Measured before starting (prod + test Firestore, 2026-09-28): **0 tutor variants, 0 custom approaches, 0 framework overrides.** Four `tutors` rows, all skill-bound seeds.
+So: one real unmounted control, one missing layer (custom personas), one missing field (visibility, now shipped in M0), and a **mechanical sweep** that found seven unmounted `teacherApi` exports my hand analysis had got wrong in both directions. That sweep is M6, and it is now the milestone with the best argument behind it rather than the cheap one at the end.
+
+Measured before starting (prod + test Firestore, 2026-09-28): **0 tutor variants, 0 custom approaches, 0 framework overrides.** Four `tutors` rows, all skill-bound seeds. The zero-approaches number still stands but measures **adoption, not reachability** — a teacher could have authored one at any point this month.
 
 ## Order, and why it is this order
 
@@ -23,9 +25,9 @@ M0 first because everything after it writes rows, and a row written before the v
 - The class-tutor setter refuses a tutor the caller cannot see (`_assert_setting_fits_class` is the seam).
 - ⚠️ Visibility must be applied in **both** `list_tutor_catalogue` and `resolve_tutor`, the way framework assignments already are, or the picker offers what the resolver then refuses.
 
-### M1 — the surface (~1d, frontend)
+### M1 — the surface (~0.25d, frontend) — **mostly shipped by 1.1.110**
 
-`/teacher/research/frameworks` opens to teachers at reduced depth. Published frameworks read-only; custom approaches create/edit/delete for their own. `canEdit` stays server-computed per row — no second copy of the rule in the client.
+Left to do: let a teacher READ the seven published approaches (today they are invisible, and 1.1.135's argument requires a teacher to pick an approach somebody can read), and give their own approaches the share control M0's `visibility` field is waiting for.
 
 ### M2 — tutor authoring + the share control (~1d, fullstack)
 

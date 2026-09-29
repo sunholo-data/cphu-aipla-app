@@ -2,7 +2,7 @@
 
 **Status:** **Design (OPEN)** — **1.1.135**
 **Priority:** **P1** — three of the four capabilities below are already BUILT and unreachable, so most of this is mounting work, not new machinery. The exception (M3–M5) is genuinely new.
-**Estimated:** ~5.25d phased (M0 ownership+visibility ~1d · M1 the surface ~1d · M2 tutor authoring ~1d · M3 custom personas ~1d · M4 avatar picker ~0.25d · M5 voice ~0.5d · M6 the guard ~0.5d)
+**Estimated:** ~4.5d phased, rescoped 2026-09-29 (M0 ownership+visibility ~1d · M1 the surface ~0.25d · M2 tutor authoring ~1d · M3 custom personas ~1d · M4 avatar picker ~0.25d · M5 voice ~0.5d · M6 the guard ~0.5d)
 **Scope:** Fullstack — `Tutor` and `Persona` gain ownership and visibility; a Firestore persona layer beside the YAML one; an avatar upload; one role-graded Approaches & Tutors surface; and the CI guard for the bug class that caused this.
 **Dependencies:** [1.1.91 researcher-configurable-tutors](researcher-configurable-tutors.md) (**shipped** — the `Tutor` object, the store, `create_variant`, the variant dialog); [1.1.110 custom-approaches-and-literature-corpus](custom-approaches-and-literature-corpus.md) (**shipped backend, no UI** — `authored_frameworks`, and the teacher/researcher matrix this doc extends rather than re-opens); [1.1.12 voice-personas](voice-personas.md) (**shipped** — `Persona`, six YAML personas, the resolution chain); [1.1.11 voice-personas](voice-personas.md) (**shipped** — the curated voice catalogue at `voice/voices.py` and `GET /api/voice/voices`); [1.1.44 activity-image-materials](activity-image-materials.md) (**shipped** — the upload → GCS → serve pattern M4 copies); [1.1.107 framework-fit-profile](framework-fit-profile.md) (the research attribution an authored tutor lands in — see Open question 3)
 **Created:** 2026-09-28
@@ -20,18 +20,34 @@ Editing the seven published frameworks is researcher-only and is mounted at `/te
 
 ### What exists and is reachable by nobody
 
-| Capability | Backend | Client | UI call sites | On prod |
+> ⚠️ **CORRECTION, 2026-09-29.** The table below originally claimed custom
+> approaches had **no UI at all**. That was wrong, and the error was mine: I
+> grepped for `createCustomFramework` — a name I invented — and for the URL
+> string `frameworks/custom`, which appears only in the client. I never grepped
+> the actual export `createCustomApproach`, then reported the absence as a fact
+> rather than as "I could not find a call site".
+>
+> **What is actually true:** `CustomApproachPanel` exists, is mounted on the
+> frameworks page in two places, has tests, and calls `createCustomApproach` at
+> line 101. More than that, **1.1.110 already built the teacher tier**: when the
+> researcher-only framework list 403s, the page renders a teacher view with two
+> tabs — "Try them" (`TutorPreviewPanel`) and "Yours" (the full approach CRUD).
+> A teacher can author a custom approach in the product today.
+>
+> So this was one gap, not two, and **M1 is largely already done**. The
+> 0-approaches-on-prod number still stands, but it measures **adoption, not
+> reachability** — a different problem with different answers.
+
+| Capability | Backend | Client | Rendered anywhere? | On prod |
 |---|---|---|---|---|
-| Create a tutor **variant** | `POST /api/research/tutors/variant` | `createTutorVariant` | **0** | **0 variants** |
-| Create a **custom approach** | `POST/PUT/DELETE /api/research/frameworks/custom` | 4 typed functions | **0** | **0 approaches** |
+| Create a tutor **variant** | `POST /api/research/tutors/variant` | `createTutorVariant` | **No** — nothing renders `<TutorVariantDialog` | **0 variants** |
+| Create a **custom approach** | `POST/PUT/DELETE /api/research/frameworks/custom` | 4 typed functions | **Yes** — `CustomApproachPanel`, teacher tier included | **0 approaches** |
 
 `TutorVariantDialog` is written and has five green tests. It was removed from `TutorPicker` on 2026-09-11 with its own docstring saying *"the mechanism needs a home on the Approaches surface, not on a class"* — and never got one.
 
-Custom approaches are the sharper case. 1.1.110's module docstring carries an explicit rights matrix in which **a teacher may create and edit their own custom approach**, the route says *"Any teacher may"*, and `teacherApi.ts` calls it *"the one thing on the frameworks screen a TEACHER may edit"*. The only file in the repository that references those client functions is `teacherApi.ts` itself.
+A **mechanical** sweep of `teacherApi.ts` — every export with no consumer outside the client and its own tests — finds seven: `listMyActivities`, `fetchVoiceList`, `isTeacherOnlySkill`, `revokeGroupCode`, `clearTutorFramework`, `chatLogExportPath`, `searchFrameworkSources`. `fetchVoiceList` matters to M5: the voice catalogue has a typed client and no picker. `revokeGroupCode` deserves attention on its own account.
 
-**Why it stalled is worth naming, because it is a design problem and not an oversight.** A custom approach is teacher-scoped on the backend, but its only natural home — the Approaches screen — is `assert_researcher`-gated end to end. There was nowhere to put a teacher control without deciding how that screen behaves for a teacher. The decision was never made and the work stopped at the API.
-
-This is CLAUDE.md's footgun row *"A whole stack ships with the control unmounted"* at instances three and four (after `patchClass` and ALS-SHARE M3b). That row is marked **manual**. M6 is what makes it enforced.
+That sweep is the point of this section. My hand analysis got one export wrong **in each direction** — invented an absence that was not there, and missed six that were. CLAUDE.md's *"a whole stack ships with the control unmounted"* row is marked **manual**, and this doc is the argument that manual does not work. **M6 is the most valuable milestone here**, not the cheap one at the end.
 
 ### What does not exist at all
 
@@ -116,8 +132,8 @@ M4 drops from ~0.75d to ~0.25d and is no longer gated on anything.
 ### M0 — ownership and visibility (~1d, backend)
 `visibility` on `Tutor` and on custom approaches; absent reads as `shared`, a new row is written `private`; `list_tutor_catalogue(for_uid, see_all)`; a researcher's read is unfiltered and spanned; the class-tutor setter refuses a tutor the caller cannot see. Tests include the migration case (the four existing rows and every existing approach stay visible) and the researcher case (a teacher's private tutor is visible to a researcher and not to another teacher).
 
-### M1 — the surface (~1d, frontend)
-`/teacher/research/frameworks` opens to teachers at reduced depth; custom approaches mounted (create / edit own / delete own), which is a right teachers have held since 1.1.110 and have never been able to exercise.
+### M1 — the surface (~0.25d, frontend) — **mostly shipped by 1.1.110**
+The teacher tier already exists (a 403 renders "Try them" + "Yours"). What is left is small: a teacher currently cannot SEE the seven published approaches at all, and this doc's own argument is that a teacher building a tutor must pick an approach somebody can read — so they need a read of the catalogue (summaries and constructs, not the override editor). Plus the share control for their own approaches, which M0's `visibility` field is waiting for.
 
 ### M2 — tutor authoring (~1d, fullstack)
 `TutorVariantDialog` mounted for both roles; "New tutor" for a teacher, gated on choosing an approach; `POST /api/research/tutors/variant` re-gated from `assert_researcher` to `assert_teacher` + ownership; the **share control** beside each tutor a teacher owns, matching the activities library's gesture and its "Shared" label, with the one line saying what private means.
@@ -153,7 +169,7 @@ The curated catalogue in the persona editor, with `voice_prompt` shown only for 
 ## Testing
 
 - **M0:** an unmarked tutor is pickable; a private tutor is invisible to another teacher; a class cannot be given a tutor its teacher cannot see; the four prod rows survive.
-- **M1:** a teacher (not researcher) reaches the surface, sees the published frameworks read-only, and can create/edit/delete their own custom approach — the right 1.1.110 granted and never delivered.
+- **M1:** a teacher (not researcher) can READ the seven published approaches and share one of their own. Create/edit/delete of their own already works — 1.1.110 shipped it, and the first draft of this doc wrongly said otherwise.
 - **M2:** a teacher creates a variant and it appears in their class picker and nobody else's; a tutor cannot be created without an approach.
 - **M3–M5:** a custom persona resolves through the SHIPPED chain (no second resolution path); `voice_prompt` is not offered for a voice tier that ignores it.
 - **M6:** the guard fails on a deliberately unmounted export, and passes on the allowlisted ones.
