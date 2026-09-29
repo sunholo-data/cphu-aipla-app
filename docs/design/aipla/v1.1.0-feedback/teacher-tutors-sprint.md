@@ -59,8 +59,8 @@ The curated catalogue (`GET /api/voice/voices`) in the persona editor. `voice_pr
 - [x] M0: an unmarked tutor stays pickable; a private tutor is invisible to another teacher and visible to a researcher; the researcher read is logged; a class cannot be given a tutor its teacher cannot see.
 - [x] M1: a teacher who is not a researcher creates, edits and deletes their own custom approach — the right 1.1.110 granted and never delivered.
 - [x] M2: a teacher creates a variant, it appears in their class picker and nobody else's, and one control shares it.
-- [ ] M3: a custom persona resolves through the SHIPPED chain.
-- [ ] M4: adding an avatar is drop-the-file + `make avatars`, and CI fails if someone forgets the second half.
-- [ ] M5: `voice_prompt` is not offered for a voice tier that ignores it.
+- [x] M3: a custom persona resolves through the SHIPPED chain.
+- [x] M4: adding an avatar is drop-the-file + `make avatars`, and CI fails if someone forgets the second half.
+- [x] M5: `voice_prompt` is not offered for a voice tier that ignores it.
 - [x] M6: the guard fails on a deliberately unmounted export and passes on the allow-listed ones.
-- [ ] **End to end:** a teacher with no researcher claim authors an approach, builds a tutor on it, gives it a face and a voice, assigns it to their class, and a student is taught by it.
+- [x] **End to end:** a teacher with no researcher claim authors an approach, builds a tutor on it, gives it a face and a voice, assigns it to their class, and a student is taught by it.

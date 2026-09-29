@@ -17,7 +17,6 @@
 
 # --- being mounted by work in flight ---------------------------------------
 
-teacherApi.ts::fetchVoiceList             # TUTOR-2 M5 mounts this in the persona editor. The curated voice catalogue (backend voice/voices.py, GET /api/voice/voices) has had a typed client and no picker since 1.1.11.
 
 # --- superseded, kept until someone confirms the deletion -------------------
 

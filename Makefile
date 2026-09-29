@@ -619,6 +619,16 @@ check-stream-allowlist: ## Fail if the client renders a tool result the SSE filt
 check-client-api: ## Fail if an exported API-client function has no call site (CI-gated)
 	@bash scripts/check-client-api-mounted.sh
 
+# TUTOR-2 M4. The avatar set a teacher chooses from — generated from the
+# directory so "we will upload more so there is more choice" does not mean a
+# code change each time. Writes BOTH sides (the picker's TS manifest and the
+# backend's allow-list JSON) from one source: the directory listing.
+avatars: ## Regenerate the avatar manifest after adding an image
+	@node scripts/generate-avatar-manifest.mjs
+
+check-avatars: ## Fail if the avatar manifest and frontend/public/personas disagree (CI-gated)
+	@node scripts/generate-avatar-manifest.mjs --check
+
 check-upstream-routing: ## Advisory: which changed paths belong upstream, not here (RANGE=... or --all)
 	@bash scripts/check-upstream-routing.sh $(RANGE)
 
@@ -683,6 +693,7 @@ help:
 	@echo "make check-guides       — fail if a how-to guide has bad front matter, a stranded translation or a missing screenshot (CI-gated)"
 	@echo "make check-stream-allowlist — fail if the client renders a tool result the SSE filter redacts (CI-gated)"
 	@echo "make check-client-api        — fail if an exported API-client function has no call site (CI-gated)"
+	@echo "make avatars                 — regenerate the avatar manifest after adding an image"
 	@echo
 	@echo "make check-upstream-routing — advisory: which changed paths are platform code and belong upstream (RANGE=...)"
 	@echo "make upstream-reconcile — full divergence report against the template (every shared path)"

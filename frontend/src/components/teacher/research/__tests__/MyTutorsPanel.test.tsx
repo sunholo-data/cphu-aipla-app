@@ -42,6 +42,20 @@ function catalogue(tutors: TutorPayload[]): TutorCatalogue {
 
 beforeEach(() => {
   vi.spyOn(teacherApi, "fetchTutorCatalogue").mockResolvedValue(catalogue([tutor()]));
+  vi.spyOn(teacherApi, "listCustomPersonas").mockResolvedValue({
+    personas: [
+      {
+        id: "persona-fru-hansen",
+        name: "Fru Hansen",
+        avatar: "/personas/frida.webp",
+        language: "da",
+        interactionStyle: "socratic",
+        source: "firestore",
+        canEdit: true,
+      },
+    ],
+    avatars: [],
+  });
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -108,5 +122,26 @@ describe("MyTutorsPanel", () => {
     expect(screen.queryByLabelText(/^Delete/)).not.toBeInTheDocument();
     // ...but anyone may fork it. That is what a variant is FOR.
     expect(screen.getByLabelText("Make a variant of Theirs")).toBeInTheDocument();
+  });
+});
+
+
+describe("a tutor can wear a face someone made (TUTOR-2 M3)", () => {
+  it("offers the custom personas and sends the chosen one", async () => {
+    // Without this the persona editor would be a stack with no consumer — a
+    // teacher could make a face and never put it on anything, which is M6's
+    // bug one layer up.
+    const create = vi.spyOn(teacherApi, "createTutor").mockResolvedValue(tutor());
+    render(<MyTutorsPanel />);
+
+    await userEvent.click(await screen.findByRole("button", { name: "New tutor" }));
+    await userEvent.type(screen.getByLabelText("Name"), "My tutor");
+    await userEvent.selectOptions(screen.getByLabelText("Teaching approach"), "esru");
+    await userEvent.selectOptions(await screen.findByLabelText("Face and voice"), "persona-fru-hansen");
+    await userEvent.click(screen.getByRole("button", { name: "Create tutor" }));
+
+    await waitFor(() =>
+      expect(create).toHaveBeenCalledWith(expect.objectContaining({ personaId: "persona-fru-hansen" })),
+    );
   });
 });

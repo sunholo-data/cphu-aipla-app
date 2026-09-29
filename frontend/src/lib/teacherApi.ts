@@ -1479,6 +1479,81 @@ export async function deleteTutor(tutorId: string): Promise<void> {
   if (!resp.ok) throw new Error(`delete tutor: ${resp.status}`);
 }
 
+// --- Custom personas: a tutor's face and voice (TUTOR-2 M3) ---------------
+//
+// `Persona.source` was Literal["yaml"] from 1.1.12, its docstring recording the
+// Firestore layer as "a v1.2 follow-up". A teacher cannot write a file in git,
+// so without this "give your tutor a face" was not a thing a teacher could do.
+
+export interface CustomPersona {
+  id: string;
+  name: string;
+  title?: string | null;
+  /** A path from the shipped set. CHOSEN, never uploaded — see AVATAR_CHOICES. */
+  avatar: string;
+  language: string;
+  interactionStyle: TutorPayload["interactionStyle"];
+  voice?: { ttsProvider?: string | null; ttsVoice?: string | null; language?: string | null } | null;
+  /** Natural-language delivery steer. Honoured by Gemini-TTS voices only. */
+  voicePrompt?: string | null;
+  bio?: string | null;
+  source: "yaml" | "firestore";
+  visibility?: "private" | "shared" | null;
+  authorUid?: string | null;
+  /** Server-computed per row, never re-derived here. */
+  canEdit?: boolean;
+}
+
+export interface CustomPersonaInput {
+  name: string;
+  title?: string | null;
+  avatar?: string;
+  language?: string;
+  interactionStyle?: TutorPayload["interactionStyle"];
+  voice?: CustomPersona["voice"];
+  voicePrompt?: string | null;
+}
+
+export async function listCustomPersonas(): Promise<{ personas: CustomPersona[]; avatars: string[] }> {
+  const resp = await fetchWithAuth("/api/proxy/api/personas/custom/list");
+  return readJson<{ personas: CustomPersona[]; avatars: string[] }>(resp, "list custom personas");
+}
+
+export async function createCustomPersona(input: CustomPersonaInput): Promise<CustomPersona> {
+  const resp = await fetchWithAuth("/api/proxy/api/personas/custom", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return readJson<CustomPersona>(resp, "create persona");
+}
+
+export async function updateCustomPersona(id: string, input: CustomPersonaInput): Promise<CustomPersona> {
+  const resp = await fetchWithAuth(`/api/proxy/api/personas/custom/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return readJson<CustomPersona>(resp, "update persona");
+}
+
+export async function setCustomPersonaVisibility(
+  id: string,
+  visibility: "private" | "shared",
+): Promise<CustomPersona> {
+  const resp = await fetchWithAuth(`/api/proxy/api/personas/custom/${encodeURIComponent(id)}/visibility`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ visibility }),
+  });
+  return readJson<CustomPersona>(resp, "set persona visibility");
+}
+
+export async function deleteCustomPersona(id: string): Promise<void> {
+  const resp = await fetchWithAuth(`/api/proxy/api/personas/custom/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!resp.ok) throw new Error(`delete persona: ${resp.status}`);
+}
+
 export async function createTutorVariant(input: {
   parentId: string;
   id: string;

@@ -17,6 +17,7 @@ import { TeacherTabs } from "@/components/teacher/ui/TeacherTabs";
 import { FrameworkStructureEditor } from "@/components/teacher/research/FrameworkStructureEditor";
 import { CustomApproachPanel } from "@/components/teacher/research/CustomApproachPanel";
 import { MyTutorsPanel } from "@/components/teacher/research/MyTutorsPanel";
+import { PersonaEditorPanel } from "@/components/teacher/research/PersonaEditorPanel";
 import { PublishedApproachList } from "@/components/teacher/research/PublishedApproachList";
 import { TutorPreviewPanel } from "@/components/teacher/research/TutorPreviewPanel";
 import { TutorCrossviewPanel } from "@/components/teacher/research/TutorCrossviewPanel";
@@ -45,6 +46,7 @@ const copy = {
   tabUsage: "Usage",
   tabYours: "Your approaches",
   tabTutors: "Tutors",
+  tabFaces: "Faces and voices",
   // Rail hints — seven theory names look alike in a list; their state is what
   // tells them apart without opening one.
   railPlaceholder: "Awaiting content",
@@ -338,6 +340,11 @@ export default function ResearchFrameworksPage() {
               // where you CHOOSE a tutor; authoring a research instrument is a
               // different job done at a different moment".
               { id: "tutors", label: copy.tabTutors, content: <MyTutorsPanel /> },
+              // TUTOR-2 M3/M4/M5 — the face and the voice. Beside the tutors
+              // because they are the two halves of one answer to "make your
+              // own tutor": the approach says how it teaches, the persona says
+              // who is teaching.
+              { id: "faces", label: copy.tabFaces, content: <PersonaEditorPanel /> },
             ]}
           />
         </div>
@@ -410,6 +417,7 @@ export default function ResearchFrameworksPage() {
               // the server, so a researcher simply sees more rows as theirs to
               // act on rather than meeting a different component.
               { id: "tutors", label: copy.tabTutors, content: <MyTutorsPanel /> },
+              { id: "faces", label: copy.tabFaces, content: <PersonaEditorPanel /> },
               // Researcher-only: a cross-tenancy read of every teacher's work
               // (1.1.91 M4). The teacher tier never renders it.
               { id: "usage", label: copy.tabUsage, content: <TutorCrossviewPanel /> },

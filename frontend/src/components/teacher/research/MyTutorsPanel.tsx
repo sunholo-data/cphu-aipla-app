@@ -26,7 +26,9 @@ import {
   createTutor,
   deleteTutor,
   fetchTutorCatalogue,
+  listCustomPersonas,
   setTutorVisibility,
+  type CustomPersona,
   type TutorCatalogue,
   type TutorPayload,
 } from "@/lib/teacherApi";
@@ -46,6 +48,9 @@ const copy = {
   approachLabel: "Teaching approach",
   approachHelp: "A tutor has to say how it teaches. Pick a published approach or one of your own.",
   approachRequired: "Choose a teaching approach.",
+  faceLabel: "Face and voice",
+  faceHelp: "Who the student sees and hears. Make one under Faces and voices.",
+  faceNone: "The default face",
   approachNone: "Choose an approach…",
   save: "Create tutor",
   cancel: "Cancel",
@@ -69,7 +74,11 @@ export function MyTutorsPanel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [variantParent, setVariantParent] = useState<TutorPayload | null>(null);
-  const [draft, setDraft] = useState<{ displayName: string; frameworkId: string } | null>(null);
+  const [draft, setDraft] = useState<{ displayName: string; frameworkId: string; personaId: string } | null>(null);
+  // TUTOR-2 M3 — the faces a tutor can wear. Without this the persona editor
+  // would be a stack with no consumer: a teacher could make a face and never
+  // put it on anything, which is the bug M6 exists to catch, one layer up.
+  const [personas, setPersonas] = useState<CustomPersona[]>([]);
 
   const load = useCallback(() => {
     fetchTutorCatalogue()
@@ -78,6 +87,11 @@ export function MyTutorsPanel() {
   }, []);
 
   useEffect(load, [load]);
+  useEffect(() => {
+    listCustomPersonas()
+      .then((b) => setPersonas(b.personas))
+      .catch(() => setPersonas([]));
+  }, []);
 
   const visibilityOf = (t: TutorPayload) => t.visibility ?? "shared";
 
@@ -125,7 +139,12 @@ export function MyTutorsPanel() {
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-+|-+$/g, "")
         .slice(0, 48);
-      await createTutor({ id, displayName: draft.displayName.trim(), frameworkId: draft.frameworkId });
+      await createTutor({
+        id,
+        displayName: draft.displayName.trim(),
+        frameworkId: draft.frameworkId,
+        personaId: draft.personaId || null,
+      });
       setDraft(null);
       load();
     } catch {
@@ -218,7 +237,7 @@ export function MyTutorsPanel() {
         {!draft ? (
           <button
             type="button"
-            onClick={() => setDraft({ displayName: "", frameworkId: "" })}
+            onClick={() => setDraft({ displayName: "", frameworkId: "", personaId: "" })}
             className="flex shrink-0 items-center gap-1.5 rounded border px-3 py-1.5 text-sm hover:bg-muted"
           >
             <Plus className="h-3.5 w-3.5" aria-hidden />
@@ -254,6 +273,24 @@ export function MyTutorsPanel() {
             {catalogue.frameworks.map((f) => (
               <option key={f.id} value={f.id}>
                 {f.name}
+              </option>
+            ))}
+          </select>
+
+          <label className="block text-sm font-medium" htmlFor="tutor-persona">
+            {copy.faceLabel}
+          </label>
+          <p className="text-xs text-muted-foreground">{copy.faceHelp}</p>
+          <select
+            id="tutor-persona"
+            value={draft.personaId}
+            onChange={(e) => setDraft({ ...draft, personaId: e.target.value })}
+            className="w-full rounded border bg-background p-2 text-sm"
+          >
+            <option value="">{copy.faceNone}</option>
+            {personas.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
               </option>
             ))}
           </select>

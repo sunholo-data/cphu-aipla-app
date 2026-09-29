@@ -7,7 +7,13 @@ activity and those tied configs come from it; the per-activity
 ``interaction_style`` stays independently overridable (the hybrid).
 
 Defaults ship as YAML in ``backend/personas/*.yaml`` (Danish-educator theme).
-Firestore-custom personas are a v1.2 follow-up — hence the ``source`` marker.
+**The Firestore layer arrived in TUTOR-2 M3** — the follow-up this docstring
+marked as v1.2, and the reason ``source`` existed before anything used it.
+
+Layered exactly as ``authored_frameworks`` layers over the framework YAML and
+``tutors`` over the base catalogue: git holds the defaults, Firestore holds only
+what a person deliberately made. That is the third instance of one pattern
+rather than a fourth mechanism.
 """
 
 from __future__ import annotations
@@ -36,9 +42,26 @@ class Persona(BaseModel):
     # character. Ignored by non-Gemini tiers (Chirp3-HD/WaveNet reject prompts).
     voice_prompt: str | None = Field(default=None, alias="voicePrompt", max_length=600)
     bio: str | None = Field(default=None, max_length=500)
-    source: Literal["yaml"] = "yaml"
+    source: Literal["yaml", "firestore"] = "yaml"
+
+    # TUTOR-2 M3 — ownership and visibility, same two states and the same
+    # absent rule as Tutor: ABSENT IS NOT PRIVATE, it is what a row meant
+    # before the field existed. Always None on the six YAML personas, which are
+    # shared by definition and have no row to carry it.
+    author_uid: str | None = Field(default=None, alias="authorUid", max_length=128)
+    visibility: Literal["private", "shared"] | None = None
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    def visible_to(self, uid: str | None, *, see_all: bool = False) -> bool:
+        """Whether this persona belongs in ``uid``'s picker (TUTOR-2 M3).
+
+        A YAML persona is always visible — it ships with the product. The
+        researcher bypass is the same one tutors and approaches carry.
+        """
+        if self.source == "yaml" or see_all or (self.visibility or "shared") == "shared":
+            return True
+        return bool(uid) and self.author_uid == uid
 
 
 __all__ = ["Persona"]
