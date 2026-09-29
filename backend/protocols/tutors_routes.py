@@ -103,7 +103,7 @@ def plain_framework_name(framework_id: str | None) -> str | None:
     return plain if _same_words(plain, acronym) else f"{plain} ({acronym})"
 
 
-def _serialize(t: Tutor) -> dict:
+def _serialize(t: Tutor, *, viewer: User | None = None) -> dict:
     persona = load_persona(t.persona_id) if t.persona_id else None
     fw = effective_framework(t.framework_id)
     return {
@@ -126,7 +126,22 @@ def _serialize(t: Tutor) -> dict:
         # "KineBot" for a class whose activity runs concept-dialogue is
         # incoherent. The picker filters on this.
         "isSkillBound": t.is_skill_bound,
+        # TUTOR-2 M2 — computed HERE, per row, never re-derived in the client.
+        # A second copy of an access rule disagrees with the first the moment
+        # one changes; `canEdit` on the custom-approach list is the precedent.
+        #
+        # Only an AUTHORED tutor is editable at all: a YAML base has no
+        # Firestore row, so "share" and "delete" have nothing to act on. That is
+        # why this asks the store rather than trusting the object in hand.
+        "canEdit": _may_edit(t, viewer),
     }
+
+
+def _may_edit(t: Tutor, viewer: User | None) -> bool:
+    """Owner, or a researcher, and only for a tutor that has a stored row."""
+    if viewer is None or get_authored_tutor(t.id) is None:
+        return False
+    return bool(viewer.is_researcher or (t.author_uid and t.author_uid == viewer.uid))
 
 
 class TutorWrite(BaseModel):
@@ -185,8 +200,8 @@ async def list_tutors_route(user: User = Depends(get_current_user)) -> dict:  # 
         # Identity tutors only — what a class can actually be given. The
         # skill-bound four are addressable via /api/tutors/{id} and live in
         # `skillBoundTutors` for research use.
-        "tutors": [_serialize(t) for t in catalogue if not t.is_skill_bound],
-        "skillBoundTutors": [_serialize(t) for t in catalogue if t.is_skill_bound],
+        "tutors": [_serialize(t, viewer=user) for t in catalogue if not t.is_skill_bound],
+        "skillBoundTutors": [_serialize(t, viewer=user) for t in catalogue if t.is_skill_bound],
         # The picker needs these to offer "create a variant" without a second
         # round trip, and to render a framework chooser.
         "frameworks": [

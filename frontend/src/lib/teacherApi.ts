@@ -1365,6 +1365,15 @@ export interface TutorPayload {
   requiresGroupTalk?: boolean;
   skillName?: string | null;
   lineage: { kind: "original" | "variant-of"; parentTutorId?: string | null };
+  /** TUTOR-2 M0. Absent reads as "shared" — absent is NOT private, which is
+   *  what stops tutors written before the field vanishing from every picker. */
+  visibility?: "private" | "shared" | null;
+  authorUid?: string | null;
+  authorRole?: "researcher" | "teacher";
+  /** Computed SERVER-side per row: owner or researcher, and only for a tutor
+   *  that has a stored row (a YAML base has nothing to share or delete). Never
+   *  re-derived here. */
+  canEdit?: boolean;
   persona: { id: string; name: string; title?: string | null; avatar: string } | null;
   frameworkName: string | null;
   frameworkSummary: string | null;
@@ -1426,6 +1435,50 @@ export async function setClassTutor(classId: string, tutorId: string | null): Pr
 }
 
 /** Researcher-only: fork a tutor, keeping lineage to the parent. */
+/** Author a tutor from scratch (TUTOR-2 M2).
+ *
+ *  A teacher must name an approach: 1.1.91 kept teachers out of authoring
+ *  because "a tutor with a theory field and no theory in it makes an unfounded
+ *  claim look founded", and the gate moved from the person to the tutor — the
+ *  claim lives on the approach, where it can be read. The backend refuses a
+ *  teacher's tutor with no `frameworkId` (400). */
+export async function createTutor(input: {
+  id: string;
+  displayName: string;
+  summary?: string | null;
+  personaId?: string | null;
+  frameworkId?: string | null;
+  interactionStyle?: TutorPayload["interactionStyle"];
+}): Promise<TutorPayload> {
+  const resp = await fetchWithAuth("/api/proxy/api/research/tutors", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return readJson<TutorPayload>(resp, "create tutor");
+}
+
+/** Share a tutor, or take it back (TUTOR-2 M0) — the activities library's
+ *  gesture, and its word: the badge reads "Shared". */
+export async function setTutorVisibility(
+  tutorId: string,
+  visibility: "private" | "shared",
+): Promise<TutorPayload> {
+  const resp = await fetchWithAuth(`/api/proxy/api/research/tutors/${encodeURIComponent(tutorId)}/visibility`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ visibility }),
+  });
+  return readJson<TutorPayload>(resp, "set tutor visibility");
+}
+
+export async function deleteTutor(tutorId: string): Promise<void> {
+  const resp = await fetchWithAuth(`/api/proxy/api/research/tutors/${encodeURIComponent(tutorId)}`, {
+    method: "DELETE",
+  });
+  if (!resp.ok) throw new Error(`delete tutor: ${resp.status}`);
+}
+
 export async function createTutorVariant(input: {
   parentId: string;
   id: string;

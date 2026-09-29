@@ -16,6 +16,7 @@ import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 import { TeacherTabs } from "@/components/teacher/ui/TeacherTabs";
 import { FrameworkStructureEditor } from "@/components/teacher/research/FrameworkStructureEditor";
 import { CustomApproachPanel } from "@/components/teacher/research/CustomApproachPanel";
+import { MyTutorsPanel } from "@/components/teacher/research/MyTutorsPanel";
 import { PublishedApproachList } from "@/components/teacher/research/PublishedApproachList";
 import { TutorPreviewPanel } from "@/components/teacher/research/TutorPreviewPanel";
 import { TutorCrossviewPanel } from "@/components/teacher/research/TutorCrossviewPanel";
@@ -43,6 +44,7 @@ const copy = {
   tabTry: "Try them",
   tabUsage: "Usage",
   tabYours: "Your approaches",
+  tabTutors: "Tutors",
   // Rail hints — seven theory names look alike in a list; their state is what
   // tells them apart without opening one.
   railPlaceholder: "Awaiting content",
@@ -330,6 +332,12 @@ export default function ResearchFrameworksPage() {
               // write my own.
               { id: "published", label: copy.tabApproaches, content: <PublishedApproachList /> },
               { id: "yours", label: copy.tabYours, content: <CustomApproachPanel /> },
+              // TUTOR-2 M2 — where a tutor is MADE. The home
+              // TutorVariantDialog's own docstring asked for on 2026-09-11
+              // when it was dropped from the class settings page: "a class is
+              // where you CHOOSE a tutor; authoring a research instrument is a
+              // different job done at a different moment".
+              { id: "tutors", label: copy.tabTutors, content: <MyTutorsPanel /> },
             ]}
           />
         </div>
@@ -397,6 +405,11 @@ export default function ResearchFrameworksPage() {
                 ),
               },
               { id: "try", label: copy.tabTry, content: <TutorPreviewPanel /> },
+              // TUTOR-2 M2 — the SAME authoring panel the teacher tier gets.
+              // One surface, graded by role: `canEdit` is computed per row on
+              // the server, so a researcher simply sees more rows as theirs to
+              // act on rather than meeting a different component.
+              { id: "tutors", label: copy.tabTutors, content: <MyTutorsPanel /> },
               // Researcher-only: a cross-tenancy read of every teacher's work
               // (1.1.91 M4). The teacher tier never renders it.
               { id: "usage", label: copy.tabUsage, content: <TutorCrossviewPanel /> },
