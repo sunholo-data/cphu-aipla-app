@@ -1,6 +1,6 @@
 # Review a group's work beside its conversation, not just the conversation
 
-**Status:** Design (OPEN) — **1.1.136**
+**Status:** 🚧 PARTIAL — **1.1.136** · M0, M1, M3 shipped 2026-09-29 (sprint CLASSVISIT-1, lane D) · M2, M4 OPEN (next sprint, sequenced with 1.1.99)
 **Priority:** **P1** — directly serves the extension's strategic bet (*"rubric-scored logs as assessment evidence"*, [plan](../v2.1.0-extension/plan-2026-09-to-2027-04.md) workstream D). A transcript without the table it discusses is half the evidence. Needs only researchers and **existing** data, so it is **un-gated** by either legal blocker
 **Estimated:** ~3–4d phased (M0 labelled events ~0.5d · M1 interleaved timeline ~1.5d · M2 final-state panel ~0.75d · M3 researcher read + lens wiring ~0.5d · M4 rubric evidence ~0.5d)
 **Scope:** Backend: `observability/chat_log.py` (`emit_workbench_event`), `protocols/iframe_context_routes.py`, `reports/session_summary.py`, `analytics/research_logs.py`, `protocols/{table,writing}_progress_routes.py`, `analytics/rubric_evidence.py`, the `aipla_workbench_event` BQ view (`infrastructure/modules/chat-logs/views.tf`). Frontend: `components/teacher/research/ChatLogTranscript.tsx`, `app/teacher/reports/groups/[groupId]/page.tsx`, `app/teacher/insights/conversations/page.tsx`, the four `Workbench*` elements (label on push)
@@ -147,6 +147,68 @@ Google data agreement lands (Nov–Dec).
 - Live updates. That is 1.1.99.
 - History in the Firestore stores. BQ already is the history, so do not add
   a second one.
+
+## What shipped — 2026-09-29
+
+Sprint CLASSVISIT-1, lane D. M0, M1 and M3; M2 and M4 are the next sprint.
+
+**M0 — every workbench event says what it was.**
+- `emit_workbench_event` takes optional `activity_id`, `class_id`, `label`;
+  the `workbench_events` view selects them (`views.tf` — **committed, not
+  applied**; `make tf-apply` is a human step). A lockstep test fails if the
+  emitter writes a key the view does not select.
+- The iframe-context route passes the card label through, the class from the
+  student's **verified group tags** (never a request field), and the activity
+  from the client (telemetry only — it grants nothing).
+- ⚠️ **Deviation: a second wire field, `logLabel`.** Putting the card label on
+  *every* push would have broken two things the design did not account for:
+  `_label` is what the transcript restore renders, and a labelled push bumps
+  the group revision. A table pushes per cell commit and a writing element per
+  autosave, but each shows ONE debounced card — so a card label per push would
+  restore one card per cell on reload and trigger a groupmate refetch per
+  cell. One-shot elements (calculator, checklist, sims) send the card label as
+  before (and now also sync live to a groupmate, which 1.1.53 intended);
+  per-commit and `.sync` pushes send the same text as `logLabel`, which reaches
+  BigQuery only. The BQ `label` column is `label or logLabel`.
+- `scripts/audit-trust-cards.sh` now also fails any `useSimSnapshotPush` call
+  with neither a card label (3rd argument) nor a `logLabel` (4th), naming the
+  file and line.
+
+**M1 — one timeline.**
+- `analytics/research_logs.session_timeline`. ⚠️ **Deviation: two queries, not
+  one `UNION ALL`.** The workbench sink table only exists once an event has been
+  written, so a union would fail the whole read — the transcript included — on
+  a fresh environment. The turns query raises (the route's 503); the work query
+  degrades to `workStatus: "unreadable"`, which the UI states rather than
+  showing "no work".
+- **Ordering:** both turns of an invocation are logged *after* the reply, so a
+  student turn carries its answer's time. It is re-anchored at `tutor.ts −
+  latency_ms`; otherwise table edits made while the tutor was thinking would
+  sort before the question. Turn order itself is never changed.
+- Routes (both off the event loop): `GET /api/research/logs/sessions/{id}/timeline`
+  (researcher-only) and `GET /api/research/logs/groups/{code}/sessions/{id}/timeline`
+  for the group report — class owner or researcher, narrowed to that group, the
+  same 404 for everyone else. It lives in `research_logs_routes.py` rather than
+  `reports_routes.py` so the report's summary path was untouched (lane A owned it).
+- `ChatLogTranscript` renders work as compact cards carrying the trust-card
+  label (a derived label for rows before today), folds same-element bursts
+  within 30 s with a count, and expands into the state at that moment (table
+  as a grid, writing as text, calculator and checklist as lists). Used on
+  `/teacher/insights/conversations` and on the group report, which **retires the
+  80-char "Workbench activity" list**. If the labelled timeline cannot be read
+  (a session with no BigQuery rows yet), the report interleaves its own payload.
+
+**M3 — researchers can read it.** The all-groups branch of the table, writing,
+checklist **and** concept progress GETs goes through one rule
+(`protocols/progress_read_access.py`): `?classId=` → `assert_can_read_class`,
+narrowed to that class's group codes; no class → the activity owner (unchanged)
+or a researcher (span-tagged). Anyone else: the same 404 as an unknown
+activity. Students still read only their own group. The Firestore scan moved off
+the event loop. No UI calls these yet — M2 is the first consumer.
+
+**Not done here:** the Exports section (timeline rows in CSV/JSON — needs
+1.1.137's `downloadCsv`, lane C) · M2 · M4 · the photo placeholder card (the
+solution element does not push, so there is no event to hang it on; M2).
 
 ## Acceptance
 
