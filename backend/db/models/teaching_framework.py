@@ -212,6 +212,14 @@ class TeachingFramework(BaseModel):
     # they are authored in git, and git records who wrote them.
     author_uid: str | None = Field(default=None, alias="authorUid", max_length=128)
     author_role: Literal["researcher", "teacher"] | None = Field(default=None, alias="authorRole")
+    # TUTOR-2 M0 — who else sees it. Same two states and the same absent rule as
+    # ``Tutor.visibility``: ABSENT IS NOT PRIVATE, it is what the row meant
+    # before the field existed (shared). This changes what 1.1.110 shipped — it
+    # listed every approach to every caller — because one teacher's half-drafted
+    # approach in everyone's list is the same noise a half-drafted tutor would
+    # be, and two sharing models on one screen is worse than changing one.
+    # Always None on the seven published frameworks: they are not in this store.
+    visibility: Literal["private", "shared"] | None = None
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
@@ -219,6 +227,16 @@ class TeachingFramework(BaseModel):
     def is_custom(self) -> bool:
         """A free-text approach someone wrote, not a framework from the literature."""
         return self.layer == "custom"
+
+    def visible_to(self, uid: str | None, *, see_all: bool = False) -> bool:
+        """Whether this approach belongs in ``uid``'s list (TUTOR-2 M0).
+
+        A published framework is always visible — it is the literature, not
+        somebody's draft. ``see_all`` is the researcher bypass.
+        """
+        if not self.is_custom or see_all or (self.visibility or "shared") == "shared":
+            return True
+        return bool(uid) and self.author_uid == uid
 
     @property
     def is_placeholder(self) -> bool:

@@ -46,6 +46,17 @@ AuthorRole = Literal["researcher", "teacher"]
 # ``edited`` means a human has since changed it and the trace is partial.
 PromptProvenance = Literal["generated", "edited", "authored"]
 
+# Who else can see it (1.1.135 / TUTOR-2 M0). The gesture and the word are the
+# activities library's: `Activity.visibility`'s `published` is already LABELLED
+# "Shared" in the UI, so a teacher meets one vocabulary, not two.
+#
+# TWO states, not activities' three, and the difference is not an oversight: an
+# activity folds lifecycle and sharing into one field, while a tutor's lifecycle
+# already lives in ``status`` (draft/ready/in-use), which 1.1.91 uses to decide
+# when an edit must fork a version. A ``draft`` visibility would put "not
+# finished" in two fields that can disagree.
+TutorVisibility = Literal["private", "shared"]
+
 
 class TutorLineage(BaseModel):
     """Variant-of, as ALS-SHARE already does it for activities.
@@ -114,6 +125,15 @@ class Tutor(BaseModel):
     author_uid: str | None = Field(default=None, alias="authorUid", max_length=128)
     author_role: AuthorRole = Field(default="researcher", alias="authorRole")
 
+    # ⚠️ ABSENT IS NOT PRIVATE. ``None`` means the row was written before this
+    # field existed and reads as ``shared`` — the behaviour it already had. A
+    # blanket private default would empty every class's tutor picker at once
+    # (four rows on prod, every one of them a base a class may be using). A
+    # newly created tutor is written "private" EXPLICITLY by the route, so the
+    # two cases stay distinguishable forever. Same discipline as CONCEPT-2 M3's
+    # ``defaultConceptMap``.
+    visibility: TutorVisibility | None = None
+
     created_at: datetime | None = Field(default=None, alias="createdAt")
     updated_at: datetime | None = Field(default=None, alias="updatedAt")
 
@@ -128,6 +148,23 @@ class Tutor(BaseModel):
     @property
     def is_variant(self) -> bool:
         return self.lineage.kind == "variant-of"
+
+    @property
+    def effective_visibility(self) -> TutorVisibility:
+        """What an absent ``visibility`` means. Read this, never the raw field."""
+        return self.visibility or "shared"
+
+    def visible_to(self, uid: str | None, *, see_all: bool = False) -> bool:
+        """Whether this tutor belongs in ``uid``'s catalogue.
+
+        ``see_all`` is the researcher bypass (M, 2026-09-28: "researchers always
+        see all") — the lineage question 1.1.91 exists to answer, *SDT as
+        designed versus SDT as thirty teachers adapted it*, is unanswerable over
+        a filtered view. The CALLER logs it; this function only decides.
+        """
+        if see_all or self.effective_visibility == "shared":
+            return True
+        return bool(uid) and self.author_uid == uid
 
     def next_version(self) -> Tutor:
         """A copy bumped one version — the shape an M1 edit takes on an in-use
@@ -162,6 +199,7 @@ __all__ = [
     "Tutor",
     "TutorLineage",
     "TutorStatus",
+    "TutorVisibility",
     "resolve_tutor_framework",
     "resolve_tutor_persona",
 ]

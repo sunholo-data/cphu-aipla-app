@@ -353,6 +353,12 @@ def test_can_edit_is_computed_server_side_per_row():
     time one changed."""
     _create(TEACHER)
     _client(OTHER_TEACHER).post("/api/research/frameworks/custom", json={**_BODY, "label": "Strict coach"})
+    # TUTOR-2 M0: a new approach is PRIVATE, so the other teacher's has to be
+    # shared before it is in this teacher's list at all. That is the behaviour
+    # change from 1.1.110, which listed every approach to every caller.
+    _client(OTHER_TEACHER).put(
+        "/api/research/frameworks/custom/custom-strict-coach/visibility", json={"visibility": "shared"}
+    )
 
     rows = _client(TEACHER).get("/api/research/frameworks/custom/list").json()["approaches"]
     by_id = {r["id"]: r for r in rows}
@@ -625,3 +631,43 @@ def test_zero_usage_is_zero_when_the_store_answered(monkeypatch):
     assert others, "fixture would be vacuous with only one approach"
     assert all(a["turns"] == 0 for a in others)
     assert body["usageAvailable"] is True
+
+
+def test_another_teachers_unshared_approach_is_not_in_your_list():
+    """The 1.1.110 change, pinned. One teacher's half-drafted approach in
+    everyone's list is the noise this removes."""
+    _create(TEACHER)
+    _client(OTHER_TEACHER).post("/api/research/frameworks/custom", json={**_BODY, "label": "Strict coach"})
+
+    mine = {r["id"] for r in _client(TEACHER).get("/api/research/frameworks/custom/list").json()["approaches"]}
+    assert "custom-warm-coach" in mine
+    assert "custom-strict-coach" not in mine
+
+    # ...and a researcher sees both, because researchers always see all.
+    theirs = {r["id"] for r in _client(RESEARCHER).get("/api/research/frameworks/custom/list").json()["approaches"]}
+    assert {"custom-warm-coach", "custom-strict-coach"} <= theirs
+
+
+def test_sharing_an_approach_is_its_own_act_and_an_edit_never_does_it():
+    """An edit that could change who sees a thing is an edit that shares it by
+    accident — so the edit body has no visibility field at all."""
+    _create(TEACHER)
+    c = _client(TEACHER)
+    c.put("/api/research/frameworks/custom/custom-warm-coach/visibility", json={"visibility": "shared"})
+    assert "custom-warm-coach" in {
+        r["id"] for r in _client(OTHER_TEACHER).get("/api/research/frameworks/custom/list").json()["approaches"]
+    }
+
+    c.put("/api/research/frameworks/custom/custom-warm-coach", json={**_BODY, "summary": "edited"})
+    assert "custom-warm-coach" in {
+        r["id"] for r in _client(OTHER_TEACHER).get("/api/research/frameworks/custom/list").json()["approaches"]
+    }
+
+    # A body that smuggles `visibility` is not rejected — CustomApproachBody
+    # documents that extra fields are ignored, the same contract authorUid has —
+    # but it must not take effect. Asserting the GUARANTEE (it stays shared),
+    # not the mechanism (a 422 that would contradict that documented decision).
+    c.put("/api/research/frameworks/custom/custom-warm-coach", json={**_BODY, "visibility": "private"})
+    assert "custom-warm-coach" in {
+        r["id"] for r in _client(OTHER_TEACHER).get("/api/research/frameworks/custom/list").json()["approaches"]
+    }

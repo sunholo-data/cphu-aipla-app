@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import logging
 import re
+from typing import Literal
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Path
 from pydantic import BaseModel, ConfigDict, Field
@@ -31,7 +32,16 @@ from db.framework_overrides import effective_framework
 from db.models.activity_config import InteractionStyle
 from db.models.tutor import Tutor
 from db.tutor_assignments import clear_assignment, get_assignment, set_assignment
-from db.tutors import create_variant, delete_authored_tutor, list_tutor_catalogue, resolve_tutor, save_tutor
+from db.tutors import (
+    create_variant,
+    delete_authored_tutor,
+    get_authored_tutor,
+    list_tutor_catalogue,
+    resolve_tutor,
+    resolve_tutor_for,
+    save_tutor,
+    set_visibility,
+)
 from frameworks.loader import load_frameworks
 from personas.loader import load_persona
 
@@ -164,7 +174,13 @@ def _validate_refs(tutor_id: str, persona_id: str | None, framework_id: str | No
 async def list_tutors_route(user: User = Depends(get_current_user)) -> dict:  # noqa: B008
     """The pickable catalogue: base tutors first, then variants."""
     assert_teacher(user)
-    catalogue = list_tutor_catalogue()
+    # TUTOR-2 M0 — scoped to what this caller may see. A researcher's read is
+    # UNFILTERED and logged: the lineage question 1.1.91 exists to answer is
+    # unanswerable over a filtered view, and an elevated read that leaves no
+    # trace is the thing `_load_for_modify` already refuses to do for activities.
+    if user.is_researcher:
+        log.info("tutors: unfiltered catalogue read by researcher uid=%s", user.uid)
+    catalogue = list_tutor_catalogue(user.uid, see_all=user.is_researcher)
     return {
         # Identity tutors only — what a class can actually be given. The
         # skill-bound four are addressable via /api/tutors/{id} and live in
@@ -191,7 +207,10 @@ async def get_tutor_route(
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict:
     assert_teacher(user)
-    t = resolve_tutor(tutor_id)
+    # As a PERSON sees it: an authored tutor they cannot see falls back to the
+    # YAML base rather than 404ing, so one researcher's private draft of "Sofie"
+    # does not delete Sofie for every teacher.
+    t = resolve_tutor_for(tutor_id, user.uid, see_all=user.is_researcher)
     if t is None:
         raise HTTPException(status_code=404, detail="tutor not found")
     return _serialize(t)
@@ -248,7 +267,10 @@ async def set_class_tutor_route(
         raise HTTPException(status_code=404, detail="class not found")
     if cls.owner_uid and cls.owner_uid != user.uid and not user.is_researcher:
         raise HTTPException(status_code=403, detail="not your class")
-    if body.tutor_id and resolve_tutor(body.tutor_id) is None:
+    # TUTOR-2 M0 — resolved the way the PICKER resolved it, so the two cannot
+    # disagree: a teacher may only set a tutor their own catalogue offered them.
+    chosen = resolve_tutor_for(body.tutor_id, user.uid, see_all=user.is_researcher) if body.tutor_id else None
+    if body.tutor_id and chosen is None:
         raise HTTPException(status_code=400, detail=f"unknown tutor: {body.tutor_id}")
     if body.tutor_id:
         _assert_setting_fits_class(resolve_tutor(body.tutor_id), cls)
@@ -266,7 +288,25 @@ async def create_tutor_route(
     body: TutorWrite = Body(...),  # noqa: B008
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict:
-    assert_researcher(user)
+    """Author a tutor from scratch.
+
+    TUTOR-2 M2 opens this to teachers **on one condition**: the tutor must name
+    an approach. 1.1.91 M1 kept teachers out because *"a tutor with a theory
+    field and no theory in it makes an unfounded claim look founded"* — that
+    objection is about the CLAIM, and 1.1.110 already showed where the claim
+    actually lives: a custom approach is labelled as authored and claims
+    nothing, which is why teachers were given those. So the rule is not "who you
+    are" but "the tutor points at an approach somebody can read". A researcher
+    may still author one with no framework at all — that is a deliberate
+    baseline arm (the four skill-bound tutors are exactly that, and 1.1.92
+    measures against them).
+    """
+    assert_teacher(user)
+    if not user.is_researcher and not body.framework_id:
+        raise HTTPException(
+            status_code=400,
+            detail="choose a teaching approach for this tutor — or start from an existing tutor instead",
+        )
     _validate_refs(body.id, body.persona_id, body.framework_id)
     tutor = Tutor(
         id=body.id,
@@ -275,7 +315,9 @@ async def create_tutor_route(
         personaId=body.persona_id,
         frameworkId=body.framework_id,
         interactionStyle=body.interaction_style,
-        authorRole="researcher",
+        authorRole="researcher" if user.is_researcher else "teacher",
+        # New rows are private EXPLICITLY — see Tutor.visibility.
+        visibility="private",
     )
     saved = save_tutor(tutor, updated_by=user.uid)
     log.info("tutor authored: id=%s by=%s", saved.id, user.uid)
@@ -287,8 +329,14 @@ async def create_variant_route(
     body: VariantWrite = Body(...),  # noqa: B008
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict:
-    """Fork an existing tutor. The parent is never written to."""
-    assert_researcher(user)
+    """Fork an existing tutor. The parent is never written to.
+
+    TUTOR-2 M2: re-gated from ``assert_researcher`` to ``assert_teacher``. 1.1.91
+    M1 restricted teachers to variants *of* an existing tutor, which is exactly
+    what this endpoint makes — the restriction was never "researchers only", it
+    was "not a blank tutor with an empty theory field".
+    """
+    assert_teacher(user)
     _validate_refs(body.id, body.persona_id, body.framework_id)
     if resolve_tutor(body.id) is not None:
         raise HTTPException(status_code=409, detail=f"a tutor with id {body.id} already exists")
@@ -302,6 +350,7 @@ async def create_variant_route(
             persona_id=body.persona_id,
             interaction_style=body.interaction_style,
             summary=body.summary,
+            author_role="researcher" if user.is_researcher else "teacher",
         )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -446,3 +495,34 @@ async def preview_prompt_route(
     if not composed.get("ok"):
         raise HTTPException(status_code=404, detail=composed.get("error", "unknown tutor"))
     return composed
+
+
+class VisibilityWrite(BaseModel):
+    """Share an authored tutor, or take it back (TUTOR-2 M0)."""
+
+    visibility: Literal["private", "shared"]
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+@router.put("/api/research/tutors/{tutor_id}/visibility")
+async def set_tutor_visibility_route(
+    body: VisibilityWrite = Body(...),  # noqa: B008
+    tutor_id: str = Path(...),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """The share control's endpoint — the activities library's gesture, for a tutor.
+
+    Owner-only, and a researcher may share anyone's: the same asymmetry 1.1.110
+    already draws for custom approaches, where a researcher may edit any of them
+    and a teacher only their own.
+    """
+    assert_teacher(user)
+    tutor = get_authored_tutor(tutor_id)
+    # A YAML base has no row to write visibility onto and is shared by
+    # definition, so this is 404 rather than a write that silently does nothing.
+    if tutor is None or (not user.is_researcher and tutor.author_uid != user.uid):
+        raise HTTPException(status_code=404, detail="tutor not found")
+    updated = set_visibility(tutor_id, body.visibility)
+    log.info("tutor visibility: id=%s -> %s by=%s", tutor_id, body.visibility, user.uid)
+    return _serialize(updated) if updated else {}

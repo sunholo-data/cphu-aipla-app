@@ -18,6 +18,7 @@ property the whole framework layer exists for.
 from __future__ import annotations
 
 import logging
+from typing import Literal
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Path
 from pydantic import BaseModel, ConfigDict, Field
@@ -328,15 +329,22 @@ def _custom_or_404(framework_id: str) -> TeachingFramework:
 async def list_custom_approaches_route(
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict:
-    """Every custom approach, with whether THIS caller may edit each one.
+    """The custom approaches THIS caller may see, and may edit.
 
     ``canEdit`` is computed server-side and sent per row rather than left to the
     client to derive. A UI deriving it would be a second copy of the rule, and
     the two would disagree the first time one changed — the shape of the
     money-gate join footgun.
+
+    TUTOR-2 M0 narrows the list itself: 1.1.110 returned every approach to every
+    caller, which put one teacher's half-drafted approach in everyone's list.
+    Absent visibility still reads as SHARED, so nothing authored before this
+    disappears. A researcher's read is unfiltered and logged, as for tutors.
     """
     assert_teacher(user)
-    rows = list_authored_frameworks()
+    if user.is_researcher:
+        log.info("frameworks: unfiltered custom-approach read by researcher uid=%s", user.uid)
+    rows = list_authored_frameworks(user.uid, see_all=user.is_researcher)
     return {
         "approaches": [
             {
@@ -378,6 +386,41 @@ async def create_custom_approach_route(
         author_role="researcher" if user.is_researcher else "teacher",
     )
     log.info("custom approach created: %s by %s", saved.id, user.uid)
+    return {**saved.model_dump(by_alias=True, mode="json"), "canEdit": True}
+
+
+class ApproachVisibilityBody(BaseModel):
+    """Share a custom approach, or take it back (TUTOR-2 M0)."""
+
+    visibility: Literal["private", "shared"]
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+@router.put("/custom/{framework_id}/visibility")
+async def set_custom_approach_visibility_route(
+    framework_id: str = Path(...),
+    body: ApproachVisibilityBody = Body(...),  # noqa: B008
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """The share control for an approach — the tutor gesture, same word.
+
+    Its OWN endpoint rather than a field on the edit body, deliberately: an edit
+    that could change who sees a thing is an edit that shares it by accident.
+    Same reason ``PUT /api/activities/{id}/links`` is not part of the activity
+    upsert.
+    """
+    assert_teacher(user)
+    existing = _custom_or_404(framework_id)
+    if not may_edit(existing, uid=user.uid, is_researcher=user.is_researcher):
+        raise HTTPException(status_code=403, detail="this approach belongs to someone else")
+    saved = save_authored_framework(
+        existing.model_copy(update={"visibility": body.visibility}),
+        author_uid=user.uid,
+        author_role="researcher" if user.is_researcher else "teacher",
+        set_visibility=body.visibility,
+    )
+    log.info("custom approach visibility: %s -> %s by %s", framework_id, body.visibility, user.uid)
     return {**saved.model_dump(by_alias=True, mode="json"), "canEdit": True}
 
 

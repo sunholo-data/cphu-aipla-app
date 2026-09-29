@@ -87,11 +87,23 @@ def get_authored_framework(framework_id: str | None) -> TeachingFramework | None
     return _row_to_framework(get_document(COLLECTION, str(framework_id)))
 
 
-def list_authored_frameworks() -> list[TeachingFramework]:
-    """Every custom approach, malformed rows skipped rather than fatal."""
+def list_authored_frameworks(
+    for_uid: str | None = None,
+    *,
+    see_all: bool = False,
+) -> list[TeachingFramework]:
+    """Custom approaches this caller may see; malformed rows skipped, not fatal.
+
+    ``for_uid`` omitted keeps the pre-TUTOR-2 behaviour (everything), because
+    the agent path and the framework loader are not a person and must never be
+    filtered — a student's lesson resolving a framework has no uid to filter by,
+    and filtering it would silently change what a tutor was taught with.
+    """
     rows = query_documents(COLLECTION) or []
-    out = [_row_to_framework(r) for r in rows]
-    return sorted((f for f in out if f), key=lambda f: f.label.lower())
+    out = [f for f in (_row_to_framework(r) for r in rows) if f]
+    if for_uid is not None:
+        out = [f for f in out if f.visible_to(for_uid, see_all=see_all)]
+    return sorted(out, key=lambda f: f.label.lower())
 
 
 def save_authored_framework(
@@ -99,6 +111,7 @@ def save_authored_framework(
     *,
     author_uid: str,
     author_role: str,
+    set_visibility: str | None = None,
 ) -> TeachingFramework:
     """Create or replace a custom approach.
 
@@ -116,6 +129,17 @@ def save_authored_framework(
     row["source"] = "firestore"
     row["authorUid"] = existing.author_uid if existing else author_uid
     row["authorRole"] = existing.author_role if existing else author_role
+    # TUTOR-2 M0 — a NEW approach is private explicitly; an edit keeps whatever
+    # the author chose. Never re-derived from the incoming body: sharing is its
+    # own deliberate act, not something a save can do by accident.
+    # TUTOR-2 M0 — a NEW approach is private explicitly; an edit keeps whatever
+    # the author chose. Changing it takes the dedicated visibility endpoint
+    # (``set_visibility``), because an edit that could change who sees a thing
+    # is an edit that shares it by accident.
+    if set_visibility is not None:
+        row["visibility"] = set_visibility
+    else:
+        row["visibility"] = (existing.visibility if existing else None) or "private"
     row["updatedBy"] = author_uid
     row["updatedAt"] = datetime.now(UTC).isoformat()
     row["version"] = int((get_document(COLLECTION, framework.id) or {}).get("version") or 0) + 1
