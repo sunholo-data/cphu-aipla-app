@@ -155,6 +155,15 @@ A label should name what was shared, in Danish (student-facing UI is Danish):
 `Beregnede Fart = 10`, `Datatabel delt med vejlederen (3 felter)`,
 `Markerede 'a' som klar`.
 
+**Every push must also be labelled for the review log (1.1.136 M0, CI-enforced).**
+Researchers and teachers read workbench events beside the transcript, and an
+unlabelled push shows up there as a bare `server · field · value` row. Each
+`useSimSnapshotPush` call must carry **either** a card label (3rd argument,
+non-null) **or** a `logLabel` in its 4th (meta) argument. Use `logLabel` for
+continuous-entry pushes (a table cell, writing autosave): it reaches BigQuery
+only, so it does not restore one card per cell or bump the group revision per
+keystroke. `make audit-trust-cards` fails on a push with neither.
+
 ## Workflow
 
 1. **Find the interaction shape** in the table above. If the element is
