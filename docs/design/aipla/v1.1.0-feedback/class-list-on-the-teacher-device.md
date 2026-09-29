@@ -1,6 +1,6 @@
 # A class list that never leaves the teacher's device — names against codes, exported to Excel
 
-**Status:** Design (OPEN) — **1.1.137**
+**Status:** ✅ M0–M2 SHIPPED 2026-09-29 (CLASSVISIT-1 lane C) — **1.1.137**. The CI guard (§Guard) is not built yet
 **Priority:** **P1 (M0–M1)** — teacher-sourced, cheap, and needs only teachers, so it is **un-gated**. **M0 also fixes a latent bug in every existing export.** The server-side alternative is **not** P-anything until JB decides, see *The line this does not cross*
 **Estimated:** ~1–1.25d (M0 Excel-safe export ~0.25d · M1 the class list sheet ~0.75d · M2 import back ~0.25d)
 **Scope:** Frontend only: `lib/download.ts`, `app/teacher/classes/[id]/page.tsx` (codes list :400–515), a new `_ClassListSheet.tsx`, `messages/{da,en}/`. **No backend change, by design**
@@ -124,3 +124,44 @@ If JB takes that up, decide both together.
   value per cell.
 - A test proves no request carries a names value.
 - The existing transcript CSV export opens correctly in Danish Excel (M0 fixes it).
+
+## What shipped — 2026-09-29
+
+CLASSVISIT-1 lane C. Frontend only; no backend file changed.
+
+- **M0 — `lib/download.ts`.** `downloadCsv` now writes a UTF-8 BOM
+  (`toCsv`, exported so the bytes are testable), which fixes æøå in the
+  existing transcript and group-report exports. ⚠️ **The BOM fixes the
+  encoding, not the separator:** Danish Excel still splits a double-clicked
+  comma CSV on `;`. A `sep=,` line would fix that but makes Excel ignore the
+  BOM, so it was not added; the class list sidesteps it by writing xlsx.
+  `parseCsv` (BOM-stripping, separator auto-detected by *consistency* so a `;`
+  file full of "Anna, Bo, Carl" names still parses) serves M2.
+- **M0 — `lib/xlsx.ts`, no new dependency.** A STORED ZIP writer + CRC-32 and
+  the five minimal parts, inline strings, XML-escaped (forbidden control
+  characters dropped). `downloadXlsx(filename, rows, {sheetName, columnWidths})`.
+  Verified outside the test suite: `unzip -t` clean, `openpyxl` reads every
+  cell with æøå intact, LibreOffice headless converts it. **Not verified in
+  desktop Excel** — a teacher's first download is that check.
+- **M1 — `_ClassListSheet.tsx`,** mounted as a collapsed "Class list" section
+  on the class page, between Groups and Class settings. One row per live code
+  (`cls.groupCodes`, which a revoke removes), join link, "Names (only on this
+  device)", Note. Stored only in `localStorage` `aipla.classlist.{classId}`,
+  every access in try/catch; if storage is refused the page says so. Writes
+  keep live codes only, so a revoked code's names leave the device too. Copy
+  is a `da`/`en` object; the page passes `en` (teacher surfaces stay English
+  until i18n M2).
+- **M2 — import.** Parsed in the browser: xlsx by magic bytes, else CSV.
+  Matched on Code, header row found in either language, a non-empty cell
+  overwrites and an empty one keeps what is on the device. Files **re-saved by
+  Excel** (DEFLATE + `sharedStrings.xml`) are read through
+  `DecompressionStream('deflate-raw')`; a browser without it gets "save as CSV
+  and import that".
+- **Tests.** `lib/__tests__/xlsx.test.ts` walks the archive independently of
+  the reader (local headers, central directory, CRCs, EOCD) and reads a
+  hand-built deflate + shared-strings file. `_ClassListSheet.test.tsx` spies on
+  `fetch`, `fetchWithAuth` and `fetchWithTeacherAuth` while a name is typed,
+  downloaded and imported, and asserts none was called and none carries it;
+  plus persistence across remount, revoked-code exclusion, storage-refused
+  warning, import. `page.test.tsx` repeats the no-request check on the real
+  page while a group is minted.

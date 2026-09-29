@@ -47,6 +47,7 @@ import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 import { handleExportSessions } from "./_exportHelpers";
 import { ClassAnalyticsCopilot } from "./_ClassAnalyticsCopilot";
 import { LiveClassView } from "./_LiveClassView";
+import { ClassListSheet, classListCopy } from "./_ClassListSheet";
 // 1.1.108: teacher surfaces are English until M2 extracts them; pinned so the
 // relative time does not turn Danish inside an English sentence.
 import { formatRelativeTime } from "@/lib/relativeTime";
@@ -523,6 +524,25 @@ export default function TeacherClassDetailPage() {
             })}
           </ul>
         )}
+      </SettingsSection>
+
+      {/* 1.1.137 — names against codes, kept ONLY in this browser (ADR-001).
+          Collapsed by default: it is a before/after-lesson tool, and closed it
+          renders nothing, so no code appears twice on the page. */}
+      <SettingsSection
+        id="class-list"
+        title={classListCopy.en.title}
+        description={classListCopy.en.description}
+        collapsible
+        defaultOpen={false}
+      >
+        <ClassListSheet
+          classId={cls.classId}
+          className={cls.name}
+          codes={cls.groupCodes}
+          joinOrigin={joinOrigin}
+          locale="en"
+        />
       </SettingsSection>
 
       <SettingsSection

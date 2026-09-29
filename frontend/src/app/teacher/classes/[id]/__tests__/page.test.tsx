@@ -375,3 +375,51 @@ describe("/teacher/classes/[id] — class detail", () => {
     });
   });
 });
+
+// 1.1.137 — the class list on the real page. The component test proves the
+// sheet itself; this proves the PAGE does not pick a name up on the way (a
+// refresh, a mint, an analytics call) while the teacher types one.
+describe("/teacher/classes/[id] — class list stays on the device", () => {
+  it("typing a name on the page sends it nowhere", async () => {
+    const store = new Map<string, string>();
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (k: string) => store.get(k) ?? null,
+        setItem: (k: string, v: string) => void store.set(k, v),
+        removeItem: (k: string) => void store.delete(k),
+      },
+    });
+    // Records every request the page makes; fails them like an offline
+    // network so neighbouring panels take their error path, not a fake body.
+    const fetchSpy = vi.fn(async (..._args: unknown[]) => {
+      throw new TypeError("offline (test)");
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+    try {
+      getSpy.mockResolvedValue(makeClassPayload());
+      mintSpy.mockResolvedValue({ codes: ["new-code-1"] } as unknown as Awaited<
+        ReturnType<typeof teacherApi.mintGroupCodes>
+      >);
+      render(<TeacherClassDetailPage />);
+      fireEvent.click(await screen.findByRole("button", { name: /^Class list/, expanded: false }));
+      fireEvent.change(await screen.findByLabelText("Names for bright-fox-12"), {
+        target: { value: "Zelda Privatperson" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /new group/i }));
+      await waitFor(() => expect(mintSpy).toHaveBeenCalled());
+
+      expect(store.get("aipla.classlist.class-7b-physics-a")).toContain("Zelda Privatperson");
+      const sent = JSON.stringify([
+        fetchSpy.mock.calls,
+        getSpy.mock.calls,
+        mintSpy.mock.calls,
+        listActivitiesSpy.mock.calls,
+        patchActivitiesSpy.mock.calls,
+      ]);
+      expect(sent).not.toContain("Zelda");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});
