@@ -1,0 +1,35 @@
+# Exported API-client functions with no call site, deliberately, for now.
+#
+# Format:  <client file>::<exported name>   # reason
+#
+# A REASON IS REQUIRED. "Unused" is not a reason — the point of this list is
+# that somebody looked at each one and decided. An entry with no reason should
+# be treated as an entry nobody has looked at.
+#
+# ⚠️ Do NOT add an entry to make the gate green after adding a client function
+# you intend to mount "next sprint". Mount it, or leave the gate red as the
+# reminder it exists to be. Every line here is a promise somebody will come back.
+#
+# Established 2026-09-29 (1.1.135 / TUTOR-2 M6) with the seven the first
+# mechanical run found. Six of the seven had never been noticed; a hand audit of
+# this same question, done days earlier, had missed them and invented a seventh
+# that was not real.
+
+# --- being mounted by work in flight ---------------------------------------
+
+teacherApi.ts::fetchVoiceList             # TUTOR-2 M5 mounts this in the persona editor. The curated voice catalogue (backend voice/voices.py, GET /api/voice/voices) has had a typed client and no picker since 1.1.11.
+
+# --- superseded, kept until someone confirms the deletion -------------------
+
+teacherApi.ts::listMyActivities           # Reads /api/activity-configs, the PRE-ALS-1 per-(teacher,class,activity) store. The activities library replaced it. Almost certainly deletable — needs one check that no legacy class still resolves through it.
+teacherApi.ts::chatLogExportPath          # A URL builder for the researcher log export. The mounted path is fetchChatLogExport (a Blob fetch, insights/conversations/page.tsx:225) because the sandbox blocks link-driven downloads. Deletable once someone confirms no bookmarked URL depends on the shape.
+
+# --- a helper, not an endpoint ---------------------------------------------
+
+teacherApi.ts::isTeacherOnlySkill         # A pure predicate over a SkillSummary, not a fetch. Dead code rather than an unreachable endpoint, so it is a smaller problem than the rest of this list — but it is still dead.
+
+# --- genuinely missing controls, each a real gap ---------------------------
+
+teacherApi.ts::revokeGroupCode            # ⚠️ REAL GAP. The endpoint works and no UI calls it, so a teacher whose join code leaked cannot revoke it — they can only reset the session. Worth its own ticket; not part of 1.1.135.
+teacherApi.ts::clearTutorFramework        # Its sibling setTutorFramework IS mounted (TutorApproachPanel), so a researcher can give a tutor an approach and cannot take it away again — only replace it. Asymmetric by accident, not by design.
+teacherApi.ts::searchFrameworkSources     # Searches the private literature corpus for the passage behind a construct's citation — the "check the source rather than trust it" half of 1.1.110. Backend exists; no UI was ever built for it.

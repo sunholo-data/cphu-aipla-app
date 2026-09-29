@@ -612,6 +612,13 @@ check-guides: ## Fail if a how-to guide has bad front matter, a stranded transla
 check-stream-allowlist: ## Fail if the client renders a tool result the SSE filter redacts (CI-gated)
 	@bash scripts/check-stream-render-allowlist.sh
 
+# 1.1.135 / TUTOR-2 M6. CLAUDE.md's "a whole stack ships with the control
+# unmounted" row was marked MANUAL, and manual produced four instances plus a
+# hand audit that got this exact question wrong in both directions. An exported
+# API-client function with no caller is an endpoint the user cannot reach.
+check-client-api: ## Fail if an exported API-client function has no call site (CI-gated)
+	@bash scripts/check-client-api-mounted.sh
+
 check-upstream-routing: ## Advisory: which changed paths belong upstream, not here (RANGE=... or --all)
 	@bash scripts/check-upstream-routing.sh $(RANGE)
 
@@ -675,6 +682,7 @@ help:
 	@echo "make check-doc-status — advisory: design docs whose Status header disagrees with the commit history"
 	@echo "make check-guides       — fail if a how-to guide has bad front matter, a stranded translation or a missing screenshot (CI-gated)"
 	@echo "make check-stream-allowlist — fail if the client renders a tool result the SSE filter redacts (CI-gated)"
+	@echo "make check-client-api        — fail if an exported API-client function has no call site (CI-gated)"
 	@echo
 	@echo "make check-upstream-routing — advisory: which changed paths are platform code and belong upstream (RANGE=...)"
 	@echo "make upstream-reconcile — full divergence report against the template (every shared path)"

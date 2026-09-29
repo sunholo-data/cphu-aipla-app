@@ -163,6 +163,17 @@ jobs:
         # caught by hand on the way to prod. The next card will be added by
         # someone who has never read stream_redaction.py.
         run: bash scripts/check-stream-render-allowlist.sh
+      - name: Every exported API-client function is reachable
+        # 1.1.135 / TUTOR-2 M6. The "whole stack ships with the control
+        # unmounted" row in CLAUDE.md — the endpoint works, the client has a
+        # passing test, and nobody can click it. patchClass hid for months;
+        # ALS-SHARE M3b for three, while three pages said read-only. The row was
+        # marked MANUAL, and a hand audit of this exact question got it wrong in
+        # BOTH directions in one sitting: reported a mounted function as
+        # unmounted, and missed six that were.
+        #
+        # ⚠️ A test is not a call site. Test files are excluded on purpose.
+        run: bash scripts/check-client-api-mounted.sh
       - name: No laptop-bound documentation links
         # P4.2: 138 citations in docs/ were file:///Users/<someone>/... — the
         # scoping site, agent-memory notes, and two other local trees. Dead for
