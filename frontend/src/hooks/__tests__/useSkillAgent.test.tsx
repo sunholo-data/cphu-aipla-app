@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Build a minimal fake AbstractAgent with just the methods the hook touches.
 // Keeping it explicit (not extending real HttpAgent) means we don't have to
@@ -22,6 +22,11 @@ class FakeAgent {
 
   addMessage(m: { id: string; role: string; content: string }) {
     this.messages.push(m);
+    this.subscribers.forEach((s) => s.onMessagesChanged?.({}));
+  }
+
+  setMessages(ms: Array<{ id: string; role: string; content: string }>) {
+    this.messages = [...ms];
     this.subscribers.forEach((s) => s.onMessagesChanged?.({}));
   }
 
@@ -136,10 +141,12 @@ describe("useSkillAgent — core", () => {
       "isLoading",
       "isThinking",
       "messages",
+      "retryStalled",
       "sendMessage",
       "sessionId",
       "stage",
       "stageLabel",
+      "stall",
       "stop",
       "thinkingContent",
       "tidyingUp",
@@ -1168,5 +1175,161 @@ describe("useSkillAgent — A2UI surface context (sprint 2.10)", () => {
         a2ui_surface_state: surfaceSnapshotStub,
       },
     });
+  });
+});
+
+// 1.1.131 M2 — a run that STARTED and then went quiet. On 22 Sep 2026 the first
+// chunk arrived in 0.67 s and the rest 59 s later (the server's event loop was
+// blocked); the pre-RUN_STARTED watchdog above could not see it, the student saw
+// a dead tutor, re-typed the question, and both runs answered.
+describe("useSkillAgent — stall after RUN_STARTED", () => {
+  const SLOW_MS = 15_000;
+  const STALLED_MS = 45_000;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  /** Send a message whose run starts and then hangs until `finish()` settles
+   *  it — the shape of a stream stuck behind a blocked server loop. */
+  function startStalledRun(result: { current: ReturnType<typeof useSkillAgent> }) {
+    let finish: () => void = () => {};
+    fake.runAgent.mockImplementationOnce(
+      () =>
+        new Promise<{ newMessages: [] }>((resolve) => {
+          finish = () => resolve({ newMessages: [] });
+          fake.emitRunStart();
+        }),
+    );
+    let sent!: Promise<void>;
+    act(() => {
+      sent = result.current.sendMessage("Hvad er impuls?");
+    });
+    return { finish: () => finish(), sent: () => sent };
+  }
+
+  it("says nothing before 15 s, a quiet 'slow' at 15 s, and offers a retry at 45 s", () => {
+    const { result } = renderHook(() => useSkillAgent());
+    startStalledRun(result);
+    expect(result.current.stall).toBeNull();
+
+    act(() => { vi.advanceTimersByTime(SLOW_MS - 1); });
+    expect(result.current.stall).toBeNull();
+    act(() => { vi.advanceTimersByTime(1); });
+    expect(result.current.stall).toBe("slow");
+
+    act(() => { vi.advanceTimersByTime(STALLED_MS - SLOW_MS); });
+    expect(result.current.stall).toBe("stalled");
+    // Not aborted on its own — the answer may still come.
+    expect(fake.abortRun).not.toHaveBeenCalled();
+  });
+
+  it("any stream event clears the notice and re-arms the timer", () => {
+    const { result } = renderHook(() => useSkillAgent());
+    startStalledRun(result);
+
+    act(() => { vi.advanceTimersByTime(SLOW_MS); });
+    expect(result.current.stall).toBe("slow");
+
+    act(() => { fake.emitTextMessageStart("m-1"); });
+    expect(result.current.stall).toBeNull();
+
+    // Re-armed from the event, not from RUN_STARTED.
+    act(() => { vi.advanceTimersByTime(SLOW_MS - 1); });
+    expect(result.current.stall).toBeNull();
+    act(() => { vi.advanceTimersByTime(1); });
+    expect(result.current.stall).toBe("slow");
+
+    // A tool call is progress too.
+    act(() => { fake.emitToolCallStart("tc-1", "search"); });
+    expect(result.current.stall).toBeNull();
+  });
+
+  it("a steadily streaming answer never trips it", () => {
+    const { result } = renderHook(() => useSkillAgent());
+    startStalledRun(result);
+    for (let i = 0; i < 10; i++) {
+      act(() => { vi.advanceTimersByTime(10_000); });
+      act(() => { fake.addMessage({ id: `a-${i}`, role: "assistant", content: "…" }); });
+    }
+    expect(result.current.stall).toBeNull();
+  });
+
+  it("disarms when the run finishes", async () => {
+    const { result } = renderHook(() => useSkillAgent());
+    const run = startStalledRun(result);
+    act(() => { vi.advanceTimersByTime(SLOW_MS); });
+    expect(result.current.stall).toBe("slow");
+
+    await act(async () => {
+      fake.emitRunFinal();
+      run.finish();
+      await run.sent();
+    });
+    expect(result.current.stall).toBeNull();
+    act(() => { vi.advanceTimersByTime(STALLED_MS * 2); });
+    expect(result.current.stall).toBeNull();
+  });
+
+  it("does not arm while tidying up (COMPACTION_STARTED) — the answer is complete", () => {
+    const { result } = renderHook(() => useSkillAgent());
+    startStalledRun(result);
+    act(() => { fake.emitCustomEvent("COMPACTION_STARTED", {}); });
+    act(() => { vi.advanceTimersByTime(STALLED_MS * 2); });
+    expect(result.current.stall).toBeNull();
+  });
+
+  it("retry aborts the stalled run BEFORE sending once — never two runs in flight, never two questions", async () => {
+    const { result } = renderHook(() => useSkillAgent());
+    const run = startStalledRun(result);
+    act(() => { vi.advanceTimersByTime(STALLED_MS); });
+    expect(result.current.stall).toBe("stalled");
+    // A partial answer from the stalled run is already on screen.
+    act(() => { fake.addMessage({ id: "partial", role: "assistant", content: "Det…" }); });
+
+    let inFlight = 1;
+    let maxInFlight = 1;
+    // The real HttpAgent fires onRunFailed(AbortError) on abort, then settles
+    // the run. Neither may surface as an error to the student.
+    fake.abortRun.mockImplementationOnce(() => {
+      fake.emitRunFailed({ error: { name: "AbortError", message: "Fetch is aborted" } });
+      inFlight -= 1;
+      run.finish();
+    });
+    fake.runAgent.mockImplementationOnce(async () => {
+      inFlight += 1;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      fake.emitRunStart();
+      inFlight -= 1;
+      return { newMessages: [] };
+    });
+
+    await act(async () => {
+      await result.current.retryStalled();
+    });
+
+    expect(fake.abortRun).toHaveBeenCalledTimes(1);
+    expect(fake.runAgent).toHaveBeenCalledTimes(2);
+    expect(maxInFlight).toBe(1);
+    expect(result.current.error).toBeNull();
+    // Exactly one copy of the question; the aborted partial answer is gone.
+    expect(fake.messages.filter((m) => m.role === "user")).toHaveLength(1);
+    expect(fake.messages.find((m) => m.id === "partial")).toBeUndefined();
+    expect(result.current.messages.filter((m) => m.role === "user").map((m) => m.content)).toEqual([
+      "Hvad er impuls?",
+    ]);
+    expect(result.current.stall).toBeNull();
+  });
+
+  it("retry is a no-op with nothing to retry", async () => {
+    const { result } = renderHook(() => useSkillAgent());
+    await act(async () => {
+      await result.current.retryStalled();
+    });
+    expect(fake.abortRun).not.toHaveBeenCalled();
+    expect(fake.runAgent).not.toHaveBeenCalled();
   });
 });

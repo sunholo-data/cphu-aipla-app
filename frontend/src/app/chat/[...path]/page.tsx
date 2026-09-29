@@ -412,6 +412,8 @@ function ChatShell({
     error,
     clearError,
     stop,
+    stall,
+    retryStalled,
   } = useSkillAgent({ activityId });
   const {
     displayName,
@@ -1349,6 +1351,28 @@ function ChatShell({
             )}
             {voiceNotice && (
               <p className="mb-2 text-xs text-muted-foreground">{voiceNotice}</p>
+            )}
+            {stall === "slow" && (
+              // 1.1.131 M2 — the run started and then went quiet for 15 s.
+              // Say so, quietly, before the student decides the tutor is dead.
+              <p role="status" className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                {t("stallSlow")}
+              </p>
+            )}
+            {stall === "stalled" && (
+              // 45 s: offer a retry that aborts the stalled run first, so it
+              // cannot double the turn the way re-typing the question does.
+              <p role="status" className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <span>{t("stallStalled")}</span>
+                <button
+                  type="button"
+                  onClick={() => void retryStalled()}
+                  className="rounded border px-2 py-0.5 text-xs text-foreground hover:bg-muted"
+                >
+                  {t("stallRetry")}
+                </button>
+              </p>
             )}
             {tidyingUp ? (
               // COMPACTION-LATENCY M2 — the answer is done; only history

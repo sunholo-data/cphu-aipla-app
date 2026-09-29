@@ -8,6 +8,7 @@ const noMessages: UseSkillAgentReturn["messages"] = [];
 const mockSendMessage = vi.fn().mockResolvedValue(undefined);
 const mockClearError = vi.fn();
 const mockStop = vi.fn();
+const mockRetryStalled = vi.fn().mockResolvedValue(undefined);
 
 function makeReturn(overrides: Partial<UseSkillAgentReturn>): UseSkillAgentReturn {
   return {
@@ -25,6 +26,8 @@ function makeReturn(overrides: Partial<UseSkillAgentReturn>): UseSkillAgentRetur
     error: null,
     clearError: mockClearError,
     stop: mockStop,
+    stall: null,
+    retryStalled: mockRetryStalled,
     ...overrides,
   };
 }
@@ -193,6 +196,40 @@ describe("ChatShell — error display", () => {
     render(<ChatPage params={paramsPromise} />);
     expect(await screen.findByText(/Læser 2 dokumenter…/)).toBeTruthy();
     expect(screen.queryByText(/Reading 2 documents/)).toBeNull();
+  });
+});
+
+// 1.1.131 M2 — the page half of the stall watchdog (the timing is the hook's,
+// tested in useSkillAgent.test.tsx).
+describe("ChatShell — a stalled tutor", () => {
+  it("15 s: a quiet 'responding slowly' line, no retry offered yet", async () => {
+    vi.mocked(useSkillAgent).mockReturnValue(makeReturn({ isLoading: true, stall: "slow" }));
+    render(<ChatPage params={paramsPromise} />);
+    expect(await screen.findByText("The tutor is responding slowly — please wait.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Ask again" })).toBeNull();
+  });
+
+  it("45 s: an explicit retry that goes through retryStalled, not sendMessage", async () => {
+    vi.mocked(useSkillAgent).mockReturnValue(makeReturn({ isLoading: true, stall: "stalled" }));
+    render(<ChatPage params={paramsPromise} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Ask again" }));
+    expect(mockRetryStalled).toHaveBeenCalledOnce();
+    expect(mockSendMessage).not.toHaveBeenCalled();
+  });
+
+  it("says it in Danish by default", async () => {
+    voiceLanguage.value = null;
+    vi.mocked(useSkillAgent).mockReturnValue(makeReturn({ isLoading: true, stall: "slow" }));
+    render(<ChatPage params={paramsPromise} />);
+    expect(await screen.findByText("Tutoren svarer langsomt — vent lidt.")).toBeTruthy();
+  });
+
+  it("shows nothing when the stream is healthy", async () => {
+    vi.mocked(useSkillAgent).mockReturnValue(makeReturn({ isLoading: true, stall: null }));
+    render(<ChatPage params={paramsPromise} />);
+    await screen.findByPlaceholderText(/message/i);
+    expect(screen.queryByText(/responding slowly/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Ask again" })).toBeNull();
   });
 });
 

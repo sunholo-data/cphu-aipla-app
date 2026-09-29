@@ -152,6 +152,8 @@ function makeAgentReturn(
     error: null,
     clearError: vi.fn(),
     stop: vi.fn(),
+    stall: null,
+    retryStalled: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }
