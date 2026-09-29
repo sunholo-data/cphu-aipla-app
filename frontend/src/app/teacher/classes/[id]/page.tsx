@@ -6,6 +6,7 @@ import { notFound, useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
+  Ban,
   BarChart3,
   BookOpen,
   Copy,
@@ -29,6 +30,7 @@ import {
   mintGroupCodes,
   patchClassActivities,
   resetGroupSession,
+  revokeGroupCode,
 } from "@/lib/teacherApi";
 import { ClassInsightsPanel } from "@/components/teacher/insights/ClassInsightsPanel";
 import { BudgetPanel } from "@/components/teacher/BudgetPanel";
@@ -50,6 +52,21 @@ import { LiveClassView } from "./_LiveClassView";
 import { formatRelativeTime } from "@/lib/relativeTime";
 import { useTeacherAuth } from "@/hooks/useTeacherAuth";
 
+/** New UI copy lives here, not inline in JSX (1.1.108 M4). The rest of this
+ *  file predates that rule; converting it wholesale would collide with the i18n
+ *  work in flight, so new strings start the pattern rather than finish it. */
+const copy = {
+  revoke: "Revoke",
+  revokeTitle:
+    "Stop this code working. Students using it are signed out at their next message, and the code can never be reissued.",
+  revokeWarning: "Signs students out now. Cannot be undone.",
+  revokeConfirm: "Revoke code",
+  revoking: "Revoking…",
+  cancel: "Cancel",
+  revokeDone: (code: string) => `${code} revoked — it no longer works. The group's work is kept.`,
+  revokeFailed: "Could not revoke the code",
+};
+
 export default function TeacherClassDetailPage() {
   const params = useParams();
   const id = typeof params?.id === "string" ? params.id : "";
@@ -65,6 +82,8 @@ export default function TeacherClassDetailPage() {
   // the address THIS teacher is on, not one baked at build time.
   const [joinOrigin, setJoinOrigin] = useState("");
   const [confirmResetCode, setConfirmResetCode] = useState<string | null>(null);
+  const [confirmRevokeCode, setConfirmRevokeCode] = useState<string | null>(null);
+  const [revoking, setRevoking] = useState(false);
   const [resetting, setResetting] = useState(false);
   // Insights (4 BigQuery queries) are deferred — load on demand so opening a
   // class is fast (Firestore-only). See ClassInsightsPanel.
@@ -268,6 +287,33 @@ export default function TeacherClassDetailPage() {
     }
   }
 
+  /** Revoke a leaked join code (2026-09-29).
+   *
+   *  The endpoint has existed since the permission model landed and had NO UI,
+   *  so a teacher whose code got out could only reset the session — which does
+   *  not stop anyone rejoining with the same code. Found by the new
+   *  check-client-api gate, not by anyone noticing.
+   *
+   *  ⚠️ Harder than Reset, and the copy says so: `revoke_group_code` DELETES
+   *  the anon_groups doc, so the next token verification fails. A student
+   *  mid-lesson is cut off at their next message. The code string can never be
+   *  reissued — a replacement is a different code — and the group's existing
+   *  work is kept, not erased (erasure is 1.1.80's own thing).
+   */
+  async function handleRevokeCode(code: string) {
+    setRevoking(true);
+    try {
+      await revokeGroupCode(cls!.classId, code);
+      setConfirmRevokeCode(null);
+      showToast(copy.revokeDone(code), 5000);
+      await refresh();
+    } catch (err) {
+      showToast(err instanceof Error ? `${copy.revokeFailed}: ${err.message}` : copy.revokeFailed, 5000);
+    } finally {
+      setRevoking(false);
+    }
+  }
+
   async function handleAddActivity(activityId: string) {
     setBusyActivity(activityId);
     try {
@@ -426,6 +472,41 @@ export default function TeacherClassDetailPage() {
                       >
                         <Settings className="h-3.5 w-3.5" aria-hidden="true" />
                         Reset session
+                      </button>
+                    )}
+                    {confirmRevokeCode === code ? (
+                      <>
+                        {/* Two-step, and the consequence is stated rather than
+                            implied: this signs students out mid-lesson and the
+                            code can never be reissued. */}
+                        <span className="text-xs text-destructive">{copy.revokeWarning}</span>
+                        <button
+                          type="button"
+                          onClick={() => void handleRevokeCode(code)}
+                          disabled={revoking}
+                          className="rounded border border-destructive px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
+                        >
+                          {revoking ? copy.revoking : copy.revokeConfirm}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmRevokeCode(null)}
+                          disabled={revoking}
+                          className="rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
+                        >
+                          {copy.cancel}
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setConfirmRevokeCode(code)}
+                        aria-label={`${copy.revoke} ${code}`}
+                        title={copy.revokeTitle}
+                        className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      >
+                        <Ban className="h-3.5 w-3.5" aria-hidden="true" />
+                        {copy.revoke}
                       </button>
                     )}
                     <Link

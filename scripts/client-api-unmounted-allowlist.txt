@@ -28,7 +28,10 @@ teacherApi.ts::chatLogExportPath          # A URL builder for the researcher log
 teacherApi.ts::isTeacherOnlySkill         # A pure predicate over a SkillSummary, not a fetch. Dead code rather than an unreachable endpoint, so it is a smaller problem than the rest of this list — but it is still dead.
 
 # --- genuinely missing controls, each a real gap ---------------------------
+#
+# revokeGroupCode was here and is now MOUNTED (2026-09-29) — the class page
+# grew a Revoke control. That is what this list is for: an entry leaves it by
+# being fixed, not by being forgotten.
 
-teacherApi.ts::revokeGroupCode            # ⚠️ REAL GAP. The endpoint works and no UI calls it, so a teacher whose join code leaked cannot revoke it — they can only reset the session. Worth its own ticket; not part of 1.1.135.
 teacherApi.ts::clearTutorFramework        # Its sibling setTutorFramework IS mounted (TutorApproachPanel), so a researcher can give a tutor an approach and cannot take it away again — only replace it. Asymmetric by accident, not by design.
 teacherApi.ts::searchFrameworkSources     # Searches the private literature corpus for the passage behind a construct's citation — the "check the source rather than trust it" half of 1.1.110. Backend exists; no UI was ever built for it.

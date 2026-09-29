@@ -195,6 +195,79 @@ describe("/teacher/classes/[id] — class detail", () => {
     expect(announcements.some((t) => /group code fresh-mint-01 created/i.test(t))).toBe(true);
   });
 
+  describe("revoking a leaked join code (2026-09-29)", () => {
+    // The endpoint has existed since the permission model landed and had NO
+    // UI, so a teacher whose code got out could only reset the session — which
+    // does not stop anyone rejoining with the same code. Found by the
+    // check-client-api gate rather than by anyone noticing.
+
+    // The first code in makeClassPayload(); a leaked one is just a code.
+    const CODE = "bright-fox-12";
+
+    async function openTheClass() {
+      // Each test sets its own class payload — the outer beforeEach only
+      // creates the spy, it does not resolve it.
+      getSpy.mockResolvedValue(makeClassPayload());
+      render(<TeacherClassDetailPage />);
+      await waitFor(() => expect(screen.getByRole("heading", { name: targetClass.name })).toBeInTheDocument());
+    }
+
+    it("does not revoke on the first click — it asks, and says what will happen", async () => {
+      const revokeSpy = vi.spyOn(teacherApi, "revokeGroupCode");
+      await openTheClass();
+
+      fireEvent.click(screen.getByLabelText(`Revoke ${CODE}`));
+
+      // ⚠️ Harder than Reset: revoke DELETES the anon_groups doc, so a student
+      // mid-lesson fails at their next message and the code can never be
+      // reissued. A one-click version of this would be the wrong shape.
+      expect(revokeSpy).not.toHaveBeenCalled();
+      expect(screen.getByText(/Signs students out now\. Cannot be undone\./)).toBeInTheDocument();
+    });
+
+    it("revokes on confirmation and refreshes the list", async () => {
+      const revokeSpy = vi
+        .spyOn(teacherApi, "revokeGroupCode")
+        .mockResolvedValue({ revoked: true, code: CODE, classId: CLASS_ID });
+      await openTheClass();
+
+      fireEvent.click(screen.getByLabelText(`Revoke ${CODE}`));
+      fireEvent.click(screen.getByRole("button", { name: "Revoke code" }));
+
+      await waitFor(() => expect(revokeSpy).toHaveBeenCalledWith(CLASS_ID, CODE));
+    });
+
+    it("says the group's work is kept, because revoke is not erasure", async () => {
+      // Erasure is 1.1.80's own thing. A teacher who read "revoke" as "delete
+      // everything they did" would avoid using it for exactly the wrong reason.
+      vi.spyOn(teacherApi, "revokeGroupCode").mockResolvedValue({
+        revoked: true,
+        code: CODE,
+        classId: CLASS_ID,
+      });
+      await openTheClass();
+
+      fireEvent.click(screen.getByLabelText(`Revoke ${CODE}`));
+      fireEvent.click(screen.getByRole("button", { name: "Revoke code" }));
+
+      await waitFor(() => {
+        const announcements = screen.getAllByRole("status").map((n) => n.textContent ?? "");
+        expect(announcements.some((t) => /work is kept/i.test(t))).toBe(true);
+      });
+    });
+
+    it("cancel leaves the code alone", async () => {
+      const revokeSpy = vi.spyOn(teacherApi, "revokeGroupCode");
+      await openTheClass();
+
+      fireEvent.click(screen.getByLabelText(`Revoke ${CODE}`));
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+      expect(revokeSpy).not.toHaveBeenCalled();
+      expect(screen.getByLabelText(`Revoke ${CODE}`)).toBeInTheDocument();
+    });
+  });
+
   it("shows an error banner when the class fails to load", async () => {
     getSpy.mockRejectedValue(new Error("permission denied"));
     render(<TeacherClassDetailPage />);
