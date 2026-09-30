@@ -127,12 +127,24 @@ def _compose(skill_name: str, framework_id: str | None) -> tuple[str, dict[str, 
     fw = effective_framework(framework_id)
 
     parts = [p for p in (base, approach) if p.strip()]
-    return "\n\n".join(parts), {
+    instruction = "\n\n".join(parts)
+    # House style (notation, praise) is UNCONDITIONAL in a lesson (adk/agent.py),
+    # so a preview without it showed a reviewer a tutor no student meets, and
+    # BENCH-2 could not have measured the praise rule at all. Appended only when
+    # there is something to run, so an instruction-less tutor still reads empty
+    # to `run_preview_turn`'s guard rather than as "house style only".
+    if instruction.strip():
+        from adk.math_notation import build_math_notation_block
+        from adk.praise_style import build_praise_block
+
+        instruction += build_math_notation_block() + build_praise_block()
+    return instruction, {
         "skill": skill_name,
         "skillFound": skill is not None,
         "approach": fw.label if fw is not None else None,
         "approachId": framework_id,
         "register": fw.teaching_register if fw is not None else None,
+        "houseStyle": ["math_notation", "praise"] if instruction.strip() else [],
         # A real lesson turn also carries the activity's materials, the
         # teacher's ILOs, the group's history and image guidance. Preview
         # has no activity, so it has none of those.

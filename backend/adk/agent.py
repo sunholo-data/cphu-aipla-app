@@ -78,6 +78,7 @@ from adk.mcp_observability import (
     make_mcp_before_tool_callback,
 )
 from adk.multimodal import inject_image_input_preamble
+from adk.praise_style import build_praise_block
 from adk.proactive_greet import inject_opening_guidance, wrap_opening_guidance_per_turn
 from adk.proactive_reactive import inject_reactive_guidance
 from adk.proactive_telemetry import tag_proactive_span_from_callback_context
@@ -891,6 +892,12 @@ def create_agent(
                                 # formatting rule and must not be overridden by
                                 # a body that predates it.
                                 + build_math_notation_block()
+                                # BENCH-2 / JB 2026-09-29 "Mikkel was too
+                                # sycophantic": stock praise opened nearly every
+                                # dialogue, whatever the approach — the model's
+                                # habit, so house style, UNCONDITIONAL like the
+                                # notation block. See adk/praise_style.py.
+                                + build_praise_block()
                                 # 1.1.126 — the name the student SEES, from the
                                 # same resolution the chat log stamps. Students
                                 # only: the persona renders in the anonymous-group
