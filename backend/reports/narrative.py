@@ -19,6 +19,7 @@ individually; no verbatim quoting; no emoji.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 
@@ -138,7 +139,10 @@ async def resolve_narrative(summary: SessionSummary, *, force: bool = False) -> 
     if not summary.conversation and not (summary.voice_transcript or "").strip():
         return None
 
-    idx = get_session_index(summary.session_id)
+    # 1.1.131 follow-up: the Firestore reads/writes here are synchronous and this
+    # runs inside the async report route — offloaded so a report cannot hold the
+    # event loop a class's streams share.
+    idx = await asyncio.to_thread(get_session_index, summary.session_id)
     live_count = summary.message_count
     live_voice = len((summary.voice_transcript or "").strip())
     if not force and idx is not None and idx.summary_text:
@@ -160,7 +164,8 @@ async def resolve_narrative(summary: SessionSummary, *, force: bool = False) -> 
     summary.narrative = text or None
     if idx is not None and text:
         try:
-            update_session_fields(
+            await asyncio.to_thread(
+                update_session_fields,
                 summary.session_id,
                 {
                     "summaryText": text,
