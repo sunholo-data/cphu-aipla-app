@@ -91,7 +91,8 @@ def default_model() -> str:
 
 def fast_model() -> str:
     """API name of the cheap / high-volume Google model for analytics sub-tasks —
-    the rubric-judge fallback and the session-summary model.
+    the session-summary model. (The rubric-judge default moved to
+    ``analysis_model()`` in BENCH-1.)
 
     Returns the registry's ``fast``-tier Google model when one exists, else falls
     back to ``default_model()``. Registry-sourced so a model swap moves every call

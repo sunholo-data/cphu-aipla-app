@@ -20,7 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 
 from analytics.framework_fidelity import resolve_fidelity
 from auth import User, get_current_user
-from config.models import default_model
+from config.models import analysis_model
 from reports.narrative import resolve_narrative
 from reports.session_summary import (
     SessionSummary,
@@ -80,7 +80,8 @@ def _report_inputs(summary: SessionSummary) -> dict:
         "audioMinutes": summary.voice_minutes,
         "audioSegments": summary.voice_segments,
         "simEvents": summary.sim_run_count,
-        "model": default_model(),
+        # The model that writes the narrative (reports.narrative) — BENCH-1.
+        "model": analysis_model(),
         "generatedAt": generated_at,
         "state": "ready" if summary.narrative else "none",
     }
