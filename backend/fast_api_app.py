@@ -627,6 +627,22 @@ def _extract_activity_id(body: "_StreamSkillRequest") -> str | None:
     return raw if isinstance(raw, str) and raw else None
 
 
+def extract_student_language(raw: object) -> str | None:
+    """The student's explicit DA | EN choice, or None when they have not made one.
+
+    Sent as ``forwardedProps.ui_language`` only once a student has picked a
+    language with the switch; anything but a supported code is ignored, so a
+    stale client can never put free text into the tutor's instruction.
+    """
+    return raw if raw in ("da", "en") else None
+
+
+def _extract_ui_language(body: "_StreamSkillRequest") -> str | None:
+    return extract_student_language(
+        (body.forwardedProps or {}).get("ui_language") or (body.state or {}).get("ui_language")
+    )
+
+
 def _extract_resumed_flag(body: "_StreamSkillRequest") -> bool:
     """True when the frontend signalled this chat was entered by clicking a
     conversation thread from the per-document Conversations panel.
@@ -735,6 +751,7 @@ async def stream_skill(
         resumed_session=extracted_resumed,
         a2ui_surface_state=extracted_surface_state,
         activity_id=_extract_activity_id(body),
+        student_language=_extract_ui_language(body),
         # ACCESS-1 M2: this is a chat surface, so a visitor watches a RECORDED
         # session rather than getting a 402. The 402 path below still fires for
         # anything the replay cannot serve.

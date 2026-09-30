@@ -137,6 +137,7 @@ def resolve_voice(
     skill_id: str | None,
     skill: object | None,
     activity_id: str | None = None,
+    student_language: str | None = None,
 ) -> ResolvedVoice:
     """Resolve the effective voice for this (user, skill) — the single source
     of truth for the voice chain.
@@ -232,6 +233,11 @@ def resolve_voice(
             rv.voice = rv.voice or getattr(sv, "tts_voice", None)
             rv.lang = rv.lang or getattr(sv, "language", None)
     # 5. The activity's language outranks all of the above (1.1.63 M4).
+    # 2026-09-30 — the student's explicit DA | EN choice outranks the activity's
+    # language here exactly as it does in the tutor's instruction, so an English
+    # reply is never read out by a Danish voice.
+    if student_language in ("da", "en"):
+        activity_language = student_language
     return _apply_activity_language(rv, activity_language)
 
 
@@ -369,6 +375,8 @@ class SynthesizeRequest(BaseModel):
     # Distinct from skill_id since ALS-1 M0; omitted by legacy callers, which
     # then behave exactly as before.
     activity_id: str | None = Field(default=None, alias="activityId", max_length=128)
+    # The student's explicit DA | EN choice (2026-09-30); see resolve_voice.
+    student_language: str | None = Field(default=None, alias="studentLanguage", max_length=8)
     auto_read: bool = Field(default=False, alias="autoRead")
     """Tag the OTel span so the cost dashboard can split auto-read vs
     click-to-read cost. Pure telemetry; doesn't change synthesis."""
@@ -388,9 +396,12 @@ class ConfigResponse(BaseModel):
 async def get_config(
     skill_id: str | None = None,
     activity_id: str | None = None,
+    language: str | None = None,
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict[str, Any]:
     """Return the voice config the frontend should use for `skill_id`.
+
+    ``language`` is the student's explicit DA | EN choice, when they made one.
 
     Response shape:
       {
@@ -411,7 +422,7 @@ async def get_config(
     # ONE resolver — shared with /synthesize so the spoken voice can never drift
     # from what we advertise here. A persona is a full bundle (incl. the global
     # default), so picking any persona sets the voice too.
-    rv = resolve_voice(user, skill_id, skill, activity_id=activity_id)
+    rv = resolve_voice(user, skill_id, skill, activity_id=activity_id, student_language=language)
     resolved_voice = rv.voice
     resolved_lang = rv.lang
 
@@ -615,7 +626,7 @@ async def synthesize(
     # changed with the persona but the spoken voice did not": synthesize used
     # to ignore the persona entirely and fall back to the env default provider,
     # so the persona's voice never sounded. Now both endpoints agree.
-    rv = resolve_voice(user, body.skill_id, skill, activity_id=body.activity_id)
+    rv = resolve_voice(user, body.skill_id, skill, activity_id=body.activity_id, student_language=body.student_language)
     provider = _tts_for(rv.provider, skill)
     # The frontend sends the voice it got from /config; trust it, but fall back
     # to the resolver's voice if absent so a direct API caller still gets the

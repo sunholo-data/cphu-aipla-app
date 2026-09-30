@@ -457,7 +457,7 @@ def test_explicit_activity_id_threads_into_teacher_focus():
     runs eagerly while composing the instruction, so we capture its activity arg."""
     captured: dict[str, str] = {}
 
-    def _capture(instructions, activity_id, *, group_tags=None):
+    def _capture(instructions, activity_id, *, group_tags=None, student_language=None):
         captured["activity_id"] = activity_id
         return instructions
 
@@ -471,13 +471,27 @@ def test_absent_activity_id_falls_back_to_skill_id():
     existing behaviour is unchanged."""
     captured: dict[str, str] = {}
 
-    def _capture(instructions, activity_id, *, group_tags=None):
+    def _capture(instructions, activity_id, *, group_tags=None, student_language=None):
         captured["activity_id"] = activity_id
         return instructions
 
     with patch("adk.agent.inject_teacher_focus", side_effect=_capture):
         create_agent(_skill(skill_id="concept-skill-uuid"), _user())
     assert captured["activity_id"] == "concept-skill-uuid"
+
+
+def test_the_students_language_threads_into_teacher_focus():
+    """The student's DA | EN choice reaches the instruction. The agent is built
+    per request, so this build-time value is effectively per turn."""
+    captured: dict[str, str | None] = {}
+
+    def _capture(instructions, activity_id, *, group_tags=None, student_language=None):
+        captured["student_language"] = student_language
+        return instructions
+
+    with patch("adk.agent.inject_teacher_focus", side_effect=_capture):
+        create_agent(_skill(skill_id="concept-skill-uuid"), _user(), activity_id="act-1", student_language="en")
+    assert captured["student_language"] == "en"
 
 
 # --- PILOT-1: the per-activity blocks are actually WIRED ------------------

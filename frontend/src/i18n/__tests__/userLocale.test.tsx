@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LanguageSwitch } from "@/components/site/LanguageSwitch";
 import { LocaleProvider, useLocaleMode } from "@/i18n";
-import { USER_LOCALE_KEY, UserLocaleProvider } from "@/i18n/userLocale";
+import { USER_LOCALE_KEY, UserLocaleProvider, useStudentLanguage } from "@/i18n/userLocale";
 
 const researcher = vi.hoisted(() => ({ value: false }));
 vi.mock("@/hooks/useIsResearcher", () => ({ useIsResearcher: () => researcher.value }));
@@ -114,3 +114,31 @@ describe("UserLocaleProvider", () => {
   });
 });
 
+// 2026-09-30 — a student's explicit choice outranks the activity's language.
+function StudentChoiceProbe() {
+  return <span data-testid="choice">{useStudentLanguage() ?? "none"}</span>;
+}
+
+describe("useStudentLanguage", () => {
+  it("is null until the person chooses, then the choice — so a student who never touched the switch keeps the teacher's language", () => {
+    render(
+      <UserLocaleProvider>
+        <LanguageSwitch />
+        <StudentChoiceProbe />
+      </UserLocaleProvider>,
+    );
+    expect(screen.getByTestId("choice")).toHaveTextContent("none");
+    fireEvent.click(screen.getByRole("button", { name: "en" }));
+    expect(screen.getByTestId("choice")).toHaveTextContent("en");
+  });
+
+  it("the switch shows the language in force when given one, not the person's default", () => {
+    render(
+      <UserLocaleProvider>
+        <LanguageSwitch value="en" />
+      </UserLocaleProvider>,
+    );
+    expect(screen.getByRole("button", { name: "en" })).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByRole("button", { name: "da" })).toHaveAttribute("aria-pressed", "false");
+  });
+});

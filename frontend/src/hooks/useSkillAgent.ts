@@ -301,6 +301,9 @@ export function useSkillAgent(options?: {
   _slowAfterMs?: number;
   _stalledAfterMs?: number;
   activityId?: string;
+  /** The student's explicit DA | EN choice (useStudentLanguage); null/absent
+   *  when they never chose, so the activity's language stands. */
+  language?: "da" | "en" | null;
 }): UseSkillAgentReturn {
   const hangTimeoutMs = options?._hangTimeoutMs ?? 30_000;
   const slowAfterMs = options?._slowAfterMs ?? 15_000;
@@ -310,6 +313,7 @@ export function useSkillAgent(options?: {
   // THIS activity's teacher-focus. Absent (teacher chats / direct skill links) →
   // the backend falls back to the skill id, so behaviour is unchanged.
   const activityId = options?.activityId;
+  const language = options?.language ?? null;
   const agent = useAGUIAgent();
   // Sprint 2.10: read every active A2UI surface's snapshot at sendMessage
   // time and ride it back on `forwardedProps.a2ui_surface_state`. Optional
@@ -720,6 +724,12 @@ export function useSkillAgent(options?: {
         if (activityId && activityId.startsWith("act-")) {
           forwardedProps.activity_id = activityId;
         }
+        // The student's DA | EN choice outranks the activity's language in the
+        // tutor's instruction (2026-09-30). Sent only when they chose, so a
+        // student who never touched the switch keeps the teacher's language.
+        if (language) {
+          forwardedProps.ui_language = language;
+        }
         // 1.1.7 images do NOT ride forwardedProps — they're native AG-UI
         // ImageInputContent parts in the message content (see addMessage
         // above), so ADK persists + replays them. Nothing to add here.
@@ -752,7 +762,7 @@ export function useSkillAgent(options?: {
         setRunStarted(false);
       }
     },
-    [agent, clearError, surfaceRegistry, activityId],
+    [agent, clearError, surfaceRegistry, activityId, language],
   );
 
   const stop = useCallback(() => {

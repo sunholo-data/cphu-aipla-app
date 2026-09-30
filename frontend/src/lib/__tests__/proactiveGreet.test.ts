@@ -31,6 +31,28 @@ beforeEach(() => {
   fetchWithAuth.mockReset();
 });
 
+describe("useProactiveGreet — the student's language", () => {
+  // 2026-09-30: the opening line is in the language the student chose, not the
+  // activity's then corrected a turn later.
+  it("sends the chosen language in the greet body, and nothing when none was chosen", async () => {
+    fetchWithAuth.mockResolvedValue(okGreet({ skipped: false, text: "Hi!" }));
+
+    renderHook(() =>
+      useProactiveGreet({ sessionId: "s1", skillId: "k1", enabled: true, activityId: "act-1", language: "en" }),
+    );
+    await waitFor(() => expect(fetchWithAuth).toHaveBeenCalledTimes(1));
+    expect(JSON.parse(fetchWithAuth.mock.calls[0][1].body)).toEqual({
+      skillId: "k1",
+      activityId: "act-1",
+      language: "en",
+    });
+
+    renderHook(() => useProactiveGreet({ sessionId: "s2", skillId: "k1", enabled: true, activityId: "act-1" }));
+    await waitFor(() => expect(fetchWithAuth).toHaveBeenCalledTimes(2));
+    expect(JSON.parse(fetchWithAuth.mock.calls[1][1].body)).toEqual({ skillId: "k1", activityId: "act-1" });
+  });
+});
+
 describe("useProactiveGreet — loading lifecycle", () => {
   it("clears loading and surfaces the greet on success", async () => {
     fetchWithAuth.mockResolvedValueOnce(okGreet({ skipped: false, text: "Hej!" }));

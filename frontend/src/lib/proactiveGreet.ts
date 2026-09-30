@@ -44,6 +44,7 @@ export async function fetchProactiveGreet(
   sessionId: string,
   skillId: string,
   activityId?: string,
+  language?: "da" | "en" | null,
 ): Promise<string | null> {
   // The greet is the one turn that did NOT carry the activity (2026-09-11):
   // the backend built its agent with no activity config, so a tutor whose
@@ -51,8 +52,10 @@ export async function fetchProactiveGreet(
   // explore?". Same guard as useSkillAgent's forwardedProps — only a real
   // `act-` id; the chat page falls back to skillId when there is no activity,
   // and sending that would be the same bug with extra steps.
-  const body: { skillId: string; activityId?: string } = { skillId };
+  const body: { skillId: string; activityId?: string; language?: "da" | "en" } = { skillId };
   if (activityId && activityId.startsWith("act-")) body.activityId = activityId;
+  // The student's explicit DA | EN choice, so the tutor's FIRST line is in it.
+  if (language) body.language = language;
   const resp = await fetchWithAuth(
     `/api/proxy/api/sessions/${encodeURIComponent(sessionId)}/greet`,
     {
@@ -100,15 +103,21 @@ export function useProactiveGreet({
   skillId,
   enabled,
   activityId,
+  language = null,
 }: {
   sessionId: string | null | undefined;
   skillId: string;
   enabled: boolean;
   activityId?: string;
+  /** The student's explicit DA | EN choice. Read when the greet fires; a later
+   *  switch does not re-greet — the next turn carries it instead. */
+  language?: "da" | "en" | null;
 }): ProactiveGreetState {
   const [greetMessage, setGreetMessage] = useState<SkillMessage | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const firedRef = useRef<string | null>(null);
+  const languageRef = useRef(language);
+  languageRef.current = language;
 
   useEffect(() => {
     // Never strand the "thinking" affordance. When we're not in a state where
@@ -133,7 +142,7 @@ export function useProactiveGreet({
 
     let superseded = false;
     setLoading(true);
-    fetchProactiveGreet(sessionId, skillId, activityId)
+    fetchProactiveGreet(sessionId, skillId, activityId, languageRef.current)
       .then((text) => {
         // Don't render a greet that belongs to a superseded tuple.
         if (superseded) return;

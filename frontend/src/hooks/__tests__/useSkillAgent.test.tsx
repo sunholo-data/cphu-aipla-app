@@ -455,6 +455,30 @@ describe("useSkillAgent — deterministic document attachment", () => {
     });
   });
 
+  // 2026-09-30: the student's DA | EN choice rides every turn so the tutor's
+  // instruction names it — and is absent when they never chose.
+  it("forwards the student's chosen language as forwardedProps.ui_language", async () => {
+    const { result } = renderHook(() => useSkillAgent({ activityId: "act-1", language: "en" }));
+
+    await act(async () => {
+      await result.current.sendMessage("hello");
+    });
+
+    expect(fake.runAgent).toHaveBeenCalledWith({
+      forwardedProps: { activity_id: "act-1", ui_language: "en" },
+    });
+  });
+
+  it("sends no ui_language when the student never chose one", async () => {
+    const { result } = renderHook(() => useSkillAgent({ activityId: "act-1", language: null }));
+
+    await act(async () => {
+      await result.current.sendMessage("hello");
+    });
+
+    expect(fake.runAgent).toHaveBeenCalledWith({ forwardedProps: { activity_id: "act-1" } });
+  });
+
   it("omits forwardedProps entirely when no docs and no resume flag", async () => {
     // Negative case: a fresh chat with nothing ticked must not send a
     // stray empty-list — the backend treats absence as "no docs", and

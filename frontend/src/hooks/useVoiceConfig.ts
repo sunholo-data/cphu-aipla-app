@@ -123,8 +123,12 @@ export function useVoiceConfig(
    *  Distinct from skillId since ALS-1 M0. Omitted -> skill-only resolution,
    *  i.e. exactly the previous behaviour. */
   activityId?: string | null,
+  /** The student's explicit DA | EN choice (2026-09-30) — outranks the
+   *  activity's language server-side, so an English reply is never read out by
+   *  a Danish voice. Null/absent → the activity decides, as before. */
+  language?: "da" | "en" | null,
 ): VoiceConfig {
-  const cacheKey = `${skillId ?? "_default_"}::${activityId ?? ""}`;
+  const cacheKey = `${skillId ?? "_default_"}::${activityId ?? ""}::${language ?? ""}`;
   const cached = _cache.get(cacheKey);
 
   const [config, setConfig] = useState<Omit<VoiceConfig, "loading">>(
@@ -140,6 +144,7 @@ export function useVoiceConfig(
     const params = new URLSearchParams();
     if (skillId) params.set("skill_id", skillId);
     if (activityId) params.set("activity_id", activityId);
+    if (language) params.set("language", language);
     const qs = params.toString();
     const url = qs
       ? `/api/proxy/api/voice/config?${qs}`
@@ -148,7 +153,7 @@ export function useVoiceConfig(
     if (signal.cancelled) return;
     if (data) setConfig(data);
     setLoading(false);
-  }, [skillId, activityId, cacheKey]);
+  }, [skillId, activityId, language, cacheKey]);
 
   useEffect(() => {
     const signal = { cancelled: false };

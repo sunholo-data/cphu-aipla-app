@@ -30,7 +30,7 @@ from __future__ import annotations
 import logging
 import re
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
@@ -110,6 +110,10 @@ class GreetRequest(BaseModel):
 
     skill_id: str = Field(alias="skillId", min_length=1, max_length=128)
     activity_id: str | None = Field(default=None, alias="activityId", max_length=128)
+    # The student's explicit DA | EN choice (2026-09-30), so the opening turn is
+    # in the language they picked — not the activity's, then corrected a turn
+    # later. None when they have not chosen.
+    language: Literal["da", "en"] | None = None
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
@@ -216,6 +220,7 @@ async def post_session_greet(
             # GreetRequest. Also keys the (group, activity) turn lock
             # correctly instead of under the skill-id fallback.
             activity_id=body.activity_id,
+            student_language=body.language,
         ):
             event_type = event.get("type") if isinstance(event, dict) else None
             if event_type == "TEXT_MESSAGE_CONTENT":

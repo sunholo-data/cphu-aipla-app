@@ -255,7 +255,38 @@ SOLUTION_FEEDBACK_PROMPT = (
 )
 
 
-def compose_teacher_focus(cfg: ActivityConfig | None) -> str:
+def language_directive(activity_language: str | None, student_language: str | None = None) -> str:
+    """The tutor's language instruction for one turn.
+
+    ``student_language`` is the student's explicit DA | EN choice, sent with the
+    turn; it outranks the activity's. Without it, the activity's language is
+    stated along with a rule to follow a student who ASKS for another language
+    in the chat — the path students took on 29-30 Sep, with no switch to use.
+    """
+    if student_language in _LANGUAGE_NAMES:
+        name = _LANGUAGE_NAMES[student_language]
+        return (
+            f"Speak {name} with the student, in every turn, including your first. "
+            f"The student has chosen {name}. Keep to it in every reply, including short "
+            f"ones, even where the activity, its materials, the workbench labels or "
+            f"earlier turns in this conversation are in another language — read those "
+            f"in whatever language they are written and answer in {name}. Physics terms "
+            f"and units keep their conventional form. Change language only if the "
+            f"student asks you to."
+        )
+    lang = activity_language or DEFAULT_ACTIVITY_LANGUAGE
+    name = _LANGUAGE_NAMES.get(lang, lang)
+    return (
+        f"Speak {name} with the student, in every turn, including your first. "
+        f"Curriculum material may be in another language — read it in whatever "
+        f"language it is written and answer in {name}. Physics terms and units "
+        f"keep their conventional form. If the student asks for a different "
+        f"language, switch to it and keep using it in every later reply — including "
+        f"short ones — until they ask otherwise; do not drift back."
+    )
+
+
+def compose_teacher_focus(cfg: ActivityConfig | None, *, student_language: str | None = None) -> str:
     """Compose the ``{teacher_focus}`` substitution (1.1.41 M2 + 1.1.45 M4 + 1.1.62/63 M2).
 
     Stacks, in order: the **activity language directive** (1.1.63 M2 — first, so
@@ -279,26 +310,17 @@ def compose_teacher_focus(cfg: ActivityConfig | None) -> str:
     goal = (cfg.teaching_goal if cfg else "").strip()
     blocks: list[str] = []
 
-    # 1.1.63 M2 — the activity language. `ActivityConfig.language` was read into
-    # the config at `_activity_to_config` and then used NOWHERE: a written-only
-    # field. So the tutor's language was whatever the model inferred, biased by
-    # Danish skill templates and Danish curriculum docs, and Aswin's English
-    # activity spoke Danish.
-    #
-    # Emitted only when the activity's language differs from the platform
-    # default. `Language` is Literal["da","en"] defaulting to "da", so it is
-    # never unset — emitting unconditionally would rewrite the prompt of every
-    # existing activity days before the pilot, for no behaviour change on the
-    # Danish ones. See test_default_language_emits_no_directive for the residual
-    # gap this accepts.
-    if cfg is not None and cfg.language and cfg.language != DEFAULT_ACTIVITY_LANGUAGE:
-        name = _LANGUAGE_NAMES.get(cfg.language, cfg.language)
-        blocks.append(
-            f"Speak {name} with the student, in every turn, including your first. "
-            f"Curriculum material may be in another language — read it in whatever "
-            f"language it is written and answer in {name}. Physics terms and units "
-            f"keep their conventional form."
-        )
+    # 1.1.63 M2 — the activity language, stated first so it frames everything
+    # after it. Emitted for EVERY activity since 2026-09-30, Danish included.
+    # It used to be emitted only for a non-default language, so a Danish
+    # activity said nothing about language at all — and on 29-30 Sep, English-
+    # speaking students in two classes asked "in English" in 9 of 13 sessions
+    # and the tutor drifted back to Danish on the next short reply, pulled by a
+    # Danish goal, Danish documents, Danish sim labels and a Danish greeting.
+    # The student's own choice (the DA | EN switch) outranks the activity's.
+    directive = language_directive(cfg.language if cfg is not None else None, student_language)
+    if directive and (cfg is not None or student_language):
+        blocks.append(directive)
 
     if cfg is not None and cfg.artefact_id:
         artefact = load_artefact(cfg.artefact_id)
@@ -431,8 +453,12 @@ def inject_teacher_focus(
     activity_id: str,
     *,
     group_tags: Iterable[str] | None = None,
+    student_language: str | None = None,
 ) -> str:
     """Replace the ``{teacher_focus}`` placeholder with the composed focus.
+
+    ``student_language`` is the student's explicit DA | EN choice for this turn
+    (None when they have not chosen) — see ``language_directive``.
 
     The composed focus is the teacher's goal, prefixed with the hosted
     artefact's tutor block (1.1.41 M2 — see ``compose_teacher_focus``).
@@ -448,7 +474,7 @@ def inject_teacher_focus(
         return instructions
 
     cfg = resolve_active_config(activity_id, group_tags=group_tags)
-    focus = compose_teacher_focus(cfg)
+    focus = compose_teacher_focus(cfg, student_language=student_language)
 
     if cfg is None:
         log.debug(
@@ -476,5 +502,6 @@ __all__ = [
     "class_id_from_group_tags",
     "compose_teacher_focus",
     "inject_teacher_focus",
+    "language_directive",
     "resolve_active_config",
 ]

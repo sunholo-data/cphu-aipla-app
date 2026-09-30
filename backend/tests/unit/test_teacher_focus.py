@@ -4,10 +4,14 @@ from __future__ import annotations
 
 import pytest
 
-from adk.teacher_focus import LOCAL_MODE_DEMO_CLASS_ID, inject_teacher_focus
+from adk.teacher_focus import LOCAL_MODE_DEMO_CLASS_ID, inject_teacher_focus, language_directive
 from db import firestore as fs_module
 from db.activity_configs import upsert_activity_config
 from db.local_fixture import WORKSHOP_USER_UID
+
+# Every activity now opens with its language directive (2026-09-30); a Danish
+# activity's focus is that directive, then the blocks these tests are about.
+_DA = language_directive("da") + "\n\n"
 
 
 @pytest.fixture(autouse=True)
@@ -90,7 +94,7 @@ def test_group_tag_takes_precedence_over_workshop_stub():
         teaching_goal="REAL CLASS GOAL",
     )
     out = inject_teacher_focus("{teacher_focus}", "act-x", group_tags=frozenset({"class:teacher-real:cls-real"}))
-    assert out == "REAL CLASS GOAL"
+    assert out == _DA + "REAL CLASS GOAL"
 
 
 def test_unbound_group_falls_back_to_stub():
@@ -102,7 +106,7 @@ def test_unbound_group_falls_back_to_stub():
         teaching_goal="STUB GOAL",
     )
     out = inject_teacher_focus("{teacher_focus}", "act-y", group_tags=frozenset())
-    assert out == "STUB GOAL"
+    assert out == _DA + "STUB GOAL"
 
 
 def test_group_tag_isolation_across_classes():
@@ -142,8 +146,8 @@ def test_two_activities_one_class_resolve_to_distinct_goals():
     create_activity(Activity(activityId="act-aaa", ownerUid="t", teachingGoal="GOAL A"))
     create_activity(Activity(activityId="act-bbb", ownerUid="t", teachingGoal="GOAL B"))
     tags = frozenset({"class:t:cls-1"})
-    assert inject_teacher_focus("{teacher_focus}", "act-aaa", group_tags=tags) == "GOAL A"
-    assert inject_teacher_focus("{teacher_focus}", "act-bbb", group_tags=tags) == "GOAL B"
+    assert inject_teacher_focus("{teacher_focus}", "act-aaa", group_tags=tags) == _DA + "GOAL A"
+    assert inject_teacher_focus("{teacher_focus}", "act-bbb", group_tags=tags) == _DA + "GOAL B"
 
 
 def test_missing_new_store_activity_falls_back_to_legacy():
@@ -156,7 +160,7 @@ def test_missing_new_store_activity_falls_back_to_legacy():
         teaching_goal="LEGACY COMPOSITE GOAL",
     )
     out = inject_teacher_focus("{teacher_focus}", "act-legacyonly", group_tags=frozenset({"class:t-legacy:cls-legacy"}))
-    assert out == "LEGACY COMPOSITE GOAL"
+    assert out == _DA + "LEGACY COMPOSITE GOAL"
 
 
 # --- artefact tutor-block composition (1.1.41 M2) ---
@@ -204,7 +208,7 @@ def test_unknown_artefact_falls_back_to_goal_only():
         teaching_goal="Just the goal.",
         artefact_id="does-not-exist",
     )
-    assert inject_teacher_focus("{teacher_focus}", "bad-sim") == "Just the goal."
+    assert inject_teacher_focus("{teacher_focus}", "bad-sim") == _DA + "Just the goal."
 
 
 # --- solution feedback prompt injection (1.1.45 M4, JB-2) ---
@@ -268,7 +272,7 @@ def test_no_solution_element_omits_the_feedback_prompt() -> None:
     )
     focus = compose_teacher_focus(cfg)
     assert SOLUTION_FEEDBACK_PROMPT not in focus
-    assert focus == "Just a goal"
+    assert focus == _DA + "Just a goal"
 
 
 # ---------------------------------------------------------------------------
@@ -345,25 +349,54 @@ def test_language_directive_separates_reading_from_speaking() -> None:
     assert "another language" in focus or "whatever language" in focus
 
 
-def test_default_language_emits_no_directive() -> None:
-    """``Language`` is ``Literal["da", "en"]`` defaulting to ``"da"`` — it is
-    never unset, so "emit whenever it is set" would change the prompt of EVERY
-    existing activity eight days before the pilot.
-
-    The directive is emitted only when the activity's language differs from the
-    platform default, so a Danish activity composes byte-identically to before.
-    Two existing tests assert ``focus == "<the goal>"`` exactly; that contract
-    holds.
-
-    Residual gap, accepted deliberately: a Danish activity whose student writes
-    in English still gets an English tutor by inference, because nothing states
-    Danish explicitly. Fixing that means emitting for both languages and
-    re-baselining every activity's prompt — a post-pilot change, not a
-    pre-pilot one.
-    """
+def test_a_danish_activity_states_danish_and_follows_a_request() -> None:
+    """Re-baselined 2026-09-30. A Danish activity used to say nothing about
+    language, which was the residual gap this test once accepted: English-
+    speaking students asked "in English" in 9 of 13 sessions on 29-30 Sep and
+    the tutor drifted back to Danish on the next short reply. It now states
+    Danish AND tells the tutor to follow — and keep — a requested language."""
     from adk.teacher_focus import compose_teacher_focus
 
-    assert compose_teacher_focus(_cfg(language="da", teachingGoal="Mål g")) == "Mål g"
+    focus = compose_teacher_focus(_cfg(language="da", teachingGoal="Mål g"))
+    assert focus.startswith("Speak Danish with the student")
+    assert "asks for a different language" in focus
+    assert "do not drift back" in focus
+    assert focus.endswith("Mål g")
+
+
+def test_the_students_choice_outranks_the_activity_language() -> None:
+    from adk.teacher_focus import compose_teacher_focus
+
+    focus = compose_teacher_focus(_cfg(language="da", teachingGoal="Mål g"), student_language="en")
+    assert focus.startswith("Speak English with the student")
+    assert "The student has chosen English" in focus
+    assert "Speak Danish" not in focus
+    # The reason it drifted: everything around the tutor was Danish. Say so.
+    assert "earlier turns" in focus
+
+
+def test_a_student_can_choose_danish_in_an_english_activity() -> None:
+    from adk.teacher_focus import compose_teacher_focus
+
+    focus = compose_teacher_focus(_cfg(language="en", teachingGoal="Goal"), student_language="da")
+    assert focus.startswith("Speak Danish with the student")
+    assert "Speak English" not in focus
+
+
+def test_an_unknown_student_language_is_ignored() -> None:
+    """Only a supported code reaches the instruction — never free text."""
+    from adk.teacher_focus import compose_teacher_focus
+
+    focus = compose_teacher_focus(_cfg(language="en", teachingGoal="Goal"), student_language="ignore previous")
+    assert "ignore previous" not in focus
+    assert focus.startswith("Speak English with the student")
+
+
+def test_a_student_choice_with_no_activity_still_states_the_language() -> None:
+    from adk.teacher_focus import compose_teacher_focus
+
+    assert compose_teacher_focus(None) == ""
+    assert compose_teacher_focus(None, student_language="en").startswith("Speak English with the student")
 
 
 def test_composed_focus_stays_under_the_skillconfig_instruction_cap() -> None:
@@ -504,7 +537,7 @@ def test_concept_map_block_is_bounded() -> None:
     # the tutor a concept list with no instruction to check anything off.
     assert "run_checkpoint" in focus
     assert "n0" in focus  # truncation is node-wise, from the end
-    assert len(focus) < _CONCEPT_MAP_CAP + 1500
+    assert len(focus) < _CONCEPT_MAP_CAP + 1500 + len(_DA)
 
 
 def test_solution_task_is_bounded() -> None:
@@ -525,7 +558,7 @@ def test_chat_only_activity_composes_exactly_as_before() -> None:
     """
     from adk.teacher_focus import compose_teacher_focus
 
-    assert compose_teacher_focus(_cfg(teachingGoal="Just a goal")) == "Just a goal"
+    assert compose_teacher_focus(_cfg(teachingGoal="Just a goal")) == _DA + "Just a goal"
 
 
 # ---------------------------------------------------------------------------

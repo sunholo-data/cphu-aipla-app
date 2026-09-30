@@ -410,6 +410,7 @@ def create_agent(
     *,
     activity_id: str | None = None,
     access_context: AccessContext | None = None,
+    student_language: str | None = None,
     _seen: set[str] | None = None,
     _model_override: str | None = None,
     _planner_override: BuiltInPlanner | None = None,
@@ -927,6 +928,9 @@ def create_agent(
                 # Phase 3: resolve the teacher's goal from THIS student's
                 # verified group→class binding, not the LOCAL_MODE stub.
                 group_tags=user.group_tags,
+                # The student's DA | EN choice, sent with this turn. The agent
+                # is rebuilt per request, so a build-time value is per-turn.
+                student_language=student_language,
             ),
             wrap_with_iframe_context,
             # 1.1.127 — the opening block is kept only on the [session_start]
@@ -979,6 +983,7 @@ def create_agent_with_thinking(
     *,
     activity_id: str | None = None,
     access_context: AccessContext | None = None,
+    student_language: str | None = None,
 ) -> LlmAgent | _HeuristicRouter:
     """Dispatch to the three-tier thinking strategy.
 
@@ -994,16 +999,25 @@ def create_agent_with_thinking(
     """
     md = skill_config.skill_metadata
     if md.thinking_model is None:
-        return create_agent(skill_config, user, activity_id=activity_id, access_context=access_context)
+        return create_agent(
+            skill_config,
+            user,
+            activity_id=activity_id,
+            access_context=access_context,
+            student_language=student_language,
+        )
 
     # Tier 3: two agents + picker. Build both via the same recursive factory
     # so sub-skills/tools/callbacks stay wired identically.
-    fast = create_agent(skill_config, user, activity_id=activity_id, access_context=access_context)
+    fast = create_agent(
+        skill_config, user, activity_id=activity_id, access_context=access_context, student_language=student_language
+    )
     thinking = create_agent(
         skill_config,
         user,
         activity_id=activity_id,
         access_context=access_context,
+        student_language=student_language,
         _model_override=md.thinking_model,
         _planner_override=None,
     )

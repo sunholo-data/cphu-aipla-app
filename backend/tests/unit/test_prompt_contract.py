@@ -159,11 +159,12 @@ def test_an_english_activity_is_told_to_speak_english_and_still_read_danish():
     assert "another language" in composed  # read it in whatever language it is written
 
 
-def test_a_danish_activity_composes_as_before():
-    """No-regression: the language directive fires only off the default, so
-    every existing Danish activity's prompt is untouched."""
+def test_a_danish_activity_states_danish_and_follows_a_requested_language():
+    """Re-baselined 2026-09-30: a Danish activity said nothing about language,
+    and English-speaking students' "in English" did not stick."""
     composed = _composed(_full_activity(language="da")).lower()
-    assert "speak danish" not in composed
+    assert "speak danish" in composed
+    assert "asks for a different language" in composed
 
 
 # --- Budget ----------------------------------------------------------------

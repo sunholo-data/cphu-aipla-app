@@ -36,6 +36,8 @@ import { useEnteredViaResume } from "@/hooks/useEnteredViaResume";
 import { useSessionDocuments } from "@/hooks/useSessionDocuments";
 import { useStableThreadId } from "@/hooks/useStableThreadId";
 import { useProactiveGreet } from "@/lib/proactiveGreet";
+import { LanguageSwitch } from "@/components/site/LanguageSwitch";
+import { useStudentLanguage } from "@/i18n/userLocale";
 import {
   HumanToolEventsProvider,
   useSyncMessageCount,
@@ -397,6 +399,10 @@ function ChatShell({
   // the full activityId — that endpoint dual-reads legacy skill ids on purpose.
   // Same idiom as pulseActivityId below.
   const progressActivityId = activityId.startsWith("act-") ? activityId : undefined;
+  // The student's explicit DA | EN choice (2026-09-30). Outranks the activity's
+  // language for this screen, the tutor and the read-aloud voice; null when they
+  // never chose, which leaves the teacher's language in force.
+  const studentLanguage = useStudentLanguage();
   const {
     sessionId: agentSessionId,
     messages,
@@ -414,7 +420,7 @@ function ChatShell({
     stop,
     stall,
     retryStalled,
-  } = useSkillAgent({ activityId });
+  } = useSkillAgent({ activityId, language: studentLanguage });
   const {
     displayName,
     mcpServerIds,
@@ -645,11 +651,12 @@ function ChatShell({
   const images = useImageAttachments();
   // VOICE-IN-REC M3 — composer mic (talk-to-type XOR record-lesson). Gated on
   // the class capability flags from voice config; dictation fills the draft.
-  const composerVoice = useVoiceConfig(skillId);
-  // The student UI speaks the activity's language (1.1.108 M1). A chat with no
-  // activity falls back to the skill/class voice language, then to Danish —
-  // never to the browser's.
-  const locale: Locale = activeLanguage ?? toLocale(composerVoice.tts.language);
+  const composerVoice = useVoiceConfig(skillId, undefined, studentLanguage);
+  // The student UI speaks the activity's language (1.1.108 M1) — unless the
+  // student chose one with the switch in the top bar, which wins (2026-09-30).
+  // A chat with no activity falls back to the skill/class voice language, then
+  // to Danish — never to the browser's.
+  const locale: Locale = studentLanguage ?? activeLanguage ?? toLocale(composerVoice.tts.language);
   const t = useT("ChatPage", locale);
   const tStage = useT("StageProgress", locale);
   // The typing indicator's stage, in the activity's language when the backend
@@ -800,6 +807,7 @@ function ChatShell({
     skillId,
     enabled: proactiveGreetEnabled,
     activityId,
+    language: studentLanguage,
   });
   const { tabs: sessionDocTabs } = useSessionDocuments(sessionId);
   const { sessions, isLoading: sessionsLoading } = useSkillSessions(skillId);
@@ -1134,7 +1142,12 @@ function ChatShell({
         activeSkillId={skillId}
         isLoading={skillsLoading}
         onCreateClick={() => router.push("/skills/new")}
-        actions={<AutoReadToggle />}
+        actions={
+          <>
+            <LanguageSwitch value={locale} />
+            <AutoReadToggle />
+          </>
+        }
         groupCode={readStoredGroupSession()?.group_code ?? null}
       />
 

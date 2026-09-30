@@ -198,15 +198,18 @@ with no dependency. Everything below can slip; this cannot.
    `// locale: en-only, by decision <ref>` comment or it is a bug.
 3. **Language is never inferred from the browser.** There are exactly two
    languages and both are CHOSEN: the **students' language** (`activity.language`,
-   set by the teacher — wins inside an activity, because the tutor speaks it)
-   and the **person's own language** (the DA | EN switch, remembered in this
-   browser — everywhere else). No choice → the site default. `navigator.language`
-   is not read anywhere. (A Danish student in an English activity sees English —
-   the teacher decided. *Revised 2026-09-30 — was `teacher_prefs.locale`; see
-   "The person's language vs the students' language".*)
+   set by the teacher — the default inside an activity, because the tutor speaks
+   it) and the **person's own language** (the DA | EN switch, remembered in this
+   browser — everywhere else, AND inside an activity once they have explicitly
+   chosen). No choice → the site default. `navigator.language` is not read
+   anywhere. (A Danish student in an English activity sees English — unless they
+   pick Danish on the switch, and then the screen, the tutor and the voice are
+   all Danish. *Revised 2026-09-30 twice — was `teacher_prefs.locale`; then the
+   student override, see "A student's explicit choice".*)
 4. **Prompt prose does not bake in a language.** A SKILL.md or framework YAML
    says *what* the tutor does; `compose_teacher_focus` says *in which language*,
-   from `activity.language`. A new tutor that writes *"svar altid på dansk"*
+   from the student's explicit choice, else `activity.language`
+   (`adk.teacher_focus.language_directive`). A new tutor that writes *"svar altid på dansk"*
    into its instruction body has re-created the 1.1.7x bug.
 5. **A sim carries its strings in one object and takes `lang` from the
    bridge.** The `_sim-template` scaffold gets a `strings` map and a `lang`
@@ -407,6 +410,36 @@ Danish; Boldkast received `hostContext.locale: "da"` read from inside its
 iframe. An English sim was not checked on dev — no English activity there
 carries one.
 
+### A student's explicit choice (2026-09-30, later the same day)
+
+Prod, 29-30 Sep: English-speaking students in two classes ran Danish
+activities. In 9 of 13 real sessions the student typed "in English"; the tutor
+complied and then drifted back to Danish on the next short reply ("I don't
+know", "It goes somewhere else") — one student swore at it. The translation
+work had made each surface follow ONE language, but that language was the
+teacher's, so it made the student's context *more* uniformly Danish: Danish
+buttons, goal, documents, sim labels and greeting, against one chat message.
+And a Danish activity emitted no language directive at all.
+
+M: *"the student needs language choice as well."* So:
+
+- **The DA | EN switch is on the student chat** (top bar), and an EXPLICIT choice
+  outranks `activity.language` for the whole student screen, the tutor's
+  instruction (`forwardedProps.ui_language` → `language_directive`), the
+  opening greet (`GreetRequest.language`) and the read-aloud voice
+  (`/voice/config?language=`). One language everywhere, never a mix. A student
+  who never touches it sees exactly what they did before.
+- **Every activity now states its language**, Danish included, with a rule to
+  follow — and keep — a language the student asks for in the chat. This
+  re-baselines every Danish activity's prompt, which is the change
+  `test_default_language_emits_no_directive` once deferred as "post-pilot".
+- **Not yet:** a sim takes its locale at the `ui/initialize` handshake, so a
+  mid-session switch reaches it on the next load, not live. Voice per-group:
+  a group shares one session, so each device's turn carries its own choice.
+- **Open for AR/JB:** whether a teacher should be able to LOCK an activity's
+  language (e.g. Danish-practice classes). Not built; default is the student
+  may choose.
+
 ### The person's language vs the students' language (2026-09-30)
 
 M, 2026-09-30: *"we need a user's language setting (e.g. English) vs the
@@ -416,7 +449,7 @@ switch at all.
 
 | | Chosen by | Stored | Governs |
 |---|---|---|---|
-| **Students' language** | the teacher, per activity | `activity.language` (server) | the student surface inside that activity, the tutor's replies, the sim, `<html lang>` there; the teacher's live preview of it |
+| **Students' language** | the teacher, per activity | `activity.language` (server) | the student surface inside that activity, the tutor's replies, the sim, `<html lang>` there; the teacher's live preview of it — **unless the viewer has explicitly chosen on the switch** (see above) |
 | **Person's language** | anyone, with the DA \| EN switch | `localStorage["aipla.uiLocale"]` (this browser) | everything outside an activity: homepage, join page, lesson picker, footer, and teacher screens as M2 translates them |
 
 - **Default** when a person has not chosen: the site default (`DEFAULT_LOCALE`,

@@ -8,8 +8,8 @@
 //                     picker, footer, teacher screens (as M2 translates them).
 //   activity locale — what the students of an activity read and the tutor
 //                     speaks. Set by the teacher on the activity; wins inside
-//                     it, whatever the viewer's own setting (a teacher working
-//                     in English still previews a Danish activity in Danish).
+//                     it UNLESS the person has explicitly chosen a language
+//                     with the switch (2026-09-30 — see useStudentLanguage).
 //
 // Neither is guessed from the browser (rule M4.3). No setting → a default
 // taken from DATA: English for a researcher (most of the research team do not
@@ -91,4 +91,20 @@ export function UserLocaleProvider({ children }: { children: ReactNode }) {
 
 export function useUserLocale(): UserLocaleValue {
   return useContext(UserLocaleContext);
+}
+
+/**
+ * The language a person has EXPLICITLY chosen with the DA | EN switch, or null
+ * when they never chose (2026-09-30).
+ *
+ * Inside an activity this outranks the activity's language — for the student's
+ * screen, the tutor's replies and the read-aloud voice. On 29-30 Sep, English-
+ * speaking students in two classes on Danish activities typed "in English" in 9
+ * of 13 sessions and the tutor kept drifting back, because every other part of
+ * the screen and the prompt was Danish. Null leaves the teacher's choice alone,
+ * so a student who never touches the switch sees exactly what they did before.
+ */
+export function useStudentLanguage(): Locale | null {
+  const { locale, explicit } = useUserLocale();
+  return explicit ? locale : null;
 }

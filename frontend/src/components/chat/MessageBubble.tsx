@@ -23,6 +23,7 @@ import { ReadAloudButton } from "@/components/chat/ReadAloudButton";
 import { formatRelativeTime, formatAbsoluteTime } from "@/lib/relativeTime";
 import { useAutoReadAloud } from "@/hooks/useAutoReadAloud";
 import { useVoiceConfig } from "@/hooks/useVoiceConfig";
+import { useStudentLanguage } from "@/i18n/userLocale";
 import { useLocaleMode, useT } from "@/i18n";
 import { useVoiceLang } from "@/hooks/useVoiceLang";
 import { ToolCallChip } from "@/components/chat/ToolCallChip";
@@ -179,7 +180,8 @@ export const MessageBubble = React.memo(function MessageBubble({
   // the browser-native default). Cached per-skill across the page
   // session in useVoiceConfig.
   const tBubble = useT("MessageBubble");
-  const voiceConfig = useVoiceConfig(skillId, activityId);
+  const studentLanguage = useStudentLanguage();
+  const voiceConfig = useVoiceConfig(skillId, activityId, studentLanguage);
   // 1.1.11 auto-read: when ON, every assistant message auto-speaks.
   // We only trigger for assistant role; user/system bubbles never
   // self-speak. Gated on `!voiceConfig.loading` so the first message

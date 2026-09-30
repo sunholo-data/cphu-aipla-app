@@ -163,6 +163,7 @@ async def process_skill_request(
     a2ui_surface_state: dict[str, Any] | None = None,
     activity_id: str | None = None,
     allow_recorded_demo: bool = False,
+    student_language: str | None = None,
 ) -> AsyncGenerator[dict, None]:
     """Public entry — wrap one skill turn with the group turn-lock (1.1.53 M0).
 
@@ -230,6 +231,7 @@ async def process_skill_request(
             resumed_session=resumed_session,
             a2ui_surface_state=a2ui_surface_state,
             activity_id=activity_id,
+            student_language=student_language,
         ):
             yield event
     finally:
@@ -253,6 +255,7 @@ async def _run_skill_turn(
     resumed_session: bool = False,
     a2ui_surface_state: dict[str, Any] | None = None,
     activity_id: str | None = None,
+    student_language: str | None = None,
 ) -> AsyncGenerator[dict, None]:
     """Yield AG-UI events for one turn of `skill_id`.
 
@@ -309,7 +312,9 @@ async def _run_skill_turn(
     # ALS-1 M0: the student opened a specific activity (an act- id from the lesson
     # card); thread it so the agent injects THAT activity's teacher-focus. None
     # (every legacy caller) falls back to the skill id inside the factory.
-    agent_or_router = create_agent_with_thinking(skill, user, activity_id=activity_id)
+    agent_or_router = create_agent_with_thinking(
+        skill, user, activity_id=activity_id, student_language=student_language
+    )
     if isinstance(agent_or_router, _HeuristicRouter):
         agent = agent_or_router.pick_agent(message_text)
         routing_choice = "thinking" if agent is agent_or_router.thinking else "fast"
