@@ -34,7 +34,11 @@ const LIVE_WINDOW_S = 5400;
 /** "…/2026-06-29T12:00:00Z" → "3 min ago" for the AI-summary freshness line. */
 function relAgo(iso: string | null | undefined, t: T): string {
   if (!iso) return "";
-  const secs = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
+  // An unparseable timestamp used to fall through every branch as NaN and
+  // render "last active NaNh ago" — say nothing rather than nonsense.
+  const at = Date.parse(iso);
+  if (Number.isNaN(at)) return "";
+  const secs = Math.max(0, Math.round((Date.now() - at) / 1000));
   if (secs < 60) return t("justNow");
   const mins = Math.round(secs / 60);
   return mins < 60 ? t("minAgo", { n: mins }) : t("hoursAgo", { n: Math.round(mins / 60) });
@@ -224,7 +228,10 @@ export default function TeacherGroupReportPage() {
   // Recency for the live badge: the last chat turn's timestamp. Viewing the
   // latest session (no ?session_id) AND active within the live window → "live";
   // otherwise it's historical → "last active N ago".
-  const lastActivityIso = report.conversation.at(-1)?.timestamp ?? null;
+  // From the RAW data: `report.conversation` timestamps are trimmed to "HH:MM"
+  // for display, which parses as NaN — so every report read "last active NaNh
+  // ago" and the live badge could never show.
+  const lastActivityIso = state.kind === "live" ? (state.data.conversation.at(-1)?.timestamp ?? null) : null;
   const liveActive =
     !sessionId &&
     lastActivityIso !== null &&
@@ -265,7 +272,7 @@ export default function TeacherGroupReportPage() {
             </span>
           ) : (
             !sessionId &&
-            lastActivityIso && (
+            relAgo(lastActivityIso, t) && (
               <span className="text-xs font-normal text-muted-foreground">
                 {t("lastActive", { ago: relAgo(lastActivityIso, t) })}
               </span>

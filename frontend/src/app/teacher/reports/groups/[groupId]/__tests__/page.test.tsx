@@ -169,6 +169,25 @@ describe("/teacher/reports/groups/[groupId] — real session report", () => {
     expect(fetchTimeline).toHaveBeenCalledWith(groupId, LIVE_REPORT.sessionId);
   });
 
+  it("says how long ago a past session was active — never 'NaNh ago' (recency read from the raw timestamp)", async () => {
+    fetchReport.mockResolvedValueOnce(LIVE_REPORT); // last turn 2026-06-15, long past
+    render(<TeacherGroupReportPage />);
+    const line = await screen.findByText(/last active/i);
+    expect(line.textContent).toMatch(/last active \d+h ago/i);
+    expect(line.textContent).not.toMatch(/NaN/);
+  });
+
+  it("shows the live badge when the group was active a moment ago", async () => {
+    const recent = new Date(Date.now() - 60_000).toISOString();
+    fetchReport.mockResolvedValueOnce({
+      ...LIVE_REPORT,
+      conversation: [{ timestamp: recent, role: "student", content: "Hej" }],
+    });
+    render(<TeacherGroupReportPage />);
+    expect(await screen.findByText(/^live$/i)).toBeInTheDocument();
+    expect(screen.queryByText(/last active/i)).not.toBeInTheDocument();
+  });
+
   it("shows an honest empty state (no mock) when no session exists yet", async () => {
     fetchReport.mockRejectedValueOnce(new NotFoundError());
     render(<TeacherGroupReportPage />);
