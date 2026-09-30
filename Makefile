@@ -571,6 +571,15 @@ tutor-docs: ## Regenerate the per-tutor design docs + public /project/tutors pag
 check-tutor-docs: ## Fail if the tutor docs have drifted from the framework YAML (CI-gated)
 	@cd backend && uv run python scripts/generate_tutor_docs.py --check
 
+# BENCH-1 (2026-09-30): do the seven tutors teach differently? Scripted students x
+# seven approach tutors x tutor models, each transcript judged blind against all
+# seven. ARGS=--dry-run prints the plan, call count and cost with ZERO model
+# calls; without --go it refuses to call anything. Reads the env's Firestore
+# (skill + approach instructions) and calls Vertex as your ADC.
+.PHONY: bench-tutors
+bench-tutors: ## Tutor discrimination benchmark (ARGS=--dry-run | ARGS=--go; ENV=dev by default)
+	@cd backend && GOOGLE_CLOUD_PROJECT=aipla-$(ENV)-2026 uv run python ../scripts/bench-tutor-discrimination.py $(ARGS)
+
 # Home-screen icon gate (2026-08-14). The PWA shipped in v0.1.18 with icons cut
 # from the ROUNDED aipla-mark.svg, so their corners were transparent. iOS rounds
 # apple-touch-icon itself and, given transparency, shows a blank tile — reported
