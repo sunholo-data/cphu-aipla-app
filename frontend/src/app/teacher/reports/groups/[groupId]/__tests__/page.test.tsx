@@ -97,9 +97,7 @@ describe("/teacher/reports/groups/[groupId] — real session report", () => {
       screen.queryByText(LIVE_REPORT.conversation[0].content),
     ).not.toBeInTheDocument();
 
-    await userEvent.click(
-      screen.getByRole("button", { name: /view full transcript/i }),
-    );
+    await userEvent.click(await screen.findByRole("button", { name: /view full transcript/i }));
 
     for (const turn of LIVE_REPORT.conversation) {
       expect(screen.getByText(turn.content)).toBeInTheDocument();
@@ -119,7 +117,9 @@ describe("/teacher/reports/groups/[groupId] — real session report", () => {
     // The old separate list is gone.
     expect(screen.queryByText(/^Workbench activity$/)).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: /view full transcript/i }));
+    // findByRole, not getByRole: "loading" can be absent BEFORE the fetch has
+    // rendered anything, and on a slow CI box the button is not there yet.
+    await userEvent.click(await screen.findByRole("button", { name: /view full transcript/i }));
     // Unlabelled (pre-1.1.136) row → derived label, placed between the turns.
     const card = await screen.findByText("Writing updated");
     const q = screen.getByText(LIVE_REPORT.conversation[0].content);
@@ -152,7 +152,9 @@ describe("/teacher/reports/groups/[groupId] — real session report", () => {
     });
     render(<TeacherGroupReportPage />);
     await waitFor(() => expect(screen.queryByText(/loading report/i)).not.toBeInTheDocument());
-    await userEvent.click(screen.getByRole("button", { name: /view full transcript/i }));
+    // findByRole, not getByRole: "loading" can be absent BEFORE the fetch has
+    // rendered anything, and on a slow CI box the button is not there yet.
+    await userEvent.click(await screen.findByRole("button", { name: /view full transcript/i }));
     expect(await screen.findByText("Calculated Fart = 10")).toBeInTheDocument();
     expect(fetchTimeline).toHaveBeenCalledWith(groupId, LIVE_REPORT.sessionId);
   });
