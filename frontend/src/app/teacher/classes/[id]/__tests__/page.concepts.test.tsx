@@ -96,10 +96,16 @@ afterEach(() => {
   conceptCount = 2;
 });
 
+// The whole class page mounts here (class fetch → concept graph → onLoaded) before
+// the section can show. Cloud Build is slow enough that findBy*'s 1 s default
+// timed out and failed the dev deploy of bd2410d (2026-09-30), so the waits are
+// generous. They cost nothing when the page is fast.
+const SLOW = { timeout: 10_000 };
+
 describe("/teacher/classes/[id] — concepts at the top", () => {
   it("renders 'Concepts across the class' above the groups list, once", async () => {
     renderPage();
-    const concepts = await screen.findByRole("heading", { name: "Concepts across the class" });
+    const concepts = await screen.findByRole("heading", { name: "Concepts across the class" }, SLOW);
     const groups = screen.getByRole("heading", { name: "Groups" });
     expect(
       concepts.compareDocumentPosition(groups) & Node.DOCUMENT_POSITION_FOLLOWING,
@@ -107,16 +113,16 @@ describe("/teacher/classes/[id] — concepts at the top", () => {
     // One place only — the old bottom section is gone.
     expect(screen.getAllByTestId("class-concept-graph-stub")).toHaveLength(1);
     expect(screen.queryByRole("heading", { name: "Concept map for the class" })).toBeNull();
-  });
+  }, 20_000);
 
   it("shows no card at the top when the class has no concepts — one muted line", async () => {
     conceptCount = 0;
     renderPage();
-    const hint = await screen.findByTestId("class-concepts-hint");
+    const hint = await screen.findByTestId("class-concepts-hint", {}, SLOW);
     const groups = screen.getByRole("heading", { name: "Groups" });
     expect(hint.compareDocumentPosition(groups) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     await waitFor(() =>
       expect(screen.queryByRole("heading", { name: "Concepts across the class" })).toBeNull(),
     );
-  });
+  }, 20_000);
 });
