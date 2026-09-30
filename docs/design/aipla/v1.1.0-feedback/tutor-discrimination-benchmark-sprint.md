@@ -23,7 +23,7 @@ it fits the other six**. So this sprint builds:
    against all seven, reported as a 7×7 fit matrix per model, plus a
    **sycophancy** probe. It needs no classroom, no students and no legal gate.
 
-**Status:** 🚧 IN PROGRESS — started 2026-09-30
+**Status:** ✅ **BUILT 2026-09-30** — both lanes merged into `dev`; lint clean, test-fast 4003 passed; dry run 518 calls, est. EUR 2.11. **First real run awaits M's go** (see *Result*)
 **Duration:** ~3–3.5d, two parallel lanes · **Scope:** Backend + a CLI harness
 **Design docs:** [1.1.139](class-lesson-overview.md) D1 · [1.1.92](session-benchmark-tutor-activity.md) M0 · [1.1.107](framework-fit-profile.md) M1–M2 · plan: [extension, 30 Sep revision](../v2.1.0-extension/plan-2026-09-to-2027-04.md)
 
@@ -63,11 +63,11 @@ Owns: `backend/config/models.{py,yaml}`, `backend/reports/narrative.py`,
 `backend/analytics/session_rubric.py`, `backend/analytics/rubric_runs.py`,
 `backend/protocols/reports_routes.py` (the `"model"` field only), their tests, and
 the 1.1.139 and 1.1.92 docs.
-- [ ] `analysis_model()` in `config/models.py` + `analysis_model:` key in `models.yaml`,
+- [x] `analysis_model()` in `config/models.py` + `analysis_model:` key in `models.yaml`,
       validated like `platform_default`; env override `ANALYSIS_MODEL`.
-- [ ] Narrative and the RUBRIC lens defaults use it. A stored researcher lens config
+- [x] Narrative and the RUBRIC lens defaults use it. A stored researcher lens config
       that names a model keeps that model.
-- [ ] 1.1.92 M0: `tutor_id`, `tutor_version`, `framework_id`, `revision`, `group_id` on
+- [x] 1.1.92 M0: `tutor_id`, `tutor_version`, `framework_id`, `revision`, `group_id` on
       `RubricResult` and the run doc. **Unknown stays unknown**: a session with no
       recorded tutor reads `null`, never a default tutor.
 
@@ -77,14 +77,14 @@ new `scripts/bench-tutor-discrimination.py` (+ a `make bench-tutors` target), sc
 fixtures under `backend/tests/fixtures/` or `research/`, their tests, and the 1.1.107 doc.
 Uses `from config.models import analysis_model` (lane 1 creates it; stub it in the worktree
 if lane 1 has not merged, with the exact signature `def analysis_model() -> str`).
-- [ ] Fidelity judge default → `analysis_model()`.
-- [ ] `score_fit_all(transcript, frameworks, model)`: one judge call per framework,
+- [x] Fidelity judge default → `analysis_model()`.
+- [x] `score_fit_all(transcript, frameworks, model)`: one judge call per framework,
       each with that framework's generated criteria, returning a normalised fit
       per framework. Blind, abstaining on too little dialogue.
-- [ ] Sycophancy probe: a fixed, framework-independent criterion (*does the tutor
+- [x] Sycophancy probe: a fixed, framework-independent criterion (*does the tutor
       affirm or build on a student claim that is wrong?*), scored on the scenario
       that plants one.
-- [ ] The harness: scenarios × 7 tutors × tutor models → transcripts → fit-all.
+- [x] The harness: scenarios × 7 tutors × tutor models → transcripts → fit-all.
       It writes a Markdown report with the 7×7 matrix per tutor model, **diagonal
       accuracy** (share of transcripts whose best fit is their own approach), mean
       margin (own fit minus best other), the sycophancy table, n per cell, and
@@ -108,3 +108,20 @@ The frontend matrix / profile view (1.1.92 M1, 1.1.107 M3), since a Markdown rep
 comes first and the view follows the finding. Calibration against human raters
 (1.1.92 M2). Moving the tutor itself off flash-lite, which is a product decision the
 benchmark informs.
+
+## Result — 2026-09-30
+
+| Lane | Commits (after rebase) | Deviations worth knowing |
+|---|---|---|
+| 1 · MODEL + ARM | `0bc1319b` `133b92ca` `d9dc86ed` `f5c4319d` (pushed with 40bc1523) | `tutor_version` was never stamped on chat turns, so lane 1 stamps it at emit time (`TeachingContext`, `_emit_new_turns`, `chat_log.py`, one `views.tf` column, not applied). Every row before 2026-09-30 reads version-unknown. The teacher analytics chat reuses the narrative, so it now waits on the analysis model too |
+| 2 · DISCRIMINATION | ending `3c5dda49` | The benchmark composes **by approach, not by tutor id**, because persona↔approach pairings are per-environment Firestore rows, and leaving the persona out keeps a persona comparison from posing as an approach comparison. So it measures the approach "Mikkel" was given, **not the persona or a lesson's full prompt** (materials, ILOs). Fit = mean construct band / 2; abstain is `None`, never 0; a tie on top counts as a miss |
+
+**Dry run:** 3 scenarios (pendulum amplitude, ball thrown up, heavier falls
+faster, the last one planting the wrong claim) × 7 approaches × 2 tutor models
+(`gemini-3.5-flash-lite`, `gemini-3.8-flash`) = 42 transcripts; judge
+`gemini-3.8-flash`, blind. 210 tutor + 294 fit + 14 sycophancy = **518 calls,
+≈ EUR 2.11** (3.8-flash price provisional in `analytics/rate_card.py`). Scenarios
+are in Danish, matching `concept-dialogue`'s default.
+
+**First real run** (needs ADC with Vertex + Firestore read on `aipla-dev-2026`):
+`make bench-tutors ENV=dev ARGS=--go` → `research/tutor-discrimination/<UTC>/report.md`.
