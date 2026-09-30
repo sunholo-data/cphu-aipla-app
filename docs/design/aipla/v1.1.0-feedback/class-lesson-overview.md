@@ -176,8 +176,10 @@ tutor.**
   session, after the fact, so the cost is small next to per-turn tutoring. Check it
   against the [1.1.106 cloud-cost envelope](cloud-cost-envelope.md) before
   switching. It also makes the judge a different model from the tutor, which the
-  fidelity read needs in order to mean anything. This dovetails with JB's "top tier"
-  ask and gives 1.1.92 a model arm to compare.
+  fidelity read needs in order to mean anything, and gives 1.1.92 a model arm to compare.
+  *(Corrected 2026-09-30: an earlier version said this "dovetails with JB's 'top tier' ask".
+  The 09-29 transcript shows "top tier" was the Sun–Earth–Moon sim's highest mission tier, not
+  cloud models. The decision stands on its own reasons.)*
   **Built 2026-09-30 (BENCH-1).** `analysis_model()` in `backend/config/models.py`, validated
   like `platform_default`; `ANALYSIS_MODEL` overrides with a registry id or a registered
   api_name, and an unregistered value raises rather than pointing at an unpriced model. The
