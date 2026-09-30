@@ -578,7 +578,9 @@ check-tutor-docs: ## Fail if the tutor docs have drifted from the framework YAML
 # (skill + approach instructions) and calls Vertex as your ADC.
 .PHONY: bench-tutors
 bench-tutors: ## Tutor discrimination benchmark (ARGS=--dry-run | ARGS=--go; ENV=dev by default)
-	@cd backend && GOOGLE_CLOUD_PROJECT=aipla-$(ENV)-2026 uv run python ../scripts/bench-tutor-discrimination.py $(ARGS)
+	@# PLATFORM_OWNER_UID: the deployed services set aipla-platform; a laptop falls back to the
+	@# template's aitana-platform and finds no platform skills (first --go run, 2026-09-30).
+	@cd backend && GOOGLE_CLOUD_PROJECT=aipla-$(ENV)-2026 PLATFORM_OWNER_UID=aipla-platform uv run python ../scripts/bench-tutor-discrimination.py $(ARGS)
 
 # Home-screen icon gate (2026-08-14). The PWA shipped in v0.1.18 with icons cut
 # from the ROUNDED aipla-mark.svg, so their corners were transparent. iOS rounds
