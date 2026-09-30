@@ -580,6 +580,7 @@ Any local workflow that requires more than one manual step — setting env vars,
 | **Check the how-to guides** (front matter, stranded translations, missing screenshots; CI-gated) and whether a documented surface changed under them | `make check-guides` · `make guide-staleness` (the `check-guide-nav` / `guides-publish` targets this row once named were retired with the Quarto guides in 1.1.116) |
 | **Republish the sim authoring prompt** (after editing `.claude/skills/mcp-app-artefact/resources/authoring-prompt.md`) — the `/project/build-a-simulation` page and `/sim-authoring-prompt.txt` are generated from it | `make sim-prompt` (`make check-sim-prompt` is the CI gate) |
 | **What screen sizes are people using?** — read-only viewport-width × surface distribution (plus DPR, pointer) from the `aipla_client_env` beacons in Cloud Logging | `make screen-sizes ENV=prod [DAYS=30] [DRY_RUN=1]` (`scripts/screen-sizes.sh`) |
+| **Release notes for Teams** — teacher-readable Markdown from conventional-commit subjects, one section per tag, grouped Teachers / Students / Researchers / Behind the scenes; `docs:`/`test:`/`chore:` left out unless `ALL=1`. Deterministic first draft, edit before posting | `make release-notes FROM=v0.1.69 TO=v0.1.74` (`TO` defaults to `HEAD`; `scripts/release_notes.py`, tests `make test-release-notes`) |
 
 When adding a new workflow, add it to `scripts/` and the root `Makefile` in the same PR.
 

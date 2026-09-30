@@ -454,6 +454,19 @@ DAYS ?= 30
 screen-sizes:
 	@./scripts/screen-sizes.sh $(if $(filter 1,$(DRY_RUN)),--dry-run) $(ENV) $(DAYS)
 
+# Teacher-readable release notes from conventional-commit subjects, grouped by
+# audience, one section per tag in the range. Markdown for Teams. No AI.
+#   make release-notes FROM=v0.1.69 TO=v0.1.74
+#   make release-notes FROM=v0.1.74            # TO defaults to HEAD
+#   make release-notes FROM=v0.1.69 ALL=1      # keep docs/test/chore commits
+.PHONY: release-notes test-release-notes
+release-notes:
+	@test -n "$(FROM)" || { echo "FROM is required, e.g. make release-notes FROM=v0.1.69 TO=v0.1.74"; exit 1; }
+	@python3 scripts/release_notes.py $(FROM) $(or $(TO),HEAD) $(if $(filter 1,$(ALL)),--all)
+
+test-release-notes:
+	@python3 -m unittest discover -s scripts/tests -p 'test_release_notes.py'
+
 tf-local:
 	@test -n "$(ENV)" || { echo "ENV is required, e.g. make tf-local ENV=prod ACTION=plan"; exit 1; }
 	@./scripts/tf.sh $(ENV) $(or $(ACTION),plan)
