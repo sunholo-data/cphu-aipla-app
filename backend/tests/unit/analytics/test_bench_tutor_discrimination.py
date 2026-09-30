@@ -110,7 +110,7 @@ def test_a_mocked_go_run_is_blind_and_writes_the_three_outputs(bench, no_model_c
         band = "strong" if fw.id == "esru" else "partial"
         return json.dumps(
             {
-                "constructs": {k: {"band": band, "rationale": "", "evidence": [1]} for k in keys},
+                "constructs": {k: {"band": band, "rationale": "", "moves": [f"{k}.1"], "evidence": [1]} for k in keys},
                 "overall": {"band": band, "summary": "", "drift": []},
             }
         )

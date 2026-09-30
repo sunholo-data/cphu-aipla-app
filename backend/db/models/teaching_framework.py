@@ -161,6 +161,18 @@ class Construct(BaseModel):
     avoid: list[str] = Field(default_factory=list, max_length=12)
     # How you would tell whether it worked -> 1.1.92's rubric adapters.
     evaluation_hint: str | None = Field(default=None, alias="evaluationHint", max_length=400)
+    # Where the construct can be SEEN (BENCH-2, 2026-09-30). JUDGE-ONLY: the
+    # tutor instruction never reads it, so setting it changes what the fit /
+    # fidelity judge scores and nothing about what the tutor is told.
+    # ``dialogue`` (the default) — a tutoring exchange can show it.
+    # ``unit`` — the source describes a strategy run across a teaching unit
+    # (modelling worked examples, an everyday-argument exercise) that a short
+    # tutoring dialogue has no occasion to show. The judge does not score it,
+    # and the read says so by name ("not assessed"), rather than reporting a 0
+    # that looks like the tutor failed at it. BENCH-1 found two CER constructs
+    # absent in all 39 CER-scored transcripts from all seven tutors — a column with no
+    # variance measures the criteria, not the tutor.
+    assessed_in: Literal["dialogue", "unit"] = Field(default="dialogue", alias="assessedIn")
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 

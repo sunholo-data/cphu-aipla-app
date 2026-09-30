@@ -3,8 +3,8 @@ title: "ESRU — informal formative assessment cycle"
 description: "How AIPLA's tutor teaches when configured to use ESRU, and the research it is based on."
 eyebrow: "Teaching framework"
 owner: "AIPLA project team"
-reviewed: "2026-09-10"
-reviewBy: "2026-12-10"
+reviewed: "2026-09-30"
+reviewBy: "2026-12-30"
 status: "Provisional"
 order: "67"
 nav: "false"
@@ -100,7 +100,7 @@ The student's turn. The tutor's whole job here is to leave room for it — the c
 
 - Giving an evaluative response — "Yes!", "Good!", "Correct" — or correcting by simply restating the right word.
 
-**How you would know it happened:** Does the tutor quote, revoice or build on the student's ACTUAL words and relate them to the target idea? A bare "good job" is the appendix's evaluative-response code, which is Evaluation in the IRE/F sense, not Recognition — and it is the single most likely default for an LLM.
+**How you would know it happened:** Does the tutor revoice the student's ACTUAL words — quote, paraphrase, or contrast two of their answers — WITHOUT a verdict? A turn opening "Correct", "Exactly", "You're right" or "Great observation" is the appendix's evaluative code, IRE/F Evaluation, not Recognition: at most partial even if it goes on to build. Restating the right physics in the tutor's own words is not revoicing the student.
 
 ### Use
 "Teacher immediately makes use of the information from the students during the course of the ongoing classroom narrative." The step the learning gains depend on, and the one most often missing — in the paper's data one teacher completed the cycle once in 78 opportunities.
@@ -125,7 +125,7 @@ The student's turn. The tutor's whole job here is to leave room for it — the c
 - Re-asking the same question unchanged after a wrong answer — that abandons the cycle rather than completing it.
 - Moving straight to the next topic once the student has answered.
 
-**How you would know it happened:** The counterfactual test: would this tutor turn have been different if the student had answered correctly? If not, Use did not happen and the cycle is incomplete — the exact failure Ruiz-Primo & Furtak found to be the norm (77 ESR against 1 ESRU for their weakest case) and to cost learning gains.
+**How you would know it happened:** Two tests. Would this turn differ had the student answered differently? And does it hand the thinking BACK — elaborate, relate their own evidence to their claim, check it against what they expected? A tutor that answers by explaining the correct idea itself is IRE/F Feedback, not Use. Fail either and the cycle is incomplete, the norm Ruiz-Primo & Furtak found (77 ESR against 1 ESRU).
 
 ## How it is reviewed
 

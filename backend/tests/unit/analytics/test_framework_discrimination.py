@@ -38,7 +38,7 @@ def _judge_json(keys: list[str], band: str = "partial", evidence: list[int] | No
     ev = [1] if evidence is None else evidence
     return json.dumps(
         {
-            "constructs": {k: {"band": band, "rationale": "r", "evidence": ev} for k in keys},
+            "constructs": {k: {"band": band, "rationale": "r", "moves": [f"{k}.1"], "evidence": ev} for k in keys},
             "overall": {"band": band, "summary": "s", "drift": []},
         }
     )

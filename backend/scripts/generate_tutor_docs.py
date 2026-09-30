@@ -132,6 +132,12 @@ def _constructs_block(fw: TeachingFramework, *, heading: str = "###") -> list[st
             out.extend(f"- {a}" for a in c.avoid)
         if c.evaluation_hint:
             out += ["", f"**How you would know it happened:** {' '.join(c.evaluation_hint.split())}"]
+        if c.assessed_in == "unit":
+            out += [
+                "",
+                "**Not assessed in a single tutoring dialogue.** This strategy runs across a teaching "
+                "unit, so the session read reports it as *not assessed* rather than scoring its absence.",
+            ]
         out.append("")
     return out
 
