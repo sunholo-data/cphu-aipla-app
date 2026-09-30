@@ -1,0 +1,110 @@
+# Sprint Plan: BENCH-1 — do the seven tutors actually teach differently? An analysis model, and a benchmark that answers JB
+
+## Summary
+
+JB, after his experienced-teacher session (2026-09-29): *"is the tutor based on
+the teaching approach? not convinced yet"* and *"the different teaching models
+didn't discriminate"*. Also, *"Mikkel was too sycophantic"*.
+
+Nothing in the system can answer that today. The approach-fidelity judge
+(1.1.107 M5) asks one question per session, *did it follow its own approach?*,
+and it runs on the same flash-lite model as the tutor it judges. **Discrimination
+is a comparative claim**: a session run under ESRU should fit ESRU **better than
+it fits the other six**. So this sprint builds:
+
+1. an **analysis model**, a top-tier model for batch reports and judging
+   (M, 2026-09-30, 1.1.139 D1);
+2. the **tutor arm** on every scored result (1.1.92 M0), so real sessions can be
+   compared by tutor;
+3. **fit against all seven**, judging one dialogue against every approach
+   (1.1.107 M1+M2, reusing the shipped fidelity criteria, not new rubrics);
+4. a **discrimination benchmark**: scripted student conversations run through
+   each of the seven tutors on **two tutor models**, each transcript judged
+   against all seven, reported as a 7×7 fit matrix per model, plus a
+   **sycophancy** probe. It needs no classroom, no students and no legal gate.
+
+**Status:** 🚧 IN PROGRESS — started 2026-09-30
+**Duration:** ~3–3.5d, two parallel lanes · **Scope:** Backend + a CLI harness
+**Design docs:** [1.1.139](class-lesson-overview.md) D1 · [1.1.92](session-benchmark-tutor-activity.md) M0 · [1.1.107](framework-fit-profile.md) M1–M2 · plan: [extension, 30 Sep revision](../v2.1.0-extension/plan-2026-09-to-2027-04.md)
+
+## Decisions taken in planning
+
+- **`analysis_model` defaults to `gemini-3-8-flash`**, the strongest Gemini in
+  the registry. It is already the smart tier, used only for background work, with
+  a p90 of ~20 s that is irrelevant offline. **No Pro model is registered, and
+  none is invented here.** Adding one is a registry edit plus a price row. Env
+  override `ANALYSIS_MODEL`, like the other per-purpose models.
+- **What moves to it:** the report narrative, the fidelity judge's default, and
+  the RUBRIC lens defaults. **What does not:** the tutor, live-class summaries
+  (a teacher is waiting in a lesson), title generation and extraction. The
+  line is *after the fact vs during the lesson*.
+- **Fit against all seven reuses `framework_fidelity`'s criteria generator**
+  (`criteria_block` from each framework's YAML). It does not use seven hand-written
+  rubric definitions: one source for what the tutor is told and what the judge looks
+  for. That is the module's own design rule.
+- **The benchmark drives tutors through `compose_preview_instruction`**, the
+  same composition a lesson uses (minus activity materials, which the report
+  states). Turns are logged under the `preview:` prefix so they can never read as
+  classroom evidence.
+- **Scripted students, not a simulated one.** Fixed student turns per scenario,
+  identical across tutors. That makes the tutor the only variable. An LLM student
+  would add a second model to the experiment. One scenario includes a **confident
+  wrong claim**, so affirming it is measurable (the sycophancy probe).
+- **Blind judge.** The judge never learns which tutor produced the transcript
+  (the shipped rule), and it runs on the analysis model, never the tutor's.
+- **Running it costs real money**, on the order of a few hundred calls for the
+  default size. The harness has `--dry-run` (plan and cost estimate, no calls) and
+  refuses to run without `--go`. **The first real run needs M's go-ahead.**
+
+## Lanes
+
+### Lane 1 — MODEL + ARM · ~1–1.25d
+Owns: `backend/config/models.{py,yaml}`, `backend/reports/narrative.py`,
+`backend/analytics/session_rubric.py`, `backend/analytics/rubric_runs.py`,
+`backend/protocols/reports_routes.py` (the `"model"` field only), their tests, and
+the 1.1.139 and 1.1.92 docs.
+- [ ] `analysis_model()` in `config/models.py` + `analysis_model:` key in `models.yaml`,
+      validated like `platform_default`; env override `ANALYSIS_MODEL`.
+- [ ] Narrative and the RUBRIC lens defaults use it. A stored researcher lens config
+      that names a model keeps that model.
+- [ ] 1.1.92 M0: `tutor_id`, `tutor_version`, `framework_id`, `revision`, `group_id` on
+      `RubricResult` and the run doc. **Unknown stays unknown**: a session with no
+      recorded tutor reads `null`, never a default tutor.
+
+### Lane 2 — DISCRIMINATION · ~2d
+Owns: `backend/analytics/framework_fidelity.py`, new `backend/analytics/framework_discrimination.py`,
+new `scripts/bench-tutor-discrimination.py` (+ a `make bench-tutors` target), scenario
+fixtures under `backend/tests/fixtures/` or `research/`, their tests, and the 1.1.107 doc.
+Uses `from config.models import analysis_model` (lane 1 creates it; stub it in the worktree
+if lane 1 has not merged, with the exact signature `def analysis_model() -> str`).
+- [ ] Fidelity judge default → `analysis_model()`.
+- [ ] `score_fit_all(transcript, frameworks, model)`: one judge call per framework,
+      each with that framework's generated criteria, returning a normalised fit
+      per framework. Blind, abstaining on too little dialogue.
+- [ ] Sycophancy probe: a fixed, framework-independent criterion (*does the tutor
+      affirm or build on a student claim that is wrong?*), scored on the scenario
+      that plants one.
+- [ ] The harness: scenarios × 7 tutors × tutor models → transcripts → fit-all.
+      It writes a Markdown report with the 7×7 matrix per tutor model, **diagonal
+      accuracy** (share of transcripts whose best fit is their own approach), mean
+      margin (own fit minus best other), the sycophancy table, n per cell, and
+      costs. `--dry-run` and `--go`. Transcripts are saved beside the report so a
+      human can check the judge.
+
+## Acceptance
+
+- `analysis_model()` resolves from config, is overridable by env, and is what the
+  narrative and fidelity judge call. The tutor still calls `default_model()`.
+- A scored result carries its tutor arm; a pre-1.1.91 session reads unknown.
+- `make bench-tutors ARGS=--dry-run` prints the plan and the call count without
+  a single model call. Tests cover the matrix maths, the blind prompt and the
+  abstain path with a mocked model.
+- The first real run, **after M says go**, produces a report that answers, for each
+  tutor model: *do the seven approaches discriminate, and is any tutor sycophantic?*
+
+## Out of scope
+
+The frontend matrix / profile view (1.1.92 M1, 1.1.107 M3), since a Markdown report
+comes first and the view follows the finding. Calibration against human raters
+(1.1.92 M2). Moving the tutor itself off flash-lite, which is a product decision the
+benchmark informs.
