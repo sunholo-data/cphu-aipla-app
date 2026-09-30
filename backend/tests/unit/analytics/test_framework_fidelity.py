@@ -211,3 +211,23 @@ async def test_resolve_caches_in_the_run_store_and_regenerates_when_the_session_
         assert grown.based_on_message_count == 9
         forced = await ff.resolve_fidelity(_summary(ESRU_DIALOGUE), force=True)
         assert judge.await_count == 3 and forced is not None
+
+
+# ── BENCH-1: the judge runs on the analysis model, never the tutor's ─────────
+
+
+@pytest.mark.asyncio
+async def test_the_judge_defaults_to_the_analysis_model_not_the_tutors():
+    """The judge used to run on the same flash-lite as the tutor it judges."""
+    from config.models import default_model
+
+    fw = load_framework("esru")
+    _, keys = ff.criteria_block(fw)
+    payload = json.loads(_JUDGE_JSON)
+    payload["constructs"] = dict(zip(keys, payload["constructs"].values(), strict=False))
+    judge = AsyncMock(return_value=json.dumps(payload))
+    with patch("analytics.session_rubric._call_judge_model", new=judge):
+        r = await ff.score_fidelity(_summary(ESRU_DIALOGUE))
+    assert r.model == ff.analysis_judge_model()
+    assert judge.await_args.args[1] == ff.analysis_judge_model()
+    assert ff.analysis_judge_model() != default_model()

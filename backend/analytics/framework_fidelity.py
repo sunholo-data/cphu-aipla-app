@@ -57,7 +57,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from config.models import default_model, provider_for_api_name
+from config.models import provider_for_api_name
 from db.framework_overrides import effective_framework
 from db.models.teaching_framework import TeachingFramework
 from reports.session_summary import SessionSummary, SessionTurn
@@ -78,6 +78,26 @@ _BAND_SCORE = {"absent": 0, "partial": 1, "strong": 2}
 #: Turn cap on the dialogue block — a long session is scored on its most
 #: recent part, which is also where drift shows. The count is reported.
 MAX_TURNS = 80
+
+
+def analysis_judge_model() -> str:
+    """The judge's default model: the ANALYSIS model, never the tutor's.
+
+    BENCH-1 (2026-09-30): the judge used to run on ``default_model()`` — the
+    same flash-lite the tutor it judges runs on. Judging is after-the-fact batch
+    work, so it moves to ``config.models.analysis_model()`` (lane 1 of BENCH-1).
+
+    ⚠️ The import is local and falls back to the ``smart`` tier, which is what
+    ``analysis_model`` defaults to, so this lane runs before lane 1 merges. Once
+    ``analysis_model`` exists in ``config.models`` the fallback is dead code and
+    can go; it is here instead of a stub in ``config/models.py`` so the two
+    lanes never edit the same file.
+    """
+    try:
+        from config.models import analysis_model
+    except ImportError:  # lane 1 not merged yet
+        from config.models import smart_model as analysis_model
+    return analysis_model()
 
 
 # --- M0: dialogue-unit evidence -------------------------------------------------
@@ -278,6 +298,8 @@ def _band(value: Any) -> str:
 
 
 def _parse(raw: str, keys: list[str]) -> dict[str, Any]:
+    """Parse the judge's JSON into bands + 0-2 scores per construct. Public as
+    :func:`parse_judgement` for the fit-against-all profile (1.1.107 M2)."""
     text = raw.strip()
     m = re.search(r"\{.*\}", text, re.DOTALL)
     if m:
@@ -304,6 +326,9 @@ def _parse(raw: str, keys: list[str]) -> dict[str, Any]:
     }
 
 
+parse_judgement = _parse
+
+
 async def score_fidelity(summary: SessionSummary, *, model: str | None = None) -> FidelityResult:
     """Score one session against the ONE approach it ran. Abstains, never fabricates."""
     evidence = dialogue_units(summary.conversation)
@@ -321,7 +346,7 @@ async def score_fidelity(summary: SessionSummary, *, model: str | None = None) -
             evidence,
             f"too little dialogue to assess ({evidence.tutor_turns} tutor turns; need {MIN_TUTOR_TURNS})",
         )
-    judge_model = model or default_model()
+    judge_model = model or analysis_judge_model()
     provider = provider_for_api_name(judge_model)
     if provider not in (None, "google"):
         return _abstain(summary, fw, evidence, f"judge execution is Gemini-only for now (got {judge_model!r})")
@@ -425,10 +450,12 @@ __all__ = [
     "DialogueEvidence",
     "DialogueUnit",
     "FidelityResult",
+    "analysis_judge_model",
     "build_fidelity_prompt",
     "criteria_block",
     "dialogue_units",
     "lens_id_for",
+    "parse_judgement",
     "resolve_fidelity",
     "score_fidelity",
 ]
