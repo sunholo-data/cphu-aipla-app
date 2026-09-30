@@ -62,6 +62,20 @@ const LIVE_REPORT: SessionSummaryPayload = {
 };
 
 beforeEach(() => {
+  // A FRESH in-memory localStorage per test. The page remembers "transcript
+  // open" there, so a test that clicks "View full transcript" left the NEXT
+  // test starting open ("Hide full transcript"). That only happened on Node 22
+  // (CI), where jsdom's storage persists across tests; Node 26's own global
+  // shadows it, so it passed locally — five dev deploys failed on it.
+  const store = new Map<string, string>();
+  Object.defineProperty(window, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    },
+  });
   fetchReport.mockReset();
   fetchTimeline.mockReset();
   fetchTimeline.mockRejectedValue(new NotFoundError());
@@ -117,8 +131,6 @@ describe("/teacher/reports/groups/[groupId] — real session report", () => {
     // The old separate list is gone.
     expect(screen.queryByText(/^Workbench activity$/)).not.toBeInTheDocument();
 
-    // findByRole, not getByRole: "loading" can be absent BEFORE the fetch has
-    // rendered anything, and on a slow CI box the button is not there yet.
     await userEvent.click(await screen.findByRole("button", { name: /view full transcript/i }));
     // Unlabelled (pre-1.1.136) row → derived label, placed between the turns.
     const card = await screen.findByText("Writing updated");
@@ -152,8 +164,6 @@ describe("/teacher/reports/groups/[groupId] — real session report", () => {
     });
     render(<TeacherGroupReportPage />);
     await waitFor(() => expect(screen.queryByText(/loading report/i)).not.toBeInTheDocument());
-    // findByRole, not getByRole: "loading" can be absent BEFORE the fetch has
-    // rendered anything, and on a slow CI box the button is not there yet.
     await userEvent.click(await screen.findByRole("button", { name: /view full transcript/i }));
     expect(await screen.findByText("Calculated Fart = 10")).toBeInTheDocument();
     expect(fetchTimeline).toHaveBeenCalledWith(groupId, LIVE_REPORT.sessionId);
