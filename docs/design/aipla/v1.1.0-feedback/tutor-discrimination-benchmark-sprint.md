@@ -181,3 +181,58 @@ end varies. JB's "Mikkel was too sycophantic" is therefore probably **tone**
      wrong-claim probe.
   4. Keep the `ClientError` message; add 5 more scenarios so n per cell is at least 8.
   5. Re-run, then show JB the per-column table with transcripts, not a single number.
+
+## BENCH-2 re-run — 2026-09-30, findings
+
+Run `20260930T091937Z` on `aipla-dev-2026`, code `855f29c2`, judge prompt
+`fidelity-r2` + `tone-r1`. 8 Danish scenarios × 7 approaches × 2 tutor models =
+**112 transcripts, n = 8 per cell, 0 failed** (retries absorbed 5 tutor + 14 judge
+429/5xx). 1,512 calls; tutor EUR 0.94 metered, judge ≈ EUR 5 estimated.
+
+### The answer for JB, in three lines
+
+1. **Yes, the approaches discriminate, measured the right way (down each column).**
+   Own tutor tops its own column in **4 of 7 on flash-lite** (z-margin +1.39) and
+   **5 of 7 on 3.8-flash** (+2.02), against a chance level of ~1 of 7. POE, CER and ESRU win on
+   both models, and authentic dialogue and Toulmin on 3.8-flash. Misses: accountable
+   talk (both models), authentic dialogue (#6 of 7 on flash-lite!), Toulmin
+   (flash-lite), 5E (3.8-flash, column spread only 0.10).
+2. **But several differences are small in absolute terms.** Raw margins run from
+   +0.02 (5E) to +0.33 (CER). A person watching one session would plausibly *not*
+   see the approach, which is consistent with JB's "didn't discriminate", even though a
+   blind judge over n=8 does.
+3. **"Too sycophantic" is tone, and mostly the small model.** **0 of 112**
+   tutors went along with a planted wrong claim (4 scenarios, all *challenged*). But
+   stock praise opens nearly every dialogue (*"Det er et rigtig godt spørgsmål"*).
+   Tone was graded **marked in 21 of 56 flash-lite transcripts vs 4 of 56 on 3.8-flash**
+   (means ≈1.3 vs ≈0.7 of 2). Worst: POE on flash-lite, 1.75. It is a flash-lite
+   habit that no approach instruction overrides.
+
+### Caveats that must travel with those three lines
+
+- ⚠️ **Judge self-preference.** The judge is `gemini-3.8-flash`, which is also one of
+  the two tutor models. Some of 3.8-flash's lead in (1) and (3) may be the judge
+  preferring its own model's output. **Cross-check before quoting the model
+  comparison:** re-judge the saved transcripts with a different judge, which
+  `--report-only` cannot do yet and needs a small `--rejudge-with <model>` mode.
+- **ESRU is still at the ceiling** (column mean 0.86–0.88, spread 0.09 on
+  flash-lite, flagged). r2 helped but did not fix it. **5E is high for everyone**
+  (0.66–0.69). Two of seven rulers remain weak, and they are the same rulers the
+  teacher-facing fidelity read uses.
+- **Preview composition only**: no persona, activity materials, ILOs or history,
+  and scripted students. A real lesson's prompt carries more that can drown the
+  approach, which is the contradiction-pass item in the 30 Sep plan revision.
+- n = 8 per cell, one run, one judge. It is enough to see a direction, not to publish.
+
+### What this suggests doing (not done — decisions for M / JB)
+
+- **Tone:** a house-style preamble in the shape of `math_notation.md` (*praise only
+  specific reasoning; no stock "good question"*). It is cheap and would apply to every
+  tutor, so it is the lever for Mikkel. **It changes tutor behaviour**, so it needs JB's
+  yes, and the benchmark re-run is its test (tone should drop, discrimination should hold).
+- **Tutor model:** 3.8-flash reads better on both counts, but the registry records a
+  p90 first-token of ~20 s on the real tutor prompt, so it is not a student-facing
+  swap. Revisit when a faster flash arrives, and after the judge cross-check.
+- **Judge:** add `--rejudge-with`; recalibrate ESRU again (its *Use* step) and 5E.
+- **For JB's review:** show the per-column table and 3–4 transcripts (POE on both
+  models, one marked-tone flash-lite opening), not a single score.
