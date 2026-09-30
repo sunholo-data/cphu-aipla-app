@@ -1,6 +1,6 @@
 # Teacher-authored tutors — a face, a voice, an approach, and somewhere to keep them
 
-**Status:** **Design (OPEN)** — **1.1.135**
+**Status:** **SHIPPED** — **1.1.135**. All seven milestones live on prod at **v0.1.69** (2026-09-29), except the last commit (the undo control and the source-passage panel) which is on `dev` awaiting a tag
 **Priority:** **P1** — three of the four capabilities below are already BUILT and unreachable, so most of this is mounting work, not new machinery. The exception (M3–M5) is genuinely new.
 **Estimated:** ~4.5d phased, rescoped 2026-09-29 (M0 ownership+visibility ~1d · M1 the surface ~0.25d · M2 tutor authoring ~1d · M3 custom personas ~1d · M4 avatar picker ~0.25d · M5 voice ~0.5d · M6 the guard ~0.5d)
 **Scope:** Fullstack — `Tutor` and `Persona` gain ownership and visibility; a Firestore persona layer beside the YAML one; an avatar upload; one role-graded Approaches & Tutors surface; and the CI guard for the bug class that caused this.

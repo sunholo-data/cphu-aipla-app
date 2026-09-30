@@ -57,10 +57,62 @@ The curated catalogue (`GET /api/voice/voices`) in the persona editor. `voice_pr
 ## Acceptance
 
 - [x] M0: an unmarked tutor stays pickable; a private tutor is invisible to another teacher and visible to a researcher; the researcher read is logged; a class cannot be given a tutor its teacher cannot see.
-- [x] M1: a teacher who is not a researcher creates, edits and deletes their own custom approach — the right 1.1.110 granted and never delivered.
+- [x] M1: a teacher who is not a researcher can READ the seven published approaches, and share one of their own. (Create/edit/delete of their own already worked — 1.1.110 shipped it, and this plan's first draft wrongly said otherwise.)
 - [x] M2: a teacher creates a variant, it appears in their class picker and nobody else's, and one control shares it.
 - [x] M3: a custom persona resolves through the SHIPPED chain.
 - [x] M4: adding an avatar is drop-the-file + `make avatars`, and CI fails if someone forgets the second half.
 - [x] M5: `voice_prompt` is not offered for a voice tier that ignores it.
 - [x] M6: the guard fails on a deliberately unmounted export and passes on the allow-listed ones.
 - [x] **End to end:** a teacher with no researcher claim authors an approach, builds a tutor on it, gives it a face and a voice, assigns it to their class, and a student is taught by it.
+
+
+## What shipped, and what the sprint learned
+
+**Live on prod at v0.1.69** (2026-09-29): all seven milestones, plus the revoke
+control that came out of M6's sweep. One commit — the assignment-undo control and
+the source-passage panel — is on `dev` awaiting a tag, held back only because the
+teacher screens are mid-translation and a tag would ship them half-done.
+
+### The guard was the best-value milestone, by a distance
+
+M6 cost half a day and:
+
+* found **seven** unmounted exports, six of which nobody had noticed, including
+  two real gaps — a teacher could not revoke a leaked join code, and a
+  researcher could give a tutor an approach and never take it away;
+* went **red on its author** mid-M1, for a share client with no control yet —
+  caught within the hour, by the thing written to catch it;
+* ended the sprint with an **empty allowlist**: every exported client function in
+  the codebase is reachable by a person.
+
+It also produced **one false positive in seven**, in the dangerous direction:
+`chatLogExportPath` is used inside its own client file, which the guard excludes
+from its search, so a live helper read as dead. The fix was to un-export it —
+an internal helper should not be exported — but the lesson is that a green gate
+is not a substitute for reading the call site before deleting.
+
+### Two findings that were not the bug they looked like
+
+* **Custom approaches were already mounted.** This plan opened by claiming
+  otherwise, from a grep for a function name that does not exist. 1.1.110 had
+  shipped the teacher tier months earlier. The 0-approaches-on-prod figure was
+  real but measured **adoption, not reachability** — a different problem, and
+  "mount the control" is not its answer.
+* **`clearTutorFramework` was a wrong sentence, not a missing button.** The panel
+  told researchers to "set a tutor back to 'No stated approach' to undo", which
+  writes an override meaning *teaches with nothing* rather than removing the
+  assignment. The control had nothing to hang on until the catalogue exposed
+  `hasAssignment`.
+
+Both are the same shape: the code was fine and the *claim about* the code was
+wrong. Neither would have been caught by a test, and both were caught by asking
+what a person could actually click.
+
+### Still open
+
+* `searchFrameworkSources` is now mounted, but nobody has used it against a
+  provisioned corpus — the panel distinguishes "no passages" from "no corpus",
+  and only the second has been exercised.
+* ~160 Danish strings from the parallel 1.1.108 work are non-native first drafts
+  on prod, awaiting a native read. Recorded here because it reached prod through
+  the same tag as this sprint.
