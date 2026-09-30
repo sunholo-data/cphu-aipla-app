@@ -26,12 +26,19 @@ LEAK = re.compile(r"\[rag-source-\d+\]")
             "Bølgehastigheden $v$ er konstant [rag-source-1], og $\\lambda = v \\cdot T$ [rag-source-3].",
             "Bølgehastigheden $v$ er konstant, og $\\lambda = v \\cdot T$.",
         ),
+        # Prod 2026-09-30: several labels merged into one bracket.
+        (
+            "jeg kan se, at I har svaret på spørgsmålet om månefaser [rag-source-1, rag-source-2].",
+            "jeg kan se, at I har svaret på spørgsmålet om månefaser.",
+        ),
+        ("a [rag-source-1,rag-source-2 , rag-source-10] b", "a b"),
         ("Ingen kilder her.", "Ingen kilder her."),
         # Look-alikes that are not markers are left alone.
         (
             "Se [kilde] og [1] og [rag-source] og [rag-source-x].",
             "Se [kilde] og [1] og [rag-source] og [rag-source-x].",
         ),
+        ("[rag-source-1, se note]", "[rag-source-1, se note]"),
     ],
 )
 def test_strip_markers(raw, clean):
@@ -50,6 +57,10 @@ def _stream(chunks: list[str]) -> str:
         ["positiv effekt [rag-", "source-1]. Næste sætning."],
         ["positiv effekt [", "rag-source-", "1", "]. Næste sætning."],
         ["positiv effekt ", "[rag-source-12", "]. Næste sætning."],
+        ["positiv effekt [rag-source-1, rag-source-2]. Næste sætning."],
+        ["positiv effekt [rag-source-1", ", rag-source-2]. Næste sætning."],
+        ["positiv effekt [rag-source-1,", " rag-", "source-2]. Næste sætning."],
+        ["positiv effekt [rag-source-1, ", "rag-source-2", "]. Næste sætning."],
     ],
 )
 def test_marker_split_across_chunks_is_stripped(chunks):
@@ -59,6 +70,7 @@ def test_marker_split_across_chunks_is_stripped(chunks):
 def test_held_fragment_that_is_not_a_marker_is_released():
     assert _stream(["en liste [r", "eel] tal"]) == "en liste [reel] tal"
     assert _stream(["slutter med ["]) == "slutter med ["
+    assert _stream(["[rag-source-1, ", "se note]"]) == "[rag-source-1, se note]"
 
 
 def _resp(text: str, *, partial: bool, thought: bool = False):

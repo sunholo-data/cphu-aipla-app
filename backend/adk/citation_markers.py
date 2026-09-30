@@ -20,17 +20,28 @@ from __future__ import annotations
 import re
 from typing import Any
 
+# One label, as Vertex writes it.
+_LABEL = r"rag-source-\d+"
+# The model sometimes merges several into one bracket — "[rag-source-1,
+# rag-source-2]" leaked on prod 2026-09-30 past the single-label pattern.
+_SEP = r"[ \t]*,[ \t]*"
+
 # Leading whitespace goes with the marker: "effekt [rag-source-1]." → "effekt."
-MARKER_RE = re.compile(r"[ \t]*\[rag-source-\d+\]")
+MARKER_RE = re.compile(rf"[ \t]*\[{_LABEL}(?:{_SEP}{_LABEL})*\]")
+
+# A prefix of "rag-source-" + digits: what the last label in a bracket may be
+# while the next chunk is still to come.
+_LABEL_PREFIX = r"(?:r(?:a(?:g(?:-(?:s(?:o(?:u(?:r(?:c(?:e(?:-\d*)?)?)?)?)?)?)?)?)?)?)?"
 
 # A trailing fragment that could still grow into a marker: trailing spaces (a
 # marker may follow them in the next chunk, and the space belongs to it), then
-# optionally "[" followed by a prefix of "rag-source-" or "rag-source-" + digits.
-_TAIL_RE = re.compile(r"[ \t]*(?:\[(?:r(?:a(?:g(?:-(?:s(?:o(?:u(?:r(?:c(?:e(?:-\d*)?)?)?)?)?)?)?)?)?)?)?)?$")
+# optionally "[", any complete labels each followed by a separator, and then
+# either a label prefix or a complete label with the start of a separator.
+_TAIL_RE = re.compile(rf"[ \t]*(?:\[(?:{_LABEL}{_SEP})*(?:{_LABEL}[ \t]*,?[ \t]*|{_LABEL_PREFIX}))?$")
 
 
 def strip_markers(text: str) -> str:
-    """Remove every complete ``[rag-source-N]`` marker from ``text``."""
+    """Remove every complete ``[rag-source-N]`` marker (or bracketed list of them) from ``text``."""
     if "[rag-source-" not in text:
         return text
     return MARKER_RE.sub("", text)
