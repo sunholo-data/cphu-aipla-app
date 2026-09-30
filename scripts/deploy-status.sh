@@ -40,6 +40,7 @@ REGION="${REGION:-europe-north1}"
 PROJECT_FOR="${PROJECT_FOR:-aipla-%s-2026}"
 SERVICE_APP="${SERVICE_APP:-aipla-v01-frontend}"
 SERVICE_EXTRA="${SERVICE_EXTRA:-aipla-v01-sandbox}"
+ASSIGN_COLLECTION="${ASSIGN_COLLECTION-tutor_framework_assignments}"  # set empty to skip
 declare -a ENVS=("$@")
 [ $# -eq 0 ] && ENVS=(dev test prod)
 
@@ -74,6 +75,45 @@ describe_service() { # $1=project $2=service $3=format
   esac
 }
 
+# Tutor->framework assignments (1.1.140 M2). Firestore is per-project, so a
+# researcher's assignment made on prod never reaches test or dev unless someone
+# copies it (`make sync-tutor-assignments`). On 2026-09-30 prod had 11 rows and
+# test had zero: every tutor on test taught with no framework, and nothing said
+# so. One small REST list per env, masked to the one field that matters.
+#   rc 0 - read it; "<count> <hash8> <sorted tutor=framework,...>" on stdout
+#   rc 2 - could NOT read; reason in ERRFILE. Never "0 rows" - that is the
+#          reassuring answer a broken read produces (the footgun above).
+assignments_of() { # $1=project
+  local token body rc
+  token="$(gcloud auth print-access-token 2>&1)" || {
+    printf 'access token: %s' "${token}" | tr '\n' ' ' | cut -c1-150 > "${ERRFILE}"; return 2; }
+  body="$(curl -sS --max-time 20 -w '\n%{http_code}' \
+    -H "Authorization: Bearer ${token}" \
+    "https://firestore.googleapis.com/v1/projects/$1/databases/(default)/documents/${ASSIGN_COLLECTION}?pageSize=1000&mask.fieldPaths=frameworkId" 2>&1)"
+  rc=$?
+  if [ ${rc} -ne 0 ]; then
+    printf 'curl: %s' "${body}" | tr '\n' ' ' | cut -c1-150 > "${ERRFILE}"; return 2
+  fi
+  printf '%s' "${body}" | python3 -c '
+import hashlib, json, sys
+raw = sys.stdin.read()
+payload, _, code = raw.rpartition("\n")
+if code.strip() != "200":
+    sys.stderr.write(("HTTP %s %s" % (code.strip(), " ".join(payload.split())))[:150]); sys.exit(2)
+data = json.loads(payload or "{}")
+if data.get("nextPageToken"):
+    sys.stderr.write("more than one page of assignments; summary would be partial"); sys.exit(2)
+pairs = []
+for d in data.get("documents", []):
+    tid = d["name"].rsplit("/", 1)[-1]
+    v = d.get("fields", {}).get("frameworkId", {})
+    fw = v.get("stringValue") if "stringValue" in v else "(none)"
+    pairs.append("%s=%s" % (tid, fw))
+sig = ",".join(sorted(pairs))
+print(len(pairs), hashlib.sha256(sig.encode()).hexdigest()[:8], sig or "-")
+' 2> "${ERRFILE}" || return 2
+}
+
 version_of() { # strip everything up to the tag/digest
   local img="$1"
   case "${img}" in
@@ -90,6 +130,8 @@ version_of() { # strip everything up to the tag/digest
 FE_VER_TEST=""
 FE_VER_PROD=""
 READ_FAILED=0
+ASSIGN_READ_FAILED=0
+ASSIGN_SIGS=""   # "env count hash" lines - bash 3.2 has no associative arrays
 
 # The answer is only as good as the identity that produced it — name it, since
 # the wrong active account is exactly what made this script lie.
@@ -141,7 +183,44 @@ for ENV in "${ENVS[@]}"; do
   elif [ ${URL_RC} -eq 2 ]; then
     READ_FAILED=1
   fi
+
+  if [ -n "${ASSIGN_COLLECTION}" ]; then
+    if ASG="$(assignments_of "${PROJECT}")"; then
+      ASG_N="${ASG%% *}"; ASG_REST="${ASG#* }"; ASG_H="${ASG_REST%% *}"
+      printf "   %-9s %s rows  #%s\n" "assign" "${ASG_N}" "${ASG_H}"
+      ASSIGN_SIGS="${ASSIGN_SIGS}${ENV} ${ASG_N} ${ASG_H}
+"
+    else
+      ASSIGN_READ_FAILED=1
+      printf "   %-9s %s  %s\n" "assign" "(CANNOT READ)" "$(cat "${ERRFILE}")"
+    fi
+  fi
 done
+
+# Tutor-assignment parity (1.1.140 M2). A read failure gives NO verdict - never
+# "level" - and does not suppress the version verdict below, which reads
+# different things; it does make the script exit non-zero at the end.
+ASSIGN_EXIT=0
+if [ -n "${ASSIGN_COLLECTION}" ] && [ ${#ENVS[@]} -gt 1 ]; then
+  echo
+  if [ ${ASSIGN_READ_FAILED} -ne 0 ]; then
+    echo "NO ASSIGNMENT VERDICT - at least one environment's tutor assignments could not be read."
+    ASSIGN_EXIT=1
+  else
+    N_DISTINCT="$(printf '%s' "${ASSIGN_SIGS}" | awk 'NF{print $3}' | sort -u | wc -l | tr -d ' ')"
+    if [ "${N_DISTINCT}" = "1" ]; then
+      echo "tutor assignments are level ($(printf '%s' "${ASSIGN_SIGS}" | awk 'NF{print $2" rows #"$3; exit}'))."
+    else
+      echo "ASSIGNMENT DRIFT: $(printf '%s' "${ASSIGN_SIGS}" | awk 'NF{printf "%s=%s rows #%s  ", $1, $2, $3}')"
+      PROD_H="$(printf '%s' "${ASSIGN_SIGS}" | awk '$1=="prod"{print $3}')"
+      if [ -n "${PROD_H}" ]; then
+        echo "  Prod is the source of truth. To bring an env level:"
+        printf '%s' "${ASSIGN_SIGS}" | awk -v p="${PROD_H}" 'NF && $1!="prod" && $3!=p {
+          print "    make sync-tutor-assignments FROM=prod TO="$1"          # dry-run, then GO=1" }'
+      fi
+    fi
+  fi
+fi
 
 # A checker that could not read its subject must not answer anyway. This is the
 # whole point of the 2026-08-13 change: no verdict beats a false one.
@@ -177,3 +256,5 @@ if [ -n "${FE_VER_TEST}" ] && [ -n "${FE_VER_PROD}" ]; then
     echo "    make promote VERSION=${FE_VER_TEST} FROM=test TO=prod GO=1"
   fi
 fi
+
+exit ${ASSIGN_EXIT}

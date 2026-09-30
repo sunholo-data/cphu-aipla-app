@@ -1,4 +1,4 @@
-.PHONY: tf-plan tf-apply tf-local tf-fmt check-iam-posture check-spend-ceiling spend-ceiling check-domains deploy-status dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes check-role list-roles list-unregistered grant-researcher revoke-researcher register-demo-teacher force-seed-demo bind-demo-code reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content backfill-document-skill-ids seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check smoke-sim guides guides-pdf check-guides guide-screens seed-guide-corpus guide-staleness
+.PHONY: sync-tutor-assignments tf-plan tf-apply tf-local tf-fmt check-iam-posture check-spend-ceiling spend-ceiling check-domains deploy-status dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes check-role list-roles list-unregistered grant-researcher revoke-researcher register-demo-teacher force-seed-demo bind-demo-code reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content backfill-document-skill-ids seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check smoke-sim guides guides-pdf check-guides guide-screens seed-guide-corpus guide-staleness
 
 # Seed SKILL.md templates -> Firestore. Since P1.3 the Cloud Build deploy runs
 # this automatically via the `aipla-seed-skills` Cloud Run job (see
@@ -443,6 +443,17 @@ check-domains:
 # and on 2026-08-04 both said v0.1.4 while test had been on v0.1.5 for a day.
 deploy-status:
 	@./scripts/deploy-status.sh $(ENVS)
+
+# 1.1.140 M2: copy tutor→framework assignments from one env to another. Prod is
+# the source of truth (researchers assign there); test/dev drift silently
+# otherwise, and `make deploy-status` reports that drift. Dry-run unless GO=1;
+# PRUNE=1 also removes target-only rows; TO=prod is refused unless FORCE=1.
+#   make sync-tutor-assignments FROM=prod TO=test
+#   make sync-tutor-assignments FROM=prod TO=test GO=1
+sync-tutor-assignments:
+	@test -n "$(FROM)" -a -n "$(TO)" || { echo "usage: make sync-tutor-assignments FROM=prod TO=test [GO=1] [PRUNE=1] [FORCE=1]"; exit 2; }
+	@cd backend && uv run python scripts/sync_tutor_assignments.py --from $(FROM) --to $(TO) \
+		$(if $(filter 1,$(GO)),--go) $(if $(filter 1,$(PRUNE)),--prune) $(if $(filter 1,$(FORCE)),--force)
 
 # What screen sizes are people using? Read-only distribution of the
 # `aipla_client_env` beacons (viewport width bucket x surface, DPR, pointer).

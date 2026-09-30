@@ -99,7 +99,16 @@ Verified against code and prod data on 2026-09-30, they come in two groups.
 - Tell teachers, via the guide and the build-a-simulation page, to start from the
   standard prompt. JB's sim is the example of what it prevents.
 
-### M2 — Test and dev teach what prod teaches (~0.25d) · **P1**
+### M2 — Test and dev teach what prod teaches (~0.25d) · **P1** · ✅ built
+
+**What shipped — 2026-09-30.** `make sync-tutor-assignments FROM=prod TO=test|dev [GO=1] [PRUNE=1]`
+(`backend/scripts/sync_tutor_assignments.py`): one explicit `firestore.Client(project=…)`
+per env, diffs on `frameworkId`, a `frameworkId: null` row is copied as a row, writes stamp
+`updatedBy: "sync:<from>"` + `syncedFrom` / `syncedFromUpdatedBy` / `syncedFromUpdatedAt`,
+`TO=prod` refused without `FORCE=1`, a read failure exits 1 and never reads as "0 rows".
+`make deploy-status` now prints `assign <n> rows #<hash>` per env and `ASSIGNMENT DRIFT`
+(or `(CANNOT READ)` + no verdict + exit 1). Dry-run on 2026-09-30: prod 11 rows → test 11
+adds, dev 11 adds. **Still to do: run with `GO=1` for test and dev** (a human step).
 
 `make sync-tutor-assignments FROM=prod TO=test` (dry-run by default, `GO=1` to write):
 copies `tutor_framework_assignments` rows, stamping `updatedBy` as the sync and keeping
