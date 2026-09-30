@@ -35,6 +35,7 @@ from typing import Any, Literal
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
+from adk.proactive_reactive import REACTIVE_EVENT_KINDS
 from adk.proactive_telemetry import tag_proactive_span_from_content
 from auth import User, get_current_user
 from db.chat_sessions import (
@@ -68,13 +69,10 @@ PROACTIVE_GREET_TRIGGER = "[session_start]"
 # design doc's recommendation — promote to per-skill config only if a
 # skill needs different rules. See
 # docs/design/aipla/v1.1.0-feedback/proactive-sim-reactive-tutor.md.
-MEANINGFUL_EVENT_KINDS: frozenset[str] = frozenset(
-    {
-        "sim_run",
-        "step_advance",
-        "measurement_commit",
-    }
-)
+# 1.1.140 M0: the allowlist IS the guidance's kind set, imported so the gate and
+# the tutor's reactive guidance can never disagree. "completion" (a finished
+# mission / question set) was guided but gated out until this line.
+MEANINGFUL_EVENT_KINDS: frozenset[str] = REACTIVE_EVENT_KINDS
 
 # Session-wide cooldown between two SIM-REACTIVE proactive turns
 # (greet does not stamp this timestamp per M8-fix #3, so the first

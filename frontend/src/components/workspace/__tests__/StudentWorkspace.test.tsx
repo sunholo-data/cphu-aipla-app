@@ -181,13 +181,13 @@ describe("StudentWorkspace — sim focus mode (1.1.140 M1)", () => {
     materials: [],
   };
   const ratio = () => screen.getByTestId("ratio").textContent;
-  const toggle = () => screen.getByRole("button", { name: /vis chat/i });
+  const toggle = () => document.querySelector("[data-sim-focus-toggle]") as HTMLElement;
   const openSim = () => fireEvent.click(screen.getByRole("button", { name: /åbn boldkast/i }));
 
   it("offers no focus toggle where there is no chat beside the sim (builder preview)", () => {
     renderWS();
     openSim();
-    expect(screen.queryByRole("button", { name: /vis chat/i })).not.toBeInTheDocument();
+    expect(document.querySelector("[data-sim-focus-toggle]")).toBeNull();
   });
 
   it("hides the chat column and gives it back, remembering the choice per activity", () => {
@@ -197,10 +197,11 @@ describe("StudentWorkspace — sim focus mode (1.1.140 M1)", () => {
       </Harness>,
     );
     openSim();
-    expect(toggle()).toHaveAttribute("aria-pressed", "true"); // chat shown
+    // The label names the ACTION the button will take (no aria-pressed).
+    expect(toggle()).toHaveAccessibleName("Fokus på simuleringen"); // chat shown
     fireEvent.click(toggle());
     expect(ratio()).toBe("1");
-    expect(toggle()).toHaveAttribute("aria-pressed", "false");
+    expect(toggle()).toHaveAccessibleName("Vis chatten igen");
     expect(store.get("aipla.simFocus:act-1")).toBe("1");
 
     fireEvent.click(toggle());

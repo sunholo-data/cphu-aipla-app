@@ -18,7 +18,9 @@ interface SimFrameHeaderProps {
   fullscreenTarget: HTMLElement | null;
   /** 1.1.140 M1 — focus mode: hide the chat column so the sim has the row.
    *  Omitted where there is no chat beside the sim (the builder preview).
-   *  `chatShown` is the toggle's pressed state; `label` names the toggle. */
+   *  `chatShown` picks the icon; `label` names the ACTION the button will take
+   *  ("Focus on the simulation" / "Show the chat again"), so no aria-pressed:
+   *  a pressed state plus a changing label reads wrongly to a screen reader. */
   focus?: { chatShown: boolean; onToggle: () => void; label: string };
 }
 
@@ -79,7 +81,6 @@ export function SimFrameHeader({
             className="hidden items-center gap-1 rounded border border-border bg-background px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground md:flex"
             aria-label={focus.label}
             title={focus.label}
-            aria-pressed={focus.chatShown}
             data-sim-focus-toggle
           >
             {focus.chatShown ? (

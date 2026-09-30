@@ -105,7 +105,9 @@
   "StudentWorkspace": {
     "closeSimLabel": "Luk {name}",
     "close": "Luk",
-    "fullscreen": "Fuld skærm"
+    "fullscreen": "Fuld skærm",
+    "focusMode": "Fokus på simuleringen",
+    "exitFocusMode": "Vis chatten igen"
   },
   "WorkbenchCalculator": {
     "commitCard": "Beregnede {results}",

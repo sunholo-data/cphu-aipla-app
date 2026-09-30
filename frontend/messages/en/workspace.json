@@ -105,7 +105,9 @@
   "StudentWorkspace": {
     "closeSimLabel": "Close {name}",
     "close": "Close",
-    "fullscreen": "Full screen"
+    "fullscreen": "Full screen",
+    "focusMode": "Focus on the simulation",
+    "exitFocusMode": "Show the chat again"
   },
   "WorkbenchCalculator": {
     "commitCard": "Calculated {results}",

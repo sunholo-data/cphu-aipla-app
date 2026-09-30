@@ -220,7 +220,6 @@ function OpenSim({
   const t = useT("StudentWorkspace");
   // The toggle is named for the chat it shows or hides, and pressed while the
   // chat is shown. Reuses the "Show chat" string the reveal tab already has.
-  const tChat = useT("ChatRevealTab");
   const focus = useSimFocusMode(focusKey);
   // Callback ref → state so SimFrameHeader gets the real wrapper element once it
   // mounts (a plain ref is still null on first render).
@@ -240,7 +239,11 @@ function OpenSim({
         fullscreenTarget={simWrap}
         focus={
           focus.available
-            ? { chatShown: !focus.focused, onToggle: focus.toggle, label: tChat("showChat") }
+            ? {
+                chatShown: !focus.focused,
+                onToggle: focus.toggle,
+                label: focus.focused ? t("exitFocusMode") : t("focusMode"),
+              }
             : undefined
         }
       />

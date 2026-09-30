@@ -150,15 +150,6 @@ def test_completion_guidance_does_not_bake_in_a_language():
         assert pinned not in out
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "1.1.140 M0: the gate's allowlist lives in protocols/proactive_routes.py, "
-        "which another session owns. Add 'completion' there (or import "
-        "REACTIVE_EVENT_KINDS) and DELETE this marker — strict xfail turns the "
-        "fix into a failure so the marker cannot outlive it."
-    ),
-)
 def test_gate_allowlist_equals_the_guidance_kinds():
     from protocols.proactive_routes import MEANINGFUL_EVENT_KINDS
 
