@@ -247,3 +247,31 @@ M0 (the teacher-visible ask, and the step before 1.1.133) → M1 → M7 → M4 �
   tone, and JB has read it.
 - `make release-notes` produced the v0.1.70–74 notes and they are in Teams.
 - A tag with no sandbox change does not fire the prod sandbox release.
+
+## M3 first run — real classroom sessions, 2026-09-30
+
+`make bench-tutor-sessions ARGS="--go --since 2026-09-26 --until 2026-09-30"` →
+`research/tutor-discrimination/sessions-20260930T185756Z/` (gitignored). 14 prod
+sessions, 13 groups, 112 judge calls (≈ EUR 0.5), 0 failed.
+
+| | preview (BENCH-2, before praise) | **real classroom sessions** |
+|---|---|---|
+| Own approach top of its own column | 4–5 of 7 | **0 of 5** readable |
+| Mean column-z margin | +1.4 / +2.0 | **−0.54** |
+
+**What it can and cannot say.** Only one row has real n: **Mikkel/ESRU, 7 sessions in
+7 groups**. ESRU is its highest column (0.80, z +0.73), a weak lean, on the
+judge's most generic ruler. POE, CER and 5E have 1–2 sessions each, and each scored ~0
+on its own approach. That is *consistent* with "approaches blur in real lessons", and it
+is the direction 1.1.141 predicts, but it is anecdote, not evidence. Accountable talk
+and Toulmin had no qualifying sessions. 7 sessions were excluded for switching
+approach mid-window; read them by hand.
+
+**Tone disagrees with JB's "Mikkel was too sycophantic"**: none in 6 of 7 Mikkel sessions.
+Likely reason: the harness judges **student groups only** (`teacher:`, `preview:`,
+`preview-` excluded). If JB's experienced-teacher session ran as teachers or
+"try as student", **it is not in this sample.** **Ask JB** which accounts the
+teachers used, and if needed add a `--include-teacher-trials` mode for that one session.
+
+**Next:** more sessions (the window was 5 days), then 1.1.141 M0 on this harness.
+Do not quote the 0-of-5 headline without the n table beside it.
