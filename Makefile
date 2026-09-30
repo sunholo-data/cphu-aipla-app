@@ -444,6 +444,16 @@ check-domains:
 deploy-status:
 	@./scripts/deploy-status.sh $(ENVS)
 
+# What screen sizes are people using? Read-only distribution of the
+# `aipla_client_env` beacons (viewport width bucket x surface, DPR, pointer).
+#   make screen-sizes ENV=prod            # last 30 days
+#   make screen-sizes ENV=prod DAYS=7
+#   make screen-sizes ENV=prod DRY_RUN=1  # print the gcloud command only
+.PHONY: screen-sizes
+DAYS ?= 30
+screen-sizes:
+	@./scripts/screen-sizes.sh $(if $(filter 1,$(DRY_RUN)),--dry-run) $(ENV) $(DAYS)
+
 tf-local:
 	@test -n "$(ENV)" || { echo "ENV is required, e.g. make tf-local ENV=prod ACTION=plan"; exit 1; }
 	@./scripts/tf.sh $(ENV) $(or $(ACTION),plan)

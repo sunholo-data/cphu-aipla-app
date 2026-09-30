@@ -227,6 +227,28 @@ frontend container, so the server's `K_REVISION` / `APP_VERSION` describe the
 same build that served the broken JS. The client neither reports nor can
 misreport its own version.
 
+## What shipped — 2026-09-30 (screen-size slice)
+
+A small slice of M0, prompted by "the UI was a bit cramped on a laptop — what
+screen sizes are people using?". Client errors are too rare to sample screens
+from, so the browser now sends **one environment beacon per page session**, and
+again only when a debounced resize crosses a width bucket
+(`<768 · 768–1279 · 1280–1439 · 1440–1919 · ≥1920`).
+
+| Piece | Where |
+|---|---|
+| Beacon | `frontend/src/lib/clientEnvBeacon.ts`, started by `GlobalErrorReporter` |
+| Endpoint | the existing `POST /api/client-errors` with `kind: "env"` — unauthenticated, so students, teachers and signed-out visitors all report; its **own** per-IP bucket (300 / 5 min) so a classroom behind one NAT cannot spend the error reporter's budget |
+| Sink | `emit_client_env` in `backend/observability/client_error.py` → Cloud Logging id **`aipla_client_env`** (a sibling of `aipla_client_error`, so page loads never inflate the error count; not routed to BigQuery, test-asserted) |
+| Read it | `make screen-sizes ENV=prod [DAYS=30]` (`scripts/screen-sizes.sh`, read-only; a failed read says `CANNOT READ`, never "no data") |
+
+Payload: `viewportW/H`, `screenW/H`, `dpr`, `pointer` (`coarse`/`fine`),
+`surface` (`student`/`teacher`/`public`, from the route prefix), `buildId`. **No
+user agent, path, role or id** — a screen size is fine, a fingerprint is not
+(ADR-001). The backend has no parameter for any of them, clamps every number, and
+a test asserts that identity fields a client might send are dropped. Like M-1 it
+therefore needs no consent decision; M0's friction events still do.
+
 ## Testing
 
 - No event carries free text, field contents, or student data — asserted structurally over the enum

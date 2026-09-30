@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 
+import { startClientEnvBeacon } from "@/lib/clientEnvBeacon";
 import { reportClientError } from "@/lib/clientErrorReporting";
 import {
   RECOVERY_SETTLE_MS,
@@ -72,7 +73,12 @@ export function GlobalErrorReporter() {
       });
     }, RECOVERY_SETTLE_MS);
 
+    // Screen-size slice of M0 (2026-09-30): one environment beacon per page
+    // session, again only when a resize crosses a width bucket.
+    const stopEnvBeacon = startClientEnvBeacon();
+
     return () => {
+      stopEnvBeacon();
       window.removeEventListener("error", onError);
       window.removeEventListener("unhandledrejection", onRejection);
       window.clearTimeout(recoveryTimer);

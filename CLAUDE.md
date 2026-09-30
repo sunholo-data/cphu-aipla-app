@@ -579,6 +579,7 @@ Any local workflow that requires more than one manual step — setting env vars,
 | **Run the localisation gate locally** (after touching a student surface's copy) — student UI text lives in `frontend/messages/{da,en}/`, read with `useT()` from `@/i18n` | `make check-i18n` (same `scripts/check-i18n-literals.sh` the CI `local-mode-safety` job runs) |
 | **Check the how-to guides** (front matter, stranded translations, missing screenshots; CI-gated) and whether a documented surface changed under them | `make check-guides` · `make guide-staleness` (the `check-guide-nav` / `guides-publish` targets this row once named were retired with the Quarto guides in 1.1.116) |
 | **Republish the sim authoring prompt** (after editing `.claude/skills/mcp-app-artefact/resources/authoring-prompt.md`) — the `/project/build-a-simulation` page and `/sim-authoring-prompt.txt` are generated from it | `make sim-prompt` (`make check-sim-prompt` is the CI gate) |
+| **What screen sizes are people using?** — read-only viewport-width × surface distribution (plus DPR, pointer) from the `aipla_client_env` beacons in Cloud Logging | `make screen-sizes ENV=prod [DAYS=30] [DRY_RUN=1]` (`scripts/screen-sizes.sh`) |
 
 When adding a new workflow, add it to `scripts/` and the root `Makefile` in the same PR.
 

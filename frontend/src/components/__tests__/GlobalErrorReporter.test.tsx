@@ -14,6 +14,9 @@ import { GlobalErrorReporter } from "@/components/GlobalErrorReporter";
 
 const reportClientError = vi.hoisted(() => vi.fn());
 vi.mock("@/lib/clientErrorReporting", () => ({ reportClientError }));
+const stopEnvBeacon = vi.hoisted(() => vi.fn());
+const startClientEnvBeacon = vi.hoisted(() => vi.fn(() => stopEnvBeacon));
+vi.mock("@/lib/clientEnvBeacon", () => ({ startClientEnvBeacon }));
 
 // Imported after the mock so the boundaries pick it up.
 const RouteError = (await import("@/app/error")).default;
@@ -217,5 +220,16 @@ describe("app/global-error.tsx — the root-layout boundary", () => {
     expect(reportClientError).toHaveBeenCalledWith(
       expect.objectContaining({ kind: "render", message: "layout blew up" }),
     );
+  });
+});
+
+describe("GlobalErrorReporter — screen-size beacon (2026-09-30)", () => {
+  it("starts the environment beacon on mount and stops it on unmount", () => {
+    startClientEnvBeacon.mockClear();
+    stopEnvBeacon.mockClear();
+    const { unmount } = render(<GlobalErrorReporter />);
+    expect(startClientEnvBeacon).toHaveBeenCalledTimes(1);
+    unmount();
+    expect(stopEnvBeacon).toHaveBeenCalledTimes(1);
   });
 });

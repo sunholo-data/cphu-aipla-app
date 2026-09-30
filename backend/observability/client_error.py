@@ -212,16 +212,138 @@ def emit_client_error(
         logger.warning("client_error: emit failed (suppressed): %s", exc)
 
 
+# ─── Client environment beacon (screen-size slice of 1.1.96 M0, 2026-09-30) ───
+#
+# "The UI was a bit cramped on a laptop — what screen sizes are people using?"
+# Errors are too rare to sample screens from, so the browser sends ONE of these
+# per page session (and again only when the viewport crosses a width bucket).
+#
+# A SIBLING log id, not ``aipla_client_error``: one row per page load would
+# otherwise drown the error count, and "how many client errors this week" is the
+# query that log exists to answer. Same sink (Cloud Logging only, not routed to
+# BigQuery — the chat-logs filter is an allowlist and this id is not on it).
+#
+# Privacy (ADR-001): a screen size is fine, a fingerprint is not. So this row
+# carries NO user agent (the error row reads it from the header; this one never
+# does), no path, no role, no id of any kind — only the coarse numbers below,
+# the surface, and the client build id the error report already carries.
+LOG_ID_CLIENT_ENV = "aipla_client_env"
+
+ENV_KIND = "env"
+
+#: Where the tab was. Derived by the client from the route prefix.
+ENV_SURFACES = ("student", "teacher", "public")
+
+#: ``(pointer: coarse)`` is a touch screen; ``fine`` is a mouse/trackpad.
+ENV_POINTERS = ("coarse", "fine")
+
+#: Upper bound for any CSS-pixel dimension. An 8K display is 7680 wide; anything
+#: past this is a lying client, and it is clamped rather than rejected.
+MAX_DIMENSION_PX = 10000
+MIN_DPR, MAX_DPR = 0.5, 8.0
+
+#: Width buckets — kept in lockstep with ``VIEWPORT_BUCKETS`` in
+#: ``frontend/src/lib/clientEnvBeacon.ts`` and ``scripts/screen-sizes.sh``.
+#: Inclusive lower bounds; the label is what gets logged.
+VIEWPORT_BUCKETS: tuple[tuple[int, str], ...] = (
+    (0, "<768"),
+    (768, "768-1279"),
+    (1280, "1280-1439"),
+    (1440, "1440-1919"),
+    (1920, ">=1920"),
+)
+
+
+def _is_number(raw: Any) -> bool:
+    return not isinstance(raw, bool) and isinstance(raw, (int, float)) and raw == raw  # NaN != NaN
+
+
+def clamp_dimension(raw: Any) -> int | None:
+    """A CSS-pixel dimension as an int in ``[0, MAX_DIMENSION_PX]``, or ``None``."""
+    if not _is_number(raw):
+        return None
+    return int(max(0, min(MAX_DIMENSION_PX, round(raw))))
+
+
+def clamp_dpr(raw: Any) -> float | None:
+    """Device pixel ratio in ``[MIN_DPR, MAX_DPR]`` to two decimals, or ``None``."""
+    if not _is_number(raw) or raw <= 0:
+        return None
+    return round(max(MIN_DPR, min(MAX_DPR, float(raw))), 2)
+
+
+def viewport_bucket(width: int | None) -> str | None:
+    """The width bucket label for ``width``, or ``None`` when width is unknown."""
+    if width is None:
+        return None
+    label = VIEWPORT_BUCKETS[0][1]
+    for lower, name in VIEWPORT_BUCKETS:
+        if width >= lower:
+            label = name
+    return label
+
+
+def emit_client_env(
+    *,
+    viewport_w: Any = None,
+    viewport_h: Any = None,
+    screen_w: Any = None,
+    screen_h: Any = None,
+    dpr: Any = None,
+    pointer: Any = None,
+    surface: Any = None,
+    build_id: str | None = None,
+) -> None:
+    """Emit one client-environment row. Clamps everything; **never raises**.
+
+    Deliberately has no parameter for a user agent, path, role or id: a field
+    that cannot be passed cannot leak. Logs to stdlib at DEBUG only (one line per
+    page load would be noise under ``make dev``).
+    """
+    try:
+        vw = clamp_dimension(viewport_w)
+        payload: dict[str, Any] = {
+            "kind": ENV_KIND,
+            "viewport_w": vw,
+            "viewport_h": clamp_dimension(viewport_h),
+            "screen_w": clamp_dimension(screen_w),
+            "screen_h": clamp_dimension(screen_h),
+            "dpr": clamp_dpr(dpr),
+            "pointer": pointer if pointer in ENV_POINTERS else None,
+            "surface": surface if surface in ENV_SURFACES else "unknown",
+            "viewport_bucket": viewport_bucket(vw),
+            "client_build_id": clean_build_id(build_id),
+            **_version_fields(),
+        }
+        logger.debug("client_env: %s", payload)
+        gl = _get_logger(LOG_ID_CLIENT_ENV)
+        if gl is None:
+            return
+        gl.log_struct(payload)
+    except Exception as exc:  # telemetry must never break the request
+        logger.warning("client_env: emit failed (suppressed): %s", exc)
+
+
 __all__ = [
+    "ENV_KIND",
+    "ENV_POINTERS",
+    "ENV_SURFACES",
     "KINDS",
+    "LOG_ID_CLIENT_ENV",
     "LOG_ID_CLIENT_ERROR",
+    "MAX_DIMENSION_PX",
     "MAX_MESSAGE_CHARS",
     "MAX_STACK_CHARS",
     "MAX_URL_CHARS",
     "ROLES",
+    "VIEWPORT_BUCKETS",
+    "clamp_dimension",
+    "clamp_dpr",
     "clean_build_id",
     "clean_url",
+    "emit_client_env",
     "emit_client_error",
     "redact",
     "surface_of",
+    "viewport_bucket",
 ]
