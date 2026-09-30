@@ -123,8 +123,10 @@ concept graph's position at the bottom. One page per lesson, in reading order:
 4. **Groups**: compact rows, outliers first, drill-in to the existing report.
 
 The per-group report gains a breadcrumb back to its lesson, so a teacher never
-lands in a group without the class around it. Teacher copy in a `copy` object
-(1.1.108 M4).
+lands in a group without the class around it. **Copy goes in
+`frontend/messages/{da,en}/teacher-{research,classes}.json` via `useT()`**, in
+both languages (parity is test-enforced, and `make check-i18n` covers teacher
+dirs since 1.1.108 M2, 2026-09-30). Never inline, and not a local `copy` object.
 
 ### M3 — A wizard for the right order (~1–1.5d)
 
