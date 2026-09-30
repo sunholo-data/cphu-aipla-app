@@ -489,10 +489,30 @@ Decisions taken in the pass:
   pins now follow the context locale; the History tab's browser-locale dates
   were a rule-M4.3 breach and now follow it too.
 
-Still English, outside the teacher directories: `lib/safeFormula` validation
-errors, `lib/onboardingStage` descriptions, `lib/tutorDisplay` interaction-style
-labels, `lib/programmeApi.formatSpend`. The guard now covers
-`components/teacher` + `app/teacher`; these `lib/` files are the next widening.
+**Follow-up, same day (M: "researchers see english by default. do the follow up"):**
+- **Researchers default to English.** No explicit choice + the `role:researcher`
+  claim → `en` (most of the research team do not read Danish, and the research
+  content is English). Still data, not the browser; an explicit choice wins.
+- **The last English-only teacher text is translated:** formula validation
+  errors (`validateFormula` now returns a `code` beside its English `error`),
+  onboarding stages and their next step (the backend's `nextStep` is fixed per
+  stage, so the client says it by stage — which also retired a teacher-visible
+  "Mint a group code"), tone names (`lib/tutorDisplay.ts` deleted — one live
+  use, the rest dead copy). `formatSpend`'s "unreadable" was already translated
+  where shown.
+- **Co-pilots reply in the teacher's language.** Every prompt already said
+  "match the language the teacher writes in" — right, but blind to a button's
+  canned request and to one-word replies. The shared `TeacherCopilot` shell now
+  prefixes `[ui_language=da|en]` to every turn (stripped before display); the
+  five co-pilot skills (authoring, aipla-help, analytics, manage-class,
+  tutor-authoring) fall back to it when the message gives nothing to match.
+  `aipla-help` also stopped telling the model the buttons are English with
+  Danish co-pilot buttons — it now lists both label sets and knows where the
+  switch is. SKILL.md changes reach an env via the deploy's seed job.
+
+Still English by design: backend-authored sentences shown verbatim (server
+error `detail`s, workbench event labels in transcripts, the research judge's
+default prompt), the feedback mail to the maintainer, and research data.
 
 Reviewer vocabulary to rule on (lane choices): Programme → *Programmet*,
 Insights → *Indsigt*, visitor → *gæst*, cap → *loft*, spend grant →

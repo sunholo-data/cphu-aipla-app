@@ -11,11 +11,16 @@
 //                     it, whatever the viewer's own setting (a teacher working
 //                     in English still previews a Danish activity in Danish).
 //
-// Neither is guessed from the browser (rule M4.3): no setting → the site
-// default. localStorage because this is a per-browser preference, every access
-// guarded — storage can be absent or throw.
+// Neither is guessed from the browser (rule M4.3). No setting → a default
+// taken from DATA: English for a researcher (most of the research team do not
+// read Danish, and the research content is English — M, 2026-09-30), the site
+// default for everyone else. An explicit choice always wins, so a Danish
+// researcher switches once and is remembered. localStorage because this is a
+// per-browser preference, every access guarded — storage can be absent or throw.
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+
+import { useIsResearcher } from "@/hooks/useIsResearcher";
 
 import { LocaleProvider } from "./index";
 import { DEFAULT_LOCALE, LOCALES, type Locale } from "./locale";
@@ -48,6 +53,8 @@ const UserLocaleContext = createContext<UserLocaleValue>({
 
 export function UserLocaleProvider({ children }: { children: ReactNode }) {
   const [stored, setStored] = useState<Locale | null>(null);
+  // The role claim, not the browser: false for students and signed-out visitors.
+  const isResearcher = useIsResearcher();
 
   useEffect(() => {
     setStored(readStored());
@@ -69,8 +76,8 @@ export function UserLocaleProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<UserLocaleValue>(
-    () => ({ locale: stored ?? DEFAULT_LOCALE, explicit: stored !== null, setLocale }),
-    [stored, setLocale],
+    () => ({ locale: stored ?? (isResearcher ? "en" : DEFAULT_LOCALE), explicit: stored !== null, setLocale }),
+    [stored, isResearcher, setLocale],
   );
 
   return (

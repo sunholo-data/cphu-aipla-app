@@ -358,5 +358,15 @@
     "status_idle": "idle",
     "turns": "{n, plural, one {# turn} other {# turns}}",
     "stuck": "stuck"
+  },
+  "InteractionStyle": {
+    "socratic": "Socratic",
+    "concise": "Concise",
+    "rigorous": "Rigorous",
+    "warm": "Warm",
+    "help_socratic": "Guides with questions, leaves room to notice. Ends each turn with a question.",
+    "help_concise": "Terse and directive — “just try this”. No follow-up questions.",
+    "help_rigorous": "Exam-level expectations; does not soften or over-scaffold.",
+    "help_warm": "Encouraging, more scaffolding — for lower-confidence students."
   }
 }

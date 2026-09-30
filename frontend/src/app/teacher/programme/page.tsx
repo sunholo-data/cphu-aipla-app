@@ -40,7 +40,7 @@ import {
   revokeAccess,
   spendState,
 } from "@/lib/programmeApi";
-import { STAGE_ORDER, copy as stageCopy, describeStage } from "@/lib/onboardingStage";
+import { STAGE_ORDER, describeStage } from "@/lib/onboardingStage";
 import { StageChip } from "@/components/teacher/StageChip";
 import { useT } from "@/i18n";
 
@@ -288,6 +288,7 @@ function RegisterTable({
   stages?: Map<string, OnboardingRow>;
 }) {
   const t = useT("TeacherProgrammePage");
+  const tStage = useT("StageChip");
   const [sortByStage, setSortByStage] = useState(false);
   const sorted = useMemo(() => {
     if (!sortByStage || !stages) return rows;
@@ -352,9 +353,13 @@ function RegisterTable({
                   if (!st) return <span className="text-muted-foreground">{t("stageUnavailable")}</span>;
                   return (
                     <div className="flex flex-col gap-0.5">
-                      <StageChip stage={st.stage} label={describeStage(st)} title={st.since ?? undefined} />
+                      <StageChip stage={st.stage} label={describeStage(st, tStage)} title={st.since ?? undefined} />
                       {st.nextStep ? (
-                        <span className="text-xs text-muted-foreground">{stageCopy.next(st.nextStep)}</span>
+                        <span className="text-xs text-muted-foreground">{tStage("next", {
+                            // The backend's next step is fixed per stage; say it by stage so it
+                            // follows the reader's language (its English stays for the co-pilot).
+                            step: st.stage !== "live" ? tStage(`nextStep_${st.stage}`) : st.nextStep,
+                          })}</span>
                       ) : null}
                     </div>
                   );

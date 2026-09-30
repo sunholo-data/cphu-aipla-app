@@ -19,6 +19,7 @@ import { useT } from "@/i18n";
  */
 export function SetUpForTeacherDialog({ onCreated, onCancel }: { onCreated: () => void; onCancel: () => void }) {
   const t = useT("SetUpForTeacherDialog");
+  const tStage = useT("StageChip");
   const [teachers, setTeachers] = useState<OnboardingRow[] | null>(null);
   const [templates, setTemplates] = useState<ClassPayload[]>([]);
   const [ownerUid, setOwnerUid] = useState("");
@@ -104,7 +105,7 @@ export function SetUpForTeacherDialog({ onCreated, onCancel }: { onCreated: () =
               <option value="">{t("teacherPlaceholder")}</option>
               {(teachers ?? []).map((t) => (
                 <option key={t.uid!} value={t.uid!}>
-                  {t.email} — {describeStage(t)}
+                  {t.email} — {describeStage(t, tStage)}
                 </option>
               ))}
             </select>

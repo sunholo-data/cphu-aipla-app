@@ -5,7 +5,14 @@
     "no_code": "No join code",
     "no_activity": "No activity assigned",
     "waiting": "Waiting for students",
-    "live": "Live"
+    "live": "Live",
+    "withDays": "{label} — {days, plural, =0 {today} one {# day} other {# days}}",
+    "next": "Next: {step}",
+    "nextStep_invited": "Sign in with the invited address",
+    "nextStep_demo_only": "Create the class",
+    "nextStep_no_code": "Create a group code",
+    "nextStep_no_activity": "Add an activity",
+    "nextStep_waiting": "Share the join link with students"
   },
   "SimThumbnail": {
     "preview": "{name} preview",
@@ -155,7 +162,15 @@
     "formula": "Formula",
     "formulaOk": "Formula looks good.",
     "formulaHint": "Write the right-hand side (the <code>E =</code> is optional). Put <code>*</code> between variables — <code>m * c</code>, not <code>mc</code>. Functions: sqrt, sin, cos, tan, ln, log, abs, exp.",
-    "formulaPlaceholder": "e.g. E = m * c^2"
+    "formulaPlaceholder": "e.g. E = m * c^2",
+    "formula_equationForm": "Write only the right-hand side of the equation — the result is shown for you. For E = mc², enter m * c^2.",
+    "formula_implicitMultiply": "Put * between variables: write {fixed}, not {name}.",
+    "formula_unknownVariable": "\"{name}\" isn't one of your variables — add it above, or check the spelling.",
+    "formula_unknownFunction": "\"{name}\" isn't an allowed function. Use: sqrt, sin, cos, tan, ln, log, abs, exp.",
+    "formula_invalid": "This formula isn't valid yet. Use your variables, numbers, + - * / ^ ( ) and the allowed functions.",
+    "formula_rhsMissing": "Add the right-hand side of the equation after the = sign.",
+    "formula_empty": "The formula is empty.",
+    "formula_notFinite": "This formula can't be calculated — check for a divide-by-zero."
   },
   "ConceptMapEditor": {
     "optional": "Concept map (optional)",

@@ -5,7 +5,14 @@
     "no_code": "Ingen gruppekode",
     "no_activity": "Ingen aktivitet tildelt",
     "waiting": "Venter på elever",
-    "live": "Aktiv"
+    "live": "Aktiv",
+    "withDays": "{label} — {days, plural, =0 {i dag} one {# dag} other {# dage}}",
+    "next": "Næste: {step}",
+    "nextStep_invited": "Log ind med den inviterede adresse",
+    "nextStep_demo_only": "Opret klassen",
+    "nextStep_no_code": "Opret en gruppekode",
+    "nextStep_no_activity": "Tilføj en aktivitet",
+    "nextStep_waiting": "Del tilmeldingslinket med eleverne"
   },
   "SimThumbnail": {
     "preview": "Forhåndsvisning af {name}",
@@ -155,7 +162,15 @@
     "formula": "Formel",
     "formulaOk": "Formlen ser fin ud.",
     "formulaHint": "Skriv højresiden (<code>E =</code> er valgfrit). Sæt <code>*</code> mellem variabler — <code>m * c</code>, ikke <code>mc</code>. Funktioner: sqrt, sin, cos, tan, ln, log, abs, exp.",
-    "formulaPlaceholder": "fx E = m * c^2"
+    "formulaPlaceholder": "fx E = m * c^2",
+    "formula_equationForm": "Skriv kun højresiden af ligningen — resultatet vises for dig. For E = mc² skriver du m * c^2.",
+    "formula_implicitMultiply": "Sæt * mellem variablerne: skriv {fixed}, ikke {name}.",
+    "formula_unknownVariable": "\"{name}\" er ikke en af dine variabler — tilføj den ovenfor, eller tjek stavemåden.",
+    "formula_unknownFunction": "\"{name}\" er ikke en tilladt funktion. Brug: sqrt, sin, cos, tan, ln, log, abs, exp.",
+    "formula_invalid": "Formlen er ikke gyldig endnu. Brug dine variabler, tal, + - * / ^ ( ) og de tilladte funktioner.",
+    "formula_rhsMissing": "Tilføj højresiden af ligningen efter lighedstegnet.",
+    "formula_empty": "Formlen er tom.",
+    "formula_notFinite": "Formlen kan ikke beregnes — tjek for division med nul."
   },
   "ConceptMapEditor": {
     "optional": "Begrebskort (valgfrit)",

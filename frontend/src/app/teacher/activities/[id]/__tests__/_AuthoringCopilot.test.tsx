@@ -169,7 +169,7 @@ describe("AuthoringCopilot — auth corner + panel", () => {
     await screen.findByTestId("authoring-copilot");
     fireEvent.change(screen.getByLabelText(/beskriv hvad du vil undervise/i), { target: { value: "energi" } });
     fireEvent.submit(screen.getByRole("button", { name: /send/i }).closest("form")!);
-    expect(sendMessage).toHaveBeenCalledWith("[activity_id=act-42] energi");
+    expect(sendMessage).toHaveBeenCalledWith("[ui_language=da] [activity_id=act-42] energi");
   });
 
   it("omits the prefix when there's no activity yet (draft / the /new page)", async () => {
@@ -177,7 +177,7 @@ describe("AuthoringCopilot — auth corner + panel", () => {
     await screen.findByTestId("authoring-copilot");
     fireEvent.change(screen.getByLabelText(/beskriv hvad du vil undervise/i), { target: { value: "energi" } });
     fireEvent.submit(screen.getByRole("button", { name: /send/i }).closest("form")!);
-    expect(sendMessage).toHaveBeenCalledWith("energi");
+    expect(sendMessage).toHaveBeenCalledWith("[ui_language=da] energi");
   });
 
   it("carries the current draft as hidden context (COPILOT: the co-pilot used to be blind to it)", async () => {
@@ -207,7 +207,7 @@ describe("AuthoringCopilot — auth corner + panel", () => {
     await screen.findByTestId("authoring-copilot");
     fireEvent.change(screen.getByLabelText(/beskriv hvad du vil undervise/i), { target: { value: "energi" } });
     fireEvent.submit(screen.getByRole("button", { name: /send/i }).closest("form")!);
-    expect(sendMessage).toHaveBeenCalledWith("[activity_id=act-1] energi");
+    expect(sendMessage).toHaveBeenCalledWith("[ui_language=da] [activity_id=act-1] energi");
   });
 
   it("hides the draft context block from the rendered user bubble, even with a unit label containing ']'", async () => {

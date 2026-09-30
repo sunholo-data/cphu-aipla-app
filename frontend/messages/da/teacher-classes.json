@@ -358,5 +358,15 @@
     "status_idle": "inaktiv",
     "turns": "{n, plural, one {# tur} other {# ture}}",
     "stuck": "sidder fast"
+  },
+  "InteractionStyle": {
+    "socratic": "Sokratisk",
+    "concise": "Kortfattet",
+    "rigorous": "Stringent",
+    "warm": "Varm",
+    "help_socratic": "Guider med spørgsmål og giver plads til at opdage selv. Slutter hver tur med et spørgsmål.",
+    "help_concise": "Kort og direkte — “prøv lige det her”. Ingen opfølgende spørgsmål.",
+    "help_rigorous": "Forventninger på eksamensniveau; blødgør ikke og stilladserer ikke for meget.",
+    "help_warm": "Opmuntrende og med mere stilladsering — til elever med mindre selvtillid."
   }
 }

@@ -121,7 +121,8 @@ describe("TeacherCopilot (shared shell)", () => {
     fireEvent.change(input, { target: { value: "make Fysik 9A" } });
     fireEvent.submit(input.closest("form")!);
     await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1));
-    expect(sendMessage.mock.calls[0]![0]).toBe("[class_id=c1] make Fysik 9A");
+    // 1.1.108 — the teacher's language rides first, then the surface's scope.
+    expect(sendMessage.mock.calls[0]![0]).toBe("[ui_language=en] [class_id=c1] make Fysik 9A");
     expect(input.value).toBe("");
   });
 
@@ -200,6 +201,13 @@ describe("TeacherCopilot (shared shell)", () => {
   it("persists a threadId on mount (for cross-visit resume)", () => {
     render(<TeacherCopilot {...config()} />);
     expect(window.localStorage.getItem("teacherCopilot:manage-class")).toBeTruthy();
+  });
+
+  it("never shows the language tag in the teacher's own bubble (1.1.108)", () => {
+    hook = { ...defaultHook, messages: [{ id: "m1", role: "user", content: "[ui_language=en] what now?" }] as never };
+    render(<TeacherCopilot {...config()} />);
+    expect(screen.getByText("what now?")).toBeInTheDocument();
+    expect(screen.queryByText(/ui_language/)).not.toBeInTheDocument();
   });
 
   it("resumes: prior messages render before the live ones", () => {

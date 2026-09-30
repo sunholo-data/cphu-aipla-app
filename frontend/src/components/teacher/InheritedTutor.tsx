@@ -10,7 +10,6 @@ import {
   fetchTutorCatalogue,
   getClass,
 } from "@/lib/teacherApi";
-import { INTERACTION_STYLE_LABEL } from "@/lib/tutorDisplay";
 import { TutorFace } from "@/components/teacher/research/TutorFace";
 import { useT } from "@/i18n";
 
@@ -33,6 +32,8 @@ import { useT } from "@/i18n";
  */
 export function InheritedTutor({ classId }: { classId: string }) {
   const t = useT("InheritedTutor");
+  // Tone names (1.1.108 — were English-only constants in lib/tutorDisplay).
+  const tStyle = useT("InteractionStyle");
   const [tutor, setTutor] = useState<PersonaPayload | null>(null);
   // 1.1.91 — when the class has a TUTOR, its teaching approach is part of the
   // identity the activity inherits. Showing only the name here while a
@@ -97,7 +98,7 @@ export function InheritedTutor({ classId }: { classId: string }) {
               ) : null}
               <p className="truncate text-xs text-slate-500">
                 {tutor.title ? `${tutor.title} · ` : ""}
-                {t("tone", { style: INTERACTION_STYLE_LABEL[tutor.interactionStyle] })}
+                {t("tone", { style: tStyle(tutor.interactionStyle) })}
                 {tutor.voice?.ttsVoice ? ` · ${t("voice", { voice: tutor.voice.ttsVoice })}` : ""}
               </p>
             </div>

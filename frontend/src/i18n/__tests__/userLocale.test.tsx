@@ -1,9 +1,12 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LanguageSwitch } from "@/components/site/LanguageSwitch";
 import { LocaleProvider, useLocaleMode } from "@/i18n";
 import { USER_LOCALE_KEY, UserLocaleProvider } from "@/i18n/userLocale";
+
+const researcher = vi.hoisted(() => ({ value: false }));
+vi.mock("@/hooks/useIsResearcher", () => ({ useIsResearcher: () => researcher.value }));
 
 // 1.1.108 — the person's own language (remembered in this browser) versus the
 // students' language (the activity's, which wins inside it).
@@ -21,6 +24,7 @@ beforeEach(() => {
     },
   });
   document.documentElement.lang = "en";
+  researcher.value = false;
 });
 
 function Probe({ id }: { id: string }) {
@@ -88,4 +92,25 @@ describe("UserLocaleProvider", () => {
     });
     expect(document.documentElement.lang).toBe("en");
   });
+
+  it("defaults a researcher to English, and an explicit choice still wins", () => {
+    researcher.value = true;
+    const { unmount } = render(
+      <UserLocaleProvider>
+        <LanguageSwitch />
+        <Probe id="r" />
+      </UserLocaleProvider>,
+    );
+    expect(screen.getByTestId("r")).toHaveTextContent("en");
+    fireEvent.click(screen.getByRole("button", { name: "da" }));
+    expect(screen.getByTestId("r")).toHaveTextContent("da");
+    unmount();
+    render(
+      <UserLocaleProvider>
+        <Probe id="again" />
+      </UserLocaleProvider>,
+    );
+    expect(screen.getByTestId("again")).toHaveTextContent("da");
+  });
 });
+

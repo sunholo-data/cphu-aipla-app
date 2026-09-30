@@ -208,7 +208,7 @@ export function CalculatorEditor({ value, onChange }: CalculatorEditorProps) {
         />
         {formulaCheck && !formulaCheck.ok ? (
           <span role="alert" className="text-xs text-red-600">
-            {formulaCheck.error}
+            {formulaCheck.code ? t(`formula_${formulaCheck.code}`, formulaCheck.values) : formulaCheck.error}
           </span>
         ) : formulaCheck?.ok ? (
           <span className="text-xs text-green-600">{t("formulaOk")}</span>

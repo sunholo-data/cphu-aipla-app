@@ -197,46 +197,89 @@ export function evaluateFormula(formula: string, vars: Record<string, number>): 
  *  cases worth catching by hand are the equation form (`=` left in the
  *  expression) and implicit multiplication (`mc` where `m` and `c` are both
  *  declared) — the rest get a single friendly fallback. */
-function explainFormulaError(error: string, expr: string, allowedVars: string[]): string {
+/** 1.1.108 — why a formula is invalid, as a code + values the editor
+ *  translates. `error` stays the English sentence (logs, tests, fallback). */
+export type FormulaErrorCode =
+  | "equationForm"
+  | "implicitMultiply"
+  | "unknownVariable"
+  | "unknownFunction"
+  | "invalid"
+  | "rhsMissing"
+  | "empty"
+  | "notFinite";
+
+export interface FormulaCheck {
+  ok: boolean;
+  error?: string;
+  code?: FormulaErrorCode;
+  values?: Record<string, string>;
+}
+
+function explainFormulaError(error: string, expr: string, allowedVars: string[]): FormulaCheck {
   if (expr.includes("=")) {
-    return "Write only the right-hand side of the equation — the result is shown for you. For E = mc², enter m * c^2.";
+    return {
+      ok: false,
+      code: "equationForm",
+      error: "Write only the right-hand side of the equation — the result is shown for you. For E = mc², enter m * c^2.",
+    };
   }
   const unknownVar = error.match(/^unknown variable: (.+)$/);
   if (unknownVar) {
     const name = unknownVar[1];
     const letters = [...name];
     if (letters.length > 1 && letters.every((ch) => allowedVars.includes(ch))) {
-      return `Put * between variables: write ${letters.join(" * ")}, not ${name}.`;
+      const fixed = letters.join(" * ");
+      return {
+        ok: false,
+        code: "implicitMultiply",
+        values: { fixed, name },
+        error: `Put * between variables: write ${fixed}, not ${name}.`,
+      };
     }
-    return `"${name}" isn't one of your variables — add it above, or check the spelling.`;
+    return {
+      ok: false,
+      code: "unknownVariable",
+      values: { name },
+      error: `"${name}" isn't one of your variables — add it above, or check the spelling.`,
+    };
   }
   const unknownFn = error.match(/^unknown function: (.+)$/);
   if (unknownFn) {
-    return `"${unknownFn[1]}" isn't an allowed function. Use: sqrt, sin, cos, tan, ln, log, abs, exp.`;
+    return {
+      ok: false,
+      code: "unknownFunction",
+      values: { name: unknownFn[1] },
+      error: `"${unknownFn[1]}" isn't an allowed function. Use: sqrt, sin, cos, tan, ln, log, abs, exp.`,
+    };
   }
-  return "This formula isn't valid yet. Use your variables, numbers, + - * / ^ ( ) and the allowed functions.";
+  return {
+    ok: false,
+    code: "invalid",
+    error: "This formula isn't valid yet. Use your variables, numbers, + - * / ^ ( ) and the allowed functions.",
+  };
 }
 
 /** Validate a formula at author time: it must parse and reference only the
  *  allowed variables / whitelisted functions (checked by evaluating with every
  *  allowed variable bound to 1). An optional leading `name =` is stripped first. */
-export function validateFormula(formula: string, allowedVars: string[]): { ok: boolean; error?: string } {
+export function validateFormula(formula: string, allowedVars: string[]): FormulaCheck {
   const { expr } = splitFormula(formula);
   const trimmed = expr.trim();
   if (!trimmed) {
     return formula.includes("=")
-      ? { ok: false, error: "Add the right-hand side of the equation after the = sign." }
-      : { ok: false, error: "The formula is empty." };
+      ? { ok: false, code: "rhsMissing", error: "Add the right-hand side of the equation after the = sign." }
+      : { ok: false, code: "empty", error: "The formula is empty." };
   }
   const vars: Record<string, number> = {};
   for (const v of allowedVars) vars[v] = 1;
   try {
     const result = new Parser(tokenize(trimmed), vars).parse();
     if (!Number.isFinite(result)) {
-      return { ok: false, error: "This formula can't be calculated — check for a divide-by-zero." };
+      return { ok: false, code: "notFinite", error: "This formula can't be calculated — check for a divide-by-zero." };
     }
     return { ok: true };
   } catch (e) {
-    return { ok: false, error: explainFormulaError(e instanceof Error ? e.message : "", trimmed, allowedVars) };
+    return explainFormulaError(e instanceof Error ? e.message : "", trimmed, allowedVars);
   }
 }
