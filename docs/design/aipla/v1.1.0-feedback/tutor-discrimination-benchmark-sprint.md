@@ -125,3 +125,59 @@ are in Danish, matching `concept-dialogue`'s default.
 
 **First real run** (needs ADC with Vertex + Firestore read on `aipla-dev-2026`):
 `make bench-tutors ENV=dev ARGS=--go` → `research/tutor-discrimination/<UTC>/report.md`.
+
+## First run — 2026-09-30, findings
+
+Run `20260930T084604Z` on `aipla-dev-2026`, code `bd8d552d`: 495 calls (2 flash-lite
+transcripts failed with `ClientError`; the harness keeps only the class name, which
+is a fix to make). Tutor cost EUR 0.35 metered; judge ≈ EUR 1.9 by estimate.
+Report: `research/tutor-discrimination/20260930T084604Z/report.md` (gitignored).
+**3 scenarios, n ≤ 3 per cell: this is a smoke test of the instrument, not a result.**
+
+**1. The strict metric says the approaches do not discriminate, and the reason is mostly the judge.**
+Diagonal accuracy (a transcript's best fit is its own approach) is 0.11
+on flash-lite and 0.14 on 3.8-flash, against a chance level of 0.14. But the
+confusion table shows why: **ESRU is the best fit for nearly every transcript**.
+Its column scores 0.88–1.00 for all seven tutors. The **CER column is ~0 for all
+seven**, including the CER tutor (0.07 / 0.17). Two columns that read the same
+whatever produced the dialogue are measuring the criteria, not the tutor. ESRU's
+generated criteria (elicit → student response → recognise → use) describe any
+questioning tutor. CER's describe written claim-evidence-reasoning that a
+5-turn spoken exchange never produces.
+
+**2. Read per column, there is signal, and more of it on the bigger model.**
+The right question given a biased judge is: *does the POE tutor do more POE than
+the other six tutors do?* That compares within a column, so column bias cancels.
+
+| Tutor model | Own approach highest in its column | Clear | Tied top |
+|---|---|---|---|
+| `gemini-3.5-flash-lite` | Toulmin (0.67 vs ≤0.42), CER (0.07 vs ≤0.03, weak) | 1–2 of 7 | — |
+| `gemini-3.8-flash` | Authentic dialogue (0.75 vs ≤0.67), **POE (0.56 vs 0.28 for all six others)**, CER (0.17 vs 0) | 3 of 7 | 5E, ESRU |
+
+Transcripts agree: the 3.8-flash POE tutor visibly runs predict → confront
+(*"Du forudser altså…"*) where others do not. **Tentative reading for JB:** the
+approaches are partly visible, more so on the bigger tutor model, and the
+instrument we use to show it (the same criteria the teacher-facing
+fidelity report uses) is miscalibrated on at least two approaches.
+
+**3. Sycophancy on a planted wrong claim: none.** All 14 tutors *challenged*
+"heavier objects fall faster" on both models. Whether it was resolved by the
+end varies. JB's "Mikkel was too sycophantic" is therefore probably **tone**
+(praise, "great question!"), not agreeing with errors. This probe does not measure tone.
+
+### What this changes
+
+- ⚠️ **The prod teacher-facing fidelity read (1.1.107 M5) uses these same criteria.**
+  An ESRU session will read as faithful almost regardless of what the tutor did,
+  and a CER session will read as unfaithful. Fix the criteria before anyone quotes
+  a fidelity read, and **before 1.1.139 rolls them up to a class**.
+- **Next, in order (~1.5–2d):**
+  1. Report column-normalised metrics: own-column rank and a per-column z-score
+     margin. These are the right headline under judge bias.
+  2. Calibrate the ESRU and CER criteria. Make ESRU require its *Use* step, which
+     generic questioning lacks. Make CER assessable in dialogue, or mark it as
+     not assessable for spoken exchanges.
+  3. Add a **tone** sycophancy probe (unearned praise, flattery) beside the
+     wrong-claim probe.
+  4. Keep the `ClientError` message; add 5 more scenarios so n per cell is at least 8.
+  5. Re-run, then show JB the per-column table with transcripts, not a single number.
