@@ -165,6 +165,87 @@ except the judge default, below.
 episode-level scoring, calibration against human raters. **n is small** — three
 scenarios per cell per model; the first report is a direction, not a measurement.
 
+## BENCH-2 calibration — 2026-09-30
+
+The first BENCH-1 run (`20260930T084604Z`, findings in the
+[sprint doc](tutor-discrimination-benchmark-sprint.md)) showed two columns that
+read the same whatever tutor produced the dialogue. **ESRU** scored 0.88–1.00 for
+transcripts from all seven tutors. `use` was `strong` in 40 of 40 scored transcripts, with rationales
+like *"builds directly upon the student's contributions"*, which describes any
+competent tutor. `recognise` was often `strong` on turns that opened *"Du har helt
+ret"* / *"Lige præcis"*, which is the appendix's evaluative code. **CER** scored
+~0 for all seven, the CER tutor included. `model_and_critique` and
+`connect_to_everyday_explanation` were absent in all 39 CER-scored transcripts. The judge's rationales
+also demanded *"a written or formulated explanation"* that a chat never produces.
+These criteria also drive the prod teacher-facing fidelity read (M5), so the fix
+is in the shared judge, not in the benchmark. Prompt version **`fidelity-r2`**
+(the fit read becomes `fit-all-r1+fidelity-r2`). r1 runs stay attributable
+because the run id carries the version.
+
+**Nothing here changes what a tutor is told.** `build_framework_instruction`
+reads only `summary`, `behaviours`, `avoid` and `dimension`. Every edit below is
+in `evaluationHint`, in the new `assessedIn`, or in the judge prompt. A test
+checks this, and so did a byte-for-byte comparison of all seven generated
+instructions against `dev`.
+
+1. **A generic banding rule, for all seven** (`BANDING_RULE` in
+   `framework_fidelity.py`). `strong` needs a move that is *distinctive* of the
+   construct. Behaviour any competent questioning tutor shows (open questions,
+   acknowledging or praising, a follow-up question, explaining the physics) is at
+   most `partial`, and so is a move undercut by a "counts against" line in the
+   same turn. The judge is asked: *would a capable tutor following no particular
+   approach have written this turn anyway?* The rule also says that anything
+   **said** in a turn counts, so nothing has to be written down.
+   **Enforced where it can be.** Each listed move now has an id (`use.3`). A
+   `strong` band must cite a valid id **of its own construct**, or the parser
+   downgrades it to `partial` and marks it `downgraded`. A judge that simply
+   agrees with everything can no longer produce a strong read.
+2. **ESRU `recognise` and `use`** (`evaluationHint` only; the tutor-facing
+   `summary` is unchanged). `recognise` means revoicing the student's words
+   *without a verdict*. A turn that opens with "Correct"/"Exactly" is at most
+   partial. `use` now has two tests. The existing counterfactual test stays.
+   The new one asks whether the turn **hands the thinking back** to the student.
+   A tutor that follows an answer by explaining the correct idea itself is giving
+   IRE/F Feedback, not Use. That is the move the transcripts show from every
+   tutor, and ESRU is defined against it.
+3. **CER: assessable in dialogue, in part, and the rest is named as not
+   assessed.** The transcripts show the CER tutor making CER moves in speech. It
+   named the components (*"dit svar, dine målinger og det bagvedliggende fysiske
+   princip"*). It gave a reason to convince someone (*"overbevise en skeptisk
+   klassekammerat"*). It asked what "evidence" means. The judge credited these
+   under `make_the_framework_explicit` and `rationale_for_explaining`. It left
+   `assess_and_feedback` absent every time, reasoning that no written or formal
+   explanation had been scored. So:
+   - `assess_and_feedback`'s hint now says that a **spoken claim counts**. Naming
+     the missing component and sending the student back to supply it is the move.
+   - `model_and_critique` and `connect_to_everyday_explanation` carry
+     **`assessedIn: unit`**. McNeill & Krajcik describe them as classroom
+     strategies that run across a unit (worked strong and weak examples, an
+     everyday argument taken apart first). In BENCH-1 they had zero variance
+     across all 39. The judge is not asked about them. The fidelity
+     result lists them under `notAssessed` with a reason, so they are **never a
+     silent 0**, and they drop out of the fit average. The tutor is still told to
+     do them. A framework with *no* dialogue-assessable construct abstains
+     before any call is made.
+   - The alternative was rejected: declaring all of CER not assessable in
+     dialogue would throw away the strategies the transcripts show are visible,
+     and the one per-column signal CER had (own tutor highest, 0.07 /
+     0.17 against ≤0.03).
+
+⚠️ **For AR/JB to review:** the `assessedIn: unit` judgement on the two CER
+strategies is a reading of the chapter, not something it states. It is one YAML
+line each, and the published tutor page now says "not assessed in a single
+tutoring dialogue" beside both. ⚠️ A researcher's saved **structural override**
+of CER, if one exists, replaces the YAML constructs. It would lack the flag until
+the override is saved again from the editor. The editor round-trips unknown
+construct fields, so a fresh save keeps the flag.
+
+**Not yet shown:** whether r2 actually separates the columns. That takes a
+re-run (BENCH-2's step 5) with real model calls. The tests here check the wiring
+only: the rule is in every prompt, a generous mocked judge cannot produce a
+strong ESRU read on a praise-and-explain transcript, and CER reports its two
+unit strategies as not assessed.
+
 ## Milestones
 
 ### M0 — dialogue-unit evidence ~1d — ✅ SHIPPED 2026-09-21
