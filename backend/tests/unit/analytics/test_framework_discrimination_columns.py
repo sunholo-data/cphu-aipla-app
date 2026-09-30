@@ -132,6 +132,53 @@ def test_the_model_section_leads_with_the_columns_and_labels_argmax_strict():
     assert "Not assessed in this run" in text  # missing tone data is said, not shown as an empty table
 
 
+# ── not-assessed constructs (Lane A, fidelity-r2) ────────────────────────────
+
+
+async def test_a_not_assessed_construct_is_absent_from_the_fit_never_zero():
+    """CER's two ``assessedIn: unit`` constructs are not in the criteria, so a
+    dialogue strong on every assessable construct fits CER 1.0, not 3/5."""
+    from analytics import framework_fidelity as ff
+    from frameworks.loader import load_framework
+
+    cer = load_framework("cer")
+    _, keys = ff.criteria_block(cer)
+    na = ff.not_assessed(cer)
+    assert na and not set(na) & set(keys)
+
+    async def judge(prompt: str, model: str) -> str:
+        return json.dumps(
+            {
+                "constructs": {
+                    k: {"band": "strong", "rationale": "r", "moves": [ff.move_id(k, 1)], "evidence": [1]} for k in keys
+                },
+                "overall": {"band": "strong", "summary": "s", "drift": []},
+            }
+        )
+
+    profile = await fd.score_fit_all(DIALOGUE, [cer], model="gemini-3.8-flash", judge=judge)
+    f = profile.fits["cer"]
+    assert f.fit == 1.0 and set(f.constructs) == set(keys)
+    assert f.not_assessed == na and profile.to_dict()["fits"]["cer"]["notAssessed"] == na
+
+
+async def test_a_framework_with_nothing_assessable_abstains_without_a_call():
+    from frameworks.loader import load_framework
+
+    cer = load_framework("cer")
+    unit_only = cer.model_copy(
+        update={"constructs": [c.model_copy(update={"assessed_in": "unit"}) for c in cer.constructs]}
+    )
+
+    async def judge(prompt: str, model: str) -> str:  # pragma: no cover - must not run
+        raise AssertionError("called")
+
+    profile = await fd.score_fit_all(DIALOGUE, [unit_only], model="gemini-3.8-flash", judge=judge)
+    f = profile.fits["cer"]
+    assert f.abstained and f.fit is None and profile.calls == 0
+    assert "nothing assessable" in f.abstain_reason
+
+
 # ── the tone probe ───────────────────────────────────────────────────────────
 
 

@@ -76,6 +76,8 @@ from analytics.framework_fidelity import (
     build_fidelity_prompt,
     criteria_block,
     dialogue_units,
+    move_counts,
+    not_assessed,
     parse_judgement,
 )
 from analytics.framework_fidelity import PROMPT_VERSION as FIDELITY_PROMPT_VERSION
@@ -129,6 +131,8 @@ class FrameworkFit:
     overall_band: str | None = None
     constructs: dict[str, dict[str, Any]] = field(default_factory=dict)
     uncited_downgrades: int = 0
+    #: construct key -> why the judge does not score it (``assessedIn: unit``).
+    not_assessed: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -140,6 +144,7 @@ class FrameworkFit:
             "overallBand": self.overall_band,
             "constructs": self.constructs,
             "uncitedDowngrades": self.uncited_downgrades,
+            "notAssessed": self.not_assessed,
         }
 
 
@@ -229,13 +234,25 @@ async def score_fit_all(
         nonlocal calls
         if fw.is_placeholder:
             return FrameworkFit(fw.id, fw.label, abstained=True, abstain_reason=f"{fw.label} has no criteria yet")
-        prompt = build_fidelity_prompt(fw, evidence, None)
         _, keys = criteria_block(fw)
+        # BENCH-2 / fidelity-r2: ``assessedIn: unit`` constructs are not in the
+        # criteria, so they are absent from the mean — never scored 0. A framework
+        # with nothing a dialogue can show abstains, without a call.
+        na = not_assessed(fw)
+        if not keys:
+            return FrameworkFit(
+                fw.id,
+                fw.label,
+                abstained=True,
+                abstain_reason=f"{fw.label} has nothing assessable in a dialogue",
+                not_assessed=na,
+            )
+        prompt = build_fidelity_prompt(fw, evidence, None)
         try:
             async with sem:
                 calls += 1
                 raw = await call(prompt, judge_model)
-            parsed = parse_judgement(raw, keys)
+            parsed = parse_judgement(raw, keys, move_counts(fw))
         except Exception as exc:
             desc = describe_error(exc)
             logger.warning("fit-all: judge failed for framework=%s: %s", fw.id, desc)
@@ -250,6 +267,7 @@ async def score_fit_all(
             overall_band=parsed["band"],
             constructs=parsed["constructs"],
             uncited_downgrades=downgrades,
+            not_assessed=na,
         )
 
     results = await asyncio.gather(*(_one(fw) for fw in fws))
