@@ -105,3 +105,78 @@ def test_a_logging_failure_does_not_lose_the_turn(monkeypatch):
 def test_at_most_two_tutors_are_compared():
     """Side by side is two. Three would not fit the comparison this is for."""
     assert tp.MAX_TUTORS == 2
+
+
+# ── BENCH-1: approach composition + multi-turn preview ─────────────────────
+
+
+def test_an_approach_composes_exactly_as_a_persona_tutor_carrying_it(monkeypatch):
+    """The benchmark runs "the ESRU tutor" by approach. That must be the same
+    instruction a persona tutor assigned ESRU gets in preview — the persona
+    never enters the instruction."""
+    from db.models.tutor import Tutor
+
+    base = Tutor.model_validate(
+        {
+            "id": "mikkel",
+            "displayName": "Mikkel",
+            "summary": "s",
+            "personaId": "mikkel",
+            "frameworkId": "esru",
+            "status": "ready",
+            "authorRole": "researcher",
+            "promptProvenance": "authored",
+            "lineage": {"kind": "original"},
+        }
+    )
+    monkeypatch.setattr("db.tutors.resolve_tutor", lambda tid: base)
+    via_tutor = tp.compose_preview_instruction("mikkel")
+    via_approach = tp.compose_approach_instruction("esru")
+    assert via_approach["instruction"] == via_tutor["instruction"]
+    assert via_approach["instruction"].strip()
+    assert via_approach["tutorId"] == "approach:esru"
+    assert via_approach["composedFrom"]["approachId"] == "esru"
+    assert via_approach["composedFrom"]["persona"] is None
+
+
+def test_a_dialogue_turn_carries_history_the_chosen_model_and_logs_as_preview(monkeypatch):
+    import google.genai as genai
+
+    captured: dict = {}
+    logged: dict = {}
+
+    class _Resp:
+        text = "Hvad bygger du det på?"
+        usage_metadata = type("U", (), {"prompt_token_count": 1200, "candidates_token_count": 40})()
+
+    class _Models:
+        async def generate_content(self, **kw):
+            captured.update(kw)
+            return _Resp()
+
+    class _Client:
+        def __init__(self, **kw):
+            self.aio = type("A", (), {"models": _Models()})()
+
+    monkeypatch.setattr(genai, "Client", _Client)
+    import observability.chat_log as cl
+
+    monkeypatch.setattr(cl, "emit_chat_turn", lambda **kw: logged.update(kw))
+    composed = {
+        "ok": True,
+        "tutorId": "approach:esru",
+        "instruction": "SYSTEM",
+        "composedFrom": {"skill": "concept-dialogue", "approachId": "esru", "register": None},
+    }
+    history = [{"role": "student", "content": "hej"}, {"role": "tutor", "content": "hej selv"}]
+    out = asyncio.run(
+        tp.run_preview_dialogue_turn(
+            composed, history, "tunge ting falder hurtigere", model="m-x", uid="bench", turn_index=3
+        )
+    )
+    assert out["ok"] and out["reply"] == "Hvad bygger du det på?" and out["tokenIn"] == 1200
+    assert captured["model"] == "m-x"
+    assert [c["role"] for c in captured["contents"]] == ["user", "model", "user"]
+    assert captured["config"]["system_instruction"] == "SYSTEM"
+    assert logged["group_id"] == "preview:bench" and logged["content"] == "" and logged["model"] == "m-x"
+    assert logged["turn_index"] == 3

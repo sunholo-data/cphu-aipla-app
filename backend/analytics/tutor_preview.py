@@ -67,48 +67,76 @@ def compose_preview_instruction(tutor_id: str) -> dict[str, Any]:
     Returns ``{"ok": False, ...}`` for an unknown tutor rather than raising —
     this is on a request path where one bad id must not take the comparison down.
     """
-    from db.framework_overrides import effective_framework, resolve_framework_instruction
     from db.tutors import resolve_tutor
     from personas.loader import load_persona
-    from skills.platform import PLATFORM_OWNER_UID
-    from skills.skill_config import find_by_slug
 
     tutor = resolve_tutor(tutor_id)
     if tutor is None:
         return {"ok": False, "error": f"unknown tutor: {tutor_id}"}
+
+    instruction, composed_from = _compose(tutor.skill_name or DEFAULT_PREVIEW_SKILL, tutor.framework_id)
+    persona = load_persona(tutor.persona_id) if tutor.persona_id else None
+    composed_from["persona"] = persona.name if persona is not None else None
+    return {
+        "ok": True,
+        "tutorId": tutor.id,
+        "displayName": tutor.display_name,
+        "instruction": instruction,
+        # What a reviewer is looking at, stated rather than implied.
+        "composedFrom": composed_from,
+    }
+
+
+def compose_approach_instruction(framework_id: str, *, skill_name: str = DEFAULT_PREVIEW_SKILL) -> dict[str, Any]:
+    """The preview instruction for an APPROACH rather than a tutor (BENCH-1).
+
+    Byte-identical to ``compose_preview_instruction`` for any tutor with no skill
+    of its own that carries ``framework_id``: the persona never enters the
+    instruction, only the display name. So the discrimination benchmark can run
+    "the ESRU tutor" without depending on which persona a researcher assigned
+    ESRU to in which environment (those pairings are Firestore rows, per env).
+    Keeping the persona out also keeps the 1-1 confound out: a framework
+    comparison must not silently be a persona comparison.
+    """
+    instruction, composed_from = _compose(skill_name, framework_id)
+    composed_from["persona"] = None
+    return {
+        "ok": True,
+        "tutorId": f"approach:{framework_id}",
+        "displayName": composed_from["approach"] or framework_id,
+        "instruction": instruction,
+        "composedFrom": composed_from,
+    }
+
+
+def _compose(skill_name: str, framework_id: str | None) -> tuple[str, dict[str, Any]]:
+    """The skill's instructions plus the approach's, and what they came from."""
+    from db.framework_overrides import effective_framework, resolve_framework_instruction
+    from skills.platform import PLATFORM_OWNER_UID
+    from skills.skill_config import find_by_slug
 
     # ⚠️ Skills are keyed by UUID; `skill_name` is a SLUG. `get_skill(slug)`
     # returns None and composes a preview with no base instructions at all —
     # silently, since an empty base is indistinguishable from a terse one. That
     # is what `skillFound` below exists to report, and it read False on prod
     # until this used the slug index (2026-09-11).
-    skill_name = tutor.skill_name or DEFAULT_PREVIEW_SKILL
     skill = find_by_slug(PLATFORM_OWNER_UID, skill_name)
     base = (skill.instructions if skill is not None else "") or ""
 
-    approach = resolve_framework_instruction(tutor.framework_id)
-    fw = effective_framework(tutor.framework_id)
-    persona = load_persona(tutor.persona_id) if tutor.persona_id else None
+    approach = resolve_framework_instruction(framework_id)
+    fw = effective_framework(framework_id)
 
     parts = [p for p in (base, approach) if p.strip()]
-    return {
-        "ok": True,
-        "tutorId": tutor.id,
-        "displayName": tutor.display_name,
-        "instruction": "\n\n".join(parts),
-        # What a reviewer is looking at, stated rather than implied.
-        "composedFrom": {
-            "skill": skill_name,
-            "skillFound": skill is not None,
-            "approach": fw.label if fw is not None else None,
-            "approachId": tutor.framework_id,
-            "register": fw.teaching_register if fw is not None else None,
-            "persona": persona.name if persona is not None else None,
-            # A real lesson turn also carries the activity's materials, the
-            # teacher's ILOs, the group's history and image guidance. Preview
-            # has no activity, so it has none of those.
-            "notIncluded": ["activity materials", "teacher ILOs", "group history"],
-        },
+    return "\n\n".join(parts), {
+        "skill": skill_name,
+        "skillFound": skill is not None,
+        "approach": fw.label if fw is not None else None,
+        "approachId": framework_id,
+        "register": fw.teaching_register if fw is not None else None,
+        # A real lesson turn also carries the activity's materials, the
+        # teacher's ILOs, the group's history and image guidance. Preview
+        # has no activity, so it has none of those.
+        "notIncluded": ["activity materials", "teacher ILOs", "group history"],
     }
 
 
@@ -150,7 +178,54 @@ async def run_preview_turn(tutor_id: str, message: str, *, uid: str) -> dict[str
     }
 
 
-def _log_preview_turn(tutor_id: str, composed: dict[str, Any], *, uid: str) -> None:
+async def run_preview_dialogue_turn(
+    composed: dict[str, Any],
+    history: list[dict[str, str]],
+    message: str,
+    *,
+    model: str,
+    uid: str,
+    turn_index: int = 0,
+) -> dict[str, Any]:
+    """One turn of a MULTI-turn preview on a chosen model (BENCH-1). Never raises.
+
+    ``run_preview_turn`` is one message, no history, the default model, and its
+    contract is unchanged. The benchmark needs a conversation and a model axis,
+    so this takes an already-composed instruction (from either compose function),
+    the prior turns as ``[{"role": "student"|"tutor", "content": ...}]`` and the
+    tutor model. It logs exactly as a preview does: ``preview:`` prefix, no
+    content, so the turn can never read as classroom evidence.
+    """
+    if not composed.get("ok") or not (composed.get("instruction") or "").strip():
+        return {"ok": False, "tutorId": composed.get("tutorId"), "error": "nothing to run"}
+    contents: list[dict[str, Any]] = [
+        {"role": "model" if h["role"] == "tutor" else "user", "parts": [{"text": h["content"]}]} for h in history
+    ]
+    contents.append({"role": "user", "parts": [{"text": message}]})
+    try:
+        from google import genai
+
+        client = genai.Client(vertexai=True)
+        response = await client.aio.models.generate_content(
+            model=model,
+            contents=contents,
+            config={"system_instruction": composed["instruction"]},
+        )
+        text = (response.text or "").strip()
+        usage = getattr(response, "usage_metadata", None)
+        token_in = getattr(usage, "prompt_token_count", None) or 0
+        token_out = getattr(usage, "candidates_token_count", None) or 0
+    except Exception as exc:
+        log.warning("tutor preview dialogue turn failed for %s: %s", composed.get("tutorId"), type(exc).__name__)
+        return {"ok": False, "tutorId": composed.get("tutorId"), "error": type(exc).__name__}
+
+    _log_preview_turn(composed["tutorId"], composed, uid=uid, model=model, turn_index=turn_index)
+    return {"ok": True, "tutorId": composed["tutorId"], "reply": text, "tokenIn": token_in, "tokenOut": token_out}
+
+
+def _log_preview_turn(
+    tutor_id: str, composed: dict[str, Any], *, uid: str, model: str | None = None, turn_index: int = 0
+) -> None:
     """Record that a preview happened — for COST, never for content.
 
     ⚠️ ``group_id`` carries the ``preview:`` prefix and the content argument is
@@ -165,9 +240,10 @@ def _log_preview_turn(tutor_id: str, composed: dict[str, Any], *, uid: str) -> N
             group_id=f"{PREVIEW_PREFIX}{uid}",
             session_id="",
             skill_id=composed["composedFrom"]["skill"],
-            turn_index=0,
+            turn_index=turn_index,
             role="tutor",
             content="",
+            model=model,
             tutor_id=tutor_id,
             framework_id=composed["composedFrom"]["approachId"],
             interaction_style=composed["composedFrom"]["register"],
@@ -182,6 +258,8 @@ __all__ = [
     "MAX_MESSAGE",
     "MAX_TUTORS",
     "PREVIEW_PREFIX",
+    "compose_approach_instruction",
     "compose_preview_instruction",
+    "run_preview_dialogue_turn",
     "run_preview_turn",
 ]
