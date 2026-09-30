@@ -27,14 +27,11 @@ import {
   type InsightsScope,
   type InsightsSince,
 } from "@/lib/insightsApi";
+import { useT } from "@/i18n";
 
-const SINCE_LABEL: Record<InsightsSince, string> = {
-  "7d": "Last 7 days",
-  "30d": "Last 30 days",
-  all: "All time",
-};
 
 export default function TeacherInsightsPage() {
+  const t = useT("TeacherInsightsPage");
   const [since, setSince] = useState<InsightsSince>("7d");
   // Researchers can switch between a cross-teacher comparison of EVERY class
   // (scope=all, 1.1.51) and their own. The toggle is hidden for
@@ -83,11 +80,11 @@ export default function TeacherInsightsPage() {
           className="flex w-fit items-center gap-1 hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Dashboard
+          {t("dashboard")}
         </Link>
       }
-      title="Insights"
-      subtitle={effectiveScope === "all" ? "Cross-class comparison · all teachers" : "Cross-class comparison"}
+      title={t("title")}
+      subtitle={effectiveScope === "all" ? t("subtitleAll") : t("subtitle")}
       actions={
         <div className="flex items-center gap-2">
           {isResearcher ? <ScopeToggle value={scope} onChange={setScopeChoice} /> : null}
@@ -98,8 +95,8 @@ export default function TeacherInsightsPage() {
       <InsightsTabs />
 
       <p className="text-xs text-muted-foreground" data-testid="window-label">
-        Window: <strong>{SINCE_LABEL[since]}</strong>
-        {effectiveScope === "all" ? " · all teachers" : null}
+        {t.rich("window", { since: t(`since_${since}`), b: (chunks) => <strong>{chunks}</strong> })}
+        {effectiveScope === "all" ? t("allTeachersSuffix") : null}
       </p>
 
       {error ? (
@@ -110,7 +107,7 @@ export default function TeacherInsightsPage() {
 
       {isLoading && !payload ? (
         <div data-testid="loading" className="text-sm text-muted-foreground">
-          Loading classes…
+          {t("loading")}
         </div>
       ) : null}
 
@@ -126,10 +123,11 @@ function ScopeToggle({
   value: InsightsScope;
   onChange: (v: InsightsScope) => void;
 }) {
+  const t = useT("TeacherInsightsPage");
   return (
     <div
       role="group"
-      aria-label="Class scope"
+      aria-label={t("scopeLabel")}
       className="flex items-center rounded border border-border text-xs font-medium"
     >
       <button
@@ -138,7 +136,7 @@ function ScopeToggle({
         onClick={() => onChange("own")}
         className={`rounded-l px-2.5 py-1 ${value === "own" ? "bg-accent" : "hover:bg-accent"}`}
       >
-        My classes
+        {t("myClasses")}
       </button>
       <button
         type="button"
@@ -146,7 +144,7 @@ function ScopeToggle({
         onClick={() => onChange("all")}
         className={`rounded-r px-2.5 py-1 ${value === "all" ? "bg-accent" : "hover:bg-accent"}`}
       >
-        All teachers
+        {t("allTeachers")}
       </button>
     </div>
   );
@@ -159,18 +157,19 @@ function SinceSelect({
   value: InsightsSince;
   onChange: (v: InsightsSince) => void;
 }) {
+  const t = useT("TeacherInsightsPage");
   return (
     <label className="flex items-center gap-1 rounded border border-border bg-background px-2 py-1 text-xs font-medium text-foreground">
-      <span className="sr-only">Time window</span>
+      <span className="sr-only">{t("timeWindow")}</span>
       <select
-        aria-label="Time window"
+        aria-label={t("timeWindow")}
         value={value}
         onChange={(e) => onChange(e.target.value as InsightsSince)}
         className="cursor-pointer appearance-none bg-transparent text-xs focus:outline-none"
       >
-        <option value="7d">7 days</option>
-        <option value="30d">30 days</option>
-        <option value="all">All time</option>
+        <option value="7d">{t("opt_7d")}</option>
+        <option value="30d">{t("opt_30d")}</option>
+        <option value="all">{t("opt_all")}</option>
       </select>
     </label>
   );

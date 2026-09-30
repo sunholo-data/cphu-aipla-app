@@ -2,15 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useT } from "@/i18n";
 import { subscribeToAuthState } from "@/lib/firebase";
-
-const copy = {
-  signIn: "Er du lærer? Log ind her",
-  signInEn: "/ Are you a teacher? Sign in",
-  signedIn: "Gå til dine klasser",
-  signedInEn: "/ Go to your classes",
-  signedInAs: "Logget ind som",
-};
 
 const linkClass =
   "text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline";
@@ -27,6 +20,8 @@ const linkClass =
  * correct: the link is for teachers.
  */
 export function TeacherEntryLink() {
+  // 1.1.108 — the person's own language (DA | EN switch), not both at once.
+  const t = useT("TeacherEntryLink");
   const [email, setEmail] = useState<string | null>(null);
 
   useEffect(
@@ -41,11 +36,11 @@ export function TeacherEntryLink() {
     return (
       <span className="flex flex-col items-center gap-0.5">
         <Link href="/teacher/classes" className={linkClass}>
-          {copy.signedIn} <span className="opacity-70">{copy.signedInEn}</span> →
+          {t("signedIn")}
         </Link>
         {email && (
           <span className="text-xs text-muted-foreground opacity-70">
-            {copy.signedInAs} {email}
+            {t("signedInAs", { email })}
           </span>
         )}
       </span>
@@ -54,7 +49,7 @@ export function TeacherEntryLink() {
 
   return (
     <Link href="/teacher/sign-in" className={linkClass}>
-      {copy.signIn} <span className="opacity-70">{copy.signInEn}</span>
+      {t("signIn")}
     </Link>
   );
 }

@@ -175,6 +175,7 @@ def _emit_new_turns(
                 # a class's tutor changes, so a retrospective join would file
                 # old turns under arms they never ran under.
                 tutor_id=getattr(teaching, "tutor_id", None),
+                tutor_version=getattr(teaching, "tutor_version", None),
                 framework_id=getattr(teaching, "framework_id", None),
                 persona_id=getattr(teaching, "persona_id", None),
                 class_id=getattr(teaching, "class_id", None),

@@ -1,0 +1,49 @@
+{
+  "ChatPage": {
+    "loading": "Indlæser…",
+    "notFound": "Aktiviteten blev ikke fundet.",
+    "backHome": "Tilbage til forsiden",
+    "tabsLabel": "Skift mellem chat og arbejdsområde",
+    "tabChat": "💬 Chat",
+    "tabWork": "📐 Arbejde",
+    "sessions": "Samtaler",
+    "tidyingUp": "Rydder op i samtalehistorikken — du kan bare skrive videre.",
+    "compacted": "Den tidligere samtale er opsummeret ({count} {count, plural, one {indlæg} other {indlæg}} samlet), så tutoren kan have hele forløbet i tankerne.",
+    "classmateQueued": "En fra din gruppe spørger tutoren — din besked bliver sendt, når det er jeres tur.",
+    "classmateAsking": "En fra din gruppe spørger tutoren…",
+    "stallSlow": "Tutoren svarer langsomt — vent lidt.",
+    "stallStalled": "Tutoren har stadig ikke svaret. Du kan vente, eller spørge igen — dit spørgsmål bliver kun sendt én gang.",
+    "stallRetry": "Spørg igen",
+    "groupHere": "{count} fra din gruppe er her",
+    "placeholder": "Skriv en besked…",
+    "stop": "Stop",
+    "send": "Send",
+    "tryAgain": "Prøv igen",
+    "dismiss": "Luk",
+    "error_sessionExpired": "Din session er udløbet — genindlæs siden.",
+    "error_notFound": "Aktiviteten blev ikke fundet.",
+    "error_unreachable": "Kan ikke få forbindelse til serveren. Prøv igen.",
+    "error_serverError": "Noget gik galt hos os. Prøv igen.",
+    "error_requestFailed": "Forespørgslen mislykkedes. Prøv igen.",
+    "error_connectionLost": "Forbindelsen blev afbrudt. Prøv igen.",
+    "error_agentError": "Tutoren løb ind i en fejl. Prøv igen."
+  },
+  "StageProgress": {
+    "thinking": "Tænker…",
+    "callingTool": "Bruger {tool}…",
+    "readingDocuments": "Læser {count, plural, one {# dokument} other {# dokumenter}}…"
+  },
+  "BudgetBanner": {
+    "reason_paused": "AI-brugen er sat på pause for denne klasse. Kontakt AIPLA-teamet for at genoptage den.",
+    "reason_class_monthly": "Klassen har brugt sit månedlige AI-budget. Tutoren er tilbage i starten af næste måned — eller kontakt AIPLA-teamet for at hæve grænsen.",
+    "reason_programme_daily": "AIPLA-programmet har brugt sit daglige AI-budget. Tutoren er tilbage i morgen — eller kontakt AIPLA-teamet.",
+    "reason_unavailable": "Tutoren er ikke tilgængelig for denne konto lige nu. Kontakt AIPLA-teamet.",
+    "reason_period_exhausted": "Budgettet for denne periode er brugt.",
+    "resetsIn": "Nulstilles om {duration}.",
+    "days": "{n, plural, one {# dag} other {# dage}}",
+    "hours": "{n, plural, one {# time} other {# timer}}",
+    "minutes": "{n, plural, one {# minut} other {# minutter}}",
+    "seconds": "{n, plural, one {# sekund} other {# sekunder}}",
+    "dismiss": "OK"
+  }
+}

@@ -11,6 +11,7 @@ import {
   uploadDocument,
   type MyDocument,
 } from "@/lib/documentApi";
+import { useT, type Translate } from "@/i18n";
 import { encodedImageToFile, resizeImageFile } from "@/lib/imageResize";
 import type { ViewerFile } from "./DocumentViewer";
 
@@ -51,7 +52,6 @@ interface StudentDocumentWorkbenchProps {
 // a photo of a drawn equation into a PDF to get past the gate. Mirrors the
 // backend _ALLOWED_EXTENSIONS (tools/documents/upload.py) — keep in sync.
 const ACCEPT = ".pdf,.txt,.md,.docx,.csv,.xlsx,.pptx,.jpg,.jpeg,.png,.webp,.heic,.heif";
-const ACCEPT_LABEL = "PDF, Word, Excel, PowerPoint, tekst, Markdown, CSV eller et billede (JPG, PNG, HEIC)";
 const IMAGE_EXT = /\.(jpe?g|png|webp|heic|heif)$/i;
 
 function isImageFile(file: File): boolean {
@@ -62,27 +62,10 @@ function isImageDoc(d: MyDocument): boolean {
   return IMAGE_EXT.test(d.name) || ["jpg", "jpeg", "png", "webp", "heic", "heif"].includes(d.sourceFormat);
 }
 
-// Every user-facing string on this surface, in one place (1.1.108). Danish is
-// the surface's language today; the locale axis arrives with the message layer.
-const copy = {
-  upload: "Upload fil eller billede",
-  emptyTitle: "Du har ikke uploadet noget endnu.",
-  emptyHint: "Upload din opgave eller et billede af dit arbejde, så kan tutoren give dig feedback.",
-  yourFiles: "Dine filer",
-  yourDocuments: "Dine dokumenter",
-  retry: "Prøv igen",
-  listFailed: "Kunne ikke hente dine eksisterende filer. Du kan stadig uploade en ny ovenfor.",
-  deleteFailed: "Kunne ikke slette filen. Prøv igen.",
-  uploadFailed: "Kunne ikke uploade filen. Prøv igen.",
-  unsupported: `Denne filtype understøttes ikke her. Tilladte typer: ${ACCEPT_LABEL}.`,
-  tooLarge: (mb: string, max: number) =>
-    `Filen er for stor (${mb} MB). Maks er ${max} MB — prøv at komprimere den, eller upload færre sider ad gangen.`,
-  tooLargeServer: (max: number) =>
-    `Filen er for stor. Maks er ${max} MB — prøv at komprimere den, eller upload færre sider ad gangen.`,
-  parseFailed:
-    "Filen blev uploadet, men kunne ikke læses, så tutoren kan ikke se den. Prøv at gemme den som PDF og uploade igen.",
-  deleteLabel: (name: string) => `Slet ${name}`,
-};
+// Every user-facing string on this surface lives in the message layer
+// (`messages/<locale>/workspace.json`, namespace "StudentDocumentWorkbench") —
+// 1.1.108. The accepted-types list in `unsupported` mirrors ACCEPT above.
+type T = Translate<"StudentDocumentWorkbench">;
 
 // Mirrors the backend's _MAX_UPLOAD_BYTES (tools/documents/upload.py) — keep in
 // sync. Checked client-side BEFORE the network call: a file over this size can
@@ -96,10 +79,10 @@ const MAX_UPLOAD_MB = MAX_UPLOAD_BYTES / (1024 * 1024);
 // reachable here today — the input's `accept` filters the OS picker, but some
 // mobile browsers ignore it loosely). Give the student that reason instead of
 // a one-size-fits-all "try again" that hides what actually went wrong.
-function uploadErrorMessage(err: unknown): string {
-  if (err instanceof DocumentApiError && err.status === 400) return copy.unsupported;
-  if (err instanceof DocumentApiError && err.status === 413) return copy.tooLargeServer(MAX_UPLOAD_MB);
-  return copy.uploadFailed;
+function uploadErrorMessage(err: unknown, t: T): string {
+  if (err instanceof DocumentApiError && err.status === 400) return t("unsupported");
+  if (err instanceof DocumentApiError && err.status === 413) return t("tooLargeServer", { max: MAX_UPLOAD_MB });
+  return t("uploadFailed");
 }
 
 /**
@@ -120,6 +103,7 @@ export function StudentDocumentWorkbench({
   role = "student",
   onActiveDocChange,
 }: StudentDocumentWorkbenchProps) {
+  const t = useT("StudentDocumentWorkbench");
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const [activeId, setActiveId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -158,7 +142,7 @@ export function StudentDocumentWorkbench({
     if (!picked) return;
     if (picked.size > MAX_UPLOAD_BYTES) {
       const mb = (picked.size / (1024 * 1024)).toFixed(1);
-      setActionError(copy.tooLarge(mb, MAX_UPLOAD_MB));
+      setActionError(t("tooLarge", { mb, max: MAX_UPLOAD_MB }));
       return;
     }
     setBusy(true);
@@ -173,9 +157,9 @@ export function StudentDocumentWorkbench({
       // Stored but unreadable: only a parsed document is listed or reaches the
       // tutor, so without this line a failed parse looks exactly like "nothing
       // happened" (prod 2026-09-16 — every .docx, expired parse key).
-      if (status === "failed") setActionError(copy.parseFailed);
+      if (status === "failed") setActionError(t("parseFailed"));
     } catch (err) {
-      setActionError(uploadErrorMessage(err));
+      setActionError(uploadErrorMessage(err, t));
     } finally {
       setBusy(false);
     }
@@ -188,7 +172,7 @@ export function StudentDocumentWorkbench({
       await deleteDocument(docId, role);
       await refresh();
     } catch {
-      setActionError(copy.deleteFailed);
+      setActionError(t("deleteFailed"));
     } finally {
       setBusy(false);
     }
@@ -205,13 +189,13 @@ export function StudentDocumentWorkbench({
   }
 
   return (
-    <section className="flex min-h-0 flex-col gap-2 p-2" aria-label={copy.yourDocuments}>
+    <section className="flex min-h-0 flex-col gap-2 p-2" aria-label={t("yourDocuments")}>
       {/* Upload is always available once we're past the initial load — a failed
           LIST must never block the student from uploading their work. */}
       {state.kind !== "loading" ? (
         <div className="flex flex-wrap items-center gap-1">
           {docs.length > 0 ? (
-            <div role="tablist" aria-label={copy.yourFiles} className="flex flex-wrap gap-1">
+            <div role="tablist" aria-label={t("yourFiles")} className="flex flex-wrap gap-1">
               {docs.map((d) => {
                 const selected = d.docId === activeId;
                 return (
@@ -239,7 +223,7 @@ export function StudentDocumentWorkbench({
                     </button>
                     <button
                       type="button"
-                      aria-label={copy.deleteLabel(d.name)}
+                      aria-label={t("deleteLabel", { name: d.name })}
                       disabled={busy}
                       onClick={() => onDelete(d.docId)}
                       className="px-1.5 py-1 text-muted-foreground hover:text-destructive disabled:opacity-50"
@@ -262,7 +246,7 @@ export function StudentDocumentWorkbench({
             ) : (
               <Upload className="h-3.5 w-3.5" aria-hidden="true" />
             )}
-            {copy.upload}
+            {t("upload")}
           </button>
           <input
             ref={fileInputRef}
@@ -288,13 +272,13 @@ export function StudentDocumentWorkbench({
         </div>
       ) : state.kind === "error" ? (
         <div className="flex flex-col items-start gap-2 rounded border border-border bg-background p-4 text-sm text-muted-foreground">
-          <p>{copy.listFailed}</p>
+          <p>{t("listFailed")}</p>
           <button
             type="button"
             onClick={() => void refresh()}
             className="rounded border border-border px-2 py-1 text-xs hover:bg-muted"
           >
-            {copy.retry}
+            {t("retry")}
           </button>
         </div>
       ) : activeFile ? (
@@ -303,9 +287,9 @@ export function StudentDocumentWorkbench({
         <div className="flex flex-col items-center justify-center gap-3 rounded-md border border-dashed border-border p-8 text-center">
           <FileText className="h-8 w-8 text-muted-foreground" aria-hidden="true" />
           <p className="text-sm text-muted-foreground">
-            {copy.emptyTitle}
+            {t("emptyTitle")}
             <br />
-            {copy.emptyHint}
+            {t("emptyHint")}
           </p>
           <button
             type="button"
@@ -314,7 +298,7 @@ export function StudentDocumentWorkbench({
             className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             <Upload className="h-4 w-4" aria-hidden="true" />
-            {copy.upload}
+            {t("upload")}
           </button>
         </div>
       )}

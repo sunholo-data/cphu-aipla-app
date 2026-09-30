@@ -3,15 +3,16 @@
 import { useRef } from "react";
 import { Camera, Paperclip, X } from "lucide-react";
 
+import { toLocale, useT } from "@/i18n";
 import { cn } from "@/lib/utils";
-import type { StagedImage } from "@/hooks/useImageAttachments";
+import { MAX_IMAGES, type ImageNotice, type StagedImage } from "@/hooks/useImageAttachments";
 
 /** Accept list shared by both inputs — images only (docs go via the doc path). */
 const IMAGE_ACCEPT = "image/jpeg,image/png,image/webp,image/heic,image/heif";
 
 interface StagingRowProps {
   staged: StagedImage[];
-  notice: string | null;
+  notice: ImageNotice | null;
   onRemove: (id: string) => void;
 }
 
@@ -21,11 +22,14 @@ interface StagingRowProps {
  * (null) when there's nothing staged and no notice, so it costs no layout.
  */
 export function ImageStagingRow({ staged, notice, onRemove }: StagingRowProps) {
+  const t = useT("ImageComposer");
   if (staged.length === 0 && !notice) return null;
   return (
     <div className="mb-2 space-y-2">
       {notice && (
-        <p className="text-xs text-amber-600 dark:text-amber-500">{notice}</p>
+        <p className="text-xs text-amber-600 dark:text-amber-500">
+          {t(`notice_${notice}`, { max: MAX_IMAGES })}
+        </p>
       )}
       {staged.length > 0 && (
         <ul className="flex flex-wrap gap-2">
@@ -34,13 +38,13 @@ export function ImageStagingRow({ staged, notice, onRemove }: StagingRowProps) {
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={img.previewUrl}
-                alt={img.name || "attachment"}
+                alt={img.name || t("attachmentAlt")}
                 className="h-14 w-14 rounded-md border object-cover"
               />
               <button
                 type="button"
                 onClick={() => onRemove(img.id)}
-                aria-label={`Remove ${img.name || "image"}`}
+                aria-label={t("remove", { name: img.name || t("imageFallback") })}
                 className="absolute -right-1.5 -top-1.5 rounded-full bg-foreground/80 p-0.5 text-background hover:bg-foreground"
               >
                 <X className="h-3 w-3" />
@@ -56,17 +60,9 @@ export function ImageStagingRow({ staged, notice, onRemove }: StagingRowProps) {
 // 1.1.122 — the attach buttons were unlabelled icons with ENGLISH tooltips on a
 // Danish page; a student who needed exactly this control could not find it and
 // converted a photo to a PDF instead. Language is data (1.1.108): the caller
-// passes the activity's language, and every string lives here.
-const copy = {
-  da: { attach: "Vedhæft billede", photo: "Tag et billede", full: "Du kan højst vedhæfte et par billeder ad gangen" },
-  en: { attach: "Attach image", photo: "Take photo", full: "Maximum images reached" },
-} as const;
-
-export type ImageComposerLang = keyof typeof copy;
-
-function pickLang(lang: string | null | undefined): ImageComposerLang {
-  return lang?.toLowerCase().startsWith("en") ? "en" : "da";
-}
+// passes the activity's language, and every string lives in
+// messages/<locale>/chat.json (`ImageComposer`). An explicit `lang` prop pins the
+// locale; without one the surrounding LocaleProvider decides.
 
 interface UploadButtonsProps {
   onFiles: (files: FileList | null) => void;
@@ -91,7 +87,7 @@ interface UploadButtonsProps {
  * `SolutionElementMount` ("upload a photo of your handwritten solution").
  */
 export function ImageUploadButtons({ onFiles, disabled, full, lang }: UploadButtonsProps) {
-  const t = copy[pickLang(lang)];
+  const t = useT("ImageComposer", lang ? toLocale(lang) : undefined);
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const inert = disabled || full;
@@ -138,8 +134,8 @@ export function ImageUploadButtons({ onFiles, disabled, full, lang }: UploadButt
         type="button"
         onClick={pick(fileRef)}
         disabled={inert}
-        aria-label={t.attach}
-        title={full ? t.full : t.attach}
+        aria-label={t("attach")}
+        title={full ? t("full") : t("attach")}
         className={btn}
       >
         <Paperclip className="h-4 w-4" />
@@ -148,8 +144,8 @@ export function ImageUploadButtons({ onFiles, disabled, full, lang }: UploadButt
         type="button"
         onClick={pick(cameraRef)}
         disabled={inert}
-        aria-label={t.photo}
-        title={full ? t.full : t.photo}
+        aria-label={t("photo")}
+        title={full ? t("full") : t("photo")}
         className={btn}
       >
         <Camera className="h-4 w-4" />

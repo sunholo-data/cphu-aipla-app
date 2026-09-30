@@ -18,6 +18,7 @@ import { X } from "lucide-react";
 import React from "react";
 
 import type { FacetOption } from "@/lib/curriculumApi";
+import { useT } from "@/i18n";
 
 /** The "no filter" value. Empty string, so it is falsy at every call site. */
 export const ALL = "";
@@ -56,13 +57,14 @@ export function FacetRow({
   /** Optional trailing control for the row (the folder "New" button). */
   children?: React.ReactNode;
 }) {
+  const t = useT("FacetRow");
   const isOn = (value: string) => (Array.isArray(selected) ? selected.includes(value) : selected === value);
   const noneSelected = Array.isArray(selected) ? selected.length === 0 : selected === ALL;
 
   if (options.length === 0 && !children) return null;
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5" aria-label={`Filter by ${label.toLowerCase()}`}>
+    <div className="flex flex-wrap items-center gap-1.5" aria-label={t("filterBy", { label: label.toLowerCase() })}>
       <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
         {icon}
         {label}
@@ -78,7 +80,7 @@ export function FacetRow({
               : "border-border text-muted-foreground hover:bg-muted"
           }`}
         >
-          All
+          {t("all")}
         </button>
       ) : null}
       {options.map((o) => {
@@ -118,10 +120,11 @@ export function FacetRow({
 
 /** A removable active-filter chip (1.1.58 M4). */
 export function ActiveChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  const t = useT("FacetRow");
   return (
     <span className="inline-flex items-center gap-1 rounded-full border border-primary/40 bg-primary/5 px-2 py-0.5 text-xs">
       {label}
-      <button type="button" aria-label={`Remove filter ${label}`} onClick={onRemove} className="hover:text-foreground">
+      <button type="button" aria-label={t("removeFilter", { label })} onClick={onRemove} className="hover:text-foreground">
         <X className="h-3 w-3" aria-hidden="true" />
       </button>
     </span>
@@ -139,9 +142,10 @@ export function ActiveChip({ label, onRemove }: { label: string; onRemove: () =>
  * and would invite a teacher to try removing something this screen cannot remove.
  */
 export function InheritedChip({ label, title }: { label: string; title?: string }) {
+  const t = useT("FacetRow");
   return (
     <span
-      title={title ?? "Inherited from a cited document — change it by re-filing that document"}
+      title={title ?? t("inherited")}
       className="inline-flex items-center gap-1 rounded-full border border-dashed border-border/70 px-2 py-0.5 text-xs text-muted-foreground/80"
     >
       <svg

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen, waitFor, type RenderOptions } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const pushMock = vi.fn();
@@ -35,6 +35,16 @@ vi.mock("@/components/teacher/ActivityPreview", () => ({
 }));
 
 import NewActivityPage from "@/app/teacher/activities/new/page";
+
+import { LocaleProvider } from "@/i18n";
+
+// 1.1.108 M2 — these tests assert the English copy; the teacher UI defaults to
+// Danish, so render inside an English locale (the teacher chose EN).
+function EnglishUI({ children }: { children: React.ReactNode }) {
+  return <LocaleProvider locale="en">{children}</LocaleProvider>;
+}
+const render = (ui: React.ReactElement, options?: Omit<RenderOptions, "wrapper">) =>
+  rtlRender(ui, { wrapper: EnglishUI, ...options });
 
 const ONE_CLASS = [{ classId: "c-1", name: "Physics A — 7B" }];
 // Platform skills are keyed by a UUID, NOT the name — the builder must
@@ -244,10 +254,10 @@ describe("/teacher/activities/new — concept activity builder", () => {
     render(<NewActivityPage />);
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Lab" } });
     fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "Plot." } });
-    // 1.1.64 — the chart editor is a list; Danish labels, and axis pickers only
+    // 1.1.64 — the chart editor is a list (English here, via the render shim), and axis pickers only
     // appear once a table has two numeric columns (none here).
-    fireEvent.click(screen.getByRole("button", { name: /tilføj graf/i }));
-    fireEvent.change(screen.getByLabelText(/graftype for graf 1/i), { target: { value: "line" } });
+    fireEvent.click(screen.getByRole("button", { name: /add chart/i }));
+    fireEvent.change(screen.getByLabelText(/chart type for chart 1/i), { target: { value: "line" } });
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
 
     await waitFor(() => expect(createActivityMock).toHaveBeenCalledTimes(1));
@@ -425,6 +435,7 @@ describe("/teacher/activities/new — concept activity builder", () => {
     render(<NewActivityPage />);
     // No shell script names in front of a teacher — the old copy told them to
     // run scripts/seed-platform-skills.sh.
-    expect(await screen.findByText(/concept-dialogue tutor isn't set up here yet/i)).toBeInTheDocument();
+    // Rule 6 (1.1.108): the message no longer names the internal skill id.
+    expect(await screen.findByText(/activity tutor isn't set up here yet/i)).toBeInTheDocument();
   });
 });

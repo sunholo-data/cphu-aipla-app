@@ -57,12 +57,38 @@ export function buildUserMessageContent(
   return parts;
 }
 
+/** 1.1.108 — which student-facing sentence explains the error. The banner
+ *  translates this; `message` stays the English diagnostic for logs and for the
+ *  budget branch, whose text comes from the backend. */
+export type StreamErrorCode =
+  | "sessionExpired"
+  | "notFound"
+  | "unreachable"
+  | "serverError"
+  | "requestFailed"
+  | "connectionLost"
+  | "agentError"
+  | "budget";
+
+/** A STAGE_PROGRESS event: the backend's English label plus, since 1.1.108, a
+ *  stable key (`thinking`, `callingTool`, `readingDocuments`) and its values. */
+export interface StageProgress {
+  label: string;
+  key: string | null;
+  params: Record<string, string | number>;
+}
+
 export interface StreamError {
   kind: "http" | "run_error" | "network" | "budget_exceeded";
+  code: StreamErrorCode;
   status?: number;
   message: string;
   retryable: boolean;
   rawMessage: string;
+  /** 1.1.108 — on `budget_exceeded`, the backend's stable reason code
+   *  (`paused`, `class_monthly`, `programme_daily`, `unavailable`,
+   *  `period_exhausted`), so the banner can translate it. */
+  reason?: string;
   /**
    * Seconds until budget recovery (period rollover). Present only on
    * ``kind === "budget_exceeded"`` — backend pulls this off the
@@ -96,6 +122,18 @@ export interface ToolCallState {
   argsJson?: string;
 }
 
+/**
+ * 1.1.131 M2 — a run that STARTED and then went quiet. The pre-RUN_STARTED
+ * watchdog cannot see this: on 22 Sep 2026 the first chunk arrived in 0.67 s
+ * and the rest 59 s later, because a researcher's dashboard had blocked the
+ * server's event loop. The student saw a dead tutor with no word and re-sent.
+ *
+ * - `"slow"`    — no stream event for 15 s: a quiet "please wait" line.
+ * - `"stalled"` — none for 45 s: offer `retryStalled`.
+ * Any stream event (text, tool, reasoning, stage) clears it and re-arms.
+ */
+export type StreamStall = "slow" | "stalled" | null;
+
 export interface UseSkillAgentReturn {
   /** The HttpAgent's threadId — equal to the backend ChatSessionIndex id. */
   sessionId: string;
@@ -112,6 +150,10 @@ export interface UseSkillAgentReturn {
    * see docs/design/v6.1.0/ttft-instrumentation.md.
    */
   stageLabel: string | null;
+  /** 1.1.108 — the same stage as a stable key + values, so the page can say it
+   *  in the activity's language. `key` is null from a backend that predates it;
+   *  fall back to `stageLabel` then. */
+  stage: StageProgress | null;
   sendMessage: (
     text: string,
     opts?: {
@@ -133,6 +175,13 @@ export interface UseSkillAgentReturn {
   error: StreamError | null;
   clearError: () => void;
   stop: () => void;
+  /** 1.1.131 M2 — see `StreamStall`. */
+  stall: StreamStall;
+  /** Re-ask the stalled turn WITHOUT a double send: aborts the stalled run and
+   * waits for it to settle, takes the stalled turn out of the transcript, then
+   * sends the same text once. Never two runs in flight, never two copies of the
+   * question on screen. No-op when there is nothing to retry. */
+  retryStalled: () => Promise<void>;
 }
 
 function toSkillMessage(m: Message): SkillMessage | null {
@@ -198,16 +247,16 @@ function classifyError(err: unknown): StreamError {
   if (httpMatch) {
     const status = parseInt(httpMatch[1]);
     if (status === 401)
-      return { kind: "http", status, message: "Session expired — please refresh the page", retryable: false, rawMessage: msg };
+      return { kind: "http", code: "sessionExpired", status, message: "Session expired — please refresh the page", retryable: false, rawMessage: msg };
     if (status === 404)
-      return { kind: "http", status, message: "Skill not found", retryable: false, rawMessage: msg };
+      return { kind: "http", code: "notFound", status, message: "Skill not found", retryable: false, rawMessage: msg };
     if (status === 502)
-      return { kind: "http", status, message: "Can't reach the server. Try again.", retryable: true, rawMessage: msg };
+      return { kind: "http", code: "unreachable", status, message: "Can't reach the server. Try again.", retryable: true, rawMessage: msg };
     if (status >= 500)
-      return { kind: "http", status, message: "Something went wrong on our end. Try again.", retryable: true, rawMessage: msg };
-    return { kind: "http", status, message: "Request failed. Try again.", retryable: true, rawMessage: msg };
+      return { kind: "http", code: "serverError", status, message: "Something went wrong on our end. Try again.", retryable: true, rawMessage: msg };
+    return { kind: "http", code: "requestFailed", status, message: "Request failed. Try again.", retryable: true, rawMessage: msg };
   }
-  return { kind: "network", message: "Connection lost. Try again.", retryable: true, rawMessage: msg };
+  return { kind: "network", code: "connectionLost", message: "Connection lost. Try again.", retryable: true, rawMessage: msg };
 }
 
 function classifyRunError(event: unknown): StreamError {
@@ -225,15 +274,18 @@ function classifyRunError(event: unknown): StreamError {
       (event as { code: unknown }).code === "BUDGET_EXCEEDED") {
     const rawRetry = (event as { retry_after_seconds?: unknown }).retry_after_seconds;
     const retryAfterSeconds = typeof rawRetry === "number" ? rawRetry : undefined;
+    const rawReason = (event as { reason?: unknown }).reason;
     return {
       kind: "budget_exceeded",
+      code: "budget",
       message: msg,
       retryable: retryAfterSeconds !== undefined,
       rawMessage: msg,
       retryAfterSeconds,
+      reason: typeof rawReason === "string" ? rawReason : undefined,
     };
   }
-  return { kind: "run_error", message: "The agent encountered an error. Try again.", retryable: true, rawMessage: msg };
+  return { kind: "run_error", code: "agentError", message: "The agent encountered an error. Try again.", retryable: true, rawMessage: msg };
 }
 
 /**
@@ -244,8 +296,15 @@ function classifyRunError(event: unknown): StreamError {
  * We mirror `agent.messages` to React state on every change so consumers see
  * fresh renders. The agent keeps the canonical list; we just copy it.
  */
-export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: string }): UseSkillAgentReturn {
+export function useSkillAgent(options?: {
+  _hangTimeoutMs?: number;
+  _slowAfterMs?: number;
+  _stalledAfterMs?: number;
+  activityId?: string;
+}): UseSkillAgentReturn {
   const hangTimeoutMs = options?._hangTimeoutMs ?? 30_000;
+  const slowAfterMs = options?._slowAfterMs ?? 15_000;
+  const stalledAfterMs = options?._stalledAfterMs ?? 45_000;
   // ALS-1 M0: the specific activity this chat runs (an act- id from the lesson
   // card). Rides every send on forwardedProps.activity_id so the backend injects
   // THIS activity's teacher-focus. Absent (teacher chats / direct skill links) →
@@ -264,10 +323,48 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
   const [isLoading, setIsLoading] = useState(false);
   const [runStarted, setRunStarted] = useState(false);
   const [error, setError] = useState<StreamError | null>(null);
-  const [stageLabel, setStageLabel] = useState<string | null>(null);
+  const [stage, setStage] = useState<StageProgress | null>(null);
+  const stageLabel = stage?.label ?? null;
   const [tidyingUp, setTidyingUp] = useState(false);
   const [compactions, setCompactions] = useState<CompactionNoticeItem[]>([]);
   const compactionSeqRef = useRef(0);
+
+  // 1.1.131 M2 — the post-RUN_STARTED stall watchdog. Timers live in refs so a
+  // stream event (which may fire dozens of times a second) re-arms them without
+  // a render; only the visible `stall` value is state.
+  const [stall, setStall] = useState<StreamStall>(null);
+  const stallArmedRef = useRef(false);
+  const stallTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const clearStallTimers = useCallback(() => {
+    stallTimersRef.current.forEach(clearTimeout);
+    stallTimersRef.current = [];
+  }, []);
+  const armStallTimers = useCallback(() => {
+    clearStallTimers();
+    stallTimersRef.current = [
+      setTimeout(() => setStall("slow"), slowAfterMs),
+      setTimeout(() => setStall("stalled"), stalledAfterMs),
+    ];
+  }, [clearStallTimers, slowAfterMs, stalledAfterMs]);
+  // Called from every stream callback. Read through a ref because the
+  // subscription effect is keyed on `agent` alone.
+  const noteProgressRef = useRef<() => void>(() => {});
+  noteProgressRef.current = () => {
+    if (!stallArmedRef.current) return;
+    setStall(null);
+    armStallTimers();
+  };
+  // The last user turn, so a stalled one can be re-asked; the in-flight run,
+  // so a retry can wait for the aborted run to settle before starting another.
+  const lastSendRef = useRef<{
+    text: string;
+    opts?: Parameters<UseSkillAgentReturn["sendMessage"]>[1];
+    userMessageId: string;
+  } | null>(null);
+  const inflightRef = useRef<Promise<void> | null>(null);
+  // True while retryStalled is aborting the stalled run: its AbortError is the
+  // retry working, not an error to show the student.
+  const retryingRef = useRef(false);
 
   const clearError = useCallback(() => setError(null), []);
 
@@ -337,7 +434,11 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
     sync(agentChanged);
 
     const sub = agent.subscribe({
-      onMessagesChanged: () => sync(),
+      onMessagesChanged: () => {
+        // Text deltas arrive here (the hook has no per-delta handler).
+        noteProgressRef.current();
+        sync();
+      },
       onRunStartedEvent: () => {
         setIsLoading(true);
         setRunStarted(true);
@@ -355,14 +456,22 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
         // survive the handshake so the user keeps seeing progress.
       },
       onCustomEvent: ({ event }: { event: { name?: unknown; value?: unknown } }) => {
+        noteProgressRef.current();
         // Two server-authored Custom event types of interest:
         //   STAGE_PROGRESS  — per-stage label for the TypingIndicator
         //   LATENCY_REPORT  — final per-stage timings (only when ?probe=1)
         // Backend definitions in observability/timing.py.
         if (event.name === "STAGE_PROGRESS") {
-          const value = event.value as { label?: unknown } | null | undefined;
+          const value = event.value as { label?: unknown; key?: unknown; params?: unknown } | null | undefined;
           if (!value || typeof value.label !== "string") return;
-          setStageLabel(value.label);
+          setStage({
+            label: value.label,
+            key: typeof value.key === "string" ? value.key : null,
+            params:
+              value.params && typeof value.params === "object"
+                ? (value.params as Record<string, string | number>)
+                : {},
+          });
           recordFirstStageLabel(performance.now());
           return;
         }
@@ -381,7 +490,7 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
         // RUN_FINISHED.
         if (event.name === "COMPACTION_STARTED") {
           setIsLoading(false);
-          setStageLabel(null);
+          setStage(null);
           setTidyingUp(true);
           return;
         }
@@ -406,9 +515,10 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
         }
       },
       onTextMessageStartEvent: ({ event }: { event: { messageId?: string } }) => {
+        noteProgressRef.current();
         // First model token reached the wire — clear the stage label so
         // the UI handoff (TypingIndicator → StreamingBubble) is clean.
-        setStageLabel(null);
+        setStage(null);
         recordFirstTextChunk(performance.now());
         // F2a fix (part 2): back-attribute any tool calls whose parentMessageId
         // was deferred (tools-before-text ADK pattern). TOOL_CALL_START fires
@@ -427,19 +537,22 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
         }
       },
       onReasoningStartEvent: () => {
+        noteProgressRef.current();
         setThinkingContent("");
         setIsThinking(true);
       },
       onReasoningMessageContentEvent: ({ reasoningMessageBuffer }: { reasoningMessageBuffer: string }) => {
+        noteProgressRef.current();
         setThinkingContent(reasoningMessageBuffer);
       },
       onReasoningEndEvent: () => {
+        noteProgressRef.current();
         setIsThinking(false);
       },
       onRunFinalized: () => {
         setIsLoading(false);
         setRunStarted(false);
-        setStageLabel(null);
+        setStage(null);
         setTidyingUp(false);
         // Resolve any still-running tool calls as success on clean finish
         setToolCalls((prev) =>
@@ -450,16 +563,17 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
         runFailedRef.current = true;
         const streamErr = classifyRunError(event);
         console.warn("stream_run_failed", streamErr);
-        setError(streamErr);
+        if (!retryingRef.current) setError(streamErr);
         setIsLoading(false);
         setRunStarted(false);
-        setStageLabel(null);
+        setStage(null);
         setTidyingUp(false);
         setToolCalls((prev) =>
           prev.map((tc) => tc.status === "running" ? { ...tc, status: "error" } : tc),
         );
       },
       onToolCallStartEvent: ({ event }: { event: { toolCallId: string; toolCallName: string; parentMessageId?: string } }) => {
+        noteProgressRef.current();
         // F2a (2026-05-01): ADK doesn't emit parentMessageId on AG-UI
         // TOOL_CALL_START events. Without snapshotting at start time, every
         // unparented tool call inherits "latest assistant at render time" via
@@ -494,6 +608,7 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
         ]);
       },
       onToolCallArgsEvent: ({ event }: { event: { toolCallId: string; delta: string } }) => {
+        noteProgressRef.current();
         // AG-UI emits ARGS as streaming deltas — concatenate into argsJson
         // so the final string is the complete JSON-encoded tool input by
         // the time TOOL_CALL_END fires. Consumers parse on read.
@@ -506,6 +621,7 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
         );
       },
       onToolCallEndEvent: ({ event }: { event: { toolCallId: string } }) => {
+        noteProgressRef.current();
         setToolCalls((prev) =>
           prev.map((tc) =>
             tc.id === event.toolCallId ? { ...tc, status: "success" } : tc,
@@ -513,6 +629,7 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
         );
       },
       onToolCallResultEvent: ({ event }: { event: { toolCallId: string; content: string } }) => {
+        noteProgressRef.current();
         setToolCalls((prev) =>
           prev.map((tc) =>
             tc.id === event.toolCallId ? { ...tc, resultContent: event.content } : tc,
@@ -528,11 +645,26 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
     if (!isLoading || runStarted) return;
     const timer = setTimeout(() => {
       agent.abortRun();
-      setError({ kind: "network", message: "Connection lost. Try again.", retryable: true, rawMessage: "stream_hang_timeout_30s" });
+      setError({ kind: "network", code: "connectionLost", message: "Connection lost. Try again.", retryable: true, rawMessage: "stream_hang_timeout_30s" });
       setIsLoading(false);
     }, hangTimeoutMs);
     return () => clearTimeout(timer);
   }, [isLoading, runStarted, agent, hangTimeoutMs]);
+
+  // 1.1.131 M2 — the post-RUN_STARTED half. Armed only while a started run is
+  // loading: COMPACTION_STARTED drops isLoading (the answer is complete; a 37 s
+  // compaction is not a stall), and a finished/failed run disarms it.
+  useEffect(() => {
+    if (isLoading && runStarted) {
+      stallArmedRef.current = true;
+      armStallTimers();
+    } else {
+      stallArmedRef.current = false;
+      clearStallTimers();
+      setStall(null);
+    }
+  }, [isLoading, runStarted, armStallTimers, clearStallTimers]);
+  useEffect(() => clearStallTimers, [clearStallTimers]);
 
   const sendMessage = useCallback(
     async (
@@ -545,7 +677,7 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
     ) => {
       clearError();
       setRunStarted(false);
-      setStageLabel(null);
+      setStage(null);
       setTidyingUp(false);
       runFailedRef.current = false;
       // 1.1.11 follow-up — when the student takes action (typing AND
@@ -557,6 +689,7 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
         window.dispatchEvent(new CustomEvent("aipla:voice.cancel"));
       }
       const userMessageId = crypto.randomUUID();
+      lastSendRef.current = { text, opts, userMessageId };
       // Latency mark t_send: anchored before agent.addMessage so
       // perceived TTFT (t_send → first DOM paint) measures the full
       // submit→render cycle, not just the network call. The HUD reads
@@ -601,12 +734,15 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
         const runInput = Object.keys(forwardedProps).length > 0
           ? { forwardedProps }
           : undefined;
-        await agent.runAgent(runInput);
+        const run = agent.runAgent(runInput).then(() => undefined);
+        inflightRef.current = run;
+        await run;
       } catch (err) {
         // If onRunFailed already fired, the real error is already set — don't
         // overwrite it with the AG-UI state-machine protocol exception that
         // the backend triggers by emitting RUN_FINISHED after RUN_ERROR.
-        if (!runFailedRef.current) {
+        // A retry's own abort is not an error either.
+        if (!runFailedRef.current && !retryingRef.current) {
           const streamErr = classifyError(err);
           console.warn("stream_error", streamErr);
           setError(streamErr);
@@ -623,6 +759,45 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
     agent.abortRun();
   }, [agent]);
 
+  // 1.1.131 M2 — why this cannot double-send. Re-typing the question (what a
+  // student did on 22 Sep) leaves the stalled run alive: when the server
+  // unblocks, BOTH runs answer, and the transcript shows the question twice.
+  // Here: (1) abort the stalled run and WAIT for it to settle, so there is
+  // never a second run in flight and its late flush cannot render; (2) drop
+  // the stalled turn — its question bubble and any partial answer — from the
+  // transcript; (3) send the same text exactly once, with a fresh message id.
+  // A fresh id rather than a replay of the old one on purpose: ag_ui_adk skips
+  // ids it has already processed, so a replay on the same instance would run
+  // with no new message and fail.
+  // Known limit: if the stalled request did reach the server, the question is
+  // already in the ADK session once, so the tutor's history may hold it twice.
+  // The student sees one question and one answer.
+  const retryStalled = useCallback(async () => {
+    const last = lastSendRef.current;
+    if (!last || retryingRef.current) return;
+    retryingRef.current = true;
+    setStall(null);
+    try {
+      agent.abortRun();
+      try {
+        await inflightRef.current;
+      } catch {
+        // The aborted run's rejection is expected.
+      }
+      const idx = agent.messages.findIndex((m) => m.id === last.userMessageId);
+      if (idx >= 0) {
+        agent.setMessages(agent.messages.slice(0, idx));
+        // Bypass the F1 no-shrink guard: this shrink is deliberate.
+        setMessages(
+          agent.messages.map(toSkillMessage).filter((m): m is SkillMessage => m !== null),
+        );
+      }
+    } finally {
+      retryingRef.current = false;
+    }
+    await sendMessage(last.text, last.opts);
+  }, [agent, sendMessage]);
+
   return {
     sessionId: agent.threadId,
     messages,
@@ -630,6 +805,7 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
     thinkingContent,
     isThinking,
     stageLabel,
+    stage,
     sendMessage,
     isLoading,
     tidyingUp,
@@ -637,5 +813,7 @@ export function useSkillAgent(options?: { _hangTimeoutMs?: number; activityId?: 
     error,
     clearError,
     stop,
+    stall,
+    retryStalled,
   };
 }

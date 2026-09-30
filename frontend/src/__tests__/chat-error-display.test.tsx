@@ -8,6 +8,7 @@ const noMessages: UseSkillAgentReturn["messages"] = [];
 const mockSendMessage = vi.fn().mockResolvedValue(undefined);
 const mockClearError = vi.fn();
 const mockStop = vi.fn();
+const mockRetryStalled = vi.fn().mockResolvedValue(undefined);
 
 function makeReturn(overrides: Partial<UseSkillAgentReturn>): UseSkillAgentReturn {
   return {
@@ -17,6 +18,7 @@ function makeReturn(overrides: Partial<UseSkillAgentReturn>): UseSkillAgentRetur
     thinkingContent: "",
     isThinking: false,
     stageLabel: null,
+    stage: null,
     sendMessage: mockSendMessage,
     isLoading: false,
     tidyingUp: false,
@@ -24,6 +26,8 @@ function makeReturn(overrides: Partial<UseSkillAgentReturn>): UseSkillAgentRetur
     error: null,
     clearError: mockClearError,
     stop: mockStop,
+    stall: null,
+    retryStalled: mockRetryStalled,
     ...overrides,
   };
 }
@@ -47,6 +51,21 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => ({ get: vi.fn().mockReturnValue(null) }),
 }));
 
+// 1.1.108 — these tests are about error BEHAVIOUR, asserted in English. A chat
+// with no activity takes the skill's voice language, so pin that to English;
+// the Danish default has its own test at the bottom.
+const voiceLanguage = vi.hoisted(() => ({ value: "en" as string | null }));
+vi.mock("@/hooks/useVoiceConfig", async (importOriginal) => {
+  const mod = await importOriginal<typeof import("@/hooks/useVoiceConfig")>();
+  return {
+    ...mod,
+    useVoiceConfig: (...args: Parameters<typeof mod.useVoiceConfig>) => {
+      const real = mod.useVoiceConfig(...args);
+      return { ...real, tts: { ...real.tts, language: voiceLanguage.value } };
+    },
+  };
+});
+
 vi.mock("@/hooks/useSlugResolution", () => ({
   useSlugResolution: () => ({ skillId: "test-skill-id", loading: false, notFound: false, error: null }),
 }));
@@ -58,6 +77,7 @@ const paramsPromise = Promise.resolve({ path: ["@user-1", "test-slug"] });
 
 const retryableError: StreamError = {
   kind: "http",
+  code: "serverError",
   status: 500,
   message: "Something went wrong on our end. Try again.",
   retryable: true,
@@ -66,6 +86,7 @@ const retryableError: StreamError = {
 
 const nonRetryableError: StreamError = {
   kind: "http",
+  code: "sessionExpired",
   status: 401,
   message: "Session expired — please refresh the page",
   retryable: false,
@@ -76,6 +97,7 @@ beforeEach(() => {
   // JSDOM does not implement scrollTo — stub it so the scroll useEffect doesn't throw.
   Element.prototype.scrollTo = vi.fn() as unknown as typeof Element.prototype.scrollTo;
   vi.clearAllMocks();
+  voiceLanguage.value = "en";
 });
 
 describe("ChatShell — error display", () => {
@@ -142,4 +164,72 @@ describe("ChatShell — error display", () => {
     const input = await screen.findByPlaceholderText(/message/i);
     expect(input).toHaveProperty("disabled", false);
   });
+
+  it("speaks Danish when nothing says otherwise (1.1.108 default)", async () => {
+    voiceLanguage.value = null;
+    vi.mocked(useSkillAgent).mockReturnValue(makeReturn({ error: retryableError }));
+    render(<ChatPage params={paramsPromise} />);
+    expect(await screen.findByText("Noget gik galt hos os. Prøv igen.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Prøv igen" })).toBeTruthy();
+    expect(screen.getByPlaceholderText("Skriv en besked…")).toBeTruthy();
+  });
+
+  it("paints in the remembered activity language before any config arrives (cold-start flash)", async () => {
+    // No voice language, no config yet: only the lesson picker's note says English.
+    voiceLanguage.value = null;
+    sessionStorage.setItem("aipla.activityLanguage", JSON.stringify({ "test-skill-id": "en" }));
+    vi.mocked(useSkillAgent).mockReturnValue(makeReturn({ error: null }));
+    render(<ChatPage params={paramsPromise} />);
+    expect(await screen.findByPlaceholderText("Message…")).toBeTruthy();
+    sessionStorage.clear();
+  });
+
+  it("says the backend's stage by key, in the activity's language (1.1.108)", async () => {
+    voiceLanguage.value = null; // → Danish
+    vi.mocked(useSkillAgent).mockReturnValue(
+      makeReturn({
+        isLoading: true,
+        stageLabel: "Reading 2 documents…",
+        stage: { label: "Reading 2 documents…", key: "readingDocuments", params: { count: 2 } },
+      }),
+    );
+    render(<ChatPage params={paramsPromise} />);
+    expect(await screen.findByText(/Læser 2 dokumenter…/)).toBeTruthy();
+    expect(screen.queryByText(/Reading 2 documents/)).toBeNull();
+  });
 });
+
+// 1.1.131 M2 — the page half of the stall watchdog (the timing is the hook's,
+// tested in useSkillAgent.test.tsx).
+describe("ChatShell — a stalled tutor", () => {
+  it("15 s: a quiet 'responding slowly' line, no retry offered yet", async () => {
+    vi.mocked(useSkillAgent).mockReturnValue(makeReturn({ isLoading: true, stall: "slow" }));
+    render(<ChatPage params={paramsPromise} />);
+    expect(await screen.findByText("The tutor is responding slowly — please wait.")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Ask again" })).toBeNull();
+  });
+
+  it("45 s: an explicit retry that goes through retryStalled, not sendMessage", async () => {
+    vi.mocked(useSkillAgent).mockReturnValue(makeReturn({ isLoading: true, stall: "stalled" }));
+    render(<ChatPage params={paramsPromise} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Ask again" }));
+    expect(mockRetryStalled).toHaveBeenCalledOnce();
+    expect(mockSendMessage).not.toHaveBeenCalled();
+  });
+
+  it("says it in Danish by default", async () => {
+    voiceLanguage.value = null;
+    vi.mocked(useSkillAgent).mockReturnValue(makeReturn({ isLoading: true, stall: "slow" }));
+    render(<ChatPage params={paramsPromise} />);
+    expect(await screen.findByText("Tutoren svarer langsomt — vent lidt.")).toBeTruthy();
+  });
+
+  it("shows nothing when the stream is healthy", async () => {
+    vi.mocked(useSkillAgent).mockReturnValue(makeReturn({ isLoading: true, stall: null }));
+    render(<ChatPage params={paramsPromise} />);
+    await screen.findByPlaceholderText(/message/i);
+    expect(screen.queryByText(/responding slowly/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Ask again" })).toBeNull();
+  });
+});
+

@@ -54,8 +54,15 @@ MAX_MESSAGE_CHARS = 500
 MAX_STACK_CHARS = 4000
 MAX_URL_CHARS = 300
 
-#: What produced the error. A closed enum — never free text.
-KINDS = ("render", "window.onerror", "unhandledrejection")
+#: What produced the report. A closed enum — never free text. ``recovered`` is
+#: not an error: it is the page an automatic stale-deploy reload landed on,
+#: saying it rendered (1.1.138 M0).
+KINDS = ("render", "window.onerror", "unhandledrejection", "recovered")
+
+#: A build id is an opaque build stamp (``b20260929101500-k3x9``, a SHA, a tag).
+#: Anything else is dropped rather than logged: this field arrives on an
+#: unauthenticated endpoint and must not become a free-text channel.
+_BUILD_ID = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
 #: Who was looking at it. Three-valued, identifies nobody.
 ROLES = ("teacher", "student", "anon")
@@ -105,6 +112,14 @@ def clean_url(raw: str) -> str:
     return path[:MAX_URL_CHARS]
 
 
+def clean_build_id(raw: str | None) -> str | None:
+    """A well-formed build id, or ``None``. Never the raw value on a mismatch."""
+    if not raw or not isinstance(raw, str):
+        return None
+    raw = raw.strip()
+    return raw if _BUILD_ID.match(raw) else None
+
+
 def surface_of(path: str) -> str:
     """The first path segment — ``teacher``, ``lessons``, ``project``, ``chat``.
 
@@ -123,6 +138,10 @@ def emit_client_error(
     url: str = "",
     role: str = "anon",
     user_agent: str = "",
+    build_id: str | None = None,
+    auto_reloaded: bool | None = None,
+    after_auto_reload: bool | None = None,
+    previous_build_id: str | None = None,
 ) -> None:
     """Emit one browser-side error. **Never raises.**
 
@@ -134,20 +153,31 @@ def emit_client_error(
     ``user_agent`` comes from the request header, not from the body — a field the
     caller cannot choose is worth more than one it can, on an endpoint with no
     auth.
+
+    ``build_id`` / ``auto_reloaded`` / ``after_auto_reload`` /
+    ``previous_build_id`` (1.1.138 M0) tell a stale-deploy crash from a real
+    bug, and a reload that cured it from one that did not. All optional: an
+    older client that sends none of them still logs, with ``None`` in each.
     """
     kind = kind if kind in KINDS else "render"
     role = role if role in ROLES else "anon"
     message = redact(message)[:MAX_MESSAGE_CHARS]
     stack = redact(stack)[:MAX_STACK_CHARS]
     path = clean_url(url)
+    build_id = clean_build_id(build_id)
+    previous_build_id = clean_build_id(previous_build_id)
 
     # Unconditional, and first: if the structured emit below is a no-op (local
-    # dev, no creds), this line is the only visibility there is.
-    logger.warning(
-        "client_error: kind=%s role=%s path=%s message=%s",
+    # dev, no creds), this line is the only visibility there is. A recovery is
+    # good news, so it does not log at warning.
+    logger.log(
+        logging.INFO if kind == "recovered" else logging.WARNING,
+        "client_error: kind=%s role=%s path=%s build=%s auto_reloaded=%s message=%s",
         kind,
         role,
         path or "-",
+        build_id or "-",
+        auto_reloaded,
         message or "-",
     )
 
@@ -162,6 +192,14 @@ def emit_client_error(
         "path": path,
         "surface": surface_of(path),
         "user_agent": user_agent[:300],
+        # 1.1.138 M0. `client_build_id` is the build the TAB ran; the server's
+        # build is `revision` / `app_version` below. On a `recovered` row,
+        # `previous_build_id` != `client_build_id` means the reload moved the
+        # tab onto a new build — a real stale deploy, cured.
+        "client_build_id": build_id,
+        "previous_build_id": previous_build_id,
+        "auto_reloaded": auto_reloaded,
+        "after_auto_reload": after_auto_reload,
         # Frontend and backend ship in ONE container (the backend is a sidecar
         # inside `aipla-v01-frontend`), so the server's revision/app_version
         # describes the same build that served the broken JS. The client does not
@@ -174,15 +212,138 @@ def emit_client_error(
         logger.warning("client_error: emit failed (suppressed): %s", exc)
 
 
+# ─── Client environment beacon (screen-size slice of 1.1.96 M0, 2026-09-30) ───
+#
+# "The UI was a bit cramped on a laptop — what screen sizes are people using?"
+# Errors are too rare to sample screens from, so the browser sends ONE of these
+# per page session (and again only when the viewport crosses a width bucket).
+#
+# A SIBLING log id, not ``aipla_client_error``: one row per page load would
+# otherwise drown the error count, and "how many client errors this week" is the
+# query that log exists to answer. Same sink (Cloud Logging only, not routed to
+# BigQuery — the chat-logs filter is an allowlist and this id is not on it).
+#
+# Privacy (ADR-001): a screen size is fine, a fingerprint is not. So this row
+# carries NO user agent (the error row reads it from the header; this one never
+# does), no path, no role, no id of any kind — only the coarse numbers below,
+# the surface, and the client build id the error report already carries.
+LOG_ID_CLIENT_ENV = "aipla_client_env"
+
+ENV_KIND = "env"
+
+#: Where the tab was. Derived by the client from the route prefix.
+ENV_SURFACES = ("student", "teacher", "public")
+
+#: ``(pointer: coarse)`` is a touch screen; ``fine`` is a mouse/trackpad.
+ENV_POINTERS = ("coarse", "fine")
+
+#: Upper bound for any CSS-pixel dimension. An 8K display is 7680 wide; anything
+#: past this is a lying client, and it is clamped rather than rejected.
+MAX_DIMENSION_PX = 10000
+MIN_DPR, MAX_DPR = 0.5, 8.0
+
+#: Width buckets — kept in lockstep with ``VIEWPORT_BUCKETS`` in
+#: ``frontend/src/lib/clientEnvBeacon.ts`` and ``scripts/screen-sizes.sh``.
+#: Inclusive lower bounds; the label is what gets logged.
+VIEWPORT_BUCKETS: tuple[tuple[int, str], ...] = (
+    (0, "<768"),
+    (768, "768-1279"),
+    (1280, "1280-1439"),
+    (1440, "1440-1919"),
+    (1920, ">=1920"),
+)
+
+
+def _is_number(raw: Any) -> bool:
+    return not isinstance(raw, bool) and isinstance(raw, (int, float)) and raw == raw  # NaN != NaN
+
+
+def clamp_dimension(raw: Any) -> int | None:
+    """A CSS-pixel dimension as an int in ``[0, MAX_DIMENSION_PX]``, or ``None``."""
+    if not _is_number(raw):
+        return None
+    return int(max(0, min(MAX_DIMENSION_PX, round(raw))))
+
+
+def clamp_dpr(raw: Any) -> float | None:
+    """Device pixel ratio in ``[MIN_DPR, MAX_DPR]`` to two decimals, or ``None``."""
+    if not _is_number(raw) or raw <= 0:
+        return None
+    return round(max(MIN_DPR, min(MAX_DPR, float(raw))), 2)
+
+
+def viewport_bucket(width: int | None) -> str | None:
+    """The width bucket label for ``width``, or ``None`` when width is unknown."""
+    if width is None:
+        return None
+    label = VIEWPORT_BUCKETS[0][1]
+    for lower, name in VIEWPORT_BUCKETS:
+        if width >= lower:
+            label = name
+    return label
+
+
+def emit_client_env(
+    *,
+    viewport_w: Any = None,
+    viewport_h: Any = None,
+    screen_w: Any = None,
+    screen_h: Any = None,
+    dpr: Any = None,
+    pointer: Any = None,
+    surface: Any = None,
+    build_id: str | None = None,
+) -> None:
+    """Emit one client-environment row. Clamps everything; **never raises**.
+
+    Deliberately has no parameter for a user agent, path, role or id: a field
+    that cannot be passed cannot leak. Logs to stdlib at DEBUG only (one line per
+    page load would be noise under ``make dev``).
+    """
+    try:
+        vw = clamp_dimension(viewport_w)
+        payload: dict[str, Any] = {
+            "kind": ENV_KIND,
+            "viewport_w": vw,
+            "viewport_h": clamp_dimension(viewport_h),
+            "screen_w": clamp_dimension(screen_w),
+            "screen_h": clamp_dimension(screen_h),
+            "dpr": clamp_dpr(dpr),
+            "pointer": pointer if pointer in ENV_POINTERS else None,
+            "surface": surface if surface in ENV_SURFACES else "unknown",
+            "viewport_bucket": viewport_bucket(vw),
+            "client_build_id": clean_build_id(build_id),
+            **_version_fields(),
+        }
+        logger.debug("client_env: %s", payload)
+        gl = _get_logger(LOG_ID_CLIENT_ENV)
+        if gl is None:
+            return
+        gl.log_struct(payload)
+    except Exception as exc:  # telemetry must never break the request
+        logger.warning("client_env: emit failed (suppressed): %s", exc)
+
+
 __all__ = [
+    "ENV_KIND",
+    "ENV_POINTERS",
+    "ENV_SURFACES",
     "KINDS",
+    "LOG_ID_CLIENT_ENV",
     "LOG_ID_CLIENT_ERROR",
+    "MAX_DIMENSION_PX",
     "MAX_MESSAGE_CHARS",
     "MAX_STACK_CHARS",
     "MAX_URL_CHARS",
     "ROLES",
+    "VIEWPORT_BUCKETS",
+    "clamp_dimension",
+    "clamp_dpr",
+    "clean_build_id",
     "clean_url",
+    "emit_client_env",
     "emit_client_error",
     "redact",
     "surface_of",
+    "viewport_bucket",
 ]

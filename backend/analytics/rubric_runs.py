@@ -46,6 +46,9 @@ def record_rubric_run(result: RubricResult, *, group_id: str | None, is_live: bo
     failure logs and returns the id so the caller's scoring result is untouched.
     """
     run_id = _run_id(result.session_id, result.lens_id, result.prompt_version)
+    # The result carries its own group (1.1.92 M0); the caller's argument wins
+    # only when given, so existing callers are unchanged.
+    group_id = group_id or result.group_id
     doc = {
         "run_id": run_id,
         "rubric_id": result.lens_id,
@@ -60,6 +63,13 @@ def record_rubric_run(result: RubricResult, *, group_id: str | None, is_live: bo
         "profile": result.profile,
         "partition_summary": result.partition_summary,
         "evidence_refs": result.evidence_refs,
+        # 1.1.92 M0 — the arm. Null = not recorded (a pre-stamp session), never
+        # a default tutor. Re-scoring the same run_id overwrites these in place,
+        # so an existing run gains its arm without a second record.
+        "tutor_id": result.tutor_id,
+        "tutor_version": result.tutor_version,
+        "framework_id": result.framework_id,
+        "revision": result.revision,
         "created_at": datetime.now(UTC).isoformat(),
     }
     try:
@@ -85,6 +95,10 @@ def record_rubric_run(result: RubricResult, *, group_id: str | None, is_live: bo
             student_initiated=int(part.get("student_initiated", 0)),
             tutor_prompted=int(part.get("tutor_prompted", 0)),
             profile_json=json.dumps(result.profile, ensure_ascii=False),
+            tutor_id=result.tutor_id,
+            tutor_version=result.tutor_version,
+            framework_id=result.framework_id,
+            revision=result.revision,
         )
     except Exception as exc:
         logger.warning("rubric_runs: BQ mirror failed for %s (suppressed): %s", run_id, exc)

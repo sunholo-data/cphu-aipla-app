@@ -169,7 +169,7 @@ describe("AuthoringCopilot — auth corner + panel", () => {
     await screen.findByTestId("authoring-copilot");
     fireEvent.change(screen.getByLabelText(/beskriv hvad du vil undervise/i), { target: { value: "energi" } });
     fireEvent.submit(screen.getByRole("button", { name: /send/i }).closest("form")!);
-    expect(sendMessage).toHaveBeenCalledWith("[activity_id=act-42] energi");
+    expect(sendMessage).toHaveBeenCalledWith("[ui_language=da] [activity_id=act-42] energi");
   });
 
   it("omits the prefix when there's no activity yet (draft / the /new page)", async () => {
@@ -177,7 +177,7 @@ describe("AuthoringCopilot — auth corner + panel", () => {
     await screen.findByTestId("authoring-copilot");
     fireEvent.change(screen.getByLabelText(/beskriv hvad du vil undervise/i), { target: { value: "energi" } });
     fireEvent.submit(screen.getByRole("button", { name: /send/i }).closest("form")!);
-    expect(sendMessage).toHaveBeenCalledWith("energi");
+    expect(sendMessage).toHaveBeenCalledWith("[ui_language=da] energi");
   });
 
   it("carries the current draft as hidden context (COPILOT: the co-pilot used to be blind to it)", async () => {
@@ -207,7 +207,7 @@ describe("AuthoringCopilot — auth corner + panel", () => {
     await screen.findByTestId("authoring-copilot");
     fireEvent.change(screen.getByLabelText(/beskriv hvad du vil undervise/i), { target: { value: "energi" } });
     fireEvent.submit(screen.getByRole("button", { name: /send/i }).closest("form")!);
-    expect(sendMessage).toHaveBeenCalledWith("[activity_id=act-1] energi");
+    expect(sendMessage).toHaveBeenCalledWith("[ui_language=da] [activity_id=act-1] energi");
   });
 
   it("hides the draft context block from the rendered user bubble, even with a unit label containing ']'", async () => {
@@ -260,8 +260,8 @@ describe("AuthoringCopilot — proposal card", () => {
 
   it("Edit lets the teacher refine the text before applying", async () => {
     const onApply = await renderWithProposal();
-    fireEvent.click(screen.getByRole("button", { name: /rediger/i }));
-    fireEvent.change(screen.getByLabelText(/rediger forslag/i), { target: { value: "Min egen prompt" } });
+    fireEvent.click(screen.getByRole("button", { name: /redig[eé]r/i }));
+    fireEvent.change(screen.getByLabelText(/redig[eé]r forslag/i), { target: { value: "Min egen prompt" } });
     fireEvent.click(screen.getByRole("button", { name: /brug denne/i }));
     expect(onApply).toHaveBeenCalledWith({ kind: "set_lesson_prompt", value: "Min egen prompt" });
   });

@@ -54,6 +54,8 @@ def make_permission_enforcer(
         tracker.mark(
             f"{STAGE_TOOL_CALL_STARTED}_{tracker.tools_invoked_count}",
             user_label=f"Calling {tool_name}…",
+            label_key="callingTool",
+            label_params={"tool": tool_name},
         )
 
         return None

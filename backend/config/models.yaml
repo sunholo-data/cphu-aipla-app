@@ -123,6 +123,19 @@ defaults:
 
 platform_default: "gemini-3-5-flash-lite"
 
+# ─── Analysis model (BENCH-1, 1.1.139 D1, 2026-09-30) ─────────────────────
+# THE RULE: after-the-fact analysis uses analysis_model — the report narrative,
+# the RUBRIC lens defaults, the approach-fidelity judge, the discrimination
+# benchmark. Anything a student or teacher WAITS ON in a lesson does NOT: the
+# tutor turn, live-class summaries, chat titles and extraction stay on
+# platform_default. The smart tier's ~5s first token (p90 ~20s) is irrelevant
+# offline and unacceptable in a lesson.
+# Read by config.models.analysis_model(); env ANALYSIS_MODEL (an id OR a
+# registered api_name) overrides per deploy. Must name a model above.
+# No Pro model is registered; adding one is a registry edit plus a price row.
+
+analysis_model: "gemini-3-8-flash" # api_name: gemini-3.8-flash
+
 # ─── Compaction ───────────────────────────────────────────────────────────
 # EventsCompactionConfig on App (not Agent/Runner). DOCUMENTATION ONLY —
 # the authoritative table is _COMPACTION_CONFIGS in backend/adk/session.py

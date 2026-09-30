@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+
+import { toLocale, useLocaleMode, useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 
 /**
@@ -72,16 +74,11 @@ const SYMBOL_NAMES_EN: Record<string, string> = {
   "∞": "infinity",
 };
 
-const copy = {
-  da: { toggle: "Fysiksymboler", show: "Vis fysiksymboler", hide: "Skjul fysiksymboler" },
-  en: { toggle: "Physics symbols", show: "Show physics symbols", hide: "Hide physics symbols" },
-} as const;
-
-export type SymbolStripLang = keyof typeof copy;
-
-function pickLang(lang: string | null | undefined): SymbolStripLang {
-  return lang?.toLowerCase().startsWith("en") ? "en" : "da";
-}
+// 1.1.108: the chrome strings live in messages/<locale>/chat.json
+// (`SymbolStrip`). The symbol NAMES above stay here as data — a vocabulary list
+// keyed by glyph, like `voice-pronunciation/units.da.ts`, not UI copy.
+// An explicit `lang` prop still pins the locale; without one the surrounding
+// LocaleProvider (the activity's language) decides.
 
 export const SYMBOL_STRIP_WINK_KEY = "aipla.symbolStrip.winked";
 /** Long enough to read "oh, symbols", short enough not to feel like a modal. */
@@ -159,8 +156,8 @@ export function SymbolStripToggle({
   lang?: string | null;
   controlsId: string;
 }) {
-  const c = copy[pickLang(lang)];
-  const label = open ? c.hide : c.show;
+  const t = useT("SymbolStrip", lang ? toLocale(lang) : undefined);
+  const label = open ? t("hide") : t("show");
   return (
     <button
       type="button"
@@ -194,13 +191,15 @@ export function SymbolStrip({
   id: string;
   className?: string;
 }) {
-  const l = pickLang(lang);
+  const t = useT("SymbolStrip", lang ? toLocale(lang) : undefined);
+  const mode = useLocaleMode();
+  const l = lang ? toLocale(lang) : mode === "en" ? "en" : "da";
   if (!open) return null;
   return (
     <div
       id={id}
       role="toolbar"
-      aria-label={copy[l].toggle}
+      aria-label={t("toggle")}
       // Horizontal scroll on a phone; the row must never widen the composer.
       className={cn(
         "mb-2 flex gap-1 overflow-x-auto pb-1 motion-safe:animate-in motion-safe:fade-in motion-safe:slide-in-from-bottom-1",

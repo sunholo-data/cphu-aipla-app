@@ -23,6 +23,9 @@ export interface PersonScreenResult {
   faceCount: number;
   /** user-facing line for the blocked/degraded case; null when clean. */
   message: string | null;
+  /** 1.1.108 — the same case as a code, so the UI says it in the activity's
+   *  language. `message` stays the English text. */
+  notice: "retake" | "degraded" | null;
 }
 
 export const RETAKE_MESSAGE =
@@ -41,12 +44,12 @@ export function evaluatePersonScreen(
   detectorAvailable: boolean,
 ): PersonScreenResult {
   if (!detectorAvailable) {
-    return { blocked: false, degraded: true, faceCount: 0, message: DEGRADED_NOTICE };
+    return { blocked: false, degraded: true, faceCount: 0, message: DEGRADED_NOTICE, notice: "degraded" };
   }
   if (faceCount > 0) {
-    return { blocked: true, degraded: false, faceCount, message: RETAKE_MESSAGE };
+    return { blocked: true, degraded: false, faceCount, message: RETAKE_MESSAGE, notice: "retake" };
   }
-  return { blocked: false, degraded: false, faceCount: 0, message: null };
+  return { blocked: false, degraded: false, faceCount: 0, message: null, notice: null };
 }
 
 /** Minimal structural type for the Shape Detection API FaceDetector. */

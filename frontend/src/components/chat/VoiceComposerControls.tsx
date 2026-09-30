@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState } from "react";
 import { Loader2, Mic, Square } from "lucide-react";
 
+import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { fetchWithAuth } from "@/lib/apiClient";
 import { AudioRecorder, isAudioCaptureSupported } from "@/lib/audioCapture";
@@ -41,6 +42,7 @@ export function VoiceComposerControls({
   onTranscript,
   onNotice,
 }: Props) {
+  const t = useT("VoiceComposerControls");
   const dictRef = useRef<AudioRecorder | null>(null);
   const [mode, setMode] = useState<Mode>("idle");
   const [busy, setBusy] = useState(false);
@@ -52,9 +54,9 @@ export function VoiceComposerControls({
       await dictRef.current.start();
       setMode("dictating");
     } catch {
-      onNotice?.("Microphone unavailable — you can type instead.");
+      onNotice?.(t("micUnavailable"));
     }
-  }, [onNotice]);
+  }, [onNotice, t]);
 
   const finishDictation = useCallback(async () => {
     setBusy(true);
@@ -70,13 +72,13 @@ export function VoiceComposerControls({
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as { text?: string };
       if (data.text?.trim()) onTranscript(data.text.trim());
-      else onNotice?.("Didn't catch that — try again, or type.");
+      else onNotice?.(t("noSpeech"));
     } catch {
-      onNotice?.("Couldn't transcribe — you can type instead.");
+      onNotice?.(t("transcribeFailed"));
     } finally {
       setBusy(false);
     }
-  }, [lang, skillId, onTranscript, onNotice]);
+  }, [lang, skillId, onTranscript, onNotice, t]);
 
   const supported = isAudioCaptureSupported();
   const showDictate = voiceInputEnabled && supported;
@@ -92,8 +94,8 @@ export function VoiceComposerControls({
           type="button"
           onClick={() => void finishDictation()}
           disabled={busy}
-          aria-label="Stop dictation"
-          title="Stop dictation"
+          aria-label={t("stopDictation")}
+          title={t("stopDictation")}
           className={cn(iconBtn, "border-red-400 text-red-600")}
         >
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Square className="h-4 w-4" />}
@@ -108,8 +110,8 @@ export function VoiceComposerControls({
       type="button"
       onClick={() => void begin()}
       disabled={disabled || busy}
-      aria-label="Talk to type"
-      title="Talk to type"
+      aria-label={t("talkToType")}
+      title={t("talkToType")}
       className={iconBtn}
     >
       <Mic className="h-4 w-4" />

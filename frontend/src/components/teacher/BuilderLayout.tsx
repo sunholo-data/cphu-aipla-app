@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import { BookOpen, LayoutGrid, MessageCircle, SlidersHorizontal } from "lucide-react";
 
+import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 
 // Activity-builder wayfinding (1.1.40 M2). The builder is one long form; this
@@ -44,8 +45,8 @@ const ACCENT: Record<Accent, { bar: string; tile: string; chipOn: string; count:
 
 export interface BuilderSectionMeta {
   id: string;
-  label: string;
-  hint: string;
+  /** Message-key stem: renders `<key>Label` / `<key>Hint` (1.1.108 M2). */
+  key: "setup" | "lesson" | "workspace" | "materials";
   icon: LucideIcon;
   accent: Accent;
 }
@@ -53,29 +54,25 @@ export interface BuilderSectionMeta {
 export const SECTION = {
   setup: {
     id: "builder-setup",
-    label: "Setup",
-    hint: "Name it, choose the class, set the language.",
+    key: "setup",
     icon: SlidersHorizontal,
     accent: "slate",
   },
   lesson: {
     id: "builder-lesson",
-    label: "Lesson",
-    hint: "What the tutor guides students to discover.",
+    key: "lesson",
     icon: MessageCircle,
     accent: "violet",
   },
   workspace: {
     id: "builder-workspace",
-    label: "Workspace",
-    hint: "Add a simulation and the tools students work with.",
+    key: "workspace",
     icon: LayoutGrid,
     accent: "emerald",
   },
   materials: {
     id: "builder-materials",
-    label: "Materials",
-    hint: "Curriculum the tutor can cite — optional.",
+    key: "materials",
     icon: BookOpen,
     accent: "amber",
   },
@@ -100,6 +97,7 @@ export function BuilderSection({
   section: BuilderSectionMeta;
   children: React.ReactNode;
 }) {
+  const t = useT("BuilderLayout");
   const a = ACCENT[section.accent];
   const Icon = section.icon;
   return (
@@ -116,8 +114,8 @@ export function BuilderSection({
           <Icon className="h-4 w-4" />
         </span>
         <div className="flex flex-col gap-0.5">
-          <h2 className="text-base font-semibold leading-none text-slate-900">{section.label}</h2>
-          <p className="text-xs text-slate-500">{section.hint}</p>
+          <h2 className="text-base font-semibold leading-none text-slate-900">{t(`${section.key}Label`)}</h2>
+          <p className="text-xs text-slate-500">{t(`${section.key}Hint`)}</p>
         </div>
       </div>
       <div className="flex flex-col gap-5 px-4 pb-4 pt-4">{children}</div>
@@ -132,6 +130,7 @@ export function BuilderSection({
  * materials) so nothing useful stays out of sight.
  */
 export function BuilderSectionNav({ counts }: { counts?: Partial<Record<string, number>> }) {
+  const t = useT("BuilderLayout");
   const [active, setActive] = useState<string>(BUILDER_SECTIONS[0].id);
 
   useEffect(() => {
@@ -165,7 +164,7 @@ export function BuilderSectionNav({ counts }: { counts?: Partial<Record<string, 
 
   return (
     <nav
-      aria-label="Builder sections"
+      aria-label={t("nav")}
       className="sticky top-2 z-10 flex gap-1 overflow-x-auto rounded-lg border border-slate-200 bg-background/95 p-1.5 shadow-sm backdrop-blur"
     >
       {BUILDER_SECTIONS.map((s) => {
@@ -185,7 +184,7 @@ export function BuilderSectionNav({ counts }: { counts?: Partial<Record<string, 
             )}
           >
             <Icon className="h-3.5 w-3.5" aria-hidden="true" />
-            {s.label}
+            {t(`${s.key}Label`)}
             {typeof count === "number" && count > 0 ? (
               <span
                 className={cn(

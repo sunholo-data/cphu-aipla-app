@@ -8,6 +8,7 @@ import { SimThumbnail } from "@/components/teacher/SimThumbnail";
 import { StudentWorkspace } from "@/components/workspace/StudentWorkspace";
 import { type ActivityArtefact } from "@/components/workspace/GenericArtefactFrame";
 import { HumanToolEventsProvider } from "@/hooks/useHumanToolEvents";
+import { LocaleProvider, toLocale, useT } from "@/i18n";
 import {
   builderToElementDefs,
   hasAnyElement,
@@ -28,6 +29,9 @@ interface ActivityPreviewProps {
    *  bytes from the right activity slot and curriculum content ACLs correctly.
    *  Falls back to the preview sandbox id when absent (e.g. a brand-new draft). */
   activityId?: string;
+  /** 1.1.108 — the draft's language, so the preview shows the student surface in
+   *  the language the student will actually get. Absent → Danish. */
+  language?: string;
 }
 
 // A fixed, non-student skill id so the preview's scratch state (table cells in
@@ -55,6 +59,7 @@ export function ActivityPreview({
   artefactId,
   materials = [],
   activityId,
+  language,
 }: ActivityPreviewProps) {
   const [open, setOpen] = useState(true);
   const [expanded, setExpanded] = useState(false);
@@ -78,6 +83,7 @@ export function ActivityPreview({
     };
   }, [artefactId]);
 
+  const t = useT("ActivityPreview");
   const sim = artefactId ? (catalogue.find((a) => a.id === artefactId) ?? null) : null;
   const showElements = hasAnyElement(defs);
   const hasContent = !!artefactId || showElements || materials.length > 0;
@@ -91,15 +97,15 @@ export function ActivityPreview({
           aria-expanded={open}
           className="flex flex-1 items-center gap-1.5 text-sm font-medium text-slate-700"
         >
-          <Eye className="h-4 w-4 text-slate-500" /> Preview — what students see
+          <Eye className="h-4 w-4 text-slate-500" /> {t("title")}
           <ChevronDown className={`h-4 w-4 transition-transform ${open ? "" : "-rotate-90"}`} />
         </button>
         {hasContent ? (
           <button
             type="button"
             onClick={() => setExpanded(true)}
-            aria-label="Open full-size view"
-            title="Open full-size view"
+            aria-label={t("expand")}
+            title={t("expand")}
             className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
           >
             <Maximize2 className="h-4 w-4" />
@@ -110,19 +116,18 @@ export function ActivityPreview({
         <div className="border-t border-slate-200 bg-slate-50">
           {!hasContent ? (
             <p className="px-4 py-6 text-center text-xs text-slate-400">
-              Tilføj elementer (tjekliste, datatabel, graf, beregner eller note) eller en simulation for
-              at se en forhåndsvisning af elevernes arbejdsområde.
+              {t("empty")}
             </p>
           ) : expanded ? (
-            <p className="px-4 py-6 text-center text-xs text-slate-400">Åbnet i fuld skærm.</p>
+            <p className="px-4 py-6 text-center text-xs text-slate-400">{t("expanded")}</p>
           ) : (
-            <PreviewBody artefactId={artefactId} sim={sim} defs={defs} materials={materials} activityId={activityId} />
+            <PreviewBody artefactId={artefactId} sim={sim} defs={defs} materials={materials} activityId={activityId} language={language} />
           )}
         </div>
       )}
 
       <PreviewModal open={expanded} onOpenChange={setExpanded}>
-        <PreviewBody artefactId={artefactId} sim={sim} defs={defs} materials={materials} activityId={activityId} />
+        <PreviewBody artefactId={artefactId} sim={sim} defs={defs} materials={materials} activityId={activityId} language={language} />
       </PreviewModal>
     </div>
   );
@@ -138,22 +143,31 @@ function PreviewBody({
   defs,
   materials,
   activityId,
+  language,
 }: {
   artefactId?: string | null;
   sim: ArtefactSummary | null;
   defs: ActivityElementDefs;
   materials: MaterialRef[];
   activityId?: string;
+  language?: string;
 }) {
+  // Read BEFORE the provider below: this note is the TEACHER's chrome, so it
+  // follows the teacher's own language, not the activity's.
+  const t = useT("ActivityPreview");
+  // No `syncHtmlLang`: the page around the preview is the teacher's, not the
+  // student's — only the embedded workspace switches language.
   return (
+    <LocaleProvider locale={toLocale(language)}>
     <HumanToolEventsProvider>
       {artefactId && !SANDBOX_ORIGIN ? (
         <div className="flex items-start gap-2.5 border-b border-slate-200 px-4 py-3 text-xs text-slate-500">
           <SimThumbnail id={sim?.id ?? artefactId} displayName={sim?.displayName ?? artefactId} thumbnail={sim?.thumbnail} />
           <span>
-            <span className="font-medium text-slate-700">{sim?.displayName ?? artefactId}</span>{" "}
-            simulation attached. The live simulation appears here once the sandbox service is configured
-            for this environment.
+            {t.rich("simAttached", {
+              name: sim?.displayName ?? artefactId,
+              b: (chunks) => <span className="font-medium text-slate-700">{chunks}</span>,
+            })}
           </span>
         </div>
       ) : null}
@@ -182,6 +196,7 @@ function PreviewBody({
         documentViewerRole="teacher"
       />
     </HumanToolEventsProvider>
+    </LocaleProvider>
   );
 }
 
@@ -205,6 +220,7 @@ function PreviewModal({
   onOpenChange: (open: boolean) => void;
   children: ReactNode;
 }) {
+  const t = useT("ActivityPreview");
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -215,10 +231,10 @@ function PreviewModal({
         >
           <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2.5">
             <Dialog.Title className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
-              <Eye className="h-4 w-4 text-slate-500" /> Preview — what students see
+              <Eye className="h-4 w-4 text-slate-500" /> {t("title")}
             </Dialog.Title>
             <Dialog.Close
-              aria-label="Close"
+              aria-label={t("close")}
               className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
             >
               <X className="h-4 w-4" />

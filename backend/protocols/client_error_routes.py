@@ -43,11 +43,13 @@ from pydantic import BaseModel, Field
 
 from auth.group_rate_limit import RateLimitExceeded, TokenBucketRateLimiter
 from observability.client_error import (
+    ENV_KIND,
     KINDS,
     MAX_MESSAGE_CHARS,
     MAX_STACK_CHARS,
     MAX_URL_CHARS,
     ROLES,
+    emit_client_env,
     emit_client_error,
 )
 
@@ -59,6 +61,12 @@ router = APIRouter(prefix="/api/client-errors", tags=["client-errors"])
 # reporter caps itself at 10 per page load, so this tolerates a teacher
 # reloading a genuinely broken page twice and still refuses a runaway client.
 _limiter = TokenBucketRateLimiter(capacity=30, refill_seconds=300.0)
+
+# A SEPARATE bucket for ``kind: "env"`` beacons (screen-size slice, 2026-09-30).
+# One arrives per page load, and a classroom sits behind one school NAT address:
+# sharing the error bucket would let thirty students opening a lesson spend the
+# budget a real crash report then needs. Sized for a class reloading a few times.
+_env_limiter = TokenBucketRateLimiter(capacity=300, refill_seconds=300.0)
 
 
 def _client_ip(request: Request) -> str:
@@ -87,6 +95,21 @@ class ClientErrorRequest(BaseModel):
     stack: str = Field(default="", max_length=MAX_STACK_CHARS * 4)
     url: str = Field(default="", max_length=MAX_URL_CHARS * 4)
     role: str = Field(default="anon", max_length=16)
+    # 1.1.138 M0 — all optional, so an older client (or a tab that outlived the
+    # deploy that added them) still reports. Shape-checked in the emitter.
+    buildId: str | None = Field(default=None, max_length=128)  # wire name (camelCase)
+    previousBuildId: str | None = Field(default=None, max_length=128)
+    autoReloaded: bool | None = None
+    afterAutoReload: bool | None = None
+    # kind == "env" only (screen-size slice, 2026-09-30). Loosely typed and
+    # clamped in ``emit_client_env``: a nonsense number is clamped, not a 422.
+    viewportW: float | None = None
+    viewportH: float | None = None
+    screenW: float | None = None
+    screenH: float | None = None
+    dpr: float | None = None
+    pointer: str | None = Field(default=None, max_length=16)
+    surface: str | None = Field(default=None, max_length=16)
 
     model_config = {"extra": "ignore"}
 
@@ -99,14 +122,31 @@ async def post_client_error(body: ClientErrorRequest, request: Request) -> None:
     ``Retry-After``) is the only rejection, and it is the frontend's signal to
     stop reporting for this page load.
     """
+    is_env = body.kind == ENV_KIND
     try:
-        _limiter.check(_client_ip(request))
+        (_env_limiter if is_env else _limiter).check(_client_ip(request))
     except RateLimitExceeded as exc:
         raise HTTPException(
             status_code=429,
             detail=f"rate limit exceeded; retry after {exc.retry_after_seconds}s",
             headers={"Retry-After": str(exc.retry_after_seconds)},
         ) from exc
+
+    if is_env:
+        # A screen size, not an error: its own log id, and no user agent, path,
+        # role or id — a screen size is fine, a fingerprint is not (ADR-001).
+        # emit_client_env has no parameter for any of them.
+        emit_client_env(
+            viewport_w=body.viewportW,
+            viewport_h=body.viewportH,
+            screen_w=body.screenW,
+            screen_h=body.screenH,
+            dpr=body.dpr,
+            pointer=body.pointer,
+            surface=body.surface,
+            build_id=body.buildId,
+        )
+        return None
 
     kind = body.kind if body.kind in KINDS else "render"
     role = body.role if body.role in ROLES else "anon"
@@ -121,6 +161,10 @@ async def post_client_error(body: ClientErrorRequest, request: Request) -> None:
             # From the header, not the body: a field the caller cannot choose is
             # worth more than one it can, on an endpoint with no auth.
             user_agent=request.headers.get("user-agent", ""),
+            build_id=body.buildId,
+            previous_build_id=body.previousBuildId,
+            auto_reloaded=body.autoReloaded,
+            after_auto_reload=body.afterAutoReload,
         )
     except Exception as exc:  # pragma: no cover - emit_client_error never raises
         # Belt and braces. The one thing this endpoint must never do is fail.

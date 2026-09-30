@@ -29,6 +29,7 @@ vi.mock("@/hooks/useHumanToolEvents", () => ({
   useHumanToolEvents: () => ({ dispatch: dispatchSpy }),
 }));
 
+import { LocaleProvider } from "@/i18n";
 import { GenericArtefactFrame, type ActivityArtefact } from "../GenericArtefactFrame";
 
 const ARTEFACT: ActivityArtefact = { id: "boldkast", displayName: "Boldkast", artefactPath: "boldkast/v1" };
@@ -50,6 +51,29 @@ describe("GenericArtefactFrame", () => {
     expect(frameSpy).toHaveBeenCalledWith(
       expect.objectContaining({ artefactPath: "boldkast/v1", title: "Boldkast" }),
     );
+  });
+
+  it("hands the sim the activity's locale in its host context (1.1.108 rule 5)", () => {
+    render(
+      <LocaleProvider locale="en">
+        <GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={ARTEFACT} sessionId="s1" />
+      </LocaleProvider>,
+    );
+    expect(frameSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ hostContext: expect.objectContaining({ locale: "en" }) }),
+    );
+  });
+
+  it("defaults the sim to Danish with no provider and when the surface is bilingual", () => {
+    render(<GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={ARTEFACT} sessionId="s1" />);
+    expect(frameSpy.mock.calls.at(-1)?.[0].hostContext).toMatchObject({ locale: "da" });
+    frameSpy.mockClear();
+    render(
+      <LocaleProvider locale="bilingual">
+        <GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={ARTEFACT} sessionId="s1" />
+      </LocaleProvider>,
+    );
+    expect(frameSpy.mock.calls.at(-1)?.[0].hostContext).toMatchObject({ locale: "da" });
   });
 
   it("pushes a non-noise event to the tutor with the FULL structured content", () => {

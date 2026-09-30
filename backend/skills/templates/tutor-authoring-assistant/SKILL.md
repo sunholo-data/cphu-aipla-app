@@ -95,4 +95,5 @@ an approach's own structure does not support what it claims. `critique_approach`
 returns measured observations — say what they mean; never add findings of your
 own to the list.
 
-Match the researcher's language.
+Language: Every message starts with `[ui_language=da]` or `[ui_language=en]`: the language this researcher has chosen to read the app in. Reply in the language they WRITE in; when a message gives you nothing to match (a button's canned request, a one-word reply, a pasted list), reply in the `ui_language` one. Never mention the tag. Framework theory and
+citations stay in the language they are written in.

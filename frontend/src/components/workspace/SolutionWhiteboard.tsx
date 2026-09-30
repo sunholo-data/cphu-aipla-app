@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { getStroke } from "perfect-freehand";
 import { Check, Download, Eraser, PenLine, RotateCcw, Trash2, Type } from "lucide-react";
 
+import { useT } from "@/i18n";
 import { triggerDownload } from "@/lib/download";
 
 /**
@@ -56,6 +57,7 @@ function strokePath(s: Stroke): Path2D {
 }
 
 export function SolutionWhiteboard({ onAdd }: { onAdd: (file: File) => void }) {
+  const t = useT("SolutionWhiteboard");
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const currentRef = useRef<Stroke | null>(null);
   const dprRef = useRef(1);
@@ -105,7 +107,7 @@ export function SolutionWhiteboard({ onAdd }: { onAdd: (file: File) => void }) {
   const down = (e: React.PointerEvent) => {
     if (tool === "text") {
       const [x, y] = point(e);
-      const text = window.prompt("Tekst (fx F_g eller v₀ = 5 m/s)")?.trim();
+      const text = window.prompt(t("textPrompt"))?.trim();
       if (text) setItems((arr) => [...arr, { kind: "text", x, y, color: colour, text }]);
       return;
     }
@@ -156,25 +158,25 @@ export function SolutionWhiteboard({ onAdd }: { onAdd: (file: File) => void }) {
   // used to be, on the assumption the student was drawing page 2 next — but
   // that silently destroyed the far more common case, revising the diagram you
   // just sent. "Ryd" is one click away when clearing IS what they want.
-  const add = () => composite((blob) => onAdd(new File([blob], `tegning-${Date.now()}.png`, { type: "image/png" })));
+  const add = () => composite((blob) => onAdd(new File([blob], `${t("fileBase")}-${Date.now()}.png`, { type: "image/png" })));
 
   // Download the drawing (1.1.73 M3). Before this, a drawing existed only as a
   // chat attachment: the student could not keep it, and after a reload it was
   // not recoverable at all (restored history carries no image bytes).
-  const download = () => composite((blob) => triggerDownload(blob, `tegning-${stamp()}.png`));
+  const download = () => composite((blob) => triggerDownload(blob, `${t("fileBase")}-${stamp()}.png`));
 
   const hasInk = items.length > 0;
 
   return (
     <div className="flex flex-col gap-2 rounded-md border border-border p-2">
-      <div className="flex flex-wrap items-center gap-1" role="toolbar" aria-label="Tegneværktøjer">
-        <ToolBtn label="Pen" active={tool === "pen"} onClick={() => setTool("pen")}>
+      <div className="flex flex-wrap items-center gap-1" role="toolbar" aria-label={t("toolbar")}>
+        <ToolBtn label={t("pen")} active={tool === "pen"} onClick={() => setTool("pen")}>
           <PenLine className="h-4 w-4" aria-hidden="true" />
         </ToolBtn>
-        <ToolBtn label="Tekst" active={tool === "text"} onClick={() => setTool("text")}>
+        <ToolBtn label={t("text")} active={tool === "text"} onClick={() => setTool("text")}>
           <Type className="h-4 w-4" aria-hidden="true" />
         </ToolBtn>
-        <ToolBtn label="Viskelæder" active={tool === "eraser"} onClick={() => setTool("eraser")}>
+        <ToolBtn label={t("eraser")} active={tool === "eraser"} onClick={() => setTool("eraser")}>
           <Eraser className="h-4 w-4" aria-hidden="true" />
         </ToolBtn>
         <span className="mx-1 h-4 w-px bg-border" />
@@ -182,7 +184,7 @@ export function SolutionWhiteboard({ onAdd }: { onAdd: (file: File) => void }) {
           <button
             key={col}
             type="button"
-            aria-label={`Farve ${col}`}
+            aria-label={t("colour", { colour: col })}
             aria-pressed={tool !== "eraser" && colour === col}
             onClick={() => {
               if (tool === "eraser") setTool("pen");
@@ -195,16 +197,16 @@ export function SolutionWhiteboard({ onAdd }: { onAdd: (file: File) => void }) {
           />
         ))}
         <span className="mx-1 h-4 w-px bg-border" />
-        <ToolBtn label="Fortryd" active={false} onClick={() => setItems((s) => s.slice(0, -1))}>
+        <ToolBtn label={t("undo")} active={false} onClick={() => setItems((s) => s.slice(0, -1))}>
           <RotateCcw className="h-4 w-4" aria-hidden="true" />
         </ToolBtn>
-        <ToolBtn label="Ryd" active={false} onClick={() => setItems([])}>
+        <ToolBtn label={t("clear")} active={false} onClick={() => setItems([])}>
           <Trash2 className="h-4 w-4" aria-hidden="true" />
         </ToolBtn>
       </div>
 
       {tool === "text" ? (
-        <p className="text-xs text-muted-foreground">Tryk på tavlen for at placere en tekst (fx en formel eller et navn).</p>
+        <p className="text-xs text-muted-foreground">{t("textHint")}</p>
       ) : null}
 
       <canvas
@@ -213,7 +215,7 @@ export function SolutionWhiteboard({ onAdd }: { onAdd: (file: File) => void }) {
         onPointerMove={move}
         onPointerUp={up}
         onPointerLeave={up}
-        aria-label="Tegneflade"
+        aria-label={t("canvas")}
         className="h-64 w-full touch-none rounded border border-border bg-white"
       />
 
@@ -224,7 +226,7 @@ export function SolutionWhiteboard({ onAdd }: { onAdd: (file: File) => void }) {
           disabled={!hasInk}
           className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-sm text-foreground hover:bg-muted disabled:opacity-50"
         >
-          <Download className="h-4 w-4" aria-hidden="true" /> Hent tegning
+          <Download className="h-4 w-4" aria-hidden="true" /> {t("download")}
         </button>
         <button
           type="button"
@@ -232,7 +234,7 @@ export function SolutionWhiteboard({ onAdd }: { onAdd: (file: File) => void }) {
           disabled={!hasInk}
           className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
         >
-          <Check className="h-4 w-4" aria-hidden="true" /> Tilføj tegning
+          <Check className="h-4 w-4" aria-hidden="true" /> {t("add")}
         </button>
       </div>
     </div>

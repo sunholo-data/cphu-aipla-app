@@ -1,9 +1,22 @@
+import { resolveBuildId } from './build-id.mjs'
+
+// 1.1.138 M2 — one id per build (see build-id.mjs). Written back to process.env
+// so it is resolved ONCE: `next build` can re-load this file in its webpack
+// build workers, which inherit the parent's environment, and a second random
+// fallback there would give the client and server bundles different ids.
+process.env.AIPLA_BUILD_ID = resolveBuildId()
+const BUILD_ID = process.env.AIPLA_BUILD_ID
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
   reactStrictMode: true,
+  generateBuildId: async () => BUILD_ID,
+  deploymentId: BUILD_ID,
   env: {
     NEXT_PUBLIC_BACKEND_URL: process.env.NEXT_PUBLIC_BACKEND_URL,
+    // Which build a crashing tab was running (1.1.138 M0) — lib/staleDeployReload.
+    NEXT_PUBLIC_BUILD_ID: BUILD_ID,
   },
   serverRuntimeConfig: {
     MAILGUN_WEBHOOK_SECRET: process.env.MAILGUN_WEBHOOK_SECRET,

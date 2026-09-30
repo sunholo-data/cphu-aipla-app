@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { ZoomableImage } from "@/components/chat/media/ZoomableImage";
+import { useT } from "@/i18n";
 import { fetchDocumentObjectUrl } from "@/lib/documentApi";
 
 // Bundle the pdf.js worker locally (no external CDN fetch — ADR-013 / CSP).
@@ -56,6 +57,7 @@ export function DocumentViewer({
   role?: "student" | "teacher";
   onActiveChange?: (docId: string) => void;
 }) {
+  const t = useT("DocumentViewer");
   const [activeIdx, setActiveIdx] = useState(0);
   const active = files[activeIdx] ?? files[0];
 
@@ -66,9 +68,9 @@ export function DocumentViewer({
   if (!active) return null;
 
   return (
-    <section className="flex min-h-0 flex-col gap-2 p-2" aria-label="Document viewer">
+    <section className="flex min-h-0 flex-col gap-2 p-2" aria-label={t("label")}>
       {files.length > 1 ? (
-        <div className="flex flex-wrap gap-1" role="tablist" aria-label="Files">
+        <div className="flex flex-wrap gap-1" role="tablist" aria-label={t("files")}>
           {files.map((f, i) => (
             <button
               key={f.docId}
@@ -94,6 +96,7 @@ export function DocumentViewer({
 }
 
 function ActiveFileView({ file, role }: { file: ViewerFile; role: "student" | "teacher" }) {
+  const t = useT("DocumentViewer");
   const [state, setState] = useState<
     { kind: "loading" } | { kind: "ready"; url: string } | { kind: "error" }
   >({ kind: "loading" });
@@ -128,7 +131,7 @@ function ActiveFileView({ file, role }: { file: ViewerFile; role: "student" | "t
     return (
       <div className="flex items-center gap-1.5 rounded border border-border bg-background px-3 py-2 text-xs text-muted-foreground">
         <X className="h-4 w-4 shrink-0" aria-hidden="true" />
-        Couldn&apos;t open {file.name}.
+        {t("openFailed", { name: file.name })}
       </div>
     );
   }
@@ -153,12 +156,13 @@ function ActiveFileView({ file, role }: { file: ViewerFile; role: "student" | "t
       className="flex items-center gap-1.5 rounded border border-border px-3 py-2 text-sm hover:bg-muted"
     >
       <Download className="h-4 w-4" aria-hidden="true" />
-      Download {file.name}
+      {t("downloadFile", { name: file.name })}
     </a>
   );
 }
 
 function PdfView({ url, name }: { url: string; name: string }) {
+  const t = useT("DocumentViewer");
   const [numPages, setNumPages] = useState(0);
   const [page, setPage] = useState(1);
   const [scale, setScale] = useState(1);
@@ -178,7 +182,7 @@ function PdfView({ url, name }: { url: string; name: string }) {
               <Loader2 className="h-5 w-5 animate-spin" aria-hidden="true" />
             </div>
           }
-          error={<p className="p-4 text-sm text-destructive">Couldn&apos;t render this PDF.</p>}
+          error={<p className="p-4 text-sm text-destructive">{t("pdfFailed")}</p>}
         >
           <Page pageNumber={page} scale={scale} renderTextLayer renderAnnotationLayer />
         </Document>
@@ -187,7 +191,7 @@ function PdfView({ url, name }: { url: string; name: string }) {
         <div className="flex items-center gap-1">
           <button
             type="button"
-            aria-label="Previous page"
+            aria-label={t("prevPage")}
             disabled={page <= 1}
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             className="rounded p-1 hover:bg-muted disabled:opacity-40"
@@ -199,7 +203,7 @@ function PdfView({ url, name }: { url: string; name: string }) {
           </span>
           <button
             type="button"
-            aria-label="Next page"
+            aria-label={t("nextPage")}
             disabled={numPages > 0 && page >= numPages}
             onClick={() => setPage((p) => (numPages ? Math.min(numPages, p + 1) : p + 1))}
             className="rounded p-1 hover:bg-muted disabled:opacity-40"
@@ -210,7 +214,7 @@ function PdfView({ url, name }: { url: string; name: string }) {
         <div className="flex items-center gap-1">
           <button
             type="button"
-            aria-label="Zoom out"
+            aria-label={t("zoomOut")}
             onClick={() => setScale((s) => Math.max(0.5, Math.round((s - 0.1) * 10) / 10))}
             className="rounded p-1 hover:bg-muted"
           >
@@ -219,7 +223,7 @@ function PdfView({ url, name }: { url: string; name: string }) {
           <span className="tabular-nums">{Math.round(scale * 100)}%</span>
           <button
             type="button"
-            aria-label="Zoom in"
+            aria-label={t("zoomIn")}
             onClick={() => setScale((s) => Math.min(3, Math.round((s + 0.1) * 10) / 10))}
             className="rounded p-1 hover:bg-muted"
           >
@@ -227,13 +231,13 @@ function PdfView({ url, name }: { url: string; name: string }) {
           </button>
           <button
             type="button"
-            aria-label="Fullscreen"
+            aria-label={t("fullscreen")}
             onClick={() => wrapRef.current?.requestFullscreen?.()}
             className="rounded p-1 hover:bg-muted"
           >
             <Maximize2 className="h-4 w-4" aria-hidden="true" />
           </button>
-          <a href={url} download={name} aria-label="Download" className="rounded p-1 hover:bg-muted">
+          <a href={url} download={name} aria-label={t("download")} className="rounded p-1 hover:bg-muted">
             <Download className="h-4 w-4" aria-hidden="true" />
           </a>
         </div>

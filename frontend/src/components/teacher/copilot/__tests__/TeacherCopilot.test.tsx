@@ -1,4 +1,6 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { LocaleProvider } from "@/i18n";
 import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 
 // The test runner's bundled localStorage is unreliable here; back it with a
@@ -16,6 +18,14 @@ const fakeStorage: Storage = {
 import { TeacherCopilot } from "../TeacherCopilot";
 import type { ProposalDescriptor } from "../types";
 import type { ToolCallState, UseSkillAgentReturn } from "@/hooks/useSkillAgent";
+
+// 1.1.108 M2 — these tests assert the English copy; a teacher's default
+// language is Danish, so render inside an English locale.
+function render(ui: ReactElement, options?: Parameters<typeof rtlRender>[1]) {
+  const wrap = (node: ReactElement) => <LocaleProvider locale="en">{node}</LocaleProvider>;
+  const r = rtlRender(wrap(ui), options);
+  return { ...r, rerender: (next: ReactElement) => r.rerender(wrap(next)) };
+}
 
 vi.mock("@/providers/AGUIProvider", () => ({
   AGUIProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
@@ -111,7 +121,8 @@ describe("TeacherCopilot (shared shell)", () => {
     fireEvent.change(input, { target: { value: "make Fysik 9A" } });
     fireEvent.submit(input.closest("form")!);
     await waitFor(() => expect(sendMessage).toHaveBeenCalledTimes(1));
-    expect(sendMessage.mock.calls[0]![0]).toBe("[class_id=c1] make Fysik 9A");
+    // 1.1.108 — the teacher's language rides first, then the surface's scope.
+    expect(sendMessage.mock.calls[0]![0]).toBe("[ui_language=en] [class_id=c1] make Fysik 9A");
     expect(input.value).toBe("");
   });
 
@@ -190,6 +201,13 @@ describe("TeacherCopilot (shared shell)", () => {
   it("persists a threadId on mount (for cross-visit resume)", () => {
     render(<TeacherCopilot {...config()} />);
     expect(window.localStorage.getItem("teacherCopilot:manage-class")).toBeTruthy();
+  });
+
+  it("never shows the language tag in the teacher's own bubble (1.1.108)", () => {
+    hook = { ...defaultHook, messages: [{ id: "m1", role: "user", content: "[ui_language=en] what now?" }] as never };
+    render(<TeacherCopilot {...config()} />);
+    expect(screen.getByText("what now?")).toBeInTheDocument();
+    expect(screen.queryByText(/ui_language/)).not.toBeInTheDocument();
   });
 
   it("resumes: prior messages render before the live ones", () => {

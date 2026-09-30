@@ -23,6 +23,7 @@ import { ReadAloudButton } from "@/components/chat/ReadAloudButton";
 import { formatRelativeTime, formatAbsoluteTime } from "@/lib/relativeTime";
 import { useAutoReadAloud } from "@/hooks/useAutoReadAloud";
 import { useVoiceConfig } from "@/hooks/useVoiceConfig";
+import { useLocaleMode, useT } from "@/i18n";
 import { useVoiceLang } from "@/hooks/useVoiceLang";
 import { ToolCallChip } from "@/components/chat/ToolCallChip";
 import { ChecklistMarkCard, parseChecklistMarkResult } from "@/components/chat/ChecklistMarkCard";
@@ -177,6 +178,7 @@ export const MessageBubble = React.memo(function MessageBubble({
   // read-aloud button can route through Cloud TTS when configured (vs
   // the browser-native default). Cached per-skill across the page
   // session in useVoiceConfig.
+  const tBubble = useT("MessageBubble");
   const voiceConfig = useVoiceConfig(skillId, activityId);
   // 1.1.11 auto-read: when ON, every assistant message auto-speaks.
   // We only trigger for assistant role; user/system bubbles never
@@ -210,8 +212,12 @@ export const MessageBubble = React.memo(function MessageBubble({
   // ("3 days ago") so days are never ambiguous, with the full timestamp on
   // hover.
   const tsValue = message.timestamp ?? Date.now(); // seconds (history) or ms (live) — util normalises
-  const time = formatRelativeTime(tsValue);
-  const timeFull = formatAbsoluteTime(tsValue);
+  // 1.1.108: the activity's language, not the browser's. A bilingual surface has
+  // no single language to format in, so it takes the platform default.
+  const localeMode = useLocaleMode();
+  const timeLocale = localeMode === "bilingual" ? "da" : localeMode;
+  const time = formatRelativeTime(tsValue, Date.now(), timeLocale);
+  const timeFull = formatAbsoluteTime(tsValue, timeLocale);
 
   const A2UI_TOOL_NAME = "send_a2ui_json_to_client";
 
@@ -389,7 +395,7 @@ export const MessageBubble = React.memo(function MessageBubble({
                 <ZoomableImage
                   key={i}
                   src={`data:${img.mimeType};base64,${img.data}`}
-                  alt="attachment"
+                  alt={tBubble("attachmentAlt")}
                   triggerClassName="h-24 w-24 rounded-md border object-cover"
                 />
               ))}

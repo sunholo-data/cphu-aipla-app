@@ -11,7 +11,7 @@
  *    saw an empty strip under a full table) and the window is selectable
  */
 
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -20,6 +20,16 @@ import * as teacherApi from "@/lib/teacherApi";
 import * as insightsApi from "@/lib/insightsApi";
 import * as researcherHook from "@/hooks/useIsResearcher";
 import type { ClassPayload } from "@/lib/teacherApi";
+import { LocaleProvider } from "@/i18n";
+
+// 1.1.108 M2 — these tests assert the English copy; the teacher UI defaults to
+// Danish (the teacher's own DA | EN choice), so render inside an English locale.
+function EnglishLocale({ children }: { children: React.ReactNode }) {
+  return <LocaleProvider locale="en">{children}</LocaleProvider>;
+}
+const render = ((ui: React.ReactElement, options?: Parameters<typeof rtlRender>[1]) =>
+  rtlRender(ui, { wrapper: EnglishLocale, ...options })) as typeof rtlRender;
+
 
 function makeClass(overrides: Partial<ClassPayload> = {}): ClassPayload {
   return {

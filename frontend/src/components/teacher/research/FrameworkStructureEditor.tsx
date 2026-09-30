@@ -9,6 +9,7 @@ import {
   previewFrameworkStructure,
 } from "@/lib/teacherApi";
 import { RegisterPicker } from "@/components/teacher/research/RegisterPicker";
+import { useT } from "@/i18n";
 
 /**
  * Edit a teaching framework's THEORY — constructs, observable behaviours,
@@ -121,6 +122,7 @@ function ListEditor({
   onChange: (next: string[]) => void;
   addLabel: string;
 }) {
+  const t = useT("FrameworkStructureEditor");
   return (
     <div>
       <p className="mb-1 text-xs font-medium">{label}</p>
@@ -129,14 +131,14 @@ function ListEditor({
         {items.map((text, i) => (
           <div key={`${idPrefix}-${i}`} className="flex gap-1.5">
             <input
-              aria-label={`${label} ${i + 1}`}
+              aria-label={t("itemAria", { label, n: i + 1 })}
               value={text}
-              onChange={(e) => onChange(items.map((t, j) => (j === i ? e.target.value : t)))}
+              onChange={(e) => onChange(items.map((x, j) => (j === i ? e.target.value : x)))}
               className="w-full rounded border bg-background px-2 py-1 text-sm"
             />
             <button
               type="button"
-              aria-label={`Remove ${label.toLowerCase()} ${i + 1}`}
+              aria-label={t("removeItem", { label: label.toLowerCase(), n: i + 1 })}
               onClick={() => onChange(items.filter((_, j) => j !== i))}
               className="shrink-0 rounded border px-2 hover:bg-muted"
             >
@@ -174,6 +176,7 @@ export function FrameworkStructureEditor({
   busy: boolean;
   error: string | null;
 }) {
+  const t = useT("FrameworkStructureEditor");
   const [draft, setDraft] = useState<FrameworkStructure>(() => structureOf(framework));
   const [preview, setPreview] = useState(framework.instruction);
   const [previewError, setPreviewError] = useState(false);
@@ -192,7 +195,7 @@ export function FrameworkStructureEditor({
   // preview for text the researcher has since changed.
   useEffect(() => {
     const mine = ++seq.current;
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       previewFrameworkStructure(framework.id, draft)
         .then((r) => {
           if (mine !== seq.current) return;
@@ -204,7 +207,7 @@ export function FrameworkStructureEditor({
           setPreviewError(true);
         });
     }, PREVIEW_DEBOUNCE_MS);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [draft, framework.id]);
 
   const unvouched = useMemo(
@@ -217,12 +220,8 @@ export function FrameworkStructureEditor({
     <div className="mt-4 space-y-5 border-t pt-4">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h3 className="text-sm font-medium">Teaching approach</h3>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Edit the constructs themselves — the moves this approach is made of. Fixed code turns
-            them into the tutor&rsquo;s instructions, copying each behaviour word for word, so what
-            the tutor is told stays checkable line by line against the sources below.
-          </p>
+          <h3 className="text-sm font-medium">{t("heading")}</h3>
+          <p className="mt-0.5 text-xs text-muted-foreground">{t("intro")}</p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
           {/* Two different things, and the labels have to say which is which.
@@ -236,7 +235,7 @@ export function FrameworkStructureEditor({
             className="flex items-center gap-1.5 rounded border px-2 py-1 text-xs hover:bg-muted"
           >
             <RotateCcw className="h-3 w-3" aria-hidden />
-            Reset the form to published
+            {t("resetForm")}
           </button>
           {onRevert ? (
             <button
@@ -244,7 +243,7 @@ export function FrameworkStructureEditor({
               onClick={onRevert}
               className="flex items-center gap-1.5 rounded border px-2 py-1 text-xs hover:bg-muted"
             >
-              Discard saved edits
+              {t("discard")}
             </button>
           ) : null}
         </div>
@@ -252,28 +251,28 @@ export function FrameworkStructureEditor({
 
       <Field
         id={`summary-${framework.id}`}
-        label="Summary"
+        label={t("summary")}
         value={draft.summary}
         onChange={(v) => update({ summary: v })}
         rows={3}
-        hint="Shown to teachers choosing this approach, and on the public page."
+        hint={t("summaryHint")}
       />
 
       {/* ── constructs ── */}
       <div className="space-y-4">
-        <p className="text-xs font-medium">What the theory is made of</p>
+        <p className="text-xs font-medium">{t("constructsHeading")}</p>
         {draft.constructs.map((c, i) => (
           <div key={`c-${i}`} className="space-y-3 rounded-lg border bg-muted/20 p-3">
             <div className="flex items-center gap-2">
               <input
-                aria-label={`Construct ${i + 1} name`}
+                aria-label={t("constructName", { n: i + 1 })}
                 value={c.name}
                 onChange={(e) => patchConstruct(i, { name: e.target.value })}
                 className="w-full rounded border bg-background px-2 py-1 text-sm font-medium"
               />
               <button
                 type="button"
-                aria-label={`Remove construct ${c.name || i + 1}`}
+                aria-label={t("removeConstruct", { name: c.name || i + 1 })}
                 onClick={() => update({ constructs: draft.constructs.filter((_, j) => j !== i) })}
                 className="shrink-0 rounded border px-2 py-1 hover:bg-muted"
               >
@@ -283,17 +282,17 @@ export function FrameworkStructureEditor({
 
             <Field
               id={`c-summary-${framework.id}-${i}`}
-              label="What it is"
+              label={t("whatItIs")}
               value={c.summary ?? ""}
               onChange={(v) => patchConstruct(i, { summary: v })}
             />
 
             <ListEditor
               idPrefix={`beh-${i}`}
-              label="Behaviours"
-              hint="Observable and promptable — “offer a choice of route”, not “support autonomy”."
+              label={t("behaviours")}
+              hint={t("behavioursHint")}
               items={c.behaviours.map((b) => b.text)}
-              addLabel="Add behaviour"
+              addLabel={t("addBehaviour")}
               onChange={(next) =>
                 patchConstruct(i, {
                   // Preserve each behaviour's `dimension` across an edit: it is
@@ -308,19 +307,19 @@ export function FrameworkStructureEditor({
 
             <ListEditor
               idPrefix={`avoid-${i}`}
-              label="Avoid"
-              hint="The moves this framework is defined against — usually an LLM tutor's defaults."
+              label={t("avoid")}
+              hint={t("avoidHint")}
               items={c.avoid}
-              addLabel="Add something to avoid"
+              addLabel={t("addAvoid")}
               onChange={(next) => patchConstruct(i, { avoid: next })}
             />
 
             <Field
               id={`c-eval-${framework.id}-${i}`}
-              label="How you would tell whether it worked"
+              label={t("evaluation")}
               value={c.evaluationHint ?? ""}
               onChange={(v) => patchConstruct(i, { evaluationHint: v })}
-              hint="Read by the scoring rubrics — say what to look for in a transcript."
+              hint={t("evaluationHint")}
             />
           </div>
         ))}
@@ -334,17 +333,15 @@ export function FrameworkStructureEditor({
           className="flex items-center gap-1 rounded border px-2 py-1 text-xs hover:bg-muted"
         >
           <Plus className="h-3 w-3" aria-hidden />
-          Add construct
+          {t("addConstruct")}
         </button>
       </div>
 
       {/* ── references ── */}
       <div className="space-y-3">
         <div>
-          <p className="text-xs font-medium">References</p>
-          <p className="mt-0.5 text-[11px] text-muted-foreground">
-            Every source needs the initials of the person who checked it. Never a model&apos;s.
-          </p>
+          <p className="text-xs font-medium">{t("references")}</p>
+          <p className="mt-0.5 text-[11px] text-muted-foreground">{t("referencesHint")}</p>
         </div>
         {draft.provenance.map((p, i) => (
           <div key={`p-${i}`} className="space-y-2 rounded-lg border bg-muted/20 p-3">
@@ -352,7 +349,7 @@ export function FrameworkStructureEditor({
               <div className="w-full">
                 <Field
                   id={`cite-${framework.id}-${i}`}
-                  label="Citation"
+                  label={t("citation")}
                   value={p.citation}
                   onChange={(v) =>
                     update({
@@ -365,7 +362,7 @@ export function FrameworkStructureEditor({
               </div>
               <button
                 type="button"
-                aria-label={`Remove reference ${i + 1}`}
+                aria-label={t("removeReference", { n: i + 1 })}
                 onClick={() => update({ provenance: draft.provenance.filter((_, j) => j !== i) })}
                 className="mt-5 shrink-0 rounded border px-2 py-1 hover:bg-muted"
               >
@@ -374,12 +371,12 @@ export function FrameworkStructureEditor({
             </div>
             <div>
               <label htmlFor={`vouch-${framework.id}-${i}`} className="mb-1 block text-xs font-medium">
-                Checked by
+                {t("checkedBy")}
               </label>
               <input
                 id={`vouch-${framework.id}-${i}`}
                 value={p.vouchedBy}
-                placeholder="Initials, e.g. AR"
+                placeholder={t("initialsPlaceholder")}
                 onChange={(e) =>
                   update({
                     provenance: draft.provenance.map((q, j): Citation =>
@@ -392,14 +389,14 @@ export function FrameworkStructureEditor({
             </div>
             <Field
               id={`note-${framework.id}-${i}`}
-              label="Note"
+              label={t("note")}
               value={p.note ?? ""}
               onChange={(v) =>
                 update({
                   provenance: draft.provenance.map((q, j): Citation => (j === i ? { ...q, note: v } : q)),
                 })
               }
-              hint="Which part you took, and anything a later reader would need to know."
+              hint={t("noteHint")}
             />
           </div>
         ))}
@@ -409,7 +406,7 @@ export function FrameworkStructureEditor({
           className="flex items-center gap-1 rounded border px-2 py-1 text-xs hover:bg-muted"
         >
           <Plus className="h-3 w-3" aria-hidden />
-          Add reference
+          {t("addReference")}
         </button>
       </div>
 
@@ -429,13 +426,8 @@ export function FrameworkStructureEditor({
 
       {/* ── live preview ── */}
       <div>
-        <p className="mb-1 text-xs font-medium">What the tutor will be told</p>
-        <p className="mb-2 text-[11px] text-muted-foreground">
-          Assembled from the constructs above by the same code that runs in the lesson — no AI, no
-          paraphrasing, and not an approximation. Every line below appears verbatim in one of the
-          fields above. Citations are not included: they are review metadata, never shown to the
-          tutor or the student.
-        </p>
+        <p className="mb-1 text-xs font-medium">{t("previewHeading")}</p>
+        <p className="mb-2 text-[11px] text-muted-foreground">{t("previewHint")}</p>
         <pre
           data-testid="structure-preview"
           className="max-h-80 overflow-auto whitespace-pre-wrap rounded border bg-muted/40 p-3 font-mono text-xs"
@@ -444,19 +436,19 @@ export function FrameworkStructureEditor({
         </pre>
         {previewError ? (
           <p className="mt-1 text-[11px] text-muted-foreground">
-            Could not refresh the preview — it may be behind your latest edit.
+            {t("previewFailed")}
           </p>
         ) : null}
       </div>
 
       {noConstructs ? (
         <p className="text-sm text-destructive">
-          A framework needs at least one construct. To go back to the published version, use Reset.
+          {t("needConstruct")}
         </p>
       ) : null}
       {unvouched ? (
         <p className="text-sm text-destructive">
-          Every reference needs a citation and the initials of whoever checked it.
+          {t("needCitation")}
         </p>
       ) : null}
       {error ? <p className="text-sm text-destructive">{error}</p> : null}
@@ -468,10 +460,10 @@ export function FrameworkStructureEditor({
           onClick={() => onSave(draft)}
           className="rounded bg-brand px-3 py-1.5 text-sm text-white disabled:opacity-50"
         >
-          {busy ? "Saving…" : "Save teaching approach"}
+          {busy ? t("saving") : t("save")}
         </button>
         <button type="button" onClick={onCancel} className="rounded border px-3 py-1.5 text-sm hover:bg-muted">
-          Cancel
+          {t("cancel")}
         </button>
       </div>
     </div>

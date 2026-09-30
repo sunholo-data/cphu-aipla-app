@@ -98,6 +98,12 @@ constructs:
       Is the critique component-specific and about appropriateness or
       sufficiency? A critique that says only "this is weak" reproduces the
       feedback the chapter names as unhelpful.
+    # BENCH-2 (2026-09-30): a classroom strategy run across a unit — worked
+    # strong and weak examples, pulled apart. Absent in all 39 CER-scored BENCH-1
+    # transcripts from all seven tutors, the CER tutor included, so scoring it
+    # in a single tutoring dialogue measured the criteria, not the tutor.
+    # JUDGE-ONLY: the tutor is still told to do it.
+    assessedIn: unit
   - name: rationale_for_explaining
     summary: >
       Students need to know why they are doing this or "the scientific
@@ -134,6 +140,9 @@ constructs:
     evaluationHint: >
       Did the student distinguish evidence from opinion in the everyday case
       before being asked to do it in the science one?
+    # BENCH-2: a unit-scale exercise (an everyday argument taken apart before
+    # the science one), absent in all 39 CER-scored BENCH-1 transcripts. JUDGE-ONLY.
+    assessedIn: unit
   - name: assess_and_feedback
     summary: >
       Feedback has to be specific enough to revise from. The chapter's base
@@ -152,7 +161,9 @@ constructs:
       - Telling the student only that the explanation is "good" or "weak" — the chapter names this as giving no guidance to improve.
       - Praising a claim that has no evidence attached.
     evaluationHint: >
-      Could the student act on this feedback without asking a follow-up
-      question? If the response names a component, says what is wrong with it,
-      and points at the fix, yes — that is the chapter's standard. Score the
-      three components separately; a holistic verdict hides which one failed.
+      Could the student act on this feedback without a follow-up question? A
+      spoken claim counts: when the student states one, does the tutor name the
+      missing or weak component — the evidence, or the principle linking it —
+      and send them back to supply it? That is this move; a rubric score need
+      not be said aloud. "Good" or "not quite" is the feedback the chapter calls
+      useless.

@@ -12,10 +12,10 @@
 #   4. no catalogue entry leaks its server-side tutorBlock to the browser
 #
 # Step 3 needs a teacher token; it is minted by mint-test-teacher-token.sh
-# (test-teacher@example.dk on dev and test). Prod has NO seeded test teacher, by
-# design — its password is in this repo. On prod pass TEACHER_EMAIL /
-# TEACHER_PASSWORD for a real account, or accept steps 1-2 plus
-# `make deploy-status` (prod's backend is test's tested digest, promoted).
+# (test-teacher@example.dk). The account exists on all three envs, prod included;
+# its password is in this repo, which is accepted: it is a test account holding
+# no student data (decided 2026-09-28). TEACHER_EMAIL / TEACHER_PASSWORD
+# override it for a real account.
 # A check that could not run is reported as SKIPPED, never as OK.
 set -uo pipefail
 

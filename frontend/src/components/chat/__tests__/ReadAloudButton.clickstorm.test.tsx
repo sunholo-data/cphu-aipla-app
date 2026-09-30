@@ -14,11 +14,24 @@
  * silently broke that file's own Cloud-TTS test, which mocks at a different
  * layer — a mock's blast radius is the file, not the describe block.
  */
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render as rtlRender, screen, type RenderOptions } from "@testing-library/react";
+import type { ReactElement, ReactNode } from "react";
+
+import { LocaleProvider } from "@/i18n";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ReadAloudButton } from "@/components/chat/ReadAloudButton";
 import { fetchWithAuth } from "@/lib/apiClient";
+
+// 1.1.108: these assertions are about behaviour, written against the English
+// labels — render under an English activity. The Danish default is covered by
+// the component's own `da` assertions / i18n tests.
+const EnglishActivity = ({ children }: { children: ReactNode }) => (
+  <LocaleProvider locale="en">{children}</LocaleProvider>
+);
+const render = (ui: ReactElement, options?: RenderOptions) =>
+  rtlRender(ui, { wrapper: EnglishActivity, ...options });
+
 
 vi.mock("@/lib/apiClient", () => ({
   fetchWithAuth: vi.fn(),

@@ -32,6 +32,7 @@ import {
   setClassVoiceSettings,
 } from "@/lib/teacherApi";
 import { cn } from "@/lib/utils";
+import { useT } from "@/i18n";
 
 interface Props {
   classId: string;
@@ -49,6 +50,7 @@ export function ClassVoiceSettingsPanel({
   initialRecording = false,
   onSaved,
 }: Props) {
+  const t = useT("ClassVoiceSettingsPanel");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast, showToast } = useToast();
@@ -75,13 +77,13 @@ export function ClassVoiceSettingsPanel({
         classId,
         which === "voiceInput" ? { voiceInputEnabled: next } : { recordingEnabled: next },
       );
-      showToast(next ? "Enabled" : "Disabled", 2000);
+      showToast(next ? t("enabled") : t("disabled"), 2000);
       onSaved();
     } catch (err) {
       // revert on failure
       if (which === "voiceInput") setVoiceInput(!next);
       else setRecording(!next);
-      setError(err instanceof Error ? err.message : "failed to save");
+      setError(err instanceof Error ? err.message : t("saveFailed"));
     } finally {
       setCapBusy(false);
     }
@@ -97,10 +99,10 @@ export function ClassVoiceSettingsPanel({
         provider: null,
       });
       setCleared(true);
-      showToast("Now using the tutor's voice", 2500);
+      showToast(t("usingTutorVoice"), 2500);
       onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "failed to clear");
+      setError(err instanceof Error ? err.message : t("clearFailed"));
     } finally {
       setSaving(false);
     }
@@ -113,11 +115,10 @@ export function ClassVoiceSettingsPanel({
     >
       <header className="flex flex-col gap-1">
         <h2 id="voice-settings-label" className="text-lg font-semibold">
-          Voice &amp; recording
+          {t("heading")}
         </h2>
         <p className="text-xs text-muted-foreground">
-          The tutor speaks in the voice that comes with it, chosen above.
-          These two switches set what students can do in this class.
+          {t("intro")}
         </p>
       </header>
 
@@ -127,8 +128,8 @@ export function ClassVoiceSettingsPanel({
         <CapabilityToggleCard
           id="cap-voice-input"
           icon={Mic}
-          label="Student voice input"
-          help="Let students talk-to-type — press the mic, speak, and it fills the box."
+          label={t("voiceInputLabel")}
+          help={t("voiceInputHelp")}
           checked={voiceInput}
           disabled={capBusy}
           onChange={(next) => void toggleCapability("voiceInput", next)}
@@ -137,8 +138,8 @@ export function ClassVoiceSettingsPanel({
           id="cap-recording"
           icon={CircleDot}
           tone="warning"
-          label="Record this class"
-          help="Capture the group's audio as a research record."
+          label={t("recordLabel")}
+          help={t("recordHelp")}
           checked={recording}
           disabled={capBusy}
           onChange={(next) => void toggleCapability("recording", next)}
@@ -150,9 +151,7 @@ export function ClassVoiceSettingsPanel({
               )}
             >
               <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              {recording
-                ? "Recording on — only keep this enabled while you hold signed consent for every participant."
-                : "Only enable if you hold signed consent forms for this class."}
+              {recording ? t("recordingOn") : t("recordingOff")}
             </span>
           }
         />
@@ -187,17 +186,17 @@ export function ClassVoiceSettingsPanel({
       {hasVoiceOverride ? (
         <div className="flex flex-col gap-2 rounded border border-dashed border-border bg-muted/30 p-3">
           <p className="text-xs text-muted-foreground">
-            This class has an older <strong className="font-medium">custom voice</strong>{" "}
-            saved
-            {initial?.voice ? (
-              <>
-                {" "}
-                (<code className="rounded bg-muted px-1">{initial.voice}</code>)
-              </>
-            ) : null}
-            , which overrides the voice of the tutor chosen above. Per-class
-            voice overrides are no longer editable here — clear it to use the
-            tutor&rsquo;s own voice.
+            {t.rich("legacyOverride", {
+              b: (chunks) => <strong className="font-medium">{chunks}</strong>,
+              // The voice id keeps its own <code>, as before the extraction.
+              voice: () =>
+                initial?.voice ? (
+                  <>
+                    {" "}
+                    (<code className="rounded bg-muted px-1">{initial.voice}</code>)
+                  </>
+                ) : null,
+            })}
           </p>
           <button
             type="button"
@@ -210,7 +209,7 @@ export function ClassVoiceSettingsPanel({
             ) : (
               <X className="h-4 w-4" aria-hidden="true" />
             )}
-            Use the tutor&rsquo;s voice
+            {t("useTutorVoice")}
           </button>
         </div>
       ) : null}

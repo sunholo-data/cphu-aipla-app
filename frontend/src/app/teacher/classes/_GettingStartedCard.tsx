@@ -6,32 +6,10 @@ import { Check, Circle, Copy, Rocket, X } from "lucide-react";
 
 import { type TeacherStagePayload, fetchTeacherStage } from "@/lib/teacherApi";
 import { STAGE_ORDER, type Stage } from "@/lib/onboardingStage";
+import { useT } from "@/i18n";
 
 /** 1.1.108 M4 — copy lives here, never inline in JSX. */
-const copy = {
-  title: "Getting started",
-  progress: (done: number, total: number) => `${done} of ${total}`,
-  steps: {
-    createClass: "Create a class",
-    mintCode: "Mint a group code",
-    addActivity: "Add an activity",
-    shareLink: "Share the join link",
-    firstTurn: "First student conversation",
-  },
-  actions: {
-    createClass: "New class",
-    mintCode: "Open the class",
-    adopt: "Adopt from the library",
-    create: "Create one",
-    copyLink: "Copy link",
-    copied: "Copied",
-    waiting: "Happens when a student joins and writes",
-  },
-  readInstead: "Prefer to read? The guide walks through the same steps.",
-  guide: "Set up a class",
-  dismiss: "Hide",
-  live: "Your class is live — students are talking to the tutor.",
-} as const;
+type StepKey = "createClass" | "mintCode" | "addActivity" | "shareLink" | "firstTurn";
 
 const DISMISS_KEY = "aipla.gettingStarted.dismissed";
 
@@ -67,6 +45,7 @@ function reached(stage: Stage, target: Stage): boolean {
  * catalogue gets a first lesson running without it.
  */
 export function GettingStartedCard({ onCreateClass }: { onCreateClass: () => void }) {
+  const t = useT("GettingStartedCard");
   const [stage, setStage] = useState<TeacherStagePayload | null>(null);
   const [hidden, setHidden] = useState(true);
   const [copied, setCopied] = useState(false);
@@ -121,8 +100,8 @@ export function GettingStartedCard({ onCreateClass }: { onCreateClass: () => voi
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 id="getting-started-label" className="flex items-center gap-2 text-sm font-semibold">
           <Rocket className="h-4 w-4" aria-hidden="true" />
-          {copy.title}
-          <span className="font-normal text-muted-foreground">{copy.progress(done, steps.length)}</span>
+          {t("title")}
+          <span className="font-normal text-muted-foreground">{t("progress", { done, total: steps.length })}</span>
         </h2>
         {s === "live" ? (
           <button
@@ -134,11 +113,11 @@ export function GettingStartedCard({ onCreateClass }: { onCreateClass: () => voi
             className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
           >
             <X className="h-3.5 w-3.5" aria-hidden="true" />
-            {copy.dismiss}
+            {t("dismiss")}
           </button>
         ) : null}
       </div>
-      {s === "live" ? <p className="mb-2 text-sm text-muted-foreground">{copy.live}</p> : null}
+      {s === "live" ? <p className="mb-2 text-sm text-muted-foreground">{t("live")}</p> : null}
       <ol className="flex flex-col gap-1.5 text-sm">
         {steps.map((st) => (
           <li key={st.key} className="flex flex-wrap items-center gap-2" data-testid={`step-${st.key}`} data-done={st.done}>
@@ -147,15 +126,15 @@ export function GettingStartedCard({ onCreateClass }: { onCreateClass: () => voi
             ) : (
               <Circle className="h-4 w-4 shrink-0 text-muted-foreground/50" aria-hidden="true" />
             )}
-            <span className={st.done ? "text-muted-foreground line-through" : "font-medium"}>{copy.steps[st.key]}</span>
+            <span className={st.done ? "text-muted-foreground line-through" : "font-medium"}>{t(`step_${st.key}`)}</span>
             {!st.done ? <StepAction step={st.key} firstClassId={first?.classId ?? null} firstCode={firstCode} copied={copied} onCreateClass={onCreateClass} onCopy={copyJoinLink} /> : null}
           </li>
         ))}
       </ol>
       <p className="mt-3 text-xs text-muted-foreground">
-        {copy.readInstead}{" "}
+        {t("readInstead")}{" "}
         <Link href="/guides/t1-set-up-a-class" className="underline hover:text-foreground">
-          {copy.guide}
+          {t("guide")}
         </Link>
       </p>
     </section>
@@ -172,37 +151,38 @@ function StepAction({
   onCreateClass,
   onCopy,
 }: {
-  step: keyof typeof copy.steps;
+  step: StepKey;
   firstClassId: string | null;
   firstCode: string | null;
   copied: boolean;
   onCreateClass: () => void;
   onCopy: () => void;
 }) {
+  const t = useT("GettingStartedCard");
   switch (step) {
     case "createClass":
       return (
         <button type="button" onClick={onCreateClass} className={linkClass}>
-          {copy.actions.createClass}
+          {t("action_createClass")}
         </button>
       );
     case "mintCode":
       return firstClassId ? (
         <Link href={`/teacher/classes/${encodeURIComponent(firstClassId)}`} className={linkClass}>
-          {copy.actions.mintCode}
+          {t("action_mintCode")}
         </Link>
       ) : null;
     case "addActivity":
       return (
         <>
           <Link href="/teacher/activities#shared" className={linkClass}>
-            {copy.actions.adopt}
+            {t("action_adopt")}
           </Link>
           <Link
             href={firstClassId ? `/teacher/activities/new?classId=${encodeURIComponent(firstClassId)}` : "/teacher/activities/new"}
             className={linkClass}
           >
-            {copy.actions.create}
+            {t("action_create")}
           </Link>
         </>
       );
@@ -210,10 +190,10 @@ function StepAction({
       return firstCode ? (
         <button type="button" onClick={onCopy} className={`${linkClass} inline-flex items-center gap-1`}>
           <Copy className="h-3 w-3" aria-hidden="true" />
-          {copied ? copy.actions.copied : copy.actions.copyLink}
+          {copied ? t("action_copied") : t("action_copyLink")}
         </button>
       ) : null;
     case "firstTurn":
-      return <span className="text-xs text-muted-foreground">{copy.actions.waiting}</span>;
+      return <span className="text-xs text-muted-foreground">{t("action_waiting")}</span>;
   }
 }

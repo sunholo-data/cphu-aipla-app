@@ -39,6 +39,9 @@ class BudgetConsultation:
     invocation_id: str
 
 
+BlockReason = Literal["paused", "class_monthly", "programme_daily", "unavailable", "period_exhausted"]
+
+
 @dataclass(frozen=True)
 class BudgetDecision:
     """The enforcer's answer.
@@ -60,6 +63,10 @@ class BudgetDecision:
     period_end: str | None
     message: str | None
     retry_after_seconds: int | None
+    # 1.1.108 — a stable code for WHY, so the student UI can say it in the
+    # activity's language. `message` stays the English sentence for logs and
+    # the fallback for any reason the client does not know.
+    reason: BlockReason | None = None
 
 
 # ─── Protocol ────────────────────────────────────────────────────────────────

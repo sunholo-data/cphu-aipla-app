@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
 import {
   type MockedFunction,
   afterEach,
@@ -73,6 +73,16 @@ vi.mock("@/hooks/useTeacherAuth", () => ({
 
 // Importing after vi.mock so the mocked hook is wired before the page resolves.
 import TeacherClassDetailPage from "@/app/teacher/classes/[id]/page";
+import { LocaleProvider } from "@/i18n";
+
+// 1.1.108 M2 — these tests assert the English copy; the teacher UI defaults to
+// Danish (the teacher's own DA | EN choice), so render inside an English locale.
+function EnglishLocale({ children }: { children: React.ReactNode }) {
+  return <LocaleProvider locale="en">{children}</LocaleProvider>;
+}
+const render = ((ui: React.ReactElement, options?: Parameters<typeof rtlRender>[1]) =>
+  rtlRender(ui, { wrapper: EnglishLocale, ...options })) as typeof rtlRender;
+
 
 type GetClassMock = MockedFunction<typeof teacherApi.getClass>;
 type MintMock = MockedFunction<typeof teacherApi.mintGroupCodes>;
@@ -195,6 +205,79 @@ describe("/teacher/classes/[id] — class detail", () => {
     expect(announcements.some((t) => /group code fresh-mint-01 created/i.test(t))).toBe(true);
   });
 
+  describe("revoking a leaked join code (2026-09-29)", () => {
+    // The endpoint has existed since the permission model landed and had NO
+    // UI, so a teacher whose code got out could only reset the session — which
+    // does not stop anyone rejoining with the same code. Found by the
+    // check-client-api gate rather than by anyone noticing.
+
+    // The first code in makeClassPayload(); a leaked one is just a code.
+    const CODE = "bright-fox-12";
+
+    async function openTheClass() {
+      // Each test sets its own class payload — the outer beforeEach only
+      // creates the spy, it does not resolve it.
+      getSpy.mockResolvedValue(makeClassPayload());
+      render(<TeacherClassDetailPage />);
+      await waitFor(() => expect(screen.getByRole("heading", { name: targetClass.name })).toBeInTheDocument());
+    }
+
+    it("does not revoke on the first click — it asks, and says what will happen", async () => {
+      const revokeSpy = vi.spyOn(teacherApi, "revokeGroupCode");
+      await openTheClass();
+
+      fireEvent.click(screen.getByLabelText(`Revoke ${CODE}`));
+
+      // ⚠️ Harder than Reset: revoke DELETES the anon_groups doc, so a student
+      // mid-lesson fails at their next message and the code can never be
+      // reissued. A one-click version of this would be the wrong shape.
+      expect(revokeSpy).not.toHaveBeenCalled();
+      expect(screen.getByText(/Signs students out now\. Cannot be undone\./)).toBeInTheDocument();
+    });
+
+    it("revokes on confirmation and refreshes the list", async () => {
+      const revokeSpy = vi
+        .spyOn(teacherApi, "revokeGroupCode")
+        .mockResolvedValue({ revoked: true, code: CODE, classId: CLASS_ID });
+      await openTheClass();
+
+      fireEvent.click(screen.getByLabelText(`Revoke ${CODE}`));
+      fireEvent.click(screen.getByRole("button", { name: "Revoke code" }));
+
+      await waitFor(() => expect(revokeSpy).toHaveBeenCalledWith(CLASS_ID, CODE));
+    });
+
+    it("says the group's work is kept, because revoke is not erasure", async () => {
+      // Erasure is 1.1.80's own thing. A teacher who read "revoke" as "delete
+      // everything they did" would avoid using it for exactly the wrong reason.
+      vi.spyOn(teacherApi, "revokeGroupCode").mockResolvedValue({
+        revoked: true,
+        code: CODE,
+        classId: CLASS_ID,
+      });
+      await openTheClass();
+
+      fireEvent.click(screen.getByLabelText(`Revoke ${CODE}`));
+      fireEvent.click(screen.getByRole("button", { name: "Revoke code" }));
+
+      await waitFor(() => {
+        const announcements = screen.getAllByRole("status").map((n) => n.textContent ?? "");
+        expect(announcements.some((t) => /work is kept/i.test(t))).toBe(true);
+      });
+    });
+
+    it("cancel leaves the code alone", async () => {
+      const revokeSpy = vi.spyOn(teacherApi, "revokeGroupCode");
+      await openTheClass();
+
+      fireEvent.click(screen.getByLabelText(`Revoke ${CODE}`));
+      fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+
+      expect(revokeSpy).not.toHaveBeenCalled();
+      expect(screen.getByLabelText(`Revoke ${CODE}`)).toBeInTheDocument();
+    });
+  });
+
   it("shows an error banner when the class fails to load", async () => {
     getSpy.mockRejectedValue(new Error("permission denied"));
     render(<TeacherClassDetailPage />);
@@ -300,5 +383,53 @@ describe("/teacher/classes/[id] — class detail", () => {
         expect(screen.getByRole("button", { name: /add activity/i })).toBeDisabled();
       });
     });
+  });
+});
+
+// 1.1.137 — the class list on the real page. The component test proves the
+// sheet itself; this proves the PAGE does not pick a name up on the way (a
+// refresh, a mint, an analytics call) while the teacher types one.
+describe("/teacher/classes/[id] — class list stays on the device", () => {
+  it("typing a name on the page sends it nowhere", async () => {
+    const store = new Map<string, string>();
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (k: string) => store.get(k) ?? null,
+        setItem: (k: string, v: string) => void store.set(k, v),
+        removeItem: (k: string) => void store.delete(k),
+      },
+    });
+    // Records every request the page makes; fails them like an offline
+    // network so neighbouring panels take their error path, not a fake body.
+    const fetchSpy = vi.fn(async (..._args: unknown[]) => {
+      throw new TypeError("offline (test)");
+    });
+    vi.stubGlobal("fetch", fetchSpy);
+    try {
+      getSpy.mockResolvedValue(makeClassPayload());
+      mintSpy.mockResolvedValue({ codes: ["new-code-1"] } as unknown as Awaited<
+        ReturnType<typeof teacherApi.mintGroupCodes>
+      >);
+      render(<TeacherClassDetailPage />);
+      fireEvent.click(await screen.findByRole("button", { name: /^Class list/, expanded: false }));
+      fireEvent.change(await screen.findByLabelText("Names for bright-fox-12"), {
+        target: { value: "Zelda Privatperson" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: /new group/i }));
+      await waitFor(() => expect(mintSpy).toHaveBeenCalled());
+
+      expect(store.get("aipla.classlist.class-7b-physics-a")).toContain("Zelda Privatperson");
+      const sent = JSON.stringify([
+        fetchSpy.mock.calls,
+        getSpy.mock.calls,
+        mintSpy.mock.calls,
+        listActivitiesSpy.mock.calls,
+        patchActivitiesSpy.mock.calls,
+      ]);
+      expect(sent).not.toContain("Zelda");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

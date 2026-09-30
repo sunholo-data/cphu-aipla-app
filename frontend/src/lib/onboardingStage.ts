@@ -5,6 +5,8 @@
  * class-list chip and the getting-started checklist use the same words.
  */
 
+import type { Translate } from "@/i18n";
+
 export type Stage = "invited" | "demo_only" | "no_code" | "no_activity" | "waiting" | "live";
 
 /** Ordered — later is further along. Mirrors `STAGES` on the backend. */
@@ -30,11 +32,13 @@ export const copy = {
   next: (step: string) => `Next: ${step}`,
 } as const;
 
-/** "Demo only — 9 days". The days are how long they have sat at this stage. */
-export function describeStage(s: StagePayload): string {
-  const base = copy.label[s.stage];
+/** "Demo only — 9 days". The days are how long they have sat at this stage.
+ *  Pass the `StageChip` translator to say it in the reader's language
+ *  (1.1.108); without one it is the English `copy` above (tests, logs). */
+export function describeStage(s: StagePayload, t?: Translate<"StageChip">): string {
+  const base = t ? t(s.stage) : copy.label[s.stage];
   if (s.stage === "live" || s.days == null) return base;
-  return `${base} — ${copy.days(s.days)}`;
+  return t ? t("withDays", { label: base, days: s.days }) : `${base} — ${copy.days(s.days)}`;
 }
 
 /** Chip colour by how far along — amber for the stuck-shaped stages, green for live. */

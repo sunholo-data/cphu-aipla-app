@@ -7,6 +7,7 @@ import { AlertCircle, Loader2, UserRoundCog } from "lucide-react";
 import { ACCESS_REQUEST_PATH } from "@/lib/accessTier";
 import { switchGoogleAccount } from "@/lib/firebase";
 import { useSignedInEmail } from "@/hooks/useSignedInEmail";
+import { useT } from "@/i18n";
 
 /**
  * What a 402 from the spend gate should say (1.1.124).
@@ -30,6 +31,7 @@ import { useSignedInEmail } from "@/hooks/useSignedInEmail";
  */
 export function SpendDeniedNotice({ message }: { message?: string }) {
   const email = useSignedInEmail();
+  const t = useT("SpendDeniedNotice");
   const [switching, setSwitching] = useState(false);
 
   async function handleSwitch() {
@@ -51,21 +53,13 @@ export function SpendDeniedNotice({ message }: { message?: string }) {
       <div className="flex items-start gap-2">
         <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
         <p>
-          {message ??
-            "Upload til tutoren er forbeholdt deltagere i programmet. / Uploading to the tutor is for programme participants."}
+          {message ?? t("default")}
         </p>
       </div>
 
       {email ? (
         <p className="pl-6">
-          Du er logget ind som <strong className="font-semibold">{email}</strong>.{" "}
-          <span className="opacity-80">You are signed in as this account.</span>{" "}
-          Hvis du er inviteret under en anden adresse (fx din universitetsmail),
-          så skift konto.{" "}
-          <span className="opacity-80">
-            If you were invited under a different address — your university mail,
-            for instance — switch account.
-          </span>
+          {t.rich("signedInAs", { email, b: (c) => <strong className="font-semibold">{c}</strong> })}
         </p>
       ) : null}
 
@@ -81,13 +75,13 @@ export function SpendDeniedNotice({ message }: { message?: string }) {
           ) : (
             <UserRoundCog className="h-3.5 w-3.5" aria-hidden="true" />
           )}
-          Skift konto / Switch account
+          {t("switchAccount")}
         </button>
         <Link
           href={ACCESS_REQUEST_PATH}
           className="font-medium underline underline-offset-2 hover:no-underline"
         >
-          Bliv en del af programmet / Join the programme
+          {t("join")}
         </Link>
       </div>
     </div>

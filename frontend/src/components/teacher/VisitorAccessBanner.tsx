@@ -12,6 +12,7 @@ import {
 } from "@/lib/accessTier";
 import { switchGoogleAccount } from "@/lib/firebase";
 import { useSignedInEmail } from "@/hooks/useSignedInEmail";
+import { useT } from "@/i18n";
 
 /**
  * The visitor nudge (ACCESS-1 M4).
@@ -28,6 +29,7 @@ import { useSignedInEmail } from "@/hooks/useSignedInEmail";
 export function VisitorAccessBanner() {
   const [tier, setTier] = useState(getAccessTier);
   const email = useSignedInEmail();
+  const t = useT("VisitorAccessBanner");
 
   useEffect(() => subscribeAccessTier(setTier), []);
 
@@ -36,31 +38,25 @@ export function VisitorAccessBanner() {
   return (
     <div
       role="status"
-      aria-label="Exploring with a recorded demonstration"
+      aria-label={t("ariaLabel")}
       className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-center text-[12px] text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200"
     >
       <Eye className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-      <span>
-        Du udforsker AIPLA med en optaget demonstration.{" "}
-        <span className="opacity-80">
-          You&rsquo;re exploring AIPLA with a recorded demonstration.
-        </span>
-      </span>
+      <span>{t("exploring")}</span>
       {/* 1.1.124 — NAME THE ACCOUNT. A teacher who IS on the register, signed
           in under a second Google account they did not choose, sees this banner
           and has no way to tell that is what happened. The address is the whole
           diagnosis, and the browser has known it all along. */}
       {email ? (
         <span className="opacity-80">
-          Logget ind som / signed in as{" "}
-          <strong className="font-semibold">{email}</strong>.
+          {t.rich("signedInAs", { email, b: (c) => <strong className="font-semibold">{c}</strong> })}
         </span>
       ) : null}
       <Link
         href={ACCESS_REQUEST_PATH}
         className="font-medium underline underline-offset-2 hover:no-underline"
       >
-        Bliv en del af programmet / Join the programme
+        {t("join")}
       </Link>
       {email ? (
         <button
@@ -70,7 +66,7 @@ export function VisitorAccessBanner() {
           }}
           className="font-medium underline underline-offset-2 hover:no-underline"
         >
-          Skift konto / Switch account
+          {t("switchAccount")}
         </button>
       ) : null}
     </div>

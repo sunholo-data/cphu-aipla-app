@@ -3,6 +3,7 @@
 import { useState } from "react";
 
 import { type GrantInput, grantAccess } from "@/lib/programmeApi";
+import { useT } from "@/i18n";
 
 /**
  * Admit one named person (PROGADMIN-1 M2).
@@ -15,6 +16,7 @@ import { type GrantInput, grantAccess } from "@/lib/programmeApi";
  * clean up means access LAPSES rather than persists.
  */
 export function GrantForm({ maxCapUsd, onGranted }: { maxCapUsd: number; onGranted: () => void }) {
+  const t = useT("GrantForm");
   const [email, setEmail] = useState("");
   const [cap, setCap] = useState("25");
   const [note, setNote] = useState("");
@@ -35,7 +37,7 @@ export function GrantForm({ maxCapUsd, onGranted }: { maxCapUsd: number; onGrant
     };
     try {
       const row = await grantAccess(input);
-      setOk(`${row.email} can now spend, capped at $${row.monthlyCapUsd.toFixed(2)}/month.`);
+      setOk(t("granted", { email: row.email, cap: row.monthlyCapUsd.toFixed(2) }));
       setEmail("");
       setNote("");
       onGranted();
@@ -50,26 +52,26 @@ export function GrantForm({ maxCapUsd, onGranted }: { maxCapUsd: number; onGrant
 
   return (
     <form onSubmit={submit} className="space-y-3 rounded border border-border p-4">
-      <h2 className="text-sm font-semibold">Admit a teacher</h2>
+      <h2 className="text-sm font-semibold">{t("title")}</h2>
       <div className="grid gap-3 sm:grid-cols-3">
         <label className="flex flex-col gap-1 text-xs sm:col-span-2">
-          <span className="font-medium">Email</span>
+          <span className="font-medium">{t("email")}</span>
           <input
             type="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="teacher@school.dk"
+            placeholder={t("emailPlaceholder")}
             className="rounded border border-border bg-background px-2 py-1.5 text-sm"
           />
           {/* The match is exact. A typo must fail visibly rather than admit
               someone under an address nobody invited. */}
           <span className="text-[11px] text-muted-foreground">
-            Must match the address they sign in with, exactly.
+            {t("emailHint")}
           </span>
         </label>
         <label className="flex flex-col gap-1 text-xs">
-          <span className="font-medium">Cap (USD / month)</span>
+          <span className="font-medium">{t("cap")}</span>
           <input
             type="number"
             required
@@ -80,17 +82,17 @@ export function GrantForm({ maxCapUsd, onGranted }: { maxCapUsd: number; onGrant
             onChange={(e) => setCap(e.target.value)}
             className="rounded border border-border bg-background px-2 py-1.5 text-sm"
           />
-          <span className="text-[11px] text-muted-foreground">Up to ${maxCapUsd} here.</span>
+          <span className="text-[11px] text-muted-foreground">{t("capHint", { max: maxCapUsd })}</span>
         </label>
       </div>
       <label className="flex flex-col gap-1 text-xs">
-        <span className="font-medium">Why (required)</span>
+        <span className="font-medium">{t("why")}</span>
         <input
           type="text"
           required
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="Pilot cohort A, Niels Bohr Institute"
+          placeholder={t("whyPlaceholder")}
           className="rounded border border-border bg-background px-2 py-1.5 text-sm"
         />
       </label>
@@ -101,7 +103,7 @@ export function GrantForm({ maxCapUsd, onGranted }: { maxCapUsd: number; onGrant
       ) : null}
       {ok ? (
         <p role="status" className="rounded border border-border bg-muted/40 p-2 text-xs">
-          {ok} They pick it up on their next app load — tell them to reload.
+          {ok} {t("reloadHint")}
         </p>
       ) : null}
       <button
@@ -109,7 +111,7 @@ export function GrantForm({ maxCapUsd, onGranted }: { maxCapUsd: number; onGrant
         disabled={busy}
         className="rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
       >
-        {busy ? "Granting…" : "Grant access"}
+        {busy ? t("granting") : t("grant")}
       </button>
     </form>
   );

@@ -49,6 +49,8 @@ CHAT_TURN_KEYS = {
     # in create_agent and carried to the emitter, so the log records the same
     # context the tutor's prompt was built from rather than a second derivation.
     "tutor_id",
+    # 1.1.92 M0 — which edit of the tutor taught; (tutor_id, tutor_version) is the arm.
+    "tutor_version",
     "framework_id",
     "persona_id",
     "class_id",
@@ -69,6 +71,11 @@ WB_EVENT_KEYS = {
     "tool",
     "field",
     "value",
+    # 1.1.136 M0 — what the event was: which activity/class, and the trust-card
+    # text the student saw.
+    "activity_id",
+    "class_id",
+    "label",
     "revision",
     "app_version",
 }
@@ -533,3 +540,47 @@ def test_teaching_fields_default_to_null_for_callers_that_have_no_context():
     payload = logger.log_struct.call_args[0][0]
     for key in ("tutor_id", "framework_id", "persona_id", "class_id", "activity_id"):
         assert payload[key] is None
+
+
+# ── what a workbench event was (1.1.136 M0) ──────────────────────────────────
+
+
+def test_workbench_event_carries_activity_class_and_label():
+    with patch.object(chat_log, "_get_logger") as gl:
+        logger = MagicMock()
+        gl.return_value = logger
+        chat_log.emit_workbench_event(**WB_KW, activity_id="act-7", class_id="cls-1", label="Table shared (3 cells)")
+    payload = logger.log_struct.call_args[0][0]
+    assert payload["activity_id"] == "act-7"
+    assert payload["class_id"] == "cls-1"
+    assert payload["label"] == "Table shared (3 cells)"
+
+
+def test_workbench_event_label_fields_default_to_null():
+    """Old callers keep working and log NULL — never a guessed label."""
+    with patch.object(chat_log, "_get_logger") as gl:
+        logger = MagicMock()
+        gl.return_value = logger
+        chat_log.emit_workbench_event(**WB_KW)
+    payload = logger.log_struct.call_args[0][0]
+    for key in ("activity_id", "class_id", "label"):
+        assert payload[key] is None
+
+
+def test_workbench_view_selects_every_key_the_emitter_writes():
+    """The workbench twin of the chat-turn lockstep guard: a key emitted but not
+    selected by the ``workbench_events`` view lands in the raw table and never
+    becomes a column."""
+    from pathlib import Path
+
+    views = (Path(__file__).resolve().parents[3] / "infrastructure" / "modules" / "chat-logs" / "views.tf").read_text(
+        encoding="utf-8"
+    )
+    wb_view = views[views.index('table_id            = "workbench_events"') :]
+    with patch.object(chat_log, "_get_logger") as gl:
+        logger = MagicMock()
+        gl.return_value = logger
+        chat_log.emit_workbench_event(**WB_KW)
+    emitted = set(logger.log_struct.call_args[0][0])
+    missing = [k for k in emitted if f'"$.{k}"' not in wb_view]
+    assert not missing, f"emit_workbench_event writes key(s) the workbench_events view does not select: {missing}"

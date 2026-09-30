@@ -24,6 +24,14 @@ import { useEnvironment } from "@/hooks/useEnvironment";
 import { isAnonymousGroupAuthMode, PREVIEW_CODE_PREFIX, safePreviewNext } from "@/lib/anonymousGroupAuth";
 import { environmentLabel } from "@/lib/environment";
 import { isLocalMode } from "@/lib/localMode";
+import { LanguageSwitch } from "@/components/site/LanguageSwitch";
+import { useT } from "@/i18n";
+
+// 1.1.108 — the join page renders before any class or activity is known, so it
+// speaks the PERSON's language: their DA | EN choice, remembered in this
+// browser, else the site default. The switch sits at the top of the form so a
+// student who cannot read the default finds theirs before typing a code.
+const EXAMPLE_CODE = "bright-fox-42";
 
 // LOCAL_MODE convenience: the seeded group code from
 // backend/db/local_fixture.py. Showing it inline saves the
@@ -32,6 +40,8 @@ import { isLocalMode } from "@/lib/localMode";
 const LOCAL_MODE_CODE = "local-demo";
 
 export default function GroupJoinPage() {
+  // locale: en-only, by decision 1.1.108 — reached only on a deployment without
+  // anonymous group auth, i.e. by a developer, never by a student.
   if (!isAnonymousGroupAuthMode()) {
     return (
       <main className="mx-auto flex max-w-md flex-col items-center justify-center gap-3 p-8 text-center">
@@ -97,6 +107,13 @@ function GroupJoinForm() {
   }, [status, router, nextPath]);
 
   const isJoining = status === "joining";
+  const t = useT("JoinPage");
+  const codeTag = (chunks: React.ReactNode) => <code className="rounded bg-muted px-1 py-0.5">{chunks}</code>;
+  const teacherLink = (chunks: React.ReactNode) => (
+    <Link href="/teacher/sign-in" className="font-medium underline underline-offset-4 hover:text-foreground">
+      {chunks}
+    </Link>
+  );
 
   async function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault();
@@ -109,27 +126,20 @@ function GroupJoinForm() {
 
   return (
     <main className="mx-auto flex max-w-md flex-col gap-6 p-8">
+      <div className="flex justify-end">
+        <LanguageSwitch />
+      </div>
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold">
-          Tilslut din gruppe
-          <span className="block text-base font-normal text-muted-foreground">
-            Join your group
-          </span>
+          {t("title")}
         </h1>
-        <p className="text-sm text-muted-foreground">
-          Din lærer har givet dig en kort kode (ligner{" "}
-          <code className="rounded bg-muted px-1 py-0.5">bright-fox-42</code>).
-          Skriv den her for at starte.
-        </p>
-        <p className="text-xs text-muted-foreground opacity-70">
-          (Your teacher gave you a short code — type it below to start.)
-        </p>
+        <p className="text-sm text-muted-foreground">{t.rich("intro", { example: EXAMPLE_CODE, code: codeTag })}</p>
       </header>
 
       <form className="flex flex-col gap-3" onSubmit={handleSubmit} noValidate>
         <label className="flex flex-col gap-1">
           <span className="text-sm font-medium">
-            Gruppekode <span className="text-xs text-muted-foreground">(Group code)</span>
+            {t("codeLabel")}
           </span>
           <input
             type="text"
@@ -139,7 +149,7 @@ function GroupJoinForm() {
             value={code}
             onChange={(e) => setCode(e.target.value)}
             disabled={isJoining}
-            placeholder="bright-fox-42"
+            placeholder={EXAMPLE_CODE}
             className="rounded border px-3 py-2 font-mono lowercase"
             aria-invalid={error ? "true" : undefined}
             aria-describedby={error ? "group-error" : undefined}
@@ -172,18 +182,12 @@ function GroupJoinForm() {
           disabled={!code.trim() || isJoining}
           className="rounded bg-primary px-4 py-2 text-primary-foreground disabled:opacity-50"
         >
-          {isJoining ? "Tilslutter… / Joining…" : "Tilslut / Join"}
+          {isJoining ? t("joining") : t("join")}
         </button>
       </form>
 
       <p className="text-xs text-muted-foreground">
-        Hvis du lukker fanen og kommer tilbage senere, skal du bare skrive
-        koden igen — den er gyldig i 30 dage. Glemt koden? Spørg din lærer.
-        <br />
-        <span className="opacity-70">
-          (If you close this tab and come back later, just paste the same code
-          again — it&apos;s valid for 30 days. Lost the code? Ask your teacher.)
-        </span>
+        {t("comeBack")}
       </p>
 
       <p className="text-xs text-muted-foreground">
@@ -191,19 +195,12 @@ function GroupJoinForm() {
           href="/guides"
           className="font-medium underline underline-offset-4 hover:text-foreground"
         >
-          Sådan virker det / How it works
+          {t("howItWorks")}
         </Link>
       </p>
 
       <p className="border-t border-border pt-4 text-xs text-muted-foreground">
-        Er du lærer?{" "}
-        <Link
-          href="/teacher/sign-in"
-          className="font-medium underline underline-offset-4 hover:text-foreground"
-        >
-          Log ind her
-        </Link>
-        <span className="opacity-70"> / Are you a teacher? Sign in here.</span>
+        {t.rich("teacher", { link: teacherLink })}
       </p>
     </main>
   );
@@ -214,24 +211,25 @@ function ErrorBlock({
 }: {
   error: NonNullable<ReturnType<typeof useAnonymousGroupAuth>["error"]>;
 }) {
-  let body: string;
-  switch (error.kind) {
-    case "rate_limited":
-      body = `Too many tries. Try again in ${error.retryAfterSeconds}s.`;
-      break;
-    case "at_capacity":
-      body = "This group is at capacity for today. Try again tomorrow or ask your teacher.";
-      break;
-    case "unknown_or_revoked":
-      body = "Code not found, expired, or revoked. Ask your teacher for a fresh code.";
-      break;
-    case "network":
-    default:
-      body = `Couldn't reach the server. ${error.message}`;
-  }
+  const t = useT("JoinPage");
+  const body = (): string => {
+    switch (error.kind) {
+      case "rate_limited":
+        return t("rateLimited", { seconds: error.retryAfterSeconds });
+      case "at_capacity":
+        return t("atCapacity");
+      case "unknown_or_revoked":
+        return t("unknownCode");
+      case "network":
+      default:
+        return t("network", { detail: error.message });
+    }
+  };
   return (
     <div id="group-error" role="alert" className="flex flex-col gap-1.5">
-      <p className="text-sm text-destructive">{body}</p>
+      <p className="text-sm text-destructive">
+        {body()}
+      </p>
       {error.kind === "unknown_or_revoked" && <WrongSiteHint />}
     </div>
   );
@@ -246,6 +244,7 @@ function ErrorBlock({
  */
 function WrongSiteHint() {
   const info = useEnvironment();
+  const t = useT("JoinPage");
   const [host, setHost] = useState("");
 
   useEffect(() => setHost(window.location.host), []);
@@ -255,17 +254,11 @@ function WrongSiteHint() {
   if (!info || info.env === "local") return null;
 
   const where = environmentLabel(info.env).tag;
+  const strong = (chunks: React.ReactNode) => <strong>{chunks}</strong>;
 
   return (
     <p className="rounded border border-border bg-muted px-2 py-1.5 text-xs text-muted-foreground">
-      Koder virker kun på den udgave af siden, de er lavet på. Du er på{" "}
-      <strong>{where}</strong> ({host}). Tjek med din lærer, at det er den
-      rigtige adresse.
-      <br />
-      <span className="opacity-70">
-        (Codes only work on the site they were created on. You are on {where} (
-        {host}). Check the address with your teacher.)
-      </span>
+      {t.rich("wrongSite", { where, host, strong })}
     </p>
   );
 }

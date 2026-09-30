@@ -1,5 +1,6 @@
 import { FlaskConical } from "lucide-react";
 
+import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 
 // A small palette of restrained accent tiles. The sim id picks one
@@ -44,18 +45,19 @@ interface SimThumbnailProps {
  * every sim listing across the site looks consistent.
  */
 export function SimThumbnail({ id, displayName, thumbnail, className }: SimThumbnailProps) {
+  const t = useT("SimThumbnail");
   const box = cn("relative shrink-0 overflow-hidden rounded-md", className ?? "h-10 w-10");
   if (thumbnail) {
     return (
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={thumbnail} alt={`${displayName} preview`} className={cn(box, "object-cover")} />
+      <img src={thumbnail} alt={t("preview", { name: displayName })} className={cn(box, "object-cover")} />
     );
   }
   return (
     <span
       className={cn(box, "flex items-center justify-center", tileFor(id))}
       role="img"
-      aria-label={`${displayName} icon`}
+      aria-label={t("icon", { name: displayName })}
     >
       <FlaskConical className="absolute h-4 w-4 opacity-20" aria-hidden="true" />
       <span className="relative text-xs font-semibold leading-none">{monogram(displayName)}</span>

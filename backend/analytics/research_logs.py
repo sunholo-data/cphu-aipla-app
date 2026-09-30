@@ -39,7 +39,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from db.bigquery import CHAT_TURN_TABLE, run_query, table_ref
+from db.bigquery import CHAT_TURN_TABLE, WORKBENCH_EVENT_TABLE, run_query, table_ref
 
 log = logging.getLogger(__name__)
 
@@ -112,6 +112,7 @@ def _turns_cte() -> str:
         SAFE_CAST(SAFE_CAST({j.format("latency_ms")} AS FLOAT64) AS INT64) AS latency_ms,
         {j.format("teacher_focus")} AS teacher_focus,
         {j.format("tutor_id")} AS tutor_id,
+        SAFE_CAST(SAFE_CAST({j.format("tutor_version")} AS FLOAT64) AS INT64) AS tutor_version,
         {j.format("framework_id")} AS framework_id,
         {j.format("persona_id")} AS persona_id,
         {j.format("class_id")} AS class_id,
@@ -293,6 +294,138 @@ def session_transcript(session_id: str) -> list[dict[str, Any]]:
     return [dict(r) for r in run_query(sql, params={"session_id": session_id, "synthetic": list(SYNTHETIC_CONTENT)})]
 
 
+#: Ceiling on work rows in one timeline. A table pushes per cell commit, so a
+#: long lesson can produce hundreds; each carries a snapshot, so this bounds the
+#: payload as well as the query.
+MAX_TIMELINE_WORK = 2000
+
+
+def _work_cte() -> str:
+    """Projection over the raw workbench sink table — the ``workbench_events``
+    view's SELECT list, inlined for the same reason as :func:`_turns_cte` (dev
+    has no views). ``JSON_VALUE`` throughout, so the three 1.1.136 M0 columns
+    read as NULL on every row written before they existed instead of failing
+    the query."""
+    j = 'JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.{}")'
+    return f"""
+      SELECT
+        timestamp AS ts,
+        {j.format("group_id")} AS group_id,
+        {j.format("session_id")} AS session_id,
+        {j.format("skill_id")} AS skill_id,
+        {j.format("server")} AS server,
+        {j.format("tool")} AS tool,
+        {j.format("field")} AS field,
+        {j.format("value")} AS value,
+        {j.format("activity_id")} AS activity_id,
+        {j.format("class_id")} AS class_id,
+        {j.format("label")} AS label,
+        {j.format("revision")} AS revision
+      FROM {table_ref(WORKBENCH_EVENT_TABLE)}
+    """
+
+
+def _timeline_turns(session_id: str, group_id: str | None) -> list[dict[str, Any]]:
+    group_clause = " AND group_id = @group_id" if group_id else ""
+    sql = f"""
+        WITH turns AS ({_turns_cte()})
+        SELECT ts, turn_index, role, content, model, latency_ms, framework_id,
+               tutor_id, class_id, activity_id, group_id,
+               content IN UNNEST(@synthetic) AS is_synthetic
+        FROM turns
+        WHERE session_id = @session_id AND {_STUDENT_ONLY}{group_clause}
+        ORDER BY turn_index NULLS LAST, ts
+        LIMIT {MAX_TRANSCRIPT_TURNS}
+    """
+    params: dict[str, Any] = {"session_id": session_id, "synthetic": list(SYNTHETIC_CONTENT)}
+    if group_id:
+        params["group_id"] = group_id
+    return [dict(r) for r in run_query(sql, params=params)]
+
+
+def _timeline_work(session_id: str, group_id: str | None) -> list[dict[str, Any]]:
+    group_clause = " AND group_id = @group_id" if group_id else ""
+    sql = f"""
+        WITH work AS ({_work_cte()})
+        SELECT ts, server, tool, field, value, label, activity_id, class_id
+        FROM work
+        WHERE session_id = @session_id{group_clause}
+        ORDER BY ts
+        LIMIT {MAX_TIMELINE_WORK}
+    """
+    params: dict[str, Any] = {"session_id": session_id}
+    if group_id:
+        params["group_id"] = group_id
+    return [dict(r) for r in run_query(sql, params=params)]
+
+
+def _student_anchor_times(turns: list[dict[str, Any]]) -> list[Any]:
+    """When each turn actually HAPPENED, as far as the log can say.
+
+    ⚠️ A turn's ``ts`` is when it was LOGGED, and every turn of an invocation is
+    logged together, after the tutor has answered — so a student's message
+    carries its reply's time. Interleaved naively, table edits made while the
+    tutor was thinking would sort BEFORE the question that preceded them. The
+    tutor turn's ``latency_ms`` is exactly the gap back to the student event
+    that triggered it, so the student turn is re-anchored at ``tutor.ts -
+    latency``. Where there is no latency (rows before 2026-09-11), the logged
+    time stands. Monotonic by construction, so turn order is never changed.
+    """
+    from datetime import timedelta
+
+    anchors: list[Any] = [t.get("ts") for t in turns]
+    for i, turn in enumerate(turns):
+        if turn.get("role") != ROLE_STUDENT or i + 1 >= len(turns):
+            continue
+        nxt = turns[i + 1]
+        lat, nts = nxt.get("latency_ms"), nxt.get("ts")
+        if nxt.get("role") == ROLE_TUTOR and isinstance(lat, int) and nts is not None and hasattr(nts, "tzinfo"):
+            anchors[i] = nts - timedelta(milliseconds=lat)
+    # Never let a re-anchor move a turn before its predecessor.
+    for i in range(1, len(anchors)):
+        if anchors[i] is not None and anchors[i - 1] is not None and anchors[i] < anchors[i - 1]:
+            anchors[i] = anchors[i - 1]
+    return anchors
+
+
+def session_timeline(session_id: str, *, group_id: str | None = None) -> dict[str, Any]:
+    """One conversation with the work it was about, interleaved (1.1.136 M1).
+
+    ``items`` are the transcript's turns (``kind: "turn"``) and the group's
+    workbench events (``kind: "work"``) in the order they happened. Turns keep
+    their transcript order exactly; work is slotted between them by time.
+
+    Two queries, not one ``UNION ALL``, and that is deliberate: the workbench
+    sink table exists only once a first event has been written, so on a fresh
+    environment a union would fail the WHOLE read and the researcher would lose
+    the transcript over the absence of something optional. The turns query
+    raises (the route reports a 503 — never an empty transcript); the work query
+    degrades to ``workStatus: "unreadable"``, which the UI states rather than
+    rendering as "no work was done" (the deploy-status footgun).
+
+    ``group_id`` narrows both reads to one group: the teacher group report passes
+    its group code so a session id from another group returns nothing.
+    """
+    turns = _timeline_turns(session_id, group_id)
+    work_status = "ok"
+    try:
+        work = _timeline_work(session_id, group_id)
+    except Exception as exc:  # optional half — reported, not raised
+        log.warning("session_timeline: workbench read failed (%s): %s", type(exc).__name__, exc)
+        work, work_status = [], "unreadable"
+
+    anchors = _student_anchor_times(turns)
+    items: list[dict[str, Any]] = []
+    wi = 0
+    for turn, anchor in zip(turns, anchors, strict=True):
+        while wi < len(work) and anchor is not None and work[wi].get("ts") is not None and work[wi]["ts"] < anchor:
+            items.append({"kind": "work", **work[wi]})
+            wi += 1
+        items.append({"kind": "turn", **{k: v for k, v in turn.items() if k != "latency_ms"}})
+    items.extend({"kind": "work", **w} for w in work[wi:])
+    return {"items": items, "workStatus": work_status, "turnCount": len(turns), "workCount": len(work)}
+
+
 def export_turns(
     *,
     framework: str | None = None,
@@ -330,5 +463,6 @@ __all__ = [
     "export_turns",
     "framework_tabs",
     "list_sessions",
+    "session_timeline",
     "session_transcript",
 ]

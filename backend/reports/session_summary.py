@@ -14,6 +14,7 @@ and returns the most recently active one.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime
 from typing import Any, Literal
@@ -86,6 +87,13 @@ class SessionSummary(BaseModel):
     fidelity section then says so rather than guessing."""
     tutor_id: str | None = Field(default=None, alias="tutorId")
     """1.1.107 M5 — the tutor the session ran, from the same stamp."""
+    tutor_version: int | None = Field(default=None, alias="tutorVersion")
+    """1.1.92 M0 — the version of ``tutor_id`` that taught, read from the SAME
+    turn row as ``tutor_id`` so the pair can never mix two rows. None before the
+    stamp existed (2026-09-30): unknown, never "version 1"."""
+    revision: str | None = Field(default=None, alias="revision")
+    """1.1.92 M0 — the Cloud Run revision that served the session (the A/B arm
+    key already on every chat-log row). None from the live-state fallback."""
     """1.1.36 — recorded segment count for the group."""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -200,6 +208,16 @@ async def summarize_session(session_id: str) -> SessionSummary | None:
     )
 
 
+def _as_int(value: Any) -> int | None:
+    """JSON_VALUE returns numbers as strings ("3" or "3.0"); None stays None."""
+    if value is None or value == "":
+        return None
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return None
+
+
 async def summarize_session_bq(session_id: str) -> SessionSummary | None:
     """BigQuery-backed ``summarize_session`` (post-1.2 durable source).
 
@@ -212,15 +230,27 @@ async def summarize_session_bq(session_id: str) -> SessionSummary | None:
     Preserves the exact ``SessionSummary`` shape so the reports route is
     source-agnostic. ``sim_run_count`` is an exact COUNT of workbench events
     (replacing the old ``mcp_app_context.*`` key heuristic).
+
+    1.1.131 M3 — both queries run in a worker thread. ``run_query`` blocks
+    until BigQuery answers, and this is awaited from ``async def`` routes the
+    teacher's live view polls every few seconds; inline, each poll froze every
+    student stream on the instance for the length of the query.
     """
     from db.bigquery import CHAT_TURN_TABLE, WORKBENCH_EVENT_TABLE, run_query, table_ref
 
     try:
-        turn_rows = run_query(
+        turn_rows = await asyncio.to_thread(
+            run_query,
             "SELECT timestamp AS ts, jsonPayload.group_id AS group_id, "
             "jsonPayload.skill_id AS skill_id, jsonPayload.role AS role, "
             "jsonPayload.content AS content, CAST(jsonPayload.turn_index AS INT64) AS turn_index, "
-            "jsonPayload.framework_id AS framework_id, jsonPayload.tutor_id AS tutor_id "
+            "jsonPayload.framework_id AS framework_id, jsonPayload.tutor_id AS tutor_id, "
+            # 1.1.92 M0 — JSON_VALUE, not a struct member: the sink only adds a
+            # field to the struct once it has SEEN a non-null value, so
+            # a struct-member read of tutor_version would 400 the whole query on any
+            # table that predates the stamp (the chat_turns view's rule).
+            "JSON_VALUE(TO_JSON_STRING(jsonPayload), '$.tutor_version') AS tutor_version, "
+            "JSON_VALUE(TO_JSON_STRING(jsonPayload), '$.revision') AS revision "
             f"FROM {table_ref(CHAT_TURN_TABLE)} "
             "WHERE jsonPayload.session_id = @session_id "
             "ORDER BY turn_index",
@@ -246,7 +276,8 @@ async def summarize_session_bq(session_id: str) -> SessionSummary | None:
 
     workbench_events: list[WorkbenchEvent] = []
     try:
-        wb_rows = run_query(
+        wb_rows = await asyncio.to_thread(
+            run_query,
             "SELECT timestamp AS ts, jsonPayload.server AS server, jsonPayload.tool AS tool, "
             "jsonPayload.field AS field, jsonPayload.value AS value "
             f"FROM {table_ref(WORKBENCH_EVENT_TABLE)} "
@@ -278,6 +309,11 @@ async def summarize_session_bq(session_id: str) -> SessionSummary | None:
     # describe what was actually taught at the end, not at the start.
     framework_id = next((r.get("framework_id") for r in reversed(turn_rows) if r.get("framework_id")), None)
     tutor_id = next((r.get("tutor_id") for r in reversed(turn_rows) if r.get("tutor_id")), None)
+    # 1.1.92 M0 — the version comes from the SAME row tutor_id did, so an arm
+    # is never stitched from two rows. The revision is the last one recorded.
+    tutor_row = next((r for r in reversed(turn_rows) if r.get("tutor_id")), None)
+    tutor_version = _as_int(tutor_row.get("tutor_version")) if tutor_row is not None else None
+    revision = next((r.get("revision") for r in reversed(turn_rows) if r.get("revision")), None)
 
     return SessionSummary(
         sessionId=session_id,
@@ -292,6 +328,8 @@ async def summarize_session_bq(session_id: str) -> SessionSummary | None:
         workbenchEvents=workbench_events,
         frameworkId=framework_id,
         tutorId=tutor_id,
+        tutorVersion=tutor_version,
+        revision=revision,
     )
 
 
@@ -308,7 +346,8 @@ async def resolve_session_summary(session_id: str) -> SessionSummary | None:
     # 1.1.36 — attach the group's spoken-discussion transcript so the narrative
     # summarises chat + audio. Best-effort; never blocks the report.
     if summary is not None and summary.group_code:
-        text, minutes, segs = _voice_transcript_for_group(summary.group_code)
+        # Firestore, synchronous — off the loop like the BigQuery reads above.
+        text, minutes, segs = await asyncio.to_thread(_voice_transcript_for_group, summary.group_code)
         summary.voice_transcript = text or None
         summary.voice_minutes = minutes
         summary.voice_segments = segs
@@ -326,6 +365,9 @@ def find_latest_session_id_for_group_bq(group_code: str) -> str | None:
     report. Picking the session with the newest *turn* excludes turn-less bare
     joins by construction. Returns None on no rows / BQ error, so the caller
     falls back to the index-based finder.
+
+    Synchronous: an ``async`` caller must ``await asyncio.to_thread(...)`` it
+    (1.1.131 M3 — ``reports_routes.get_group_latest_report`` did not).
     """
     from db.bigquery import CHAT_TURN_TABLE, run_query, table_ref
 

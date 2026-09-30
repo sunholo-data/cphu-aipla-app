@@ -1,0 +1,20 @@
+{
+  "LessonsPage": {
+    "groupLabel": "Group",
+    "joined": "Joined",
+    "howItWorks": "How it works",
+    "changeCode": "Change code",
+    "title": "Activities",
+    "subtitle": "Pick an activity to work on.",
+    "classLabel": "Class",
+    "loading": "Loading…",
+    "gridLabel": "Available activities",
+    "untitled": "Activity",
+    "emptyForClass": "Your teacher hasn't added an activity to {className} yet.",
+    "empty": "Your teacher hasn't added an activity yet.",
+    "checkBack": "Check back soon.",
+    "loadFailed": "Could not load activities: {message}",
+    "fetchFailed": "could not be fetched",
+    "retry": "Retry"
+  }
+}

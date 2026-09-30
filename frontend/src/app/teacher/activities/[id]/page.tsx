@@ -34,27 +34,29 @@ import { ActivityBuilderBody } from "@/components/teacher/ActivityBuilderBody";
 import { useActivityBuilder } from "@/hooks/useActivityBuilder";
 import { AuthoringCopilot } from "./_AuthoringCopilot";
 import { applyCopilotProposal } from "../applyCopilotProposal";
+import { useLocaleMode, useT } from "@/i18n";
+import { visibilityLabel } from "@/components/teacher/activityDisplay";
 
 type TabId = "goal" | "parameters" | "code" | "history";
 
 type TabDescriptor = {
   id: TabId;
-  label: string;
   icon: typeof Target;
   status: "active" | "v1.1" | "v2";
 };
 
 const TABS: TabDescriptor[] = [
-  { id: "goal", label: "Teaching goal", icon: Target, status: "active" },
-  { id: "code", label: "Code", icon: Code2, status: "v2" },
+  { id: "goal", icon: Target, status: "active" },
+  { id: "code", icon: Code2, status: "v2" },
   // History ships a real read-only provenance + lifecycle panel (M-HIST); the
   // version-timeline + rollback half stays a Year-2 roadmap note inside it.
-  { id: "history", label: "History", icon: History, status: "active" },
+  { id: "history", icon: History, status: "active" },
 ];
 
 type LoadState = "loading" | "ready" | "error";
 
 export default function TeacherActivityConfigPage() {
+  const t = useT("ActivityConfigPage");
   const params = useParams();
   const searchParams = useSearchParams();
   const activityId = typeof params?.id === "string" ? params.id : "";
@@ -77,7 +79,7 @@ export default function TeacherActivityConfigPage() {
   // The activity builder — the SAME hook the create page uses, so create and
   // edit render identical config + preview and assemble identical save payloads.
   const builder = useActivityBuilder();
-  const displayName = builder.title || titleParam || "Activity";
+  const displayName = builder.title || titleParam || t("untitled");
   const { toast, showToast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>("goal");
@@ -153,10 +155,10 @@ export default function TeacherActivityConfigPage() {
         // Legacy per-class config (dual-read window).
         await saveActivityConfig({ activityId, classId, ...elementSlice });
       }
-      showToast("Saved — students see your teaching goal on their next turn", 4000);
+      showToast(t("saved"), 4000);
     } catch (err) {
       console.error("[teacher-ui] activity save failed:", err);
-      showToast("Save failed — your changes were not stored", 4000);
+      showToast(t("saveFailed"), 4000);
     } finally {
       setIsSaving(false);
     }
@@ -169,10 +171,10 @@ export default function TeacherActivityConfigPage() {
         className="flex items-center gap-1 hover:text-foreground"
       >
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-        Activities
+        {t("activities")}
       </Link>
       <span aria-hidden="true">/</span>
-      <span className="text-foreground">Configure: {displayName}</span>
+      <span className="text-foreground">{t("crumb", { name: displayName })}</span>
     </nav>
   );
 
@@ -182,7 +184,7 @@ export default function TeacherActivityConfigPage() {
         {breadcrumb}
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          Loading activity…
+          {t("loading")}
         </div>
       </div>
     );
@@ -198,11 +200,13 @@ export default function TeacherActivityConfigPage() {
         >
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <span>
-            Could not load this activity. Refresh to try again, or return to{" "}
-            <Link href="/teacher/activities" className="font-medium underline">
-              Activities
-            </Link>
-            .
+            {t.rich("loadFailed", {
+              link: (chunks) => (
+                <Link href="/teacher/activities" className="font-medium underline">
+                  {chunks}
+                </Link>
+              ),
+            })}
           </span>
         </div>
       </div>
@@ -215,12 +219,10 @@ export default function TeacherActivityConfigPage() {
 
       <header>
         <h1 className="text-xl font-semibold sm:text-2xl">
-          Configure {displayName}
+          {t("title", { name: displayName })}
         </h1>
         <p className="max-w-3xl text-sm text-muted-foreground">
-          You don&apos;t write system prompts here — write what you want students
-          to get out of the activity. How the tutor teaches it comes from the
-          tutor the class uses.
+          {t("intro")}
         </p>
       </header>
 
@@ -231,7 +233,7 @@ export default function TeacherActivityConfigPage() {
 
       <div
         role="tablist"
-        aria-label="Configuration tabs"
+        aria-label={t("tabs")}
         className="flex flex-wrap gap-1 border-b border-border"
       >
         {TABS.map((tab) => {
@@ -253,7 +255,7 @@ export default function TeacherActivityConfigPage() {
               }`}
             >
               <Icon className="h-4 w-4" aria-hidden="true" />
-              <span>{tab.label}</span>
+              <span>{t(`tab_${tab.id}`)}</span>
               {tab.status !== "active" ? (
                 <span
                   className="ml-1 rounded border border-dashed border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
@@ -288,7 +290,7 @@ export default function TeacherActivityConfigPage() {
                     className="flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
                   >
                     <Save className="h-4 w-4" aria-hidden="true" />
-                    {isSaving ? "Saving…" : "Save configuration"}
+                    {isSaving ? t("saving") : t("save")}
                   </button>
                   {/* 1.1.133 — the whole student view, tutor included, no code.
                       Activity-store ids only: the legacy composite config has
@@ -352,15 +354,16 @@ function RoadmapBanner({
   version: "v1.1" | "v2";
   description: string;
 }) {
+  const t = useT("ActivityConfigPage");
   return (
     <div
       role="note"
-      aria-label="Roadmap preview"
+      aria-label={t("roadmapAria")}
       className="flex items-start gap-2 rounded border border-dashed border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
     >
       <Sparkles className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
       <div className="flex flex-col gap-1">
-        <span className="font-semibold">Roadmap preview — {version}</span>
+        <span className="font-semibold">{t("roadmap", { version })}</span>
         <span className="leading-relaxed opacity-90">{description}</span>
       </div>
     </div>
@@ -368,6 +371,7 @@ function RoadmapBanner({
 }
 
 function CodeTabPreview() {
+  const t = useT("ActivityConfigPage");
   return (
     <section
       role="tabpanel"
@@ -377,14 +381,14 @@ function CodeTabPreview() {
     >
       <RoadmapBanner
         version="v2"
-        description="Planned for year two. You'll be able to build your own simulations with AI help, without writing code: describe what you want, preview it, and publish it once it has been checked. Each teacher keeps their own set. The aim is that your subject knowledge — not a developer's availability — decides what gets made."
+        description={t("codeRoadmap")}
       />
 
       <div className="flex flex-col gap-3 rounded border border-border bg-background p-4">
         <header className="flex flex-wrap items-center justify-between gap-2">
           <h2 className="flex items-center gap-1.5 text-sm font-semibold">
             <Code2 className="h-4 w-4" aria-hidden="true" />
-            Boldkast artefact source
+            {t("codeTitle")}
           </h2>
           <span className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px]">
             artefacts/boldkast/v1/index.html · 12.4 KB / 200 KB cap
@@ -421,7 +425,7 @@ function CodeTabPreview() {
             className="flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground opacity-60"
           >
             <Wand2 className="h-4 w-4" aria-hidden="true" />
-            Edit with AI assist
+            {t("aiEdit")}
           </button>
           <button
             type="button"
@@ -429,7 +433,7 @@ function CodeTabPreview() {
             className="flex items-center gap-1.5 rounded border border-border bg-background px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-60"
           >
             <Code2 className="h-4 w-4" aria-hidden="true" />
-            Edit raw source
+            {t("rawEdit")}
           </button>
           <button
             type="button"
@@ -437,30 +441,28 @@ function CodeTabPreview() {
             className="flex items-center gap-1.5 rounded border border-border bg-background px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-60"
           >
             <Eye className="h-4 w-4" aria-hidden="true" />
-            Preview as student
+            {t("previewStudent")}
           </button>
         </div>
 
         <ul className="flex flex-col gap-1 text-xs text-muted-foreground">
           <li className="flex items-center gap-1.5">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-            CSP-safe — no external script sources
+            {t("check1")}
           </li>
           <li className="flex items-center gap-1.5">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-            12.4 KB of 200 KB ADR-013 cap (6%)
+            {t("check2")}
           </li>
           <li className="flex items-center gap-1.5">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-            No external fetches detected
+            {t("check3")}
           </li>
         </ul>
       </div>
 
       <p className="text-xs text-muted-foreground">
-        Open question for M/JB: review queue model (per-class trusted vs full
-        institutional review)? Pedagogical-drift control — should research
-        cohorts get a canonical pinned version?
+        {t("openQuestion")}
       </p>
     </section>
   );
@@ -474,23 +476,24 @@ function CodeTabPreview() {
 // which enriches an adopted activity with `sourceOwnerLabel`. The richer
 // per-edit version timeline + rollback stays a Year-2 roadmap note below.
 
-const VISIBILITY_COPY: Record<ActivityPayload["visibility"], string> = {
-  draft: "Draft — not shared yet",
-  private: "Private — your classes only",
-  published: "Published — in the shared catalogue",
-};
+// Visibility sentences are message keys `vis_<visibility>` (1.1.108 M2).
 
-function formatStamp(iso?: string | null): string {
+// The date follows the teacher's chosen language, never the browser's (M4.3).
+function formatStamp(iso: string | null | undefined, locale: string): string {
   if (!iso) return "—";
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return "—";
-  return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  return d.toLocaleDateString(locale === "en" ? "en-GB" : "da-DK", { year: "numeric", month: "short", day: "numeric" });
 }
 
 function HistoryPanel({ meta }: { meta: ActivityPayload | null }) {
+  const t = useT("ActivityConfigPage");
+  const tv = useT("ActivityDisplay");
+  const mode = useLocaleMode();
+  const locale = mode === "en" ? "en" : "da";
   const visibility = meta?.visibility ?? "draft";
   const adapted = Boolean(meta?.sourceOwnerUid);
-  const sourceLabel = meta?.sourceOwnerLabel ?? meta?.sourceOwnerUid ?? "another teacher";
+  const sourceLabel = meta?.sourceOwnerLabel ?? meta?.sourceOwnerUid ?? t("anotherTeacher");
 
   return (
     <section
@@ -502,43 +505,43 @@ function HistoryPanel({ meta }: { meta: ActivityPayload | null }) {
       <div className="flex flex-col gap-3 rounded border border-border bg-background p-4">
         <h2 className="flex items-center gap-1.5 text-sm font-semibold">
           <History className="h-4 w-4" aria-hidden="true" />
-          Provenance
+          {t("provenance")}
         </h2>
         {meta == null ? (
           <p className="text-sm text-muted-foreground">
-            No history yet — save this activity to start its record.
+            {t("noHistory")}
           </p>
         ) : adapted ? (
           <p className="flex items-start gap-2 text-sm">
             <GitBranch className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
             <span>
-              Adapted from{" "}
-              <span className="font-medium text-foreground">{sourceLabel}</span>
-              ’s activity. Your copy is independent — the original owner’s later
-              edits don’t change it.
+              {t.rich("adapted", {
+                source: sourceLabel,
+                b: (chunks) => <span className="font-medium text-foreground">{chunks}</span>,
+              })}
             </span>
           </p>
         ) : (
           <p className="flex items-start gap-2 text-sm text-muted-foreground">
             <Sparkles className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-            <span>Created from scratch — this is an original activity.</span>
+            <span>{t("original")}</span>
           </p>
         )}
       </div>
 
       <dl className="grid grid-cols-1 gap-px overflow-hidden rounded border border-border bg-border text-sm sm:grid-cols-3">
         <div className="flex flex-col gap-0.5 bg-background p-3">
-          <dt className="text-xs text-muted-foreground">Visibility</dt>
-          <dd className="font-medium capitalize">{visibility}</dd>
-          <dd className="text-xs text-muted-foreground">{VISIBILITY_COPY[visibility]}</dd>
+          <dt className="text-xs text-muted-foreground">{t("visibility")}</dt>
+          <dd className="font-medium">{visibilityLabel(tv, visibility)}</dd>
+          <dd className="text-xs text-muted-foreground">{t(`vis_${visibility}`)}</dd>
         </div>
         <div className="flex flex-col gap-0.5 bg-background p-3">
-          <dt className="text-xs text-muted-foreground">Created</dt>
-          <dd className="font-medium">{formatStamp(meta?.createdAt)}</dd>
+          <dt className="text-xs text-muted-foreground">{t("created")}</dt>
+          <dd className="font-medium">{formatStamp(meta?.createdAt, locale)}</dd>
         </div>
         <div className="flex flex-col gap-0.5 bg-background p-3">
-          <dt className="text-xs text-muted-foreground">Last updated</dt>
-          <dd className="font-medium">{formatStamp(meta?.updatedAt)}</dd>
+          <dt className="text-xs text-muted-foreground">{t("updated")}</dt>
+          <dd className="font-medium">{formatStamp(meta?.updatedAt, locale)}</dd>
           {/* 1.1.123 M3 — only when someone other than the owner wrote it. */}
           {meta ? (
             <dd>
@@ -550,7 +553,7 @@ function HistoryPanel({ meta }: { meta: ActivityPayload | null }) {
 
       <RoadmapBanner
         version="v2"
-        description="A per-edit version timeline with one-click rollback is Year-2. The previous version would stay live for existing student sessions until they refresh."
+        description={t("historyRoadmap")}
       />
     </section>
   );

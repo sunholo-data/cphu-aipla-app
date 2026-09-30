@@ -99,3 +99,11 @@ demo-captures/
 # full-text parsed extracts. See docs/literature/tp-framework/README.md.
 docs/literature/**/*.pdf
 docs/literature/**/parsed/
+
+# BENCH-1 tutor discrimination runs — generated reports + full model
+# transcripts, one timestamped dir per run. Anchored to the repo root (see
+# CLAUDE.md's .gitignore footgun). The README and the scripted scenarios are
+# source and stay tracked.
+/research/tutor-discrimination/*
+!/research/tutor-discrimination/README.md
+!/research/tutor-discrimination/scenarios.yaml

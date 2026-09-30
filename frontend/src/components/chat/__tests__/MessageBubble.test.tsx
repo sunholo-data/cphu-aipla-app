@@ -1,4 +1,6 @@
 import { render, screen } from "@testing-library/react";
+
+import { LocaleProvider } from "@/i18n";
 import { describe, expect, it, vi } from "vitest";
 import { MessageBubble } from "../MessageBubble";
 import type { SkillMessage } from "@/hooks/useSkillAgent";
@@ -81,18 +83,29 @@ describe("MessageBubble — bot variant", () => {
     expect(screen.getByRole("img", { name: BRANDING.appName })).toBeInTheDocument();
   });
 
-  it("renders a live message (no timestamp) as 'just now'", () => {
-    render(<MessageBubble message={botMsg()} {...baseProps} />);
+  it("renders a live message (no timestamp) as 'just now' in an English activity", () => {
+    render(
+      <LocaleProvider locale="en">
+        <MessageBubble message={botMsg()} {...baseProps} />
+      </LocaleProvider>,
+    );
     expect(screen.getByText(/just now/i)).toBeInTheDocument();
+  });
+
+  it("1.1.108: says 'lige nu' in a Danish activity, whatever the browser speaks", () => {
+    render(<MessageBubble message={botMsg()} {...baseProps} />);
+    expect(screen.getByText(/lige nu/i)).toBeInTheDocument();
   });
 
   it("shows a human-friendly relative time with the full timestamp in a tooltip", () => {
     const threeDaysAgoSec = Math.floor(Date.now() / 1000) - 3 * 24 * 3600;
     render(
-      <MessageBubble
-        message={{ ...botMsg(), timestamp: threeDaysAgoSec }}
-        {...baseProps}
-      />,
+      <LocaleProvider locale="en">
+        <MessageBubble
+          message={{ ...botMsg(), timestamp: threeDaysAgoSec }}
+          {...baseProps}
+        />
+      </LocaleProvider>,
     );
     const ts = screen.getByText(/days ago/i);
     expect(ts).toBeInTheDocument();

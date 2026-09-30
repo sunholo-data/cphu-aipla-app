@@ -1,9 +1,19 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { LocaleProvider } from "@/i18n";
 import { describe, expect, it, vi } from "vitest";
 
 import { AskAiplaButton } from "@/components/teacher/copilot/AskAiplaButton";
 import { CopilotEntryProvider, useCopilotEntry } from "@/components/teacher/copilot/CopilotEntryContext";
 import { FloatingCopilot } from "@/components/teacher/copilot/FloatingCopilot";
+
+// 1.1.108 M2 — these tests assert the English copy; a teacher's default
+// language is Danish, so render inside an English locale.
+function render(ui: ReactElement, options?: Parameters<typeof rtlRender>[1]) {
+  const wrap = (node: ReactElement) => <LocaleProvider locale="en">{node}</LocaleProvider>;
+  const r = rtlRender(wrap(ui), options);
+  return { ...r, rerender: (next: ReactElement) => r.rerender(wrap(next)) };
+}
 
 /**
  * 1.1.125 M3 — one entry to every copilot. Inside the shell a work copilot
@@ -98,7 +108,7 @@ describe("the one entry (AskAiplaButton + CopilotEntryProvider)", () => {
     fireEvent.click(screen.getByTestId("ask-aipla"));
     const menu = screen.getByRole("menu");
     expect(menu).toHaveTextContent("Class co-pilot");
-    expect(menu).toHaveTextContent("AIPLA Hjælp");
+    expect(menu).toHaveTextContent("AIPLA Help");
     fireEvent.click(screen.getByRole("menuitem", { name: /Class co-pilot/ }));
     expect(screen.getByTestId("copilot-panel").classList.contains("hidden")).toBe(false);
     expect(onOpenHelp).not.toHaveBeenCalled();
@@ -138,6 +148,6 @@ describe("the one entry (AskAiplaButton + CopilotEntryProvider)", () => {
         <AskAiplaButton helpEnabled onOpenHelp={() => {}} />
       </CopilotEntryProvider>,
     );
-    expect(screen.getByTestId("ask-aipla")).toHaveTextContent("Hjælp");
+    expect(screen.getByTestId("ask-aipla")).toHaveTextContent("Help");
   });
 });

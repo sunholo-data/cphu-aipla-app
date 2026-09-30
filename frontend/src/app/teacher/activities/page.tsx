@@ -17,7 +17,8 @@ import {
   patchClassActivities,
   setActivityVisibility,
 } from "@/lib/teacherApi";
-import { CompositionRow, VISIBILITY_LABEL, VisibilityBadge, visibilityColor } from "@/components/teacher/activityDisplay";
+import { CompositionRow, VisibilityBadge, visibilityColor, visibilityLabel } from "@/components/teacher/activityDisplay";
+import { useT } from "@/i18n";
 import {
   ActivityFilterBar,
   EMPTY_ACTIVITY_FILTERS,
@@ -40,16 +41,7 @@ const NEW_ACTIVITY_SECONDARY =
   "inline-flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent";
 
 /** 1.1.108 M4 — copy for the research view lives here, never inline in JSX. */
-const researchCopy = {
-  scope: "Activity scope",
-  mine: "My library",
-  research: "Research view",
-  subtitle: "Every teacher's activities, in every state. Open one to see what they configured, or to edit it on their behalf.",
-  hint: "All states (Draft / Private / Shared) across every teacher. Clicking opens the editor, which says whose activity it is.",
-  empty: "No activities yet",
-  emptyBody: "No teacher has created an activity yet.",
-  owner: (label: string) => `Owner: ${label}`,
-} as const;
+// 1.1.108 M2 — copy lives in messages (namespace ActivitiesPage).
 
 /**
  * Activities library (ALS-1 M1.2). The teacher's own class-independent
@@ -65,6 +57,7 @@ const researchCopy = {
  * opens the research view directly (the retired URLs redirect here).
  */
 export default function TeacherActivitiesPage() {
+  const t = useT("ActivitiesPage");
   const isResearcher = useIsResearcher();
   const [researchView, setResearchView] = useState(false);
   // `?scope=all` (the redirect from the retired research tree) — read on the
@@ -195,7 +188,7 @@ export default function TeacherActivitiesPage() {
   }
 
   async function handleDelete(activityId: string, title: string) {
-    if (!window.confirm(`Delete "${title || activityId}"? Students assigned to it will no longer see it.`)) return;
+    if (!window.confirm(t("deleteConfirm", { title: title || activityId }))) return;
     setBusyId(activityId);
     try {
       await deleteActivity(activityId);
@@ -260,26 +253,26 @@ export default function TeacherActivitiesPage() {
   const subtitle =
     status === "ok"
       ? total > count
-        ? `${count} of ${total} activities`
-        : `${count} ${count === 1 ? "activity" : "activities"}`
+        ? t("someOf", { count, total })
+        : t("count", { count })
       : undefined;
 
   const inResearch = scope === "all";
   return (
     <TeacherPage
-      title={inResearch ? researchCopy.research : "Activities"}
-      subtitle={inResearch ? researchCopy.subtitle : subtitle}
+      title={inResearch ? t("research") : t("title")}
+      subtitle={inResearch ? t("researchSubtitle") : subtitle}
       actions={
         <div className="flex items-center gap-2">
           {isResearcher ? (
-            <div role="group" aria-label={researchCopy.scope} className="flex items-center rounded border border-border text-sm font-medium">
+            <div role="group" aria-label={t("scope")} className="flex items-center rounded border border-border text-sm font-medium">
               <button
                 type="button"
                 aria-pressed={!researchView}
                 onClick={() => setResearchView(false)}
                 className={`rounded-l px-3 py-1.5 ${!researchView ? "bg-accent" : "hover:bg-accent"}`}
               >
-                {researchCopy.mine}
+                {t("mine")}
               </button>
               <button
                 type="button"
@@ -287,29 +280,25 @@ export default function TeacherActivitiesPage() {
                 onClick={() => setResearchView(true)}
                 className={`rounded-r px-3 py-1.5 ${researchView ? "bg-accent" : "hover:bg-accent"}`}
               >
-                {researchCopy.research}
+                {t("research")}
               </button>
             </div>
           ) : null}
           {inResearch ? null : (
             <Link href="/teacher/activities/new" className={NEW_ACTIVITY_PRIMARY}>
               <Plus className="h-4 w-4" aria-hidden="true" />
-              New activity
+              {t("new")}
             </Link>
           )}
         </div>
       }
     >
       {status === "ok" && inResearch ? (
-        <p className="mb-3 text-xs text-muted-foreground">{researchCopy.hint}</p>
+        <p className="mb-3 text-xs text-muted-foreground">{t("researchHint")}</p>
       ) : null}
       {status === "ok" && !inResearch ? (
         <p className="mb-3 text-xs text-muted-foreground">
-          Set each activity&rsquo;s status with its chip —{" "}
-          <span className="font-medium text-foreground">Private</span> (your classes only) or{" "}
-          <span className="font-medium text-foreground">Shared</span> (other teachers can find and adopt a copy).
-          Students only ever see activities you <span className="font-medium text-foreground">assign</span> to their
-          class.
+          {t.rich("statusHelp", { b: (chunks) => <span className="font-medium text-foreground">{chunks}</span> })}
         </p>
       ) : null}
       {status !== "error" ? (
@@ -318,30 +307,30 @@ export default function TeacherActivitiesPage() {
         </div>
       ) : null}
       {status === "loading" ? (
-        <p className="text-sm text-muted-foreground">Loading activities&hellip;</p>
+        <p className="text-sm text-muted-foreground">{t("loading")}</p>
       ) : status === "error" ? (
         <EmptyState
           icon={ClipboardList}
-          title="Couldn’t load activities"
-          description="Something went wrong fetching the list. Try again in a moment."
+          title={t("loadFailed")}
+          description={t("loadFailedBody")}
         />
       ) : activities.length === 0 && hasActiveFilters(filters) ? (
         <EmptyState
           icon={ClipboardList}
-          title="No activities match these filters"
-          description="Nothing in your library matches. Clear a filter, or try a different search."
+          title={t("noMatch")}
+          description={t("noMatchBody")}
           action={
             <button
               type="button"
               onClick={() => setFilters(EMPTY_ACTIVITY_FILTERS)}
               className={NEW_ACTIVITY_SECONDARY}
             >
-              Clear filters
+              {t("clearFilters")}
             </button>
           }
         />
       ) : activities.length === 0 && inResearch ? (
-        <EmptyState icon={ClipboardList} title={researchCopy.empty} description={researchCopy.emptyBody} />
+        <EmptyState icon={ClipboardList} title={t("researchEmpty")} description={t("researchEmptyBody")} />
       ) : inResearch ? (
         <ul className="grid gap-3 sm:grid-cols-2">
           {activities.map((a) => (
@@ -353,12 +342,12 @@ export default function TeacherActivitiesPage() {
       ) : activities.length === 0 ? (
         <EmptyState
           icon={ClipboardList}
-          title="Your activities live here"
-          description="Create a from-scratch activity — a concept dialogue, a quiz, a lab notebook, or a sim — then assign it to one or more of your classes."
+          title={t("emptyTitle")}
+          description={t("emptyBody")}
           action={
             <Link href="/teacher/activities/new" className={NEW_ACTIVITY_SECONDARY}>
               <Plus className="h-4 w-4" aria-hidden="true" />
-              New activity
+              {t("new")}
             </Link>
           }
         />
@@ -408,6 +397,7 @@ export default function TeacherActivitiesPage() {
  *  composition, the owner, the state — and a link to the EDITOR, which works on
  *  any activity for a researcher and says whose it is (1.1.123). */
 function ResearchCard({ activity }: { activity: ActivityPayload }) {
+  const t = useT("ActivitiesPage");
   return (
     <Link
       href={`/teacher/activities/${encodeURIComponent(activity.activityId)}?title=${encodeURIComponent(activity.title ?? "")}`}
@@ -428,7 +418,7 @@ function ResearchCard({ activity }: { activity: ActivityPayload }) {
         <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
           <span>{activity.language === "da" ? "Dansk" : "English"}</span>
           <span className="truncate" data-testid="activity-owner" title={activity.ownerUid}>
-            {researchCopy.owner(activity.ownerLabel ?? activity.ownerUid)}
+            {t("owner", { label: activity.ownerLabel ?? activity.ownerUid })}
           </span>
         </div>
       </TeacherCard>
@@ -455,6 +445,7 @@ function SharedActivitiesSection({
   onFiltersChange: (next: ActivityFilters) => void;
   total: number;
 }) {
+  const t = useT("ActivitiesPage");
   // Group by owner, preserving the catalogue's newest-first order within a group.
   const groups = new Map<string, { label: string; items: ActivityPayload[] }>();
   for (const a of shared) {
@@ -466,10 +457,9 @@ function SharedActivitiesSection({
     // `id="shared"` — the getting-started checklist (1.1.124) deep-links here
     // as "Adopt from the library", the no-builder path to a first lesson.
     <section id="shared" className="mt-8 scroll-mt-4">
-      <h2 className="text-sm font-semibold">Shared activities</h2>
+      <h2 className="text-sm font-semibold">{t("sharedTitle")}</h2>
       <p className="mb-3 text-xs text-muted-foreground">
-        Published by other teachers. <span className="font-medium">Use / adapt</span> copies one into your library as
-        a draft you can edit and assign.
+        {t.rich("sharedIntro", { b: (chunks) => <span className="font-medium">{chunks}</span> })}
       </p>
       {/* The catalogue is where filtering earns the most: it is the only
           cross-teacher discovery surface, and before 1.1.61 it could only be
@@ -478,11 +468,11 @@ function SharedActivitiesSection({
         <ActivityFilterBar facets={facets} filters={filters} onChange={onFiltersChange} idPrefix="catalogue" />
       </div>
       {shared.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No shared activities match these filters.</p>
+        <p className="text-sm text-muted-foreground">{t("sharedNoMatch")}</p>
       ) : null}
       {total > shared.length ? (
         <p className="mb-2 text-xs text-muted-foreground">
-          Showing {shared.length} of {total}.
+          {t("showing", { shown: shared.length, total })}
         </p>
       ) : null}
       <div className="flex flex-col gap-5">
@@ -519,6 +509,7 @@ function SharedActivityCard({
   busy: boolean;
   onAdopt: () => void;
 }) {
+  const t = useT("ActivitiesPage");
   return (
     <TeacherCard>
       <h3 className="text-sm font-semibold">
@@ -535,18 +526,15 @@ function SharedActivityCard({
           onClick={onAdopt}
           disabled={busy}
           className="flex items-center gap-1 rounded bg-primary px-2.5 py-1 font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
-          title="Copy into your library as a draft"
+          title={t("adoptTitle")}
         >
           <Copy className="h-3 w-3" aria-hidden="true" />
-          Use / adapt
+          {t("adopt")}
         </button>
       </div>
     </TeacherCard>
   );
 }
-
-const VISIBILITY_HELP =
-  "Draft = a new copy to review · Private = your classes only · Shared = other teachers can adopt a copy. Students only ever see activities you assign.";
 
 /** The status pill on an own card: shows the current state AND toggles it between
  *  the two user-settable states, Private ↔ Shared, in one click. **Draft is not
@@ -561,19 +549,21 @@ function VisibilityControl({
   busy: boolean;
   onChange: (v: ActivityPayload["visibility"]) => void;
 }) {
+  const t = useT("ActivitiesPage");
+  const tv = useT("ActivityDisplay");
   const next: "private" | "published" = value === "private" ? "published" : "private";
   const Icon = value === "published" ? Share2 : Lock;
   return (
     <button
       type="button"
-      aria-label={`Visibility: ${VISIBILITY_LABEL[value]}. Click to make ${VISIBILITY_LABEL[next]}.`}
+      aria-label={t("visibilityAria", { current: visibilityLabel(tv, value), next: visibilityLabel(tv, next) })}
       disabled={busy}
-      title={`Click to make ${VISIBILITY_LABEL[next]}. ${VISIBILITY_HELP}`}
+      title={t("visibilityTitle", { next: visibilityLabel(tv, next), help: t("visibilityHelp") })}
       onClick={() => onChange(next)}
       className={`inline-flex shrink-0 items-center gap-1 rounded border px-1.5 py-0.5 text-[11px] font-medium focus:outline-none focus:ring-1 focus:ring-ring disabled:opacity-50 ${visibilityColor(value)}`}
     >
       <Icon className="h-3 w-3" aria-hidden="true" />
-      {VISIBILITY_LABEL[value]}
+      {visibilityLabel(tv, value)}
     </button>
   );
 }
@@ -591,6 +581,7 @@ function ActivityFacetSummary({
   open: boolean;
   onToggle: () => void;
 }) {
+  const t = useT("ActivitiesPage");
   const own = [activity.subject, activity.level, ...(activity.tags ?? [])].filter(Boolean) as string[];
   const inherited = [
     ...(activity.inheritedSubjects ?? []),
@@ -608,7 +599,7 @@ function ActivityFacetSummary({
         <InheritedChip key={`inh-${v}`} label={v} />
       ))}
       {own.length === 0 && inherited.length === 0 ? (
-        <span className="text-muted-foreground/70">Not filed</span>
+        <span className="text-muted-foreground/70">{t("notFiled")}</span>
       ) : null}
       <button
         type="button"
@@ -616,7 +607,7 @@ function ActivityFacetSummary({
         aria-expanded={open}
         className="text-muted-foreground underline hover:text-foreground"
       >
-        {open ? "Done" : "File"}
+        {open ? t("done") : t("file")}
       </button>
     </div>
   );
@@ -652,6 +643,7 @@ function ActivityCard({
   const editHref = `/teacher/activities/${encodeURIComponent(activity.activityId)}${
     activity.title ? `?title=${encodeURIComponent(activity.title)}` : ""
   }`;
+  const t = useT("ActivitiesPage");
   const isDraft = activity.visibility === "draft";
   return (
     <TeacherCard>
@@ -687,17 +679,17 @@ function ActivityCard({
         <div className="flex items-center gap-3">
           <Link href={editHref} className="flex items-center gap-1 font-medium hover:text-foreground">
             <Sliders className="h-3 w-3" aria-hidden="true" />
-            Edit
+            {t("edit")}
           </Link>
           <button
             type="button"
             onClick={onDuplicate}
             disabled={busy}
             className="flex items-center gap-1 font-medium hover:text-foreground disabled:opacity-50"
-            title="Duplicate as a new draft"
+            title={t("duplicateTitle")}
           >
             <Copy className="h-3 w-3" aria-hidden="true" />
-            Duplicate
+            {t("duplicate")}
           </button>
           <button
             type="button"
@@ -706,7 +698,7 @@ function ActivityCard({
             className="flex items-center gap-1 font-medium text-destructive hover:text-destructive/80 disabled:opacity-50"
           >
             <Trash2 className="h-3 w-3" aria-hidden="true" />
-            Delete
+            {t("delete")}
           </button>
         </div>
       </div>
@@ -716,17 +708,20 @@ function ActivityCard({
           chips. Each chip is both status and control: filled = assigned. */}
       {isDraft ? (
         <div className="rounded border border-amber-300 bg-amber-50 p-2 text-[11px] text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
-          <span className="font-medium">Draft — not assignable yet.</span> Review and save it to make it Private, then
-          assign it to a class.{" "}
-          <Link href={editHref} className="font-medium underline hover:no-underline">
-            Review &amp; save
-          </Link>
+          {t.rich("draftNotice", {
+            b: (chunks) => <span className="font-medium">{chunks}</span>,
+            link: (chunks) => (
+              <Link href={editHref} className="font-medium underline hover:no-underline">
+                {chunks}
+              </Link>
+            ),
+          })}
         </div>
       ) : classes.length > 0 ? (
         <div>
           <p className="mb-1 flex items-center gap-1 text-[11px] font-medium text-foreground">
             <Users className="h-3 w-3 shrink-0" aria-hidden="true" />
-            Assign to classes
+            {t("assign")}
           </p>
           <div className="flex flex-wrap gap-1.5">
             {classes.map((c) => {

@@ -4,20 +4,32 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { ChevronRight, RefreshCw } from "lucide-react";
-import { ArrowLeft, Download, Sliders } from "lucide-react";
+import { ArrowLeft, Download } from "lucide-react";
 
 import {
   NotFoundError,
+  type ChatLogTimeline,
   type SessionSummaryPayload,
-  type WorkbenchEventPayload,
   fetchGroupLatestReport,
+  getGroupReportTimeline,
 } from "@/lib/teacherApi";
 import { downloadCsv, downloadJson } from "@/lib/download";
+import { ChatLogTranscript, timelineFromSummary } from "@/components/teacher/research/ChatLogTranscript";
+import {
+  type ExportTimeline,
+  resolveExportTimeline,
+  timelineToCsvRows,
+} from "@/components/teacher/research/timelineExport";
 import { GroupTranscriptSection } from "@/components/teacher/GroupTranscriptSection";
 import { TeachingApproachSection } from "@/components/teacher/TeachingApproachSection";
 import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
+import { useT, type Translate } from "@/i18n";
 
 const TRANSCRIPT_OPEN_KEY = "aipla.report.transcriptOpen";
+
+/** UI copy for the 1.1.136 timeline additions (1.1.108 M4: copy object, not JSX). */
+// Copy lives in messages/{da,en}/teacher-research.json (TeacherGroupReportPage) — 1.1.108.
+type T = Translate<"TeacherGroupReportPage">;
 
 // Mirrors backend analytics/live_class.py LIVE_WINDOW_S: a latest session quiet
 // longer than this is historical, not "live" — the report shows "last active …"
@@ -25,12 +37,16 @@ const TRANSCRIPT_OPEN_KEY = "aipla.report.transcriptOpen";
 const LIVE_WINDOW_S = 5400;
 
 /** "…/2026-06-29T12:00:00Z" → "3 min ago" for the AI-summary freshness line. */
-function relAgo(iso: string | null | undefined): string {
+function relAgo(iso: string | null | undefined, t: T): string {
   if (!iso) return "";
-  const secs = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
-  if (secs < 60) return "just now";
+  // An unparseable timestamp used to fall through every branch as NaN and
+  // render "last active NaNh ago" — say nothing rather than nonsense.
+  const at = Date.parse(iso);
+  if (Number.isNaN(at)) return "";
+  const secs = Math.max(0, Math.round((Date.now() - at) / 1000));
+  if (secs < 60) return t("justNow");
   const mins = Math.round(secs / 60);
-  return mins < 60 ? `${mins} min ago` : `${Math.round(mins / 60)}h ago`;
+  return mins < 60 ? t("minAgo", { n: mins }) : t("hoursAgo", { n: Math.round(mins / 60) });
 }
 
 /** The shape the report UI renders — derived from the live session summary.
@@ -46,7 +62,6 @@ type ReportDisplay = {
   durationMinutes: number;
   messageCount: number;
   simRunCount: number;
-  highlights: string[];
   conversation: ReportTurn[];
 };
 
@@ -59,11 +74,11 @@ type ReportState =
 /** "946" -> "15h 46m"; under an hour stays "Nm". The report's time is the span
  *  from the group's first to last activity (across sessions), so a raw "946 min"
  *  reads badly — 1.1.36 feedback. */
-function formatGroupTime(minutes: number): string {
-  if (minutes < 60) return `${minutes}m`;
+function formatGroupTime(minutes: number, t: T): string {
+  if (minutes < 60) return t("duration_m", { m: minutes });
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+  return m === 0 ? t("duration_h", { h }) : t("duration_hm", { h, m });
 }
 
 function toDisplay(state: ReportState): ReportDisplay | null {
@@ -78,10 +93,6 @@ function toDisplay(state: ReportState): ReportDisplay | null {
     durationMinutes: Math.round(d.durationSeconds / 60),
     messageCount: d.messageCount,
     simRunCount: d.simRunCount,
-    highlights: [
-      `${d.messageCount} messages exchanged`,
-      `${d.simRunCount} workbench interactions`,
-    ],
     conversation: d.conversation.map((t) => ({
       timestamp: t.timestamp.slice(11, 16),
       role: t.role,
@@ -91,6 +102,9 @@ function toDisplay(state: ReportState): ReportDisplay | null {
 }
 
 export default function TeacherGroupReportPage() {
+  const t = useT("TeacherGroupReportPage");
+  // The work cards' labels (and their fallback for unlabelled rows), for exports.
+  const tCards = useT("ChatLogTranscript");
   const params = useParams();
   const searchParams = useSearchParams();
   const groupId =
@@ -159,10 +173,36 @@ export default function TeacherGroupReportPage() {
     return () => window.clearInterval(id);
   }, [load, sessionId]);
 
+  // 1.1.136 M1 — the transcript with the group's work between the turns,
+  // labelled as the student saw it. Fetched only while the transcript is open,
+  // and again when the live poll brings new messages or work. If the labelled
+  // timeline cannot be read (a session with no BigQuery rows yet), the report's
+  // own payload is interleaved instead, with derived labels.
+  const live = state.kind === "live" ? state.data : null;
+  const liveSession = live?.sessionId ?? null;
+  const liveGroup = live?.groupCode || groupId;
+  const liveMessages = live?.messageCount ?? 0;
+  const liveWork = live?.simRunCount ?? 0;
+  const [timeline, setTimeline] = useState<ChatLogTimeline | null>(null);
+  useEffect(() => {
+    if (!transcriptOpen || !liveSession) return;
+    let cancelled = false;
+    getGroupReportTimeline(liveGroup, liveSession)
+      .then((tl) => {
+        if (!cancelled) setTimeline(tl);
+      })
+      .catch(() => {
+        if (!cancelled) setTimeline(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [transcriptOpen, liveGroup, liveSession, liveMessages, liveWork]);
+
   if (state.kind === "loading") {
     return (
       <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
-        Loading report…
+        {t("loading")}
       </div>
     );
   }
@@ -170,11 +210,9 @@ export default function TeacherGroupReportPage() {
   if (state.kind === "empty") {
     return (
       <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
-        <p className="font-medium text-foreground">No sessions yet</p>
-        <p>
-          Group <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{groupId}</code> has not completed a session.
-        </p>
-        <p>Students need to join and chat before a report appears here.</p>
+        <p className="font-medium text-foreground">{t("emptyTitle")}</p>
+        <p>{t.rich("emptyGroup", { group: groupId, code: (chunks) => <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{chunks}</code> })}</p>
+        <p>{t("emptyHint")}</p>
       </div>
     );
   }
@@ -182,11 +220,8 @@ export default function TeacherGroupReportPage() {
   if (state.kind === "error") {
     return (
       <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
-        <p className="font-medium text-foreground">Couldn&apos;t load this report</p>
-        <p>
-          Something went wrong fetching the session for group{" "}
-          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{groupId}</code>. Refresh to try again.
-        </p>
+        <p className="font-medium text-foreground">{t("errorTitle")}</p>
+        <p>{t.rich("errorBody", { group: groupId, code: (chunks) => <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{chunks}</code> })}</p>
       </div>
     );
   }
@@ -200,7 +235,10 @@ export default function TeacherGroupReportPage() {
   // Recency for the live badge: the last chat turn's timestamp. Viewing the
   // latest session (no ?session_id) AND active within the live window → "live";
   // otherwise it's historical → "last active N ago".
-  const lastActivityIso = report.conversation.at(-1)?.timestamp ?? null;
+  // From the RAW data: `report.conversation` timestamps are trimmed to "HH:MM"
+  // for display, which parses as NaN — so every report read "last active NaNh
+  // ago" and the live badge could never show.
+  const lastActivityIso = state.kind === "live" ? (state.data.conversation.at(-1)?.timestamp ?? null) : null;
   const liveActive =
     !sessionId &&
     lastActivityIso !== null &&
@@ -214,13 +252,13 @@ export default function TeacherGroupReportPage() {
           className="flex items-center gap-1 hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Dashboard
+          {t("dashboard")}
         </Link>
         {report.classId ? (
           <>
             <span aria-hidden="true">/</span>
             <Link href={`/teacher/classes/${report.classId}`} className="hover:text-foreground hover:underline">
-              {report.className || "Class"}
+              {report.className || t("classFallback")}
             </Link>
           </>
         ) : null}
@@ -229,28 +267,31 @@ export default function TeacherGroupReportPage() {
           {groupId}
         </code>
         <span aria-hidden="true">/</span>
-        <span className="text-foreground">Session history</span>
+        <span className="text-foreground">{t("sessionHistory")}</span>
       </nav>
 
       <header className="flex flex-col gap-1">
         <h1 className="flex items-center gap-2 text-xl font-semibold sm:text-2xl">
-          {sessionId ? "Session" : "Latest session"}
+          {sessionId ? t("session") : t("latestSession")}
           {liveActive ? (
             <span className="flex items-center gap-1 text-xs font-normal text-green-600">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" aria-hidden /> live
+              <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" aria-hidden /> {t("live")}
             </span>
           ) : (
             !sessionId &&
-            lastActivityIso && (
+            relAgo(lastActivityIso, t) && (
               <span className="text-xs font-normal text-muted-foreground">
-                last active {relAgo(lastActivityIso)}
+                {t("lastActive", { ago: relAgo(lastActivityIso, t) })}
               </span>
             )
           )}
         </h1>
         <p className="text-sm text-muted-foreground">
-          Activity: <strong>{report.activityName}</strong> · Session:{" "}
-          {report.startedAtLabel}
+          {t.rich("activityLine", {
+            activity: report.activityName,
+            started: report.startedAtLabel,
+            b: (chunks) => <strong>{chunks}</strong>,
+          })}
         </p>
       </header>
 
@@ -260,10 +301,10 @@ export default function TeacherGroupReportPage() {
       >
         <div className="flex items-center justify-between gap-2">
           <h2 id="narrative-label" className="text-base font-semibold">
-            Summary
+            {t("summary")}
           </h2>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            {narrative && inputs?.generatedAt && <span>updated {relAgo(inputs.generatedAt)}</span>}
+            {narrative && inputs?.generatedAt && <span>{t("updated", { ago: relAgo(inputs.generatedAt, t) })}</span>}
             <button
               type="button"
               onClick={() => void load({ refresh: true })}
@@ -271,7 +312,7 @@ export default function TeacherGroupReportPage() {
               className="flex items-center gap-1 rounded border px-2 py-1 hover:bg-muted disabled:opacity-50"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} aria-hidden />
-              {refreshing ? "Refreshing…" : "Refresh"}
+              {refreshing ? t("refreshing") : t("refresh")}
             </button>
           </div>
         </div>
@@ -283,24 +324,23 @@ export default function TeacherGroupReportPage() {
         ) : (
           <p className="text-sm text-muted-foreground">
             {report.conversation.length === 0 && !(inputs && inputs.audioMinutes > 0)
-              ? "No conversation yet — a summary appears once the group has chatted."
-              : `Generating a summary from ${report.messageCount} chat turns${
-                  inputs && inputs.audioMinutes > 0
-                    ? ` + ${inputs.audioMinutes} min of recorded discussion`
-                    : ""
-                }… read the chat and recording below while it generates.`}
+              ? t("noConversation")
+              : t("generating", {
+                  turns: report.messageCount,
+                  audio: inputs && inputs.audioMinutes > 0 ? String(inputs.audioMinutes) : "none",
+                })}
           </p>
         )}
         {/* 1.1.36 A5 — "what's included": names the sources so the wait is transparent. */}
         {inputs ? (
           <p className="text-xs text-muted-foreground">
-            Based on {inputs.chatTurns} chat turns
+            {t("basedOn", { turns: inputs.chatTurns })}
             {inputs.audioMinutes > 0
-              ? ` · ${inputs.audioMinutes} min recorded discussion (${inputs.audioSegments} clips)`
+              ? t("basedOnAudio", { minutes: inputs.audioMinutes, clips: inputs.audioSegments })
               : ""}
-            {inputs.simEvents > 0 ? ` · ${inputs.simEvents} sim interactions` : ""}
+            {inputs.simEvents > 0 ? t("basedOnSim", { n: inputs.simEvents }) : ""}
             {` · ${inputs.model}`}
-            {inputs.generatedAt ? ` · generated ${inputs.generatedAt.slice(11, 16)}` : ""}
+            {inputs.generatedAt ? t("generatedAt", { time: inputs.generatedAt.slice(11, 16) }) : ""}
           </p>
         ) : null}
       </section>
@@ -313,24 +353,24 @@ export default function TeacherGroupReportPage() {
         className="flex flex-col gap-2 rounded border border-border bg-background p-4"
       >
         <h2 id="summary-label" className="text-base font-semibold">
-          At a glance
+          {t("atAGlance")}
         </h2>
         <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
           <div>
-            <dt className="text-xs uppercase text-muted-foreground">Group time</dt>
+            <dt className="text-xs uppercase text-muted-foreground">{t("groupTime")}</dt>
             <dd
               className="font-medium"
-              title="Total span from the group's first to last activity, across all their sessions — not just the latest chat."
+              title={t("groupTimeTitle")}
             >
-              {formatGroupTime(report.durationMinutes)}
+              {formatGroupTime(report.durationMinutes, t)}
             </dd>
           </div>
           <div>
-            <dt className="text-xs uppercase text-muted-foreground">Messages</dt>
+            <dt className="text-xs uppercase text-muted-foreground">{t("messages")}</dt>
             <dd className="font-medium">{report.messageCount}</dd>
           </div>
           <div>
-            <dt className="text-xs uppercase text-muted-foreground">Sim runs</dt>
+            <dt className="text-xs uppercase text-muted-foreground">{t("simRuns")}</dt>
             <dd className="font-medium">{report.simRunCount}</dd>
           </div>
         </dl>
@@ -338,10 +378,13 @@ export default function TeacherGroupReportPage() {
 
       <section aria-labelledby="highlights-label" className="flex flex-col gap-2">
         <h2 id="highlights-label" className="text-base font-semibold">
-          What the group did
+          {t("whatTheyDid")}
         </h2>
         <ul className="flex flex-col gap-1 text-sm">
-          {report.highlights.map((h) => (
+          {[
+            t("highlightMessages", { n: report.messageCount }),
+            t("highlightWork", { n: report.simRunCount }),
+          ].map((h) => (
             <li key={h} className="flex items-start gap-2">
               <span
                 aria-hidden="true"
@@ -356,10 +399,8 @@ export default function TeacherGroupReportPage() {
       {/* 1.1.36 feedback — group the chat + recording transcripts as one
           "Source material" (provenance) block so they read together. */}
       <div className="flex flex-col gap-0.5">
-        <h2 className="text-base font-semibold">Source material</h2>
-        <p className="text-xs text-muted-foreground">
-          The chat and the recorded discussion this summary is drawn from — open either to read the provenance.
-        </p>
+        <h2 className="text-base font-semibold">{t("sourceMaterial")}</h2>
+        <p className="text-xs text-muted-foreground">{t("sourceMaterialHint")}</p>
       </div>
 
       <section aria-labelledby="log-label" className="flex flex-col gap-2">
@@ -377,17 +418,20 @@ export default function TeacherGroupReportPage() {
               aria-hidden="true"
             />
             <span id="log-label">
-              {transcriptOpen ? "Hide full transcript" : "View full transcript"}
+              {transcriptOpen ? t("hideTranscript") : t("viewTranscript")}
             </span>
             <span className="text-xs font-normal text-muted-foreground">
-              ({report.conversation.length} message
-              {report.conversation.length === 1 ? "" : "s"})
+              ({t("messageCount", { n: report.conversation.length })}
+              {live && (live.workbenchEvents?.length ?? 0) > 0
+                ? t("workCount", { n: live.workbenchEvents?.length ?? 0 })
+                : ""}
+              )
             </span>
           </button>
           <div className="flex items-center gap-1.5">
             <button
               type="button"
-              onClick={() => handleDownloadCsv(state, groupId)}
+              onClick={() => void handleDownloadCsv(state, groupId, tCards)}
               className="flex items-center gap-1.5 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
             >
               <Download className="h-3.5 w-3.5" aria-hidden="true" />
@@ -395,7 +439,7 @@ export default function TeacherGroupReportPage() {
             </button>
             <button
               type="button"
-              onClick={() => handleDownloadJson(state, groupId)}
+              onClick={() => void handleDownloadJson(state, groupId)}
               className="flex items-center gap-1.5 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
             >
               <Download className="h-3.5 w-3.5" aria-hidden="true" />
@@ -403,22 +447,17 @@ export default function TeacherGroupReportPage() {
             </button>
           </div>
         </header>
-        {transcriptOpen ? (
-          <ol className="flex flex-col gap-2 rounded border border-border bg-background p-3 text-sm">
-            {report.conversation.length === 0 ? (
-              <li className="text-muted-foreground">
-                No messages exchanged in this session yet.
-              </li>
-            ) : null}
-            {report.conversation.map((turn, i) => (
-              <li key={`${turn.timestamp}-${i}`} className="flex flex-col gap-0.5">
-                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-                  [{turn.timestamp}] {turn.role === "student" ? "Student" : "Tutor"}
-                </span>
-                <span>{turn.content}</span>
-              </li>
-            ))}
-          </ol>
+        {transcriptOpen && live ? (
+          // 1.1.136 M1 — one timeline: the turns AND the work, in the order they
+          // happened. Replaces the raw `server · field · value` list that used
+          // to sit below the recording transcript, values cut at 80 chars.
+          <div className="rounded border border-border bg-background p-3">
+            <ChatLogTranscript
+              items={timeline?.items ?? timelineFromSummary(live.conversation, live.workbenchEvents ?? [])}
+              status="ok"
+              workStatus={timeline?.workStatus}
+            />
+          </div>
         ) : null}
       </section>
 
@@ -426,10 +465,6 @@ export default function TeacherGroupReportPage() {
           the two sources read as one provenance block (1.1.36 feedback). Renders only
           when a recorded session produced a transcript. */}
       <GroupTranscriptSection groupId={groupId} />
-
-      {state.kind === "live" && state.data.workbenchEvents && state.data.workbenchEvents.length > 0 ? (
-        <WorkbenchActivitySection events={state.data.workbenchEvents} />
-      ) : null}
     </div>
   );
 }
@@ -444,55 +479,41 @@ function reportFilenameStem(state: ReportState, groupId: string): string {
   return `report-${groupId}-${today}`;
 }
 
-/** CSV: flat conversation log (timestamp, role, content). The teacher
- *  audience asked for spreadsheet-friendly transcripts; workbench
- *  interactions live in the JSON export instead. */
-function handleDownloadCsv(state: ReportState, groupId: string): void {
-  const conversation = state.kind === "live" ? state.data.conversation : [];
-  const rows: ReadonlyArray<ReadonlyArray<unknown>> = [
-    ["timestamp", "role", "content"],
-    ...conversation.map((t) => [t.timestamp, t.role, t.content]),
-  ];
-  downloadCsv(`${reportFilenameStem(state, groupId)}.csv`, rows);
+/** 1.1.136 §Exports — the timeline to export: the labelled server timeline, read
+ *  fresh (same `fetchWithAuth` client the transcript uses; the route admits the
+ *  class owner or a researcher), else the report's own payload interleaved. The
+ *  RAW `state.data.conversation` timestamps, never the HH:MM display copy. */
+async function exportTimeline(state: ReportState, groupId: string): Promise<ExportTimeline | null> {
+  if (state.kind !== "live") return null;
+  const d = state.data;
+  return resolveExportTimeline(
+    () => getGroupReportTimeline(d.groupCode || groupId, d.sessionId),
+    () => timelineFromSummary(d.conversation, d.workbenchEvents ?? []),
+  );
 }
 
-/** JSON: the full SessionSummary payload including metadata, conversation,
- *  and workbench events. */
-function handleDownloadJson(state: ReportState, groupId: string): void {
-  const data = state.kind === "live" ? state.data : {};
+/** CSV: the turns AND the work, one row each, in time order. Columns
+ *  `timestamp, role, content` are the chat-only file's, unchanged in name and
+ *  position; `kind` (turn | work) and `label` are appended. Work rows carry the
+ *  card's label and a readable summary of the state, not the raw snapshot. */
+async function handleDownloadCsv(
+  state: ReportState,
+  groupId: string,
+  tCards: Translate<"ChatLogTranscript">,
+): Promise<void> {
+  const tl = await exportTimeline(state, groupId);
+  downloadCsv(`${reportFilenameStem(state, groupId)}.csv`, timelineToCsvRows(tl?.items ?? [], tCards));
+}
+
+/** JSON: the full SessionSummary payload (metadata, conversation, raw
+ *  workbench events) plus `timeline` — the API's timeline items as-is, raw
+ *  values included — with where it came from and whether work was readable. */
+async function handleDownloadJson(state: ReportState, groupId: string): Promise<void> {
+  const tl = await exportTimeline(state, groupId);
+  const data =
+    state.kind === "live" && tl
+      ? { ...state.data, timeline: tl.items, timelineSource: tl.source, timelineWorkStatus: tl.workStatus }
+      : {};
   downloadJson(`${reportFilenameStem(state, groupId)}.json`, data);
 }
 
-function WorkbenchActivitySection({ events }: { events: WorkbenchEventPayload[] }) {
-  return (
-    <section aria-labelledby="workbench-label" className="flex flex-col gap-2">
-      <h2 id="workbench-label" className="flex items-center gap-2 text-base font-semibold">
-        <Sliders className="h-4 w-4" aria-hidden="true" />
-        Workbench activity
-        <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium uppercase text-muted-foreground">
-          {events.length}
-        </span>
-      </h2>
-      <ol className="flex flex-col gap-1 rounded border border-border bg-background p-3 text-sm">
-        {events.map((evt, i) => (
-          <li
-            key={`${evt.timestamp}-${i}`}
-            className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5"
-          >
-            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-              [{evt.timestamp.slice(11, 16)}]
-            </span>
-            <span className="font-medium">{evt.server}</span>
-            <span className="text-muted-foreground">·</span>
-            <span className="text-muted-foreground">{evt.field || evt.tool}</span>
-            {evt.value ? (
-              <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">
-                {evt.value.length > 80 ? `${evt.value.slice(0, 80)}…` : evt.value}
-              </code>
-            ) : null}
-          </li>
-        ))}
-      </ol>
-    </section>
-  );
-}

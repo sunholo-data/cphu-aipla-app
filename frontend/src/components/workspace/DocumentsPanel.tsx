@@ -11,6 +11,7 @@ import {
 } from "@/lib/curriculumApi";
 import { fetchActivityImageObjectUrl } from "@/lib/activityImageApi";
 import { reportDocumentEvent } from "@/lib/documentApi";
+import { useT } from "@/i18n";
 import { useDocInteractionReporting } from "@/hooks/useDocInteractionReporting";
 import { MarkdownBody } from "./MarkdownBody";
 
@@ -35,8 +36,8 @@ export interface ActivityMaterial {
 // the same document, and `studentVisible` still decides whether it appears here.
 
 /** Display label for a material (image → alt; curriculum → origin/docId). */
-function materialLabel(m: ActivityMaterial): string {
-  if (m.kind === "image") return m.alt || "Image";
+function materialLabel(m: ActivityMaterial, imageFallback: string): string {
+  if (m.kind === "image") return m.alt || imageFallback;
   return m.origin || m.docId;
 }
 
@@ -84,6 +85,7 @@ export function DocumentsPanel({
   sessionId = null,
 }: DocumentsPanelProps) {
   // Hooks must run before any early return.
+  const t = useT("DocumentsPanel");
   const [openDoc, setOpenDoc] = useState<{ docId: string; title: string } | null>(null);
   const [view, setView] = useState<ViewState | null>(null);
   // 1.1.45 M5 — research telemetry for reading interactions on the open doc.
@@ -100,9 +102,7 @@ export function DocumentsPanel({
       setView({ kind: "ready", content });
     } catch (e) {
       const msg =
-        e instanceof CurriculumApiError && e.status === 403
-          ? "You don't have access to this document's content."
-          : "Couldn't load this document.";
+        e instanceof CurriculumApiError && e.status === 403 ? t("noAccess") : t("loadFailed");
       setView({ kind: "error", message: msg });
     }
   }
@@ -116,16 +116,16 @@ export function DocumentsPanel({
   const hidden = materials.filter((m) => !m.studentVisible);
 
   return (
-    <section className="flex flex-col gap-4 p-4" aria-label="Documents">
+    <section className="flex flex-col gap-4 p-4" aria-label={t("heading")}>
       <h2 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
         <FileText className="h-4 w-4" aria-hidden="true" />
-        Documents
+        {t("heading")}
       </h2>
 
       {shared.length > 0 ? (
         <div className="flex flex-col gap-1.5">
           <p className="text-xs font-medium text-muted-foreground">
-            This activity is based on
+            {t("basedOn")}
           </p>
           <ul className="flex flex-col gap-1">
             {shared.map((m) => {
@@ -136,7 +136,7 @@ export function DocumentsPanel({
                     <ActivityImageThumb
                       activityId={activityId}
                       materialId={m.materialId}
-                      alt={materialLabel(m)}
+                      alt={materialLabel(m, t("image"))}
                       role={viewerRole}
                       onFullscreen={() =>
                         reportDocumentEvent(sessionId, {
@@ -160,7 +160,7 @@ export function DocumentsPanel({
                     }`}
                   >
                     <FileText className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                    <span className="truncate font-medium">{materialLabel(m)}</span>
+                    <span className="truncate font-medium">{materialLabel(m, t("image"))}</span>
                   </button>
                 </li>
               );
@@ -176,7 +176,7 @@ export function DocumentsPanel({
               toggle gates the contents, not the name. */}
           <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <EyeOff className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-            Also used by the tutor — name shown, contents not shared
+            {t("hiddenHeading")}
           </p>
           <ul className="flex flex-col gap-1">
             {hidden.map((m) => (
@@ -189,7 +189,7 @@ export function DocumentsPanel({
                 ) : (
                   <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 )}
-                <span className="truncate">{materialLabel(m)}</span>
+                <span className="truncate">{materialLabel(m, t("image"))}</span>
               </li>
             ))}
           </ul>
@@ -200,14 +200,14 @@ export function DocumentsPanel({
         <div className="flex flex-col gap-1.5">
           <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
             <Paperclip className="h-3.5 w-3.5" aria-hidden="true" />
-            Your uploads
+            {t("yourUploads")}
           </p>
           <div className="flex flex-wrap gap-2">
             {images.map((img, i) => (
               <ZoomableImage
                 key={i}
                 src={`data:${img.mimeType};base64,${img.data}`}
-                alt="your upload"
+                alt={t("yourUploadAlt")}
                 triggerClassName="h-16 w-16 rounded-md border object-cover"
               />
             ))}
@@ -221,7 +221,7 @@ export function DocumentsPanel({
       {openDoc !== null ? (
         <div
           className="flex min-h-0 flex-col rounded-lg border border-border bg-muted/30"
-          aria-label={`Document: ${openDoc.title}`}
+          aria-label={t("openDocLabel", { title: openDoc.title })}
         >
           <div className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
             <h3 className="flex min-w-0 items-center gap-1.5 text-xs font-semibold text-foreground">
@@ -230,7 +230,7 @@ export function DocumentsPanel({
             </h3>
             <button
               type="button"
-              aria-label="Close document"
+              aria-label={t("closeDoc")}
               onClick={() => {
                 setOpenDoc(null);
                 setView(null);
@@ -249,23 +249,22 @@ export function DocumentsPanel({
             {view?.kind === "loading" ? (
               <p className="flex items-center gap-2 text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                Loading…
+                {t("loading")}
               </p>
             ) : view?.kind === "error" ? (
               <p className="text-destructive">{view.message}</p>
             ) : view?.kind === "ready" && !view.content.available ? (
               <p className="text-muted-foreground">
-                The content of this document isn&apos;t available to read here yet.
+                {t("unavailable")}
               </p>
             ) : view?.kind === "ready" && !view.content.text.trim() ? (
-              <p className="text-destructive">Nothing was extracted from this document.</p>
+              <p className="text-destructive">{t("empty")}</p>
             ) : view?.kind === "ready" ? (
               <>
                 <MarkdownBody text={view.content.text} />
                 {view.content.text.length < view.content.chars ? (
                   <p className="mt-2 text-xs text-muted-foreground">
-                    Showing the first {view.content.text.length.toLocaleString()} of{" "}
-                    {view.content.chars.toLocaleString()} characters.
+                    {t("truncated", { shown: view.content.text.length, total: view.content.chars })}
                   </p>
                 ) : null}
               </>
@@ -295,6 +294,7 @@ function ActivityImageThumb({
   role: "student" | "teacher";
   onFullscreen?: () => void;
 }) {
+  const t = useT("DocumentsPanel");
   const [state, setState] = useState<
     { kind: "loading" } | { kind: "ready"; url: string } | { kind: "error" }
   >({ kind: "loading" });
@@ -326,7 +326,7 @@ function ActivityImageThumb({
       ) : state.kind === "error" ? (
         <div className="flex items-center gap-1.5 rounded border border-border bg-background px-2 py-1.5 text-xs text-muted-foreground">
           <ImageIcon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          <span className="truncate">{alt} — couldn&apos;t load</span>
+          <span className="truncate">{t("imageLoadFailed", { name: alt })}</span>
         </div>
       ) : (
         <ZoomableImage

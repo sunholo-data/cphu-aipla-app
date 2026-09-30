@@ -1,6 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { render as rtlRender, screen, type RenderOptions } from "@testing-library/react";
+import type { ReactElement, ReactNode } from "react";
+
+import { LocaleProvider } from "@/i18n";
 import { describe, expect, it, vi } from "vitest";
-import type { ReactElement } from "react";
 import { ChatMessageList } from "../ChatMessageList";
 import type { SkillMessage } from "@/hooks/useSkillAgent";
 import {
@@ -8,6 +10,16 @@ import {
   useSeedRestoredInteractions,
   type HumanToolEvent,
 } from "@/hooks/useHumanToolEvents";
+
+// 1.1.108: these assertions are about behaviour, written against the English
+// labels — render under an English activity. The Danish default is covered by
+// the component's own `da` assertions / i18n tests.
+const EnglishActivity = ({ children }: { children: ReactNode }) => (
+  <LocaleProvider locale="en">{children}</LocaleProvider>
+);
+const render = (ui: ReactElement, options?: RenderOptions) =>
+  rtlRender(ui, { wrapper: EnglishActivity, ...options });
+
 
 // A2UIRenderer and MCPAppToolCallRouter mount external surfaces — stub them.
 vi.mock("@/components/protocols/A2UIRenderer", () => ({
@@ -210,7 +222,7 @@ describe("ChatMessageList", () => {
           />
         </HumanToolEventsProvider>,
       );
-      expect(screen.getByText(/Tidligere interaktioner er skjult/)).toBeInTheDocument();
+      expect(screen.getByText(/Earlier interactions are hidden/)).toBeInTheDocument();
     });
   });
 });

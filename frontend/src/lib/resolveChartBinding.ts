@@ -22,13 +22,17 @@ import type { ChartElement, TableColumn, TableElement } from "@/lib/elementTypes
  * degrades **loudly**: never a crash, and never the silent plotting of the
  * wrong variables, which is the only genuinely bad outcome available.
  */
+/** Why a chart fell back to auto-binding — a code the renderer translates
+ *  (1.1.108; was a Danish sentence baked into this module). */
+export type ChartBindingNote = "tableGone" | "columnGone";
+
 export interface ResolvedChartBinding {
   table: TableElement;
   x: TableColumn;
   y: TableColumn;
   /** Set when the chart's own binding could not be honoured. Rendered on the
    *  chart so a teacher can see why it is not showing what they chose. */
-  note?: string;
+  note?: ChartBindingNote;
 }
 
 const isNumeric = (c: TableColumn): boolean => (c.kind ?? "number") === "number";
@@ -39,7 +43,7 @@ export function resolveChartBinding(
 ): ResolvedChartBinding | null {
   const autoTable = tables[0] ?? null;
 
-  const autoBind = (note?: string): ResolvedChartBinding | null => {
+  const autoBind = (note?: ChartBindingNote): ResolvedChartBinding | null => {
     if (!autoTable) return null;
     const numeric = autoTable.columns.filter(isNumeric);
     if (numeric.length < 2) return null;
@@ -51,7 +55,7 @@ export function resolveChartBinding(
 
   const table = chart.tableId ? (tables.find((t) => t.id === chart.tableId) ?? null) : autoTable;
   if (!table) {
-    return autoBind("Tabellen findes ikke længere — viser de to første talkolonner.");
+    return autoBind("tableGone");
   }
 
   const numeric = table.columns.filter(isNumeric);
@@ -59,7 +63,7 @@ export function resolveChartBinding(
   const y = chart.yColumn ? numeric.find((c) => c.id === chart.yColumn) : numeric[1];
 
   if (!x || !y) {
-    return autoBind("En valgt kolonne findes ikke længere — viser de to første talkolonner.");
+    return autoBind("columnGone");
   }
   return { table, x, y };
 }

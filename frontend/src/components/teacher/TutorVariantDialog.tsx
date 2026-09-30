@@ -4,6 +4,7 @@ import { useState } from "react";
 import { GitBranch } from "lucide-react";
 
 import { type TutorCatalogue, type TutorPayload, createTutorVariant } from "@/lib/teacherApi";
+import { useT } from "@/i18n";
 
 /**
  * ⚠️ **CURRENTLY MOUNTED NOWHERE** (2026-09-11). This component is complete and
@@ -44,7 +45,8 @@ export function TutorVariantDialog({
   onCreated: (variant: TutorPayload) => void;
   onCancel: () => void;
 }) {
-  const [displayName, setDisplayName] = useState(`${parent.displayName} — variant`);
+  const t = useT("TutorVariantDialog");
+  const [displayName, setDisplayName] = useState(() => t("defaultName", { name: parent.displayName }));
   const [frameworkId, setFrameworkId] = useState(parent.frameworkId ?? "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,7 +75,7 @@ export function TutorVariantDialog({
       );
     } catch (err) {
       const conflict = err instanceof Error && err.message.includes(" 409");
-      setError(conflict ? "A tutor with that name already exists — try another." : "Could not create the variant.");
+      setError(conflict ? t("conflict") : t("failed"));
     } finally {
       setBusy(false);
     }
@@ -87,16 +89,15 @@ export function TutorVariantDialog({
     <div className="space-y-3 rounded-lg border bg-muted/30 p-3">
       <h4 className="flex items-center gap-1.5 text-sm font-medium">
         <GitBranch className="h-4 w-4" aria-hidden />
-        New variant of {parent.displayName}
+        {t("heading", { name: parent.displayName })}
       </h4>
       <p className="text-xs text-muted-foreground">
-        {parent.displayName} is not changed. The variant keeps its picture, voice and tone unless
-        you change them here, and records that it came from {parent.displayName}.
+        {t("explainer", { name: parent.displayName })}
       </p>
 
       <div>
         <label htmlFor="variant-name" className="mb-1 block text-xs font-medium">
-          Name
+          {t("name")}
         </label>
         <input
           id="variant-name"
@@ -105,13 +106,13 @@ export function TutorVariantDialog({
           className="w-full rounded border bg-background px-2 py-1.5 text-sm"
         />
         <p className="mt-1 text-[11px] text-muted-foreground">
-          Identifier: <code>{id || "—"}</code>
+          {t.rich("identifier", { id: id || "—", code: (chunks) => <code>{chunks}</code> })}
         </p>
       </div>
 
       <div>
         <label htmlFor="variant-framework" className="mb-1 block text-xs font-medium">
-          Teaching approach
+          {t("approach")}
         </label>
         <select
           id="variant-framework"
@@ -119,7 +120,7 @@ export function TutorVariantDialog({
           onChange={(e) => setFrameworkId(e.target.value)}
           className="w-full rounded border bg-background px-2 py-1.5 text-sm"
         >
-          <option value="">None — teaches as it does now</option>
+          <option value="">{t("approachNone")}</option>
           {selectable.map((f) => (
             <option key={f.id} value={f.id}>
               {f.name}
@@ -128,8 +129,7 @@ export function TutorVariantDialog({
         </select>
         {selectable.length < frameworks.length ? (
           <p className="mt-1 text-[11px] text-muted-foreground">
-            {frameworks.length - selectable.length} more frameworks are in the library but their
-            teaching moves are not written yet.
+            {t("placeholders", { n: frameworks.length - selectable.length })}
           </p>
         ) : null}
       </div>
@@ -143,14 +143,14 @@ export function TutorVariantDialog({
           onClick={() => void submit()}
           className="rounded bg-brand px-3 py-1.5 text-sm text-white disabled:opacity-50"
         >
-          {busy ? "Creating…" : "Create variant"}
+          {busy ? t("creating") : t("create")}
         </button>
         <button
           type="button"
           onClick={onCancel}
           className="rounded border px-3 py-1.5 text-sm hover:bg-muted"
         >
-          Cancel
+          {t("cancel")}
         </button>
       </div>
     </div>

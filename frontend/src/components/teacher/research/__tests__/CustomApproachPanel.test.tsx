@@ -1,10 +1,21 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { LocaleProvider } from "@/i18n";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as teacherApi from "@/lib/teacherApi";
 import type { CustomApproach } from "@/lib/teacherApi";
 import { CustomApproachPanel } from "@/components/teacher/research/CustomApproachPanel";
+
+// 1.1.108 — teacher screens follow the person's language, Danish by default.
+// These tests assert the English copy, so they render inside an English
+// context; the Danish default has its own assertion in teacherResearchLocale.test.tsx.
+function render(ui: ReactElement, options?: Parameters<typeof rtlRender>[1]) {
+  const wrap = (node: ReactElement) => <LocaleProvider locale="en">{node}</LocaleProvider>;
+  const result = rtlRender(wrap(ui), options);
+  return { ...result, rerender: (next: ReactElement) => result.rerender(wrap(next)) };
+}
 
 function approach(over: Partial<CustomApproach> = {}): CustomApproach {
   return {
@@ -119,5 +130,42 @@ describe("custom teaching approaches (1.1.110)", () => {
 
     expect(await screen.findByText(/Could not save/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/What the tutor is told/i)).toHaveValue("Be kind.");
+  });
+});
+
+
+describe("sharing a custom approach (TUTOR-2 M0/M1)", () => {
+  it("reads an approach with no visibility field as shared", async () => {
+    // ⚠️ ABSENT IS NOT PRIVATE. Rows written before the field keep the
+    // behaviour they already had; defaulting them to private would make every
+    // existing approach vanish from every other teacher's list at once.
+    render(<CustomApproachPanel />);
+    expect(await screen.findByTestId("approach-visibility-custom-warm-coach")).toHaveTextContent("Shared");
+  });
+
+  it("says what private actually means, rather than implying nobody can see it", async () => {
+    // The research team can see a private approach, by decision. A teacher who
+    // reads "private" as "nobody sees this" and learns otherwise loses trust,
+    // not a bug report — so the panel says it next to the control.
+    vi.spyOn(teacherApi, "listCustomApproaches").mockResolvedValue([approach({ visibility: "private" })]);
+    render(<CustomApproachPanel />);
+    expect(await screen.findByTestId("approach-visibility-custom-warm-coach")).toHaveTextContent("Only you");
+    expect(screen.getByText(/visible to the research team/)).toBeInTheDocument();
+  });
+
+  it("shares with one control and takes it back with the same one", async () => {
+    const set = vi.spyOn(teacherApi, "setCustomApproachVisibility").mockResolvedValue(approach());
+    vi.spyOn(teacherApi, "listCustomApproaches").mockResolvedValue([approach({ visibility: "private" })]);
+    render(<CustomApproachPanel />);
+
+    await userEvent.click(await screen.findByLabelText(/Share with other teachers: Warm coach/));
+    expect(set).toHaveBeenCalledWith("custom-warm-coach", "shared");
+  });
+
+  it("offers no share control on somebody else's approach", async () => {
+    vi.spyOn(teacherApi, "listCustomApproaches").mockResolvedValue([approach({ canEdit: false })]);
+    render(<CustomApproachPanel />);
+    await screen.findByText("Warm coach");
+    expect(screen.queryByLabelText(/Share with other teachers/)).not.toBeInTheDocument();
   });
 });

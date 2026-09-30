@@ -8,7 +8,9 @@
  * ten-second fix into a Firestore-plus-Cloud-Logging investigation.
  */
 
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render as rtlRender, screen, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { LocaleProvider } from "@/i18n";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -30,6 +32,14 @@ vi.mock("@/lib/localMode", () => ({
 }));
 
 import { SpendDeniedNotice } from "@/components/teacher/SpendDeniedNotice";
+
+// 1.1.108 M2 — these tests assert the English copy; a teacher's default
+// language is Danish, so render inside an English locale.
+function render(ui: ReactElement, options?: Parameters<typeof rtlRender>[1]) {
+  const wrap = (node: ReactElement) => <LocaleProvider locale="en">{node}</LocaleProvider>;
+  const r = rtlRender(wrap(ui), options);
+  return { ...r, rerender: (next: ReactElement) => r.rerender(wrap(next)) };
+}
 
 beforeEach(() => {
   vi.clearAllMocks();

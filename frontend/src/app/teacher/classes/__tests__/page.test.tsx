@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   type MockedFunction,
@@ -15,6 +15,16 @@ import * as teacherApi from "@/lib/teacherApi";
 import * as insightsApi from "@/lib/insightsApi";
 import * as costApi from "@/lib/costApi";
 import type { ClassPayload } from "@/lib/teacherApi";
+import { LocaleProvider } from "@/i18n";
+
+// 1.1.108 M2 — these tests assert the English copy; the teacher UI defaults to
+// Danish (the teacher's own DA | EN choice), so render inside an English locale.
+function EnglishLocale({ children }: { children: React.ReactNode }) {
+  return <LocaleProvider locale="en">{children}</LocaleProvider>;
+}
+const render = ((ui: React.ReactElement, options?: Parameters<typeof rtlRender>[1]) =>
+  rtlRender(ui, { wrapper: EnglishLocale, ...options })) as typeof rtlRender;
+
 
 // The floating class co-pilot has its own tests and pulls in AG-UI + teacher
 // auth; stub it so these dashboard tests stay focused on the list/insights.
@@ -344,5 +354,28 @@ describe("/teacher/classes — dashboard", () => {
     // Confirming deletes + refreshes.
     await userEvent.click(screen.getByRole("button", { name: "Delete class" }));
     await waitFor(() => expect(deleteSpy).toHaveBeenCalledWith("c-9"));
+  });
+});
+
+// 1.1.108 M2 — the teacher's screens speak the teacher's own language. Without
+// an English choice they are Danish (the site default); with one, no Danish.
+describe("/teacher/classes — language", () => {
+  it("is Danish by default", async () => {
+    listSpy.mockResolvedValue([makeClass({ classId: "a", name: "Hold A" })]);
+    rtlRender(<TeacherClassesPage />);
+    await waitFor(() => expect(screen.getByRole("link", { name: "Hold A" })).toBeInTheDocument());
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Mine klasser");
+    expect(screen.getByRole("columnheader", { name: "Klasse" })).toBeInTheDocument();
+  });
+
+  it("carries no Danish letters in its own chrome under English", async () => {
+    listSpy.mockResolvedValue([makeClass({ classId: "a", name: "Class A" })]);
+    const { container } = render(<TeacherClassesPage />);
+    await waitFor(() => expect(screen.getByRole("link", { name: "Class A" })).toBeInTheDocument());
+    const attrs = [...container.querySelectorAll("[aria-label],[title],[placeholder]")]
+      .map((el) => ["aria-label", "title", "placeholder"].map((a) => el.getAttribute(a) ?? "").join(" "))
+      .join(" ");
+    expect(container.textContent ?? "").not.toMatch(/[æøåÆØÅ]/);
+    expect(attrs).not.toMatch(/[æøåÆØÅ]/);
   });
 });

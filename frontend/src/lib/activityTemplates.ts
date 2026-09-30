@@ -12,11 +12,10 @@ import type { Language } from "@/lib/teacherApi";
 // the calculator formula set) — grounded in Danish stx fysik topics, but the
 // teacher edits everything before publishing.
 //
-// Not carried by templates (by design): the concept-map element (applyTemplate
-// resets it to null — it is showcased instead via the seeded demo class,
-// `backend/onboarding/demo_seed.py`). The questionSet element (ratings /
-// multiple choice / free text, 1.1.78) is designed but not yet shipped —
-// add a template once its M0 lands.
+// Concept maps ARE carried (applyTemplate copies them) — and most maps on prod
+// are template copies, so a template's node labels are what students see. The
+// questionSet element (ratings / multiple choice / free text, 1.1.78) is
+// designed but not yet shipped — add a template once its M0 lands.
 
 export interface TemplateTable {
   title: string;
@@ -91,6 +90,10 @@ export interface ActivityTemplate {
   teachingGoal: string;
   /** Optional sim artefact to host (1.1.41) — a catalogue id. */
   artefactId?: string;
+  /** Optional school subject (a `SUBJECTS` value, e.g. "Fysik", "Matematik").
+   *  Unset leaves whatever the builder already holds. Added 2026-09-28 with
+   *  the first maths sim, which would otherwise be filed under no subject. */
+  subject?: string;
   checklist: string[];
   table?: TemplateTable;
   chart?: TemplateChart;
@@ -552,6 +555,603 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
       body:
         "**Fotonenergi:** E = h · c / λ = e · U\n\n" +
         "Deraf kan Plancks konstant h findes ud fra tændspændingen U og bølgelængden λ.",
+    },
+  },
+  // ── The catalogue-only sims (2026-09-28) ────────────────────────────────
+  // One starter per sim that shipped after the three above. Four rules hold
+  // for all six, and the tests beside this file pin them:
+  //   * No CALCULATOR for the quantity the sim withholds. Each of these sims
+  //     hides one result (wave speed, efficiency, a slope) because working it
+  //     out IS the exercise; a calculator with that formula hands it back.
+  //   * The goal describes the method and never restates the reference
+  //     values. Those live in the sim's tutorBlock (server-side, one copy);
+  //     a second copy here would drift and is readable by any teacher.
+  //   * Concept-map LABELS are shown to the student from the first minute,
+  //     "not yet" nodes included, so they name what the student will DO or
+  //     OBSERVE — never the conclusion the tutor is told not to state.
+  //   * `subject` is set, so a maths sim lands under Matematik.
+  {
+    id: "kettle-efficiency",
+    name: "Elkedlens nyttevirkning",
+    summary: "Elkedel-simulation + datatabel + graf — hvor meget af energien ender i vandet?",
+    language: "da",
+    subject: "Fysik",
+    title: "Elkedlens nyttevirkning",
+    artefactId: "kettle-efficiency",
+    teachingGoal:
+      "Hjælp eleven med at bestemme elkedlens nyttevirkning. Eleven vælger effekt og vandmængde, varmer " +
+      "vandet op og registrerer aflæsningerne: energimåleren, start- og sluttemperatur og tiden. Lad eleven " +
+      "selv finde ud af, hvilken energi måleren tæller, og hvordan man regner den energi ud, vandet har " +
+      "modtaget. Regn ikke for eleven, og bekræft ikke et facit — spørg, hvilken energi der står over og " +
+      "under brøkstregen, og hvor resten af energien er blevet af.",
+    checklist: [
+      "Lav mindst 3 opvarmninger med forskellig effekt eller vandmængde",
+      "Notér aflæsningerne i tabellen",
+      "Beregn den energi, vandet har modtaget",
+      "Beregn nyttevirkningen for hver opvarmning",
+      "Forklar, hvor den resterende energi bliver af",
+    ],
+    table: {
+      title: "Opvarmninger",
+      columns: [
+        { label: "Effekt", unit: "W", kind: "number" },
+        { label: "Vandmængde", unit: "L", kind: "number" },
+        { label: "Temperaturstigning", unit: "°C", kind: "number" },
+        { label: "Energi fra måleren", unit: "kWh", kind: "number" },
+        { label: "Nyttevirkning", kind: "number" },
+      ],
+      rows: 5,
+    },
+    chart: { title: "Nyttevirkning mod effekt", chartKind: "scatter" },
+    writing: [
+      {
+        title: "Konklusion",
+        prompt:
+          "Afhænger nyttevirkningen af effekten eller vandmængden? Henvis til jeres målinger, og forklar, " +
+          "hvor den energi, der ikke ender i vandet, bliver af.",
+        minWords: 80,
+      },
+    ],
+    note: {
+      title: "Tip",
+      body:
+        "Energimåleren viser **kWh**. Husk at omregne, før du sammenligner med energi i **J**.\n\n" +
+        "Vands specifikke varmekapacitet står i din formelsamling. Regn med, at 1 L vand vejer 1 kg.",
+    },
+    conceptMap: {
+      title: "Elkedlens nyttevirkning",
+      nodes: [
+        {
+          id: "tilfoert-energi",
+          label: "Energien fra stikkontakten",
+          doneWhen: "kan aflæse energimåleren og omregne kWh til J uden hjælp",
+          questions: [
+            {
+              prompt: "Hvor mange joule er 0,05 kWh?",
+              expectedAnswer: "0,05 · 3,6·10⁶ J = 1,8·10⁵ J (1 kWh = 3,6 MJ)",
+            },
+          ],
+        },
+        {
+          id: "energi-til-vandet",
+          label: "Energien til vandet",
+          doneWhen: "kan beregne den energi vandet modtager ud fra masse, temperaturstigning og specifik varmekapacitet",
+          questions: [
+            {
+              prompt: "Hvilke tre størrelser skal du bruge for at regne den energi ud, vandet har fået?",
+              expectedAnswer: "massen, temperaturstigningen og vands specifikke varmekapacitet: E = c·m·ΔT",
+            },
+          ],
+        },
+        {
+          id: "nyttevirkning",
+          label: "Nyttevirkning",
+          dependsOn: ["tilfoert-energi", "energi-til-vandet"],
+          doneWhen: "kan stille brøken op med den nyttige energi øverst og forklare, hvorfor den er under 1",
+          questions: [
+            {
+              prompt: "Hvilken energi står over brøkstregen, og hvilken står under — og hvorfor?",
+              expectedAnswer: "nyttig energi (til vandet) over tilført energi (fra måleren); resten går til kedlen og omgivelserne",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    id: "phase-change",
+    name: "Opvarmningskurven — fra is til damp",
+    summary: "Faseovergangs-simulation + datatabel + graf — hvorfor står temperaturen stille?",
+    language: "da",
+    subject: "Fysik",
+    title: "Opvarmningskurven",
+    artefactId: "phase-change",
+    teachingGoal:
+      "Hjælp eleven med at undersøge, hvad der sker, når 100 g is varmes op til damp. Bed eleven markere " +
+      "punkter på kurven i hver fase og ved begyndelsen og slutningen af de vandrette stykker, og notere " +
+      "tilført energi og temperatur. Stil spørgsmål til, hvor energien går hen, når temperaturen ikke " +
+      "stiger — forklar det ikke selv. Når eleven har afgrænset begge plateauer, så spørg, hvordan de to " +
+      "kan sammenlignes. Giv ikke eleven konstanterne; lad dem bestemme dem ud fra deres egne punkter.",
+    checklist: [
+      "Markér mindst to punkter i hver fase",
+      "Markér begyndelsen og slutningen af hvert vandret stykke",
+      "Bestem, hvor meget energi hvert vandret stykke kræver",
+      "Sammenlign de to vandrette stykker",
+      "Forklar, hvor energien går hen, når temperaturen står stille",
+    ],
+    table: {
+      title: "Punkter på kurven",
+      columns: [
+        { label: "Tilført energi", unit: "kJ", kind: "number" },
+        { label: "Temperatur", unit: "°C", kind: "number" },
+        { label: "Fase", kind: "text" },
+      ],
+      rows: 10,
+    },
+    chart: { title: "Temperatur mod tilført energi", chartKind: "scatter" },
+    writing: [
+      {
+        title: "Forklaring",
+        prompt:
+          "Hvorfor stiger temperaturen ikke ved 0 °C og 100 °C, selv om der hele tiden tilføres energi? " +
+          "Hvorfor er det ene vandrette stykke meget længere end det andet? Brug jeres egne målinger.",
+        minWords: 80,
+      },
+    ],
+    note: {
+      title: "Tip",
+      body:
+        "Ét punkt på kurven fortæller ikke meget. **To punkter** afgrænser et stykke af kurven — " +
+        "forskellen i energi mellem dem er det, stykket har kostet.",
+    },
+    conceptMap: {
+      title: "Opvarmningskurven",
+      nodes: [
+        {
+          id: "aflaese-kurven",
+          label: "Aflæse kurven",
+          doneWhen: "kan finde den energi, et stykke af kurven kræver, som forskellen mellem to markerede punkter",
+          questions: [
+            {
+              prompt: "Hvordan finder du ud af, hvor meget energi et bestemt stykke af kurven har krævet?",
+              expectedAnswer: "markér et punkt i hver ende og træk den tilførte energi fra hinanden",
+            },
+          ],
+        },
+        {
+          id: "en-fase",
+          label: "Opvarmning af én fase",
+          dependsOn: ["aflaese-kurven"],
+          doneWhen: "kan forklare, at energien i en skrå del går til temperaturstigning, og bestemme hældningens betydning",
+          questions: [
+            {
+              prompt: "Hvorfor er kurven stejlere for is og damp end for flydende vand?",
+              expectedAnswer: "vand har større specifik varmekapacitet, så samme energi giver mindre temperaturstigning",
+            },
+          ],
+        },
+        {
+          id: "plateauer",
+          label: "De vandrette stykker",
+          dependsOn: ["aflaese-kurven"],
+          doneWhen: "kan forklare, at energien ved et plateau bruges til faseovergangen og ikke til temperaturstigning",
+          questions: [
+            {
+              prompt: "Hvor går energien hen, mens temperaturen står stille ved 0 °C?",
+              expectedAnswer: "den bruges til at bryde bindingerne mellem molekylerne — isen smelter (smeltevarme)",
+            },
+          ],
+        },
+        {
+          id: "sammenligne-plateauer",
+          label: "Sammenligne de to vandrette stykker",
+          dependsOn: ["plateauer"],
+          doneWhen: "kan bestemme begge plateauers energi ud fra egne målinger og begrunde, hvorfor fordampning kræver mest",
+          questions: [
+            {
+              prompt: "Hvorfor kræver det meget mere energi at fordampe vandet end at smelte isen?",
+              expectedAnswer:
+                "ved fordampning skal molekylerne helt fri af hinanden; ved smeltning skal de kun kunne bevæge sig",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    id: "wave-speed",
+    name: "Bølgefart — hvor hurtigt løber bølgen?",
+    summary: "Bølge-simulation + datatabel + graf — aflæs f, λ og T og find bølgens fart.",
+    language: "da",
+    subject: "Fysik",
+    title: "Bølgefart",
+    artefactId: "wave-speed",
+    teachingGoal:
+      "Hjælp eleven med at finde bølgens fart ud fra det, simulationen viser: frekvens, bølgelængde og " +
+      "periode. Simulationen viser aldrig farten, og det skal du heller ikke. Spørg, hvad eleven har målt, " +
+      "og hvad de tror, de skal gøre med tallene. Lad eleven selv opdage sammenhængen mellem periode og " +
+      "frekvens ud fra deres tabel. Regn ikke for eleven.",
+    checklist: [
+      "Registrér mindst 4 målinger med forskellige indstillinger",
+      "Find en sammenhæng mellem periode og frekvens",
+      "Beregn bølgens fart for hver måling",
+      "Forklar, hvordan du fandt farten",
+    ],
+    table: {
+      title: "Målinger",
+      columns: [
+        { label: "Frekvens f", unit: "Hz", kind: "number" },
+        { label: "Bølgelængde λ", unit: "m", kind: "number" },
+        { label: "Periode T", unit: "s", kind: "number" },
+        { label: "Fart", unit: "m/s", kind: "number" },
+      ],
+      rows: 5,
+    },
+    chart: { title: "Periode mod frekvens", chartKind: "scatter" },
+    writing: [
+      {
+        title: "Forklaring",
+        prompt:
+          "Forklar med dine egne ord, hvordan man kan finde en bølges fart, og hvorfor det virker. Tænk på, " +
+          "hvor langt bølgen flytter sig i løbet af én periode.",
+        minWords: 60,
+      },
+    ],
+    note: {
+      title: "Tip",
+      body:
+        "Den blå markør svinger op og ned ét fast sted. Tæl, hvor mange svingninger den laver på et " +
+        "sekund, og se, hvor langt en bølgetop når at flytte sig imens.",
+    },
+    conceptMap: {
+      title: "Bølgefart",
+      nodes: [
+        {
+          id: "aflaese-boelgen",
+          label: "Frekvens, bølgelængde og periode",
+          doneWhen: "kan pege på bølgelængden på bølgen og forklare, hvad frekvensen tæller",
+          questions: [
+            {
+              prompt: "Hvad er forskellen på amplitude og bølgelængde?",
+              expectedAnswer: "amplituden er udsvinget op/ned; bølgelængden er afstanden mellem to toppe",
+            },
+          ],
+        },
+        {
+          id: "periode-frekvens",
+          label: "Periode og frekvens",
+          dependsOn: ["aflaese-boelgen"],
+          doneWhen: "kan finde sammenhængen mellem T og f ud fra sin egen tabel",
+          questions: [
+            {
+              prompt: "Hvad sker der med perioden, når du fordobler frekvensen?",
+              expectedAnswer: "den halveres — T = 1/f",
+            },
+          ],
+        },
+        {
+          id: "boelgefart",
+          label: "Hvor hurtigt bølgen løber",
+          dependsOn: ["periode-frekvens"],
+          doneWhen: "kan begrunde v = f·λ ud fra, at bølgen flytter sig én bølgelængde på én periode",
+          questions: [
+            {
+              prompt: "Hvor langt flytter en bølgetop sig i løbet af én periode?",
+              expectedAnswer: "én bølgelængde — så v = λ/T = f·λ",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    id: "wave-interference",
+    name: "Interferens — når to bølger mødes",
+    summary: "Interferens-simulation + datatabel + graf — faseforskydning, forstærkning og svævninger.",
+    language: "da",
+    subject: "Fysik",
+    title: "Interferens",
+    artefactId: "wave-interference",
+    teachingGoal:
+      "Hjælp eleven med at undersøge, hvad der sker, når to bølger i samme medium lægges sammen. Bed " +
+      "eleven først holde bølgelængderne ens og ændre faseforskydningen, og siden gøre bølgelængderne " +
+      "lidt forskellige. Spørg, hvad eleven forventer, før de kigger, og lad dem selv beskrive " +
+      "sammenhængen mellem faseforskydning og den største amplitude. Hvis eleven siger, at energien " +
+      "forsvinder ved udslukning, så brug tid på det.",
+    checklist: [
+      "Hold bølgelængderne ens og mål den største amplitude ved mindst 5 faseforskydninger",
+      "Find den faseforskydning, der giver den største og den mindste amplitude",
+      "Gør bølgelængderne lidt forskellige og beskriv, hvad der sker",
+      "Forklar, hvor energien er, når bølgerne udslukker hinanden",
+    ],
+    table: {
+      title: "Målinger",
+      columns: [
+        { label: "Faseforskydning", unit: "°", kind: "number" },
+        { label: "Største amplitude", unit: "m", kind: "number" },
+      ],
+      rows: 8,
+    },
+    chart: { title: "Største amplitude mod faseforskydning", chartKind: "scatter" },
+    writing: [
+      {
+        title: "Forklaring",
+        prompt:
+          "Forklar med dine egne ord, hvad der sker, når de to bølger lægges sammen ved forskellige " +
+          "faseforskydninger — og hvad der sker, når bølgelængderne er lidt forskellige.",
+        minWords: 80,
+      },
+    ],
+    note: {
+      title: "Tip",
+      body:
+        "Den grønne kurve er summen af de to bølger. Skjul den og vis den igen, og sammenlign den med " +
+        "de to bølger hver for sig — punkt for punkt.",
+    },
+    conceptMap: {
+      title: "Interferens",
+      nodes: [
+        {
+          id: "summen",
+          label: "Læg to bølger sammen",
+          doneWhen: "kan finde summens udsving i ét punkt ved at lægge de to bølgers udsving sammen",
+          questions: [
+            {
+              prompt: "Den ene bølge har udsvinget 0,6 m og den anden −0,4 m i samme punkt. Hvad er summens udsving?",
+              expectedAnswer: "0,2 m — udsvingene lægges sammen med fortegn",
+            },
+          ],
+        },
+        {
+          id: "faseforskydning",
+          label: "Faseforskydning",
+          dependsOn: ["summen"],
+          doneWhen: "kan forudsige, ved hvilke faseforskydninger bølgerne forstærker og udslukker hinanden, og begrunde det",
+          questions: [
+            {
+              prompt: "Ved hvilken faseforskydning udslukker to ens bølger hinanden, og hvorfor?",
+              expectedAnswer: "180° — top møder bund overalt, så summen er nul",
+            },
+          ],
+        },
+        {
+          id: "svaevninger",
+          label: "Lidt forskellige bølgelængder",
+          dependsOn: ["faseforskydning"],
+          doneWhen: "kan forklare svævninger som skiftevis forstærkning og udslukning, fordi faseforskellen ændrer sig",
+          questions: [
+            {
+              prompt: "Hvorfor skifter summen mellem store og små udsving, når bølgelængderne er lidt forskellige?",
+              expectedAnswer: "frekvenserne er forskellige, så faseforskellen vandrer — skiftevis i fase og i modfase",
+            },
+          ],
+        },
+        {
+          id: "energien",
+          label: "Hvor er energien?",
+          dependsOn: ["faseforskydning"],
+          doneWhen: "kan forklare, at energien ikke forsvinder ved udslukning men fordeles til steder med forstærkning",
+          questions: [
+            {
+              prompt: "Forsvinder energien, når to bølger udslukker hinanden?",
+              expectedAnswer: "nej — den omfordeles til de steder, hvor bølgerne forstærker hinanden",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // The missions and the diagnostic quiz live INSIDE this sim (recorded
+    // exception — they reconfigure the scene), so this starter adds no table
+    // or checklist of its own tasks; it frames the missions and asks for one
+    // piece of writing the sim cannot hold.
+    id: "sol-jord-maane",
+    name: "Sol, Jord og Måne — missioner",
+    summary: "3D-model af Sol, Jord og Måne — døgn, årstider, månefaser og formørkelser gennem fem missioner.",
+    language: "da",
+    subject: "Fysik",
+    title: "Sol, Jord og Måne",
+    artefactId: "sol-jord-maane",
+    teachingGoal:
+      "Eleven arbejder i en 3D-model af Sol, Jord og Måne med rigtige positioner. Målet er, at eleven selv " +
+      "kan forklare døgn, årstider, månefaser og formørkelser ud fra, hvordan de tre legemer står og " +
+      "bevæger sig. Start med de seks spørgsmål under 'Hvad tænker du nu?', og anbefal en første mission " +
+      "ud fra svarene. Knyt samtalen til konkrete aflæsninger og visninger i simulationen. Skriv ikke " +
+      "elevens svar på missionens spørgsmål.",
+    checklist: [
+      "Besvar de seks spørgsmål under 'Hvad tænker du nu?'",
+      "Løs den mission, tutoren anbefaler",
+      "Løs mindst én mission mere",
+      "Skriv din forklaring på årstiderne",
+    ],
+    writing: [
+      {
+        title: "Årstiderne",
+        prompt:
+          "Hvorfor er det koldere om vinteren end om sommeren i Danmark? Brug mindst to aflæsninger fra " +
+          "simulationen som argument, og forklar, hvorfor det er omvendt i Sydney.",
+        minWords: 100,
+      },
+    ],
+    note: {
+      title: "Sådan kommer du i gang",
+      body:
+        "Åbn **Missioner** for at vælge en opgave. Missionen stiller simulationen op for dig og viser et " +
+        "kort med spørgsmålet og et par trin.\n\n" +
+        "Tallene står under **Målinger**. Du kan skifte udsigtspunkt, skala og tid, og **Spring til** " +
+        "hopper direkte til fx en fuldmåne eller en solhverv.",
+    },
+    conceptMap: {
+      title: "Sol, Jord og Måne",
+      nodes: [
+        {
+          id: "doegn",
+          label: "Døgn",
+          doneWhen: "forklarer dag og nat med Jordens rotation, og at Solen (næsten) står stille",
+          questions: [
+            {
+              prompt: "Hvad er det egentlig, der bevæger sig, når Solen 'går' hen over himlen?",
+              expectedAnswer: "Jorden roterer én gang i døgnet; Solens bevægelse på himlen er tilsyneladende",
+            },
+          ],
+        },
+        {
+          id: "aarstider",
+          label: "Årstider",
+          dependsOn: ["doegn"],
+          doneWhen: "forklarer årstiderne med aksehældningen (solhøjde og daglængde), ikke med afstanden til Solen",
+          questions: [
+            {
+              prompt: "Hvorfor er det koldere om vinteren end om sommeren?",
+              expectedAnswer:
+                "aksehældningen giver lavere solhøjde og kortere dage om vinteren; afstanden varierer kun ca. 3 % og er mindst i januar",
+            },
+          ],
+        },
+        {
+          id: "maanefaser",
+          label: "Månefaser",
+          doneWhen: "forklarer faserne med, at Solen altid lyser halvdelen af Månen op, og at vi ser mere eller mindre af den",
+          questions: [
+            {
+              prompt: "Hvorfor skifter Månen form i løbet af en måned?",
+              expectedAnswer:
+                "Solen lyser altid halvdelen af Månen op; hvor meget af den oplyste halvdel vi ser, afhænger af Månens plads i banen",
+            },
+          ],
+        },
+        {
+          id: "formoerkelser",
+          label: "Formørkelser",
+          dependsOn: ["maanefaser"],
+          doneWhen: "forklarer, at Månens bane hælder ca. 5°, så en formørkelse kræver nymåne eller fuldmåne nær knudelinjen",
+          questions: [
+            {
+              prompt: "Hvorfor er der ikke solformørkelse ved hver nymåne?",
+              expectedAnswer: "Månens bane hælder ca. 5°, så Månen passerer som regel over eller under Solen",
+            },
+          ],
+        },
+        {
+          id: "skala",
+          label: "Model og virkelighed",
+          dependsOn: ["aarstider", "formoerkelser"],
+          doneWhen: "kan beskrive, hvad den overdrevne skala forvrænger, og hvorfor en model forvrænger noget for at vise noget andet",
+          questions: [
+            {
+              prompt: "Hvor langt væk er Månen, målt i jorddiametre?",
+              expectedAnswer: "ca. 30 jorddiametre",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    // The first MATHS starter. The sim withholds dy/dx and the word
+    // "tangent" by design, and its tutorBlock forbids suggesting a point
+    // either side of the one of interest and handing over the grid — so
+    // neither the checklist, the note nor a node label does either.
+    id: "sekant-intro",
+    name: "Hvor stejl er grafen i et punkt?",
+    summary: "Sekantbænk — aflæs punkter på en parabel og undersøg hældningen i ét punkt.",
+    language: "da",
+    subject: "Matematik",
+    title: "Hældning i et punkt",
+    artefactId: "sekant-intro",
+    teachingGoal:
+      "Eleven undersøger, hvor stejl en parabel er i ét bestemt punkt, med udgangspunkt i h(x) = ⅓x² + 2x + 1 " +
+      "ved x = 1. Eleven aflæser punkter, indsætter sekanter og linjer og regner selv hældningerne ud. " +
+      "Pointen er at opdage, at en ret linjes hældning kræver to punkter, mens et punkt på en kurve kun " +
+      "giver ét. Spørg, hvad eleven har målt, og hvad de gjorde med det. Nævn ikke ordet tangent, før " +
+      "eleven selv har beskrevet idéen, og oplys aldrig en hældning.",
+    checklist: [
+      "Aflæs nogle punkter på f og g",
+      "Indsæt en sekant, og find dens hældning",
+      "Undersøg: hvilken af f og g er stejlest?",
+      "Skift til h, og undersøg hvor stejl h er i x = 1",
+      "Forklar, hvordan du fandt frem til dit bud",
+    ],
+    table: {
+      title: "Sekanter",
+      columns: [
+        { label: "x₁", kind: "number" },
+        { label: "x₂", kind: "number" },
+        { label: "Δx", kind: "number" },
+        { label: "Δy", kind: "number" },
+        { label: "Hældning", kind: "number" },
+      ],
+      rows: 6,
+    },
+    writing: [
+      {
+        title: "Dit bud",
+        prompt:
+          "Hvor stejl er h i x = 1? Skriv dit bud, og forklar, hvordan du fandt frem til det, og hvorfor du " +
+          "stoler på det. Hvad var svært ved at give et præcist svar?",
+        minWords: 60,
+      },
+    ],
+    note: {
+      title: "Sådan bruger du bænken",
+      body:
+        "**Klik** på en kurve for at aflæse et punkt. **Træk** i grafen for at se mere af den.\n\n" +
+        "Værktøjerne til at tegne linjer ligger bag knappen med de **tre streger**.",
+    },
+    conceptMap: {
+      title: "Hældning i et punkt",
+      nodes: [
+        {
+          id: "aflaese-punkt",
+          label: "Aflæse et punkt på grafen",
+          doneWhen: "ser, at y-værdien i et punkt på grafen er funktionsværdien i x, og indtaster den selv",
+          questions: [
+            {
+              prompt: "Bænken skriver g(1,25) = −1,875. Hvilke tal skal i felterne x₁ og y₁?",
+              expectedAnswer: "x₁ = 1,25 og y₁ = −1,875 — y er funktionens værdi i x",
+            },
+          ],
+        },
+        {
+          id: "to-punkter",
+          label: "Hældning mellem to punkter",
+          dependsOn: ["aflaese-punkt"],
+          doneWhen: "beregner Δy/Δx for en sekant selv og kan sige, hvad tallet betyder",
+          questions: [
+            {
+              prompt: "Bænken viser Δx og Δy for din sekant. Hvordan får du hældningen ud af dem?",
+              expectedAnswer: "hældningen er Δy/Δx — hvor meget y ændrer sig pr. enhed x",
+            },
+          ],
+        },
+        {
+          id: "ingen-faelles-haeldning",
+          label: "Sammenligne f og g",
+          dependsOn: ["to-punkter"],
+          doneWhen: "kan forklare med egne målinger, at 'hvilken kurve er stejlest?' ikke har et svar uden et punkt",
+          questions: [
+            {
+              prompt: "Er f eller g stejlest?",
+              expectedAnswer: "det afhænger af hvor — fx er g flad i x = 1, mens f stiger; i x = 2 er de lige stejle",
+            },
+          ],
+        },
+        {
+          id: "haeldning-i-et-punkt",
+          label: "Hældning i ét punkt",
+          dependsOn: ["ingen-faelles-haeldning"],
+          doneWhen:
+            "lader det andet punkt nærme sig x = 1 fra begge sider og argumenterer for et bud mellem de to rækker af sekanthældninger",
+          questions: [
+            {
+              prompt: "Hvad sker der med sekantens hældning, når det andet punkt kommer tættere og tættere på x = 1?",
+              expectedAnswer:
+                "hældningerne nærmer sig et bestemt tal (8/3 ≈ 2,67) — ovenfra fra højre og nedefra fra venstre",
+            },
+          ],
+        },
+      ],
     },
   },
   {

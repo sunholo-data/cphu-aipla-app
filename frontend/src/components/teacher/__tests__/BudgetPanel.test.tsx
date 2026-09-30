@@ -1,9 +1,19 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { LocaleProvider } from "@/i18n";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { BudgetPanel } from "@/components/teacher/BudgetPanel";
 import * as costApi from "@/lib/costApi";
 import type { ClassSpendPayload } from "@/lib/costApi";
+
+// 1.1.108 M2 — these tests assert the English copy; a teacher's default
+// language is Danish, so render inside an English locale.
+function render(ui: ReactElement, options?: Parameters<typeof rtlRender>[1]) {
+  const wrap = (node: ReactElement) => <LocaleProvider locale="en">{node}</LocaleProvider>;
+  const r = rtlRender(wrap(ui), options);
+  return { ...r, rerender: (next: ReactElement) => r.rerender(wrap(next)) };
+}
 
 function payload(overrides: Partial<ClassSpendPayload> = {}): ClassSpendPayload {
   return {

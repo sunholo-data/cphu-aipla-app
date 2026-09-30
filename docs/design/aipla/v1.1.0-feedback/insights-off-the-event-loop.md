@@ -1,6 +1,6 @@
 # A researcher's dashboard froze a student's tutor for a minute — insights off the event loop
 
-**Status:** **M0 + guard SHIPPED (dev) 2026-09-22** — M2 (visible stall) open — **1.1.131**
+**Status:** **M0 + guard SHIPPED (prod v0.1.63, 2026-09-22)** · **M2 (visible stall), M3 (report route) and M4 (alert — committed, not applied) BUILT 2026-09-29** in sprint CLASSVISIT-1 lane A, not yet on prod — only "Later" open — **1.1.131**
 **Priority:** **P0** — any researcher or teacher opening a cold insights view during a lesson stalls **every** student stream on that instance, and the class sees a dead tutor with no error
 **Estimated:** ~0.5d (M0 thread-offload every blocking route ~0.25d · M1 guard ~0.15d · M2 client stall message ~0.1d)
 **Scope:** Backend — `protocols/insights_routes.py`, `insights/cache.py`, any other `async def` route doing blocking I/O; a CI guard script. Frontend — `hooks/useSkillAgent.ts` watchdog
@@ -114,3 +114,104 @@ re-sending doubles the turn.
   ASGI beside a `/ping`. On the pre-fix code `/ping` waited 0.91 s behind a
   0.8 s query; on the fix it answers at once.
 - **M2 (visible stall in the client) is still open.**
+
+## Verified against prod, and what is still open — 2026-09-29
+
+Source: [class-visit-2026-09-feedback-triage.md](class-visit-2026-09-feedback-triage.md), item 1
+(*"the platform crashed, it was easy fix by only refreshing the browser"*).
+Prod logs, 21–27 Sep, ~102.6k request rows, read with full permission.
+
+**The 22 Sep crash was this bug.** At 14:44:22 CEST `insights/compare?scope=all`
+took 66 s on revision `00058-9pq`, and was called again at 14:45, 14:46 and 14:48.
+Every request that reached that instance queued behind it: pulses, signals,
+`voice/config` and one `/stream` took 33–65 s, and 79 slow requests landed in
+14:44 alone. All four >60 s streams of the week fall in this window. A student
+client-error at 14:49:22 from a class IP reads `Load failed` on `/chat`, which is
+the "refresh fixes it" pattern. **The same freeze had already happened** on 21 Sep
+(15:10, 15:38, 16:39) and on the morning of 22 Sep (10:59, 11:10), with stalls
+up to 212 s. The M0 fix reached prod as `00059-njn` at 22 Sep 23:45 CEST (v0.1.63).
+Since then `compare?scope=all` still takes ~53 s but no longer blocks anyone else.
+
+⚠️ **Log-query note.** Python `ERROR:` lines carry no Cloud Logging severity, so
+`severity>=ERROR` found 29 entries in the week. The loop detector alone logged
+114 on 24 Sep. Query by text, not severity.
+
+### M3 — the group report route (~0.5d) · **P1**
+
+`GET /api/reports/groups/{code}` (`reports_routes.get_group_latest_report`)
+calls `find_latest_session_id_for_group_bq` synchronously, and
+`reports/session_summary.summarize_session_bq` calls `run_query` directly, both
+inside an `async def`. The M1 runtime guard caught it: 114 hits on 24 Sep, more
+on 28–29 Sep on `00064-zbn`. The teacher's live view polls it every few seconds.
+p95 is 1.8 s and the worst is 7.5 s, so these are small class-wide freezes
+rather than a 60 s one. Offload both and add the route to
+`test_blocking_queries_off_the_loop.py`.
+
+### M4 — the guard pages someone (~0.25d) · **P1**
+
+The runtime guard only logs today, and it was the logs that found M3, five
+days late. Add a log-based metric + alert on prod for `run_query on the event
+loop` (≥1 in 5 min). A detector no one is told about is the same "silent
+failure" shape this doc exists to close.
+
+### Later — separate the researcher load from the student loop (~1–2d)
+
+`--workers 2`, or insights as its own Cloud Run service. **Only after M3 is
+done.** It is still true that raising workers now would hide the bug rather than
+fix it. Decide in workstream F with AD.
+
+## What shipped — 2026-09-29
+
+Sprint CLASSVISIT-1, lane A. Built and tested; **not yet deployed**.
+
+- **M3 — the group report is off the loop.** `reports_routes.get_group_latest_report`
+  runs `find_latest_session_id_for_group_bq` (and the Firestore fallback
+  `find_latest_session_for_group`) through `asyncio.to_thread`;
+  `summarize_session_bq` runs both of its queries (turns, workbench events) the
+  same way, which also covers `GET /api/reports/sessions/{id}` and every other
+  caller of `resolve_session_summary`. The Firestore reads beside them went too:
+  the voice-transcript lookup and `_serialize`'s label/inputs reads (`_aserialize`).
+  **Test:** `test_blocking_queries_off_the_loop.py` gains the group report and
+  `sessions/{id}?source=bq`. The fake `run_query` calls the REAL
+  `_warn_if_on_event_loop` before blocking, so each test asserts both halves:
+  `/ping` answers while the report is still querying, **and** the detector stays
+  silent. On the pre-fix code both fail (`/ping` waited 1.33 s and 0.92 s).
+  Still synchronous on this path and not touched (not this lane's files):
+  `reports/narrative.py`'s session-index read/write and `summarize_session`'s
+  `get_session_index`. They are single Firestore document reads, not queries.
+- **M2 — a stall is visible, and the retry cannot double-send.** `useSkillAgent`
+  now returns `stall: "slow" | "stalled" | null` and `retryStalled()`. The timer
+  arms on `RUN_STARTED` and re-arms on every stream event (text deltas via
+  `onMessagesChanged`, text start, tool calls, reasoning, custom events); it
+  disarms on finish/failure and on `COMPACTION_STARTED`, whose ~37 s is a
+  finished answer, not a stall. At 15 s the chat footer shows a quiet line; at
+  45 s, an "Ask again" button. Copy is in `messages/{da,en}/chat-page.json`
+  (`stallSlow`, `stallStalled`, `stallRetry`).
+  **Why the retry cannot double-send:** it aborts the stalled run and *awaits
+  its settlement* before sending, so two runs are never in flight and the
+  aborted stream's late flush cannot render. It takes the stalled turn (the
+  question bubble and any partial answer) out of the transcript, then sends the
+  same text once. The abort's `onRunFailed(AbortError)` is suppressed. It uses a
+  fresh message id on purpose: ag_ui_adk skips ids it has already processed, so
+  replaying the old id on the same instance would reach ADK with no new message
+  and fail. **Known limit:** if the stalled request did reach the server, the
+  question is already in the ADK session once, so the tutor's history can hold
+  it twice. The student sees one question and one answer, which is what
+  re-typing (the 22 Sep behaviour) could not give them.
+  **Tests:** seven fake-timer cases in `useSkillAgent.test.tsx`: the 15/45 s
+  thresholds, re-arm on progress, a steady stream never tripping it, disarm on
+  finish, no arm during compaction, retry with max-in-flight = 1, and exactly
+  one user message. There are also four page cases in `chat-error-display.test.tsx`.
+- **M4 — the detector pages someone.** New `infrastructure/env/event_loop_alert.tf`:
+  a log-based metric `aipla/run_query_on_event_loop` on
+  `resource.labels.service_name="aipla-v01-frontend"` AND
+  `textPayload:"run_query on the event loop"`. It matches by **text**, since these
+  lines carry no severity. There is also an alert policy (sum > 0 over 5 min,
+  auto-close 1 h, runbook in its documentation block) and an email channel.
+  **On by default for prod only** (`event_loop_alert_enabled`, null → `env == "prod"`);
+  recipients are `ops_alert_emails`, which defaults to `m@sunholo.com`. Both
+  variables are declared in the new file, so no shared `variables.tf` or
+  `*.tfvars` edit was needed. `terraform fmt` is clean and `terraform validate`
+  passes (`init -backend=false`). **Not applied:** `make tf-apply ENV=prod GO=1`
+  is the human step. The next `dev` push that touches `infrastructure/env/**`
+  will show three new resources in the prod plan.

@@ -1,4 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { render as rtlRender, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { LocaleProvider } from "@/i18n";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/components/teacher/insights/_chartsBundle", () => ({
@@ -11,6 +13,15 @@ vi.mock("@/components/teacher/insights/_chartsBundle", () => ({
 }));
 
 import { TrendSparkline } from "@/components/teacher/insights/TrendSparkline";
+
+// 1.1.108 — teacher screens follow the person's language, Danish by default.
+// These tests assert the English copy, so they render inside an English
+// context; the Danish default has its own assertion in teacherResearchLocale.test.tsx.
+function render(ui: ReactElement, options?: Parameters<typeof rtlRender>[1]) {
+  const wrap = (node: ReactElement) => <LocaleProvider locale="en">{node}</LocaleProvider>;
+  const result = rtlRender(wrap(ui), options);
+  return { ...result, rerender: (next: ReactElement) => result.rerender(wrap(next)) };
+}
 
 describe("TrendSparkline", () => {
   it("renders empty state with no points", () => {

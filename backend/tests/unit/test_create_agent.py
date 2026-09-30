@@ -18,6 +18,7 @@ from google.adk.agents import LlmAgent
 
 from adk.agent import _safe_agent_name, create_agent
 from adk.math_notation import build_math_notation_block
+from adk.praise_style import build_praise_block
 from auth.firebase_auth import User
 from db.models import SkillConfig, SkillMetadata
 
@@ -98,7 +99,7 @@ def test_create_agent_returns_llmagent_with_expected_name_and_instruction():
     # Plus the unconditional maths-notation block (teacher feedback 2026-08-21
     # items 17 + 18) — house style, applied to every skill by design, so it is
     # part of the baseline rather than something a test opts into.
-    assert resolved == "Do the thing." + build_math_notation_block()
+    assert resolved == "Do the thing." + build_math_notation_block() + build_praise_block()
 
 
 def test_create_agent_instruction_appends_iframe_context_when_state_has_it():
@@ -611,7 +612,7 @@ def test_no_activity_composes_exactly_as_before(_activity_env):
     ctx = MagicMock()
     ctx.state = {}
     assert asyncio.run(agent.instruction(ctx)) == (
-        "Do the thing." + build_math_notation_block() + build_identity_block(None)
+        "Do the thing." + build_math_notation_block() + build_praise_block() + build_identity_block(None)
     )
 
 

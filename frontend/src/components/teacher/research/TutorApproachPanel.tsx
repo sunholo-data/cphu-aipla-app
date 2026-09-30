@@ -1,16 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { GraduationCap, Loader2 } from "lucide-react";
+import { GraduationCap, Loader2, Undo2 } from "lucide-react";
 
 import {
   type TutorCatalogue,
   type TutorPayload,
   fetchTutorCatalogue,
+  clearTutorFramework,
   setTutorFramework,
 } from "@/lib/teacherApi";
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
 import { TutorFace } from "@/components/teacher/research/TutorFace";
+import { useT } from "@/i18n";
 
 /**
  * Give each tutor a teaching approach (1.1.91 TUTOR-4) — researcher-only.
@@ -47,6 +49,7 @@ export function TutorApproachPanel({
 }: {
   frameworks: { id: string; name: string; isPlaceholder: boolean }[];
 }) {
+  const t = useT("TutorApproachPanel");
   const [catalogue, setCatalogue] = useState<TutorCatalogue | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -55,11 +58,29 @@ export function TutorApproachPanel({
     let cancelled = false;
     fetchTutorCatalogue()
       .then((c) => !cancelled && setCatalogue(c))
-      .catch(() => !cancelled && setError("Could not load the tutors."));
+      .catch(() => !cancelled && setError(t("loadFailed")));
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [t]);
+
+  /** Remove the assignment entirely, so the tutor falls back to its own
+   *  approach. Distinct from assigning null, which is an override meaning "this
+   *  tutor teaches with nothing" — the distinction the old copy blurred. */
+  const unassign = async (tutor: TutorPayload) => {
+    setSaving(tutor.id);
+    setError(null);
+    try {
+      await clearTutorFramework(tutor.id);
+      // Re-read: what the tutor falls back TO is the store's answer, not ours.
+      const fresh = await fetchTutorCatalogue();
+      setCatalogue(fresh);
+    } catch {
+      setError(t("undoFailed"));
+    } finally {
+      setSaving(null);
+    }
+  };
 
   const assign = async (tutor: TutorPayload, frameworkId: string) => {
     setSaving(tutor.id);
@@ -71,12 +92,12 @@ export function TutorApproachPanel({
           ? c
           : {
               ...c,
-              tutors: c.tutors.map((t) => (t.id === updated.id ? updated : t)),
-              skillBoundTutors: (c.skillBoundTutors ?? []).map((t) => (t.id === updated.id ? updated : t)),
+              tutors: c.tutors.map((x) => (x.id === updated.id ? updated : x)),
+              skillBoundTutors: (c.skillBoundTutors ?? []).map((x) => (x.id === updated.id ? updated : x)),
             },
       );
     } catch {
-      setError(`Could not change what ${tutor.displayName} teaches with.`);
+      setError(t("changeFailed", { name: tutor.displayName }));
     } finally {
       setSaving(null);
     }
@@ -86,32 +107,45 @@ export function TutorApproachPanel({
   // backend refuses it too — this only keeps it out of the menu.
   const selectable = frameworks.filter((f) => !f.isPlaceholder);
 
-  const row = (t: TutorPayload) => (
-    <div key={t.id} className="flex flex-wrap items-center gap-3 border-t py-2.5 first:border-t-0">
-      <TutorFace avatar={t.persona?.avatar} name={t.displayName} />
+  const row = (tutor: TutorPayload) => (
+    <div key={tutor.id} className="flex flex-wrap items-center gap-3 border-t py-2.5 first:border-t-0">
+      <TutorFace avatar={tutor.persona?.avatar} name={tutor.displayName} />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium">{t.displayName}</p>
-        {t.summary ? <p className="truncate text-xs text-muted-foreground">{t.summary}</p> : null}
+        <p className="truncate text-sm font-medium">{tutor.displayName}</p>
+        {tutor.summary ? <p className="truncate text-xs text-muted-foreground">{tutor.summary}</p> : null}
       </div>
       <div className="flex items-center gap-2">
-        {saving === t.id ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" aria-hidden /> : null}
-        <label htmlFor={`approach-${t.id}`} className="sr-only">
-          Teaching approach for {t.displayName}
+        {saving === tutor.id ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" aria-hidden /> : null}
+        <label htmlFor={`approach-${tutor.id}`} className="sr-only">
+          {t("approachFor", { name: tutor.displayName })}
         </label>
         <select
-          id={`approach-${t.id}`}
-          value={t.frameworkId ?? ""}
-          disabled={saving === t.id}
-          onChange={(e) => void assign(t, e.target.value)}
+          id={`approach-${tutor.id}`}
+          value={tutor.frameworkId ?? ""}
+          disabled={saving === tutor.id}
+          onChange={(e) => void assign(tutor, e.target.value)}
           className="rounded border bg-background px-2 py-1 text-sm disabled:opacity-50"
         >
-          <option value="">No stated approach</option>
+          <option value="">{t("noApproach")}</option>
           {selectable.map((f) => (
             <option key={f.id} value={f.id}>
               {f.name}
             </option>
           ))}
         </select>
+        {tutor.hasAssignment ? (
+          <button
+            type="button"
+            disabled={saving === tutor.id}
+            aria-label={t("undoAria", { name: tutor.displayName })}
+            title={t("undoTitle")}
+            onClick={() => void unassign(tutor)}
+            className="flex items-center gap-1 rounded border px-2 py-1 text-xs text-muted-foreground hover:bg-accent disabled:opacity-50"
+          >
+            <Undo2 className="h-3.5 w-3.5" aria-hidden />
+            {t("undo")}
+          </button>
+        ) : null}
       </div>
     </div>
   );
@@ -120,26 +154,31 @@ export function TutorApproachPanel({
     <TeacherCard>
       <h2 className="flex items-center gap-2 text-base font-medium">
         <GraduationCap className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-        What each tutor teaches with
+        {t("title")}
       </h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        Choosing an approach here changes how that tutor teaches in every class using it. The
-        published catalogue is not modified — set a tutor back to “No stated approach” to undo.
+        {t("assignmentExplainer")}
+      </p>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {/* ⚠️ This paragraph used to say "set a tutor back to 'No stated
+            approach' to undo", which was not true and is the reason
+            clearTutorFramework had nothing to render on. The two are different
+            acts and only one of them is an undo. */}
+        {t.rich("undoExplainer", { b: (chunks) => <strong>{chunks}</strong> })}
       </p>
 
       {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
 
       {catalogue === null ? (
-        <p className="mt-3 text-sm text-muted-foreground">Loading tutors&hellip;</p>
+        <p className="mt-3 text-sm text-muted-foreground">{t("loading")}</p>
       ) : (
         <div className="mt-3">
           {catalogue.tutors.map(row)}
           {(catalogue.skillBoundTutors ?? []).length > 0 ? (
             <div className="mt-4 border-t pt-3">
-              <p className="text-xs font-medium">Activity tutors</p>
+              <p className="text-xs font-medium">{t("activityTutors")}</p>
               <p className="mb-1 text-[11px] text-muted-foreground">
-                Defined by an activity rather than chosen for a class. They can still be given an
-                approach, and doing so does not detach them from their activity.
+                {t("activityTutorsHelp")}
               </p>
               {(catalogue.skillBoundTutors ?? []).map(row)}
             </div>

@@ -10,6 +10,7 @@
 import { Map as MapIcon, Plus, Sparkles, X } from "lucide-react";
 
 import { ConceptMapGraph } from "@/components/workspace/ConceptMapGraph";
+import { useT } from "@/i18n";
 
 export interface ConceptQuestionRow {
   key: number;
@@ -68,22 +69,22 @@ interface ConceptMapEditorProps {
 }
 
 export function ConceptMapEditor({ value, onChange, nextKey, onPropose }: ConceptMapEditorProps) {
+  const t = useT("ConceptMapEditor");
   if (!value) {
     return (
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-slate-700">Concept map (optional)</span>
+          <span className="text-sm font-medium text-slate-700">{t("optional")}</span>
           <button
             type="button"
             onClick={() => onChange({ title: "", nodes: [] })}
             className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
           >
-            <Plus className="h-3.5 w-3.5" /> Add concept map
+            <Plus className="h-3.5 w-3.5" /> {t("add")}
           </button>
         </div>
         <p className="text-xs text-slate-500">
-          The concepts this activity covers and what builds on what. Students see it as an orientation map;
-          the tutor can run check questions per concept and light nodes up as they&apos;re demonstrated.
+          {t("help")}
         </p>
       </div>
     );
@@ -119,24 +120,24 @@ export function ConceptMapEditor({ value, onChange, nextKey, onPropose }: Concep
     <div className="flex flex-col gap-3 rounded-lg border border-slate-200 p-3">
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
-          <MapIcon className="h-4 w-4 text-slate-500" /> Concept map
+          <MapIcon className="h-4 w-4 text-slate-500" /> {t("title")}
         </span>
         <button
           type="button"
           onClick={() => onChange(null)}
           className="rounded px-2 py-1 text-xs font-medium text-slate-400 hover:bg-red-50 hover:text-red-600"
         >
-          Remove concept map
+          {t("remove")}
         </button>
       </div>
 
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-slate-600">Title (optional)</span>
+        <span className="text-xs font-medium text-slate-600">{t("titleLabel")}</span>
         <input
           type="text"
           value={value.title}
           onChange={(e) => update({ title: e.target.value })}
-          placeholder="e.g. Projektilbevægelse"
+          placeholder={t("titlePlaceholder")}
           maxLength={120}
           className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
         />
@@ -148,17 +149,17 @@ export function ConceptMapEditor({ value, onChange, nextKey, onPropose }: Concep
             <div className="flex items-center gap-2">
               <input
                 type="text"
-                aria-label={`Concept ${idx + 1}`}
+                aria-label={t("conceptAria", { n: idx + 1 })}
                 value={node.label}
                 onChange={(e) => updateNode(node.key, { label: e.target.value })}
-                placeholder="e.g. Vektorer"
+                placeholder={t("conceptPlaceholder")}
                 maxLength={120}
                 className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
               />
               <button
                 type="button"
                 onClick={() => removeNode(node.key)}
-                aria-label={`Remove concept ${idx + 1}`}
+                aria-label={t("removeConceptAria", { n: idx + 1 })}
                 className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
               >
                 <X className="h-4 w-4" />
@@ -167,7 +168,7 @@ export function ConceptMapEditor({ value, onChange, nextKey, onPropose }: Concep
 
             {labelled.some((c) => c.id !== node.id) && (
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-xs text-slate-500">Builds on:</span>
+                <span className="text-xs text-slate-500">{t("buildsOn")}</span>
                 {labelled
                   .filter((c) => c.id !== node.id)
                   .map((c) => {
@@ -178,7 +179,7 @@ export function ConceptMapEditor({ value, onChange, nextKey, onPropose }: Concep
                         key={c.id}
                         type="button"
                         disabled={blocked}
-                        title={blocked ? "Would create a cycle" : undefined}
+                        title={blocked ? t("cycle") : undefined}
                         onClick={() => toggleDep(node, c.id)}
                         className={`rounded-full border px-2 py-0.5 text-xs ${
                           active
@@ -197,10 +198,10 @@ export function ConceptMapEditor({ value, onChange, nextKey, onPropose }: Concep
 
             <input
               type="text"
-              aria-label={`Done when, concept ${idx + 1}`}
+              aria-label={t("doneWhenAria", { n: idx + 1 })}
               value={node.doneWhen}
               onChange={(e) => updateNode(node.key, { doneWhen: e.target.value })}
-              placeholder="Done when… — what counts as having got this concept"
+              placeholder={t("doneWhenPlaceholder")}
               maxLength={200}
               className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
             />
@@ -211,20 +212,20 @@ export function ConceptMapEditor({ value, onChange, nextKey, onPropose }: Concep
                   <div className="flex flex-1 flex-col gap-1">
                     <input
                       type="text"
-                      aria-label={`Check question ${qIdx + 1} for concept ${idx + 1}`}
+                      aria-label={t("questionAria", { q: qIdx + 1, n: idx + 1 })}
                       value={q.prompt}
                       onChange={(e) =>
                         updateNode(node.key, {
                           questions: node.questions.map((x) => (x.key === q.key ? { ...x, prompt: e.target.value } : x)),
                         })
                       }
-                      placeholder="Check question — the tutor asks this in the chat"
+                      placeholder={t("questionPlaceholder")}
                       maxLength={500}
                       className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
                     />
                     <input
                       type="text"
-                      aria-label={`Expected answer ${qIdx + 1} for concept ${idx + 1}`}
+                      aria-label={t("answerAria", { q: qIdx + 1, n: idx + 1 })}
                       value={q.expectedAnswer}
                       onChange={(e) =>
                         updateNode(node.key, {
@@ -233,7 +234,7 @@ export function ConceptMapEditor({ value, onChange, nextKey, onPropose }: Concep
                           ),
                         })
                       }
-                      placeholder="What a good answer covers (the tutor judges against this)"
+                      placeholder={t("answerPlaceholder")}
                       maxLength={1000}
                       className="rounded-md border border-slate-200 px-3 py-1.5 text-xs text-slate-600"
                     />
@@ -243,7 +244,7 @@ export function ConceptMapEditor({ value, onChange, nextKey, onPropose }: Concep
                     onClick={() =>
                       updateNode(node.key, { questions: node.questions.filter((x) => x.key !== q.key) })
                     }
-                    aria-label={`Remove check question ${qIdx + 1} for concept ${idx + 1}`}
+                    aria-label={t("removeQuestionAria", { q: qIdx + 1, n: idx + 1 })}
                     className="mt-1 rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
                   >
                     <X className="h-3.5 w-3.5" />
@@ -260,7 +261,7 @@ export function ConceptMapEditor({ value, onChange, nextKey, onPropose }: Concep
                   }
                   className="self-start text-xs font-medium text-sky-700 hover:underline"
                 >
-                  + Check question
+                  {t("addQuestion")}
                 </button>
               )}
             </div>
@@ -275,7 +276,7 @@ export function ConceptMapEditor({ value, onChange, nextKey, onPropose }: Concep
             onClick={addNode}
             className="flex items-center gap-1 self-start rounded border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
           >
-            <Plus className="h-3.5 w-3.5" /> Add concept
+            <Plus className="h-3.5 w-3.5" /> {t("addConcept")}
           </button>
         )}
         {/* CONCEPT-2 M3 — the co-pilot already has `propose_concept_map`; what
@@ -290,7 +291,7 @@ export function ConceptMapEditor({ value, onChange, nextKey, onPropose }: Concep
             onClick={onPropose}
             className="flex items-center gap-1 self-start rounded border border-sky-300 bg-sky-50 px-2 py-1 text-xs font-medium text-sky-700 hover:bg-sky-100"
           >
-            <Sparkles className="h-3.5 w-3.5" /> Foreslå begrebskort
+            <Sparkles className="h-3.5 w-3.5" /> {t("propose")}
           </button>
         )}
       </div>

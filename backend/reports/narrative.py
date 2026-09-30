@@ -19,16 +19,20 @@ individually; no verbatim quoting; no emoji.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 
-from config.models import default_model
+from config.models import analysis_model
 from db.chat_sessions import get_session_index, update_session_fields
 from reports.session_summary import SessionSummary
 
 log = logging.getLogger(__name__)
 
-#: Model is config-driven — config/models.yaml platform_default (RAQ-1 follow-up).
+#: Model is config-driven — config/models.yaml ``analysis_model`` (BENCH-1,
+#: 1.1.139 D1). The narrative is after-the-fact (a report read after the lesson,
+#: pre-warmed by the internal warm route), so it runs on the analysis model,
+#: not the tutor's lite model.
 
 _SYSTEM_PROMPT = """\
 You are summarising a tutoring session for a teacher reviewing what happened.
@@ -101,12 +105,12 @@ def _within_debounce(generated_at) -> bool:
 
 
 async def _call_gemini(prompt: str) -> str:
-    """Run the prompt through Gemini Flash (plain text). Mocked in tests."""
+    """Run the prompt through the analysis model (plain text). Mocked in tests."""
     from google import genai
 
     client = genai.Client(vertexai=True)
     response = await client.aio.models.generate_content(
-        model=default_model(),
+        model=analysis_model(),
         contents=prompt,
     )
     return (response.text or "").strip()
@@ -135,7 +139,10 @@ async def resolve_narrative(summary: SessionSummary, *, force: bool = False) -> 
     if not summary.conversation and not (summary.voice_transcript or "").strip():
         return None
 
-    idx = get_session_index(summary.session_id)
+    # 1.1.131 follow-up: the Firestore reads/writes here are synchronous and this
+    # runs inside the async report route — offloaded so a report cannot hold the
+    # event loop a class's streams share.
+    idx = await asyncio.to_thread(get_session_index, summary.session_id)
     live_count = summary.message_count
     live_voice = len((summary.voice_transcript or "").strip())
     if not force and idx is not None and idx.summary_text:
@@ -157,7 +164,8 @@ async def resolve_narrative(summary: SessionSummary, *, force: bool = False) -> 
     summary.narrative = text or None
     if idx is not None and text:
         try:
-            update_session_fields(
+            await asyncio.to_thread(
+                update_session_fields,
                 summary.session_id,
                 {
                     "summaryText": text,

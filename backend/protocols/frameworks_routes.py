@@ -18,6 +18,7 @@ property the whole framework layer exists for.
 from __future__ import annotations
 
 import logging
+from typing import Literal
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Path
 from pydantic import BaseModel, ConfigDict, Field
@@ -149,6 +150,60 @@ async def list_frameworks_route(
     """The whole catalogue, with each framework's live and default instruction."""
     assert_researcher(user)
     return {"frameworks": [_serialize(fw) for fw in load_frameworks()]}
+
+
+@router.get("/catalogue")
+async def teacher_catalogue_route(
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """The published approaches as a TEACHER needs them (TUTOR-2 M1).
+
+    1.1.135's argument is that a teacher authoring a tutor must choose an
+    approach **somebody can read** — which is impossible while the seven are
+    invisible to them. It is the reviewability principle ``TutorPicker`` already
+    states: the teacher can always see what the tutor is actually told.
+
+    ⚠️ Deliberately a SEPARATE, SMALLER payload rather than relaxing the
+    researcher list above. That route's own test says *"an ordinary teacher must
+    403, not receive a narrowed view — a researcher surface that silently
+    degrades is worse than one that refuses"*, and that judgement still holds:
+    the researcher payload carries override state, the git default and the
+    revert delta, which are editor machinery, not reading material. So this is
+    a different thing with a different shape, not the same thing with fields
+    missing — the distinction the original decision was protecting.
+
+    ⚠️ Declared BEFORE ``GET /{framework_id}``, and it has to be: FastAPI matches
+    in declaration order, so the single-segment catch-all below would otherwise
+    swallow ``/catalogue`` and answer *404 framework not found* — the trap
+    ``/crossview`` documents a few lines down.
+    """
+    assert_teacher(user)
+    return {
+        "approaches": [
+            {
+                "id": fw.id,
+                "label": fw.label,
+                "summary": " ".join((fw.summary or "").split()),
+                "status": fw.status,
+                "register": fw.teaching_register,
+                # What the tutor is actually told. The point of the screen.
+                "instruction": resolve_framework_instruction(fw.id) or default_framework_instruction(fw.id),
+                # Name + summary + the observable behaviours. The behaviours are
+                # what a generated prompt is BUILT from and what a reviewer
+                # checks it against, so they are the half a teacher choosing an
+                # approach actually needs to read.
+                "constructs": [
+                    {
+                        "name": c.name,
+                        "summary": c.summary or "",
+                        "behaviours": [b.text for b in c.behaviours],
+                    }
+                    for c in (effective_framework(fw.id) or fw).constructs
+                ],
+            }
+            for fw in load_frameworks()
+        ]
+    }
 
 
 # ── researcher cross-view (1.1.91 M4) ────────────────────────────────────────
@@ -328,15 +383,22 @@ def _custom_or_404(framework_id: str) -> TeachingFramework:
 async def list_custom_approaches_route(
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict:
-    """Every custom approach, with whether THIS caller may edit each one.
+    """The custom approaches THIS caller may see, and may edit.
 
     ``canEdit`` is computed server-side and sent per row rather than left to the
     client to derive. A UI deriving it would be a second copy of the rule, and
     the two would disagree the first time one changed — the shape of the
     money-gate join footgun.
+
+    TUTOR-2 M0 narrows the list itself: 1.1.110 returned every approach to every
+    caller, which put one teacher's half-drafted approach in everyone's list.
+    Absent visibility still reads as SHARED, so nothing authored before this
+    disappears. A researcher's read is unfiltered and logged, as for tutors.
     """
     assert_teacher(user)
-    rows = list_authored_frameworks()
+    if user.is_researcher:
+        log.info("frameworks: unfiltered custom-approach read by researcher uid=%s", user.uid)
+    rows = list_authored_frameworks(user.uid, see_all=user.is_researcher)
     return {
         "approaches": [
             {
@@ -378,6 +440,41 @@ async def create_custom_approach_route(
         author_role="researcher" if user.is_researcher else "teacher",
     )
     log.info("custom approach created: %s by %s", saved.id, user.uid)
+    return {**saved.model_dump(by_alias=True, mode="json"), "canEdit": True}
+
+
+class ApproachVisibilityBody(BaseModel):
+    """Share a custom approach, or take it back (TUTOR-2 M0)."""
+
+    visibility: Literal["private", "shared"]
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+@router.put("/custom/{framework_id}/visibility")
+async def set_custom_approach_visibility_route(
+    framework_id: str = Path(...),
+    body: ApproachVisibilityBody = Body(...),  # noqa: B008
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """The share control for an approach — the tutor gesture, same word.
+
+    Its OWN endpoint rather than a field on the edit body, deliberately: an edit
+    that could change who sees a thing is an edit that shares it by accident.
+    Same reason ``PUT /api/activities/{id}/links`` is not part of the activity
+    upsert.
+    """
+    assert_teacher(user)
+    existing = _custom_or_404(framework_id)
+    if not may_edit(existing, uid=user.uid, is_researcher=user.is_researcher):
+        raise HTTPException(status_code=403, detail="this approach belongs to someone else")
+    saved = save_authored_framework(
+        existing.model_copy(update={"visibility": body.visibility}),
+        author_uid=user.uid,
+        author_role="researcher" if user.is_researcher else "teacher",
+        set_visibility=body.visibility,
+    )
+    log.info("custom approach visibility: %s -> %s by %s", framework_id, body.visibility, user.uid)
     return {**saved.model_dump(by_alias=True, mode="json"), "canEdit": True}
 
 

@@ -150,7 +150,13 @@ class LatencyTracker:
 
     # --- Public API ---
 
-    def mark(self, name: str, user_label: str | None = None) -> None:
+    def mark(
+        self,
+        name: str,
+        user_label: str | None = None,
+        label_key: str | None = None,
+        label_params: dict[str, str | int] | None = None,
+    ) -> None:
         """Record a stage timing.
 
         Args:
@@ -159,6 +165,10 @@ class LatencyTracker:
                 AG-UI Custom event with this label so the UI can show it as
                 progress text inside the skeleton bubble. Set to None for
                 stages that should be invisible to the user (the default).
+            label_key / label_params: a stable message key + its values
+                (1.1.108), so the student UI renders the label in the
+                activity's language. ``user_label`` stays the English text,
+                used by any client that does not know the key.
 
         Fail-open: any exception is swallowed at WARNING level. Instrumentation
         must never break the chat path.
@@ -166,11 +176,17 @@ class LatencyTracker:
         if not _ENABLED:
             return
         try:
-            self._do_mark(name, user_label)
+            self._do_mark(name, user_label, label_key, label_params)
         except Exception as exc:
             logger.warning("LatencyTracker.mark(%r) failed (suppressed): %s", name, exc)
 
-    def _do_mark(self, name: str, user_label: str | None) -> None:
+    def _do_mark(
+        self,
+        name: str,
+        user_label: str | None,
+        label_key: str | None = None,
+        label_params: dict[str, str | int] | None = None,
+    ) -> None:
         # Idempotent on re-mark: keep the first observation. ``first_*`` marks
         # in particular must not be overwritten by later events.
         if name in self._marks:
@@ -194,6 +210,8 @@ class LatencyTracker:
                             value={
                                 "stage": name,
                                 "label": user_label,
+                                "key": label_key,
+                                "params": label_params or {},
                                 "elapsed_ms": round(elapsed_ms, 2),
                             },
                         )
@@ -362,7 +380,13 @@ class _NullLatencyTracker(LatencyTracker):
     bound. Every public method is a no-op so callbacks can call mark()
     unconditionally without checking for None."""
 
-    def mark(self, name: str, user_label: str | None = None) -> None:
+    def mark(
+        self,
+        name: str,
+        user_label: str | None = None,
+        label_key: str | None = None,
+        label_params: dict[str, str | int] | None = None,
+    ) -> None:
         return
 
     def set_model(self, model_used: str, routing_choice: str = "") -> None:

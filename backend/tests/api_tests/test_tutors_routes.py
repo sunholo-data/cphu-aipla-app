@@ -48,13 +48,36 @@ def _client(user: User) -> TestClient:
     return TestClient(app)
 
 
-def test_a_teacher_reads_the_catalogue_but_cannot_author():
+def test_a_teacher_may_author_a_tutor_but_only_one_that_names_an_approach():
+    """TUTOR-2 M2 changes 1.1.91 M1's policy deliberately, and this test is where
+    the change is recorded.
+
+    M1 kept teachers out of authoring because "a tutor with a theory field and
+    no theory in it makes an unfounded claim look founded". That objection is
+    about the CLAIM, not about who is typing — so the gate moved from the person
+    to the tutor: a teacher may author one, provided it points at an approach
+    somebody can read. 1.1.110 already gave teachers custom approaches for
+    exactly this reason.
+    """
     c = _client(TEACHER)
     assert c.get("/api/tutors").status_code == 200
-    assert c.post("/api/research/tutors", json={"id": "x-1", "displayName": "X"}).status_code == 403
+
+    naked = c.post("/api/research/tutors", json={"id": "x-1", "displayName": "X"})
+    assert naked.status_code == 400
+    assert "approach" in naked.json()["detail"]
+
+    ok = c.post(
+        "/api/research/tutors",
+        json={"id": "x-1", "displayName": "X", "frameworkId": "esru"},
+    )
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["authorRole"] == "teacher"
+
+    # A variant needs no approach of its own — it inherits the parent's, which
+    # is the whole reason M1 allowed variants in the first place.
     assert (
-        c.post("/api/research/tutors/variant", json={"parentId": "sofie", "id": "x-1", "displayName": "X"}).status_code
-        == 403
+        c.post("/api/research/tutors/variant", json={"parentId": "sofie", "id": "x-2", "displayName": "X"}).status_code
+        == 200
     )
 
 
@@ -150,12 +173,34 @@ def test_ids_are_slug_shaped():
 
 
 def test_deleting_an_authored_tutor_falls_back_to_the_yaml_base():
-    """The YAML catalogue is the floor — deleting can never empty the list."""
+    """The YAML catalogue is the floor — deleting can never empty the list.
+
+    TUTOR-2 M0 adds a step: a new tutor is PRIVATE, including a researcher's, so
+    an override only reaches other people once it is shared. That is the whole
+    flow now — author, then share — and asserting it here keeps the two halves
+    from drifting.
+    """
     c = _client(RESEARCHER)
     c.post("/api/research/tutors", json={"id": "sofie", "displayName": "Sofie (overridden)"})
+    c.put("/api/research/tutors/sofie/visibility", json={"visibility": "shared"})
     assert _client(TEACHER).get("/api/tutors/sofie").json()["displayName"] == "Sofie (overridden)"
     c.delete("/api/research/tutors/sofie")
     assert _client(TEACHER).get("/api/tutors/sofie").json()["displayName"].startswith("Sofie —")
+
+
+def test_an_unshared_override_hides_itself_not_the_base_tutor():
+    """The flaw M0's first cut shipped, caught by the test above and pinned here.
+
+    An authored row shadowing a base is ONE PERSON'S override of a shared thing.
+    If keeping it private removed the id, one researcher's private draft of
+    "Sofie" would delete Sofie for every teacher in the deployment.
+    """
+    _client(RESEARCHER).post("/api/research/tutors", json={"id": "sofie", "displayName": "Sofie (private draft)"})
+    body = _client(TEACHER).get("/api/tutors/sofie").json()
+    assert body["displayName"].startswith("Sofie —")
+
+    catalogue = {t["id"] for t in _client(TEACHER).get("/api/tutors").json()["tutors"]}
+    assert "sofie" in catalogue
 
 
 # ── M7: the migrated SKILL.md tutors ─────────────────────────────────────────

@@ -8,6 +8,7 @@
 "use client";
 
 import type { ToolCallState } from "@/hooks/useSkillAgent";
+import { useT } from "@/i18n";
 
 const MAX_TOOL_NAME = 32;
 
@@ -32,12 +33,13 @@ export function ToolCallChip({ toolCall }: ToolCallChipProps) {
 }
 
 function Spinner() {
+  const t = useT("ToolCallChip");
   return (
     <svg
       className="h-3 w-3 animate-spin text-orange-500"
       viewBox="0 0 24 24"
       fill="none"
-      aria-label="Running"
+      aria-label={t("running")}
     >
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
       <path
@@ -50,6 +52,7 @@ function Spinner() {
 }
 
 function CheckIcon() {
+  const t = useT("ToolCallChip");
   return (
     <svg
       className="h-3 w-3 text-green-600"
@@ -57,7 +60,7 @@ function CheckIcon() {
       fill="none"
       stroke="currentColor"
       strokeWidth="2"
-      aria-label="Success"
+      aria-label={t("success")}
     >
       <path d="M3 8l3.5 3.5L13 4" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
@@ -65,6 +68,7 @@ function CheckIcon() {
 }
 
 function ErrorIcon() {
+  const t = useT("ToolCallChip");
   return (
     <svg
       className="h-3 w-3 text-red-600"
@@ -72,7 +76,7 @@ function ErrorIcon() {
       fill="none"
       stroke="currentColor"
       strokeWidth="2"
-      aria-label="Error"
+      aria-label={t("error")}
     >
       <path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round" />
     </svg>

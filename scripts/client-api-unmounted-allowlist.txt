@@ -1,0 +1,38 @@
+# Exported API-client functions with no call site, deliberately, for now.
+#
+# Format:  <client file>::<exported name>   # reason
+#
+# A REASON IS REQUIRED. "Unused" is not a reason — the point of this list is
+# that somebody looked at each one and decided. An entry with no reason should
+# be treated as an entry nobody has looked at.
+#
+# ⚠️ Do NOT add an entry to make the gate green after adding a client function
+# you intend to mount "next sprint". Mount it, or leave the gate red as the
+# reminder it exists to be. Every line here is a promise somebody will come back.
+#
+# Established 2026-09-29 (1.1.135 / TUTOR-2 M6) with the seven the first
+# mechanical run found. Six of the seven had never been noticed; a hand audit of
+# this same question, done days earlier, had missed them and invented a seventh
+# that was not real.
+
+# --- being mounted by work in flight ---------------------------------------
+
+
+# --- superseded, kept until someone confirms the deletion -------------------
+#
+# All three cleared 2026-09-29. listMyActivities and isTeacherOnlySkill were
+# genuinely dead and are deleted. chatLogExportPath was a FALSE POSITIVE — it is
+# used by fetchChatLogExport inside the same file, which the guard excludes from
+# its own search, so an internal helper looked like a dead one. It is now
+# un-exported, which is the right shape for a helper and takes it out of scope.
+
+
+# --- a helper, not an endpoint ---------------------------------------------
+
+
+# --- genuinely missing controls, each a real gap ---------------------------
+#
+# revokeGroupCode was here and is now MOUNTED (2026-09-29) — the class page
+# grew a Revoke control. That is what this list is for: an entry leaves it by
+# being fixed, not by being forgotten.
+

@@ -6,6 +6,9 @@ import { imageFilesFromClipboard } from "@/lib/clipboardImages";
 import { resizeImageFile, type EncodedImage } from "@/lib/imageResize";
 import { screenImageForPerson } from "@/lib/personGuardrail";
 
+/** Why the staging row shows a notice — translated by `ImageStagingRow`. */
+export type ImageNotice = "tooMany" | "processFailed" | "retake" | "degraded";
+
 /** A picked image staged for the next turn: preview URL + wire-ready base64. */
 export interface StagedImage {
   id: string;
@@ -20,8 +23,9 @@ export const MAX_IMAGES = 4;
 
 export interface UseImageAttachments {
   staged: StagedImage[];
-  /** soft user-facing notice (cap hit / guardrail block / degrade). */
-  notice: string | null;
+  /** soft user-facing notice (cap hit / guardrail block / degrade), as a code
+   *  the rendering component translates (1.1.108). */
+  notice: ImageNotice | null;
   count: number;
   /** base64 EncodedImage[] for sendMessage opts.attachments. */
   attachments: EncodedImage[];
@@ -46,7 +50,7 @@ export interface UseImageAttachments {
  */
 export function useImageAttachments(): UseImageAttachments {
   const [staged, setStaged] = useState<StagedImage[]>([]);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [notice, setNotice] = useState<ImageNotice | null>(null);
   const stagedRef = useRef<StagedImage[]>([]);
 
   const addFiles = useCallback(async (files: FileList | File[] | null) => {
@@ -57,23 +61,23 @@ export function useImageAttachments(): UseImageAttachments {
 
     for (const file of images) {
       if (stagedRef.current.length >= MAX_IMAGES) {
-        setNotice(`You can attach up to ${MAX_IMAGES} images per message.`);
+        setNotice("tooMany");
         break;
       }
       // On-device privacy screen — blocked images never get staged or sent.
       const screen = await screenImageForPerson(file);
       if (screen.blocked) {
-        setNotice(screen.message);
+        setNotice(screen.notice);
         continue;
       }
-      if (screen.degraded && screen.message) {
-        setNotice(screen.message);
+      if (screen.degraded && screen.notice) {
+        setNotice(screen.notice);
       }
       let encoded: EncodedImage;
       try {
         encoded = await resizeImageFile(file);
       } catch {
-        setNotice("Couldn't process that image. Please try another.");
+        setNotice("processFailed");
         continue;
       }
       const item: StagedImage = {

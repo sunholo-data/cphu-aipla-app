@@ -1,0 +1,35 @@
+{
+  "LanguageSwitch": {
+    "label": "Sprog",
+    "da": "Dansk",
+    "en": "English"
+  },
+  "SiteFooter": {
+    "project": "Projektet",
+    "app": "Appen",
+    "about": "Om",
+    "guides": "Vejledninger",
+    "join": "Tilslut din gruppe",
+    "teacherSignIn": "Lærer-login",
+    "aboutAipla": "Om AIPLA",
+    "privacy": "Privatlivspolitik",
+    "terms": "Vilkår",
+    "credits": "Krediteringer",
+    "officialPage": "Officiel projektside",
+    "announcement": "Projektomtale",
+    "newTab": "(åbner i en ny fane)",
+    "hosted": "Hostet af <b>{department}</b>, {university}. Finansieret af {funder}, {period}.",
+    "engineering": "AI-platformsudvikling",
+    "engineeringSuffix": "af Sunholo"
+  },
+  "HomeEntry": {
+    "join": "Tilslut din gruppe →",
+    "guides": "Vejledninger",
+    "aboutProject": "Om AIPLA-projektet"
+  },
+  "TeacherEntryLink": {
+    "signIn": "Er du lærer? Log ind her",
+    "signedIn": "Gå til dine klasser →",
+    "signedInAs": "Logget ind som {email}"
+  }
+}

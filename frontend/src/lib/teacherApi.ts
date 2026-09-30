@@ -383,15 +383,6 @@ export async function saveActivityConfig(
   return readJson<ActivityConfigPayload>(resp, "save activity config");
 }
 
-/** List the current teacher's activities (optionally scoped to one class).
- *  Backs the Activities library index — teacher-scoped by construction. */
-export async function listMyActivities(
-  classId?: string,
-): Promise<ActivityConfigPayload[]> {
-  const qs = classId ? `?classId=${encodeURIComponent(classId)}` : "";
-  const resp = await fetchWithAuth(`/api/proxy/api/activity-configs${qs}`);
-  return readJson<ActivityConfigPayload[]>(resp, "list activities");
-}
 
 // ── ALS-1 M0/M1: the class-independent Activity store ─────────────────────────
 // An Activity is owned by a teacher and minted `act-…` (distinct from any skill
@@ -1044,14 +1035,6 @@ export interface SkillSummary {
   accessControl?: SkillAccessControl | null;
 }
 
-/** A skill gated to teachers (e.g. manage-class, analytics-chat) — it can never
- *  be a student lesson, so it must not appear in the "Add from catalogue"
- *  student-lesson picker (1.1.32). The gate is the synthetic `role:teacher`
- *  tag the backend AccessContext evaluator checks. */
-export function isTeacherOnlySkill(s: SkillSummary): boolean {
-  const ac = s.accessControl;
-  return ac?.type === "tagged" && (ac.tags ?? []).includes("role:teacher");
-}
 
 /** List skills the current teacher can access (their own + class-bound + public).
  *  Returns the same shape as the student-side picker. */
@@ -1365,6 +1348,18 @@ export interface TutorPayload {
   requiresGroupTalk?: boolean;
   skillName?: string | null;
   lineage: { kind: "original" | "variant-of"; parentTutorId?: string | null };
+  /** Whether a RESEARCHER has assigned this tutor an approach, as distinct from
+   *  the tutor carrying one of its own. Only an assignment can be undone. */
+  hasAssignment?: boolean;
+  /** TUTOR-2 M0. Absent reads as "shared" — absent is NOT private, which is
+   *  what stops tutors written before the field vanishing from every picker. */
+  visibility?: "private" | "shared" | null;
+  authorUid?: string | null;
+  authorRole?: "researcher" | "teacher";
+  /** Computed SERVER-side per row: owner or researcher, and only for a tutor
+   *  that has a stored row (a YAML base has nothing to share or delete). Never
+   *  re-derived here. */
+  canEdit?: boolean;
   persona: { id: string; name: string; title?: string | null; avatar: string } | null;
   frameworkName: string | null;
   frameworkSummary: string | null;
@@ -1426,6 +1421,125 @@ export async function setClassTutor(classId: string, tutorId: string | null): Pr
 }
 
 /** Researcher-only: fork a tutor, keeping lineage to the parent. */
+/** Author a tutor from scratch (TUTOR-2 M2).
+ *
+ *  A teacher must name an approach: 1.1.91 kept teachers out of authoring
+ *  because "a tutor with a theory field and no theory in it makes an unfounded
+ *  claim look founded", and the gate moved from the person to the tutor — the
+ *  claim lives on the approach, where it can be read. The backend refuses a
+ *  teacher's tutor with no `frameworkId` (400). */
+export async function createTutor(input: {
+  id: string;
+  displayName: string;
+  summary?: string | null;
+  personaId?: string | null;
+  frameworkId?: string | null;
+  interactionStyle?: TutorPayload["interactionStyle"];
+}): Promise<TutorPayload> {
+  const resp = await fetchWithAuth("/api/proxy/api/research/tutors", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return readJson<TutorPayload>(resp, "create tutor");
+}
+
+/** Share a tutor, or take it back (TUTOR-2 M0) — the activities library's
+ *  gesture, and its word: the badge reads "Shared". */
+export async function setTutorVisibility(
+  tutorId: string,
+  visibility: "private" | "shared",
+): Promise<TutorPayload> {
+  const resp = await fetchWithAuth(`/api/proxy/api/research/tutors/${encodeURIComponent(tutorId)}/visibility`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ visibility }),
+  });
+  return readJson<TutorPayload>(resp, "set tutor visibility");
+}
+
+export async function deleteTutor(tutorId: string): Promise<void> {
+  const resp = await fetchWithAuth(`/api/proxy/api/research/tutors/${encodeURIComponent(tutorId)}`, {
+    method: "DELETE",
+  });
+  if (!resp.ok) throw new Error(`delete tutor: ${resp.status}`);
+}
+
+// --- Custom personas: a tutor's face and voice (TUTOR-2 M3) ---------------
+//
+// `Persona.source` was Literal["yaml"] from 1.1.12, its docstring recording the
+// Firestore layer as "a v1.2 follow-up". A teacher cannot write a file in git,
+// so without this "give your tutor a face" was not a thing a teacher could do.
+
+export interface CustomPersona {
+  id: string;
+  name: string;
+  title?: string | null;
+  /** A path from the shipped set. CHOSEN, never uploaded — see AVATAR_CHOICES. */
+  avatar: string;
+  language: string;
+  interactionStyle: TutorPayload["interactionStyle"];
+  voice?: { ttsProvider?: string | null; ttsVoice?: string | null; language?: string | null } | null;
+  /** Natural-language delivery steer. Honoured by Gemini-TTS voices only. */
+  voicePrompt?: string | null;
+  bio?: string | null;
+  source: "yaml" | "firestore";
+  visibility?: "private" | "shared" | null;
+  authorUid?: string | null;
+  /** Server-computed per row, never re-derived here. */
+  canEdit?: boolean;
+}
+
+export interface CustomPersonaInput {
+  name: string;
+  title?: string | null;
+  avatar?: string;
+  language?: string;
+  interactionStyle?: TutorPayload["interactionStyle"];
+  voice?: CustomPersona["voice"];
+  voicePrompt?: string | null;
+}
+
+export async function listCustomPersonas(): Promise<{ personas: CustomPersona[]; avatars: string[] }> {
+  const resp = await fetchWithAuth("/api/proxy/api/personas/custom/list");
+  return readJson<{ personas: CustomPersona[]; avatars: string[] }>(resp, "list custom personas");
+}
+
+export async function createCustomPersona(input: CustomPersonaInput): Promise<CustomPersona> {
+  const resp = await fetchWithAuth("/api/proxy/api/personas/custom", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return readJson<CustomPersona>(resp, "create persona");
+}
+
+export async function updateCustomPersona(id: string, input: CustomPersonaInput): Promise<CustomPersona> {
+  const resp = await fetchWithAuth(`/api/proxy/api/personas/custom/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return readJson<CustomPersona>(resp, "update persona");
+}
+
+export async function setCustomPersonaVisibility(
+  id: string,
+  visibility: "private" | "shared",
+): Promise<CustomPersona> {
+  const resp = await fetchWithAuth(`/api/proxy/api/personas/custom/${encodeURIComponent(id)}/visibility`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ visibility }),
+  });
+  return readJson<CustomPersona>(resp, "set persona visibility");
+}
+
+export async function deleteCustomPersona(id: string): Promise<void> {
+  const resp = await fetchWithAuth(`/api/proxy/api/personas/custom/${encodeURIComponent(id)}`, { method: "DELETE" });
+  if (!resp.ok) throw new Error(`delete persona: ${resp.status}`);
+}
+
 export async function createTutorVariant(input: {
   parentId: string;
   id: string;
@@ -1570,19 +1684,49 @@ export async function listChatLogSessions(
   return body.sessions;
 }
 
-/** The full transcript of one conversation. */
-export async function getChatLogTranscript(sessionId: string): Promise<ChatLogTurn[]> {
-  const resp = await fetchWithAuth(
-    `/api/proxy/api/research/logs/sessions/${encodeURIComponent(sessionId)}`,
-  );
-  const body = await readJson<{ turns: ChatLogTurn[] }>(resp, "read transcript");
-  return body.turns;
+/** One workbench event in a review timeline (1.1.136 M1). `label` is the trust
+ *  card's text the student saw — null on every row written before 2026-09-29,
+ *  when the UI derives a fallback from `server`/`field`. */
+export interface ChatLogWorkEvent {
+  ts: string | null;
+  server: string | null;
+  tool: string | null;
+  field: string | null;
+  /** The pushed snapshot, stringified (a table's grids, a writing's text…). */
+  value: string | null;
+  label: string | null;
+  activity_id?: string | null;
+  class_id?: string | null;
 }
 
-/** The export URL for whatever the current filter shows. */
-export function chatLogExportPath(filter: ChatLogFilter, format: "csv" | "jsonl"): string {
-  return `/api/proxy/api/research/logs/export${chatLogQuery(filter, { format })}`;
+/** A conversation interleaved with the work it was about. Turns keep their
+ *  transcript order; work sits between them by time. */
+export type ChatLogTimelineItem = ({ kind: "turn" } & ChatLogTurn) | ({ kind: "work" } & ChatLogWorkEvent);
+
+export interface ChatLogTimeline {
+  sessionId: string;
+  items: ChatLogTimelineItem[];
+  /** "unreadable" = the workbench store could not be read. NOT "no work". */
+  workStatus: "ok" | "unreadable";
 }
+
+/** One conversation with its work, for the researcher lens (researcher-only). */
+export async function getChatLogTimeline(sessionId: string): Promise<ChatLogTimeline> {
+  const resp = await fetchWithAuth(
+    `/api/proxy/api/research/logs/sessions/${encodeURIComponent(sessionId)}/timeline`,
+  );
+  return readJson<ChatLogTimeline>(resp, "read timeline");
+}
+
+/** The same timeline for the teacher group report: the class owner (or a
+ *  researcher) reads one group's session, narrowed server-side to that group. */
+export async function getGroupReportTimeline(groupCode: string, sessionId: string): Promise<ChatLogTimeline> {
+  const resp = await fetchWithAuth(
+    `/api/proxy/api/research/logs/groups/${encodeURIComponent(groupCode)}/sessions/${encodeURIComponent(sessionId)}/timeline`,
+  );
+  return readJson<ChatLogTimeline>(resp, "read group timeline");
+}
+
 
 /** Fetch an export as a Blob.
  *
@@ -1590,6 +1734,16 @@ export function chatLogExportPath(filter: ChatLogFilter, format: "csv" | "jsonl"
  *  navigation carries no bearer token, so it would 401. The caller turns this
  *  into a download.
  */
+/** The export URL. NOT exported: it is an internal helper for
+ *  `fetchChatLogExport` below, and exporting it made `check-client-api-mounted`
+ *  report it as an unreachable endpoint — the guard excludes the client file
+ *  from its own search, so a helper used only in here looks like a helper used
+ *  nowhere. An internal helper belongs un-exported; that is the fix, not a
+ *  waiver. (It was briefly in the allowlist with a wrong reason attached.) */
+function chatLogExportPath(filter: ChatLogFilter, format: "csv" | "jsonl"): string {
+  return `/api/proxy/api/research/logs/export${chatLogQuery(filter, { format })}`;
+}
+
 export async function fetchChatLogExport(
   filter: ChatLogFilter,
   format: "csv" | "jsonl",
@@ -1622,6 +1776,9 @@ export interface CustomApproach {
   /** Computed SERVER-side per row. Never re-derive it here: a second copy of an
    *  access rule disagrees with the first the moment one changes. */
   canEdit: boolean;
+  /** TUTOR-2 M0. Absent on rows written before the field and read as "shared" —
+   *  absent is NOT private, which is what stops old rows vanishing. */
+  visibility?: "private" | "shared" | null;
 }
 
 export interface CustomApproachInput {
@@ -1630,6 +1787,46 @@ export interface CustomApproachInput {
   instructionText: string;
   register?: FrameworkRegister | null;
   materialRefs?: { docId?: string; title?: string | null; origin?: string | null }[];
+}
+
+/** One published approach as a TEACHER reads it (TUTOR-2 M1).
+ *
+ *  A different, smaller shape than the researcher payload — not the same shape
+ *  with fields missing. It carries what you need to CHOOSE an approach (what
+ *  the tutor is told, and the behaviours each construct is built from) and none
+ *  of the editor machinery (override state, the git default, the revert delta).
+ *  See the route docstring for why that distinction is deliberate. */
+export interface PublishedApproach {
+  id: string;
+  label: string;
+  summary: string;
+  status: string;
+  register: string | null;
+  /** What the tutor actually receives. The reviewability principle, on this
+   *  screen too: a teacher can always see what the tutor is told. */
+  instruction: string;
+  constructs: { name: string; summary: string; behaviours: string[] }[];
+}
+
+export async function fetchApproachCatalogue(): Promise<PublishedApproach[]> {
+  const resp = await fetchWithAuth("/api/proxy/api/research/frameworks/catalogue");
+  const body = await readJson<{ approaches: PublishedApproach[] }>(resp, "read approach catalogue");
+  return body.approaches;
+}
+
+/** Share a custom approach, or take it back (TUTOR-2 M0).
+ *
+ *  Its own call rather than a field on the edit body: an edit that could change
+ *  who sees a thing is an edit that shares it by accident. */
+export async function setCustomApproachVisibility(
+  id: string,
+  visibility: "private" | "shared",
+): Promise<CustomApproach> {
+  const resp = await fetchWithAuth(
+    `/api/proxy/api/research/frameworks/custom/${encodeURIComponent(id)}/visibility`,
+    { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ visibility }) },
+  );
+  return readJson<CustomApproach>(resp, "set approach visibility");
 }
 
 export async function listCustomApproaches(): Promise<CustomApproach[]> {

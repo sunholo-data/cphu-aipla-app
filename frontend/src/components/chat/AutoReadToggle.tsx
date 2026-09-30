@@ -16,11 +16,13 @@
 import { Ear, EarOff } from "lucide-react";
 
 import { useAutoReadAloud } from "@/hooks/useAutoReadAloud";
+import { useT } from "@/i18n";
 
 export function AutoReadToggle({ className }: { className?: string }) {
+  const t = useT("AutoReadToggle");
   const { enabled, toggle } = useAutoReadAloud();
   const Icon = enabled ? Ear : EarOff;
-  const label = enabled ? "Auto-læs op: TIL" : "Auto-læs op: FRA";
+  const label = enabled ? t("on") : t("off");
   return (
     <button
       type="button"
@@ -34,7 +36,7 @@ export function AutoReadToggle({ className }: { className?: string }) {
       }
     >
       <Icon className="h-3 w-3" aria-hidden="true" />
-      <span>{enabled ? "Auto" : "Manual"}</span>
+      <span>{enabled ? t("auto") : t("manual")}</span>
     </button>
   );
 }

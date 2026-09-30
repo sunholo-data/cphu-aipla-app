@@ -137,6 +137,7 @@ def emit_chat_turn(
     activity_id: str | None = None,
     interaction_style: str | None = None,
     teaching_source: str | None = None,
+    tutor_version: int | None = None,
 ) -> None:
     """Emit one chat turn (student or tutor). Never raises.
 
@@ -173,6 +174,9 @@ def emit_chat_turn(
         # tutor object decided" from "the pre-tutor activity/class fields did",
         # which is the difference between a deliberate choice and a default.
         "tutor_id": tutor_id,
+        # 1.1.92 M0 — which EDIT of the tutor taught; (tutor_id, tutor_version)
+        # is the arm a scored session is attributed to.
+        "tutor_version": tutor_version,
         "framework_id": framework_id,
         "persona_id": persona_id,
         "class_id": class_id,
@@ -196,8 +200,19 @@ def emit_workbench_event(
     tool: str,
     field: Any,
     value: Any,
+    activity_id: str | None = None,
+    class_id: str | None = None,
+    label: str | None = None,
 ) -> None:
     """Emit one workbench interaction. Never raises.
+
+    ``activity_id`` / ``class_id`` / ``label`` (1.1.136 M0) say WHAT the event
+    was: which activity, which class, and the human-readable text of the trust
+    card the student saw ("Data table shared with the tutor (3 cells)"). All
+    optional so old callers keep working; rows written before 2026-09-29 carry
+    nulls and the review timeline derives a fallback from ``server``/``field``.
+    They are not backfilled — a guessed label that looks like evidence is worse
+    than a null (the TUTOR-5 rule).
 
     ``value`` is stringified (the BQ view's ``value`` column is STRING) so a
     complex artefact payload still lands as a queryable scalar. ``field`` is
@@ -227,6 +242,9 @@ def emit_workbench_event(
         "tool": tool,
         "field": field_str,
         "value": value_str,
+        "activity_id": activity_id,
+        "class_id": class_id,
+        "label": label,
         **_version_fields(),
     }
     try:
@@ -287,6 +305,10 @@ def emit_rubric_run(
     student_initiated: int,
     tutor_prompted: int,
     profile_json: str,
+    tutor_id: str | None = None,
+    tutor_version: int | None = None,
+    framework_id: str | None = None,
+    revision: str | None = None,
 ) -> None:
     """Mirror one rubric run into BigQuery (RUBRIC-2 M3) so run metadata is
     queryable next to the turns it scored. Never raises; no-op in LOCAL_MODE.
@@ -311,6 +333,14 @@ def emit_rubric_run(
         "student_initiated": student_initiated,
         "tutor_prompted": tutor_prompted,
         "profile_json": profile_json,
+        # 1.1.92 M0 — the ARM the scored session ran under, read from its chat
+        # turns. ⚠️ `revision` here is the SESSION's Cloud Run revision (the A/B
+        # arm), NOT the scorer's own K_REVISION — so this row deliberately does
+        # not spread _version_fields(). Null = not recorded, never a default.
+        "tutor_id": tutor_id,
+        "tutor_version": tutor_version,
+        "framework_id": framework_id,
+        "revision": revision,
     }
     try:
         gl.log_struct(payload)

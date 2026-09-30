@@ -20,6 +20,12 @@ export interface SettingsSectionProps {
   className?: string;
   /** Anchor id on the section element (e.g. for in-page links from SettingsMap). */
   id?: string;
+  /** Controlled open state (collapsible only). Omit to let the section own it. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Keep the body mounted (hidden) while collapsed, so a child that loads
+   *  data on mount still reports back when the section starts closed. */
+  keepMounted?: boolean;
 }
 
 /**
@@ -37,8 +43,17 @@ export function SettingsSection({
   defaultOpen = true,
   className,
   id,
+  open: openProp,
+  onOpenChange,
+  keepMounted = false,
 }: SettingsSectionProps) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [openState, setOpenState] = useState(defaultOpen);
+  const open = openProp ?? openState;
+  const setOpen = (update: (v: boolean) => boolean) => {
+    const next = update(open);
+    if (openProp === undefined) setOpenState(next);
+    onOpenChange?.(next);
+  };
   const bodyId = useId();
 
   const titleBlock = (
@@ -73,7 +88,13 @@ export function SettingsSection({
         )}
         {action ? <div className="flex shrink-0 items-center gap-2">{action}</div> : null}
       </div>
-      {open ? <div id={bodyId}>{children}</div> : null}
+      {open ? (
+        <div id={bodyId}>{children}</div>
+      ) : keepMounted ? (
+        <div id={bodyId} hidden>
+          {children}
+        </div>
+      ) : null}
     </section>
   );
 }

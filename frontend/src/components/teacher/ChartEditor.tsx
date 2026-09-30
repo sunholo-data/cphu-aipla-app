@@ -4,6 +4,7 @@ import { LineChart, Plus, X } from "lucide-react";
 
 import type { TableEditorValue } from "@/components/teacher/TableEditor";
 import { mintedColumnId, mintedTableId } from "@/lib/activityPreview";
+import { useT } from "@/i18n";
 
 export type ChartKind = "scatter" | "line" | "bar";
 
@@ -28,11 +29,8 @@ interface ChartEditorProps {
   tables: TableEditorValue[];
 }
 
-const CHART_KINDS: { value: ChartKind; label: string }[] = [
-  { value: "scatter", label: "Punktdiagram (scatter)" },
-  { value: "line", label: "Kurve (line)" },
-  { value: "bar", label: "Søjlediagram (bar)" },
-];
+// Labels are message keys (`kind_<value>`, namespace ChartEditor — 1.1.108 M2).
+const CHART_KINDS: { value: ChartKind }[] = [{ value: "scatter" }, { value: "line" }, { value: "bar" }];
 
 /** ELEMENT_REGISTRY["chart"].max_items — the backend cap, mirrored so the UI can
  *  explain itself rather than silently refusing an Add. */
@@ -72,6 +70,7 @@ function tableFor(tables: TableEditorValue[], tableId: string | null | undefined
  * not a plot.
  */
 export function ChartEditor({ value, onChange, tables }: ChartEditorProps) {
+  const t = useT("ChartEditor");
   const charts = value ?? [];
   const allTables = tables ?? [];
   // The picker only appears when there is something to pick (1.1.71 open
@@ -123,27 +122,26 @@ export function ChartEditor({ value, onChange, tables }: ChartEditorProps) {
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
           <LineChart className="h-4 w-4 text-slate-500" />
-          Grafer {charts.length > 0 && <span className="text-xs text-slate-500">({charts.length}/{MAX_CHARTS})</span>}
+          {t("title")} {charts.length > 0 && <span className="text-xs text-slate-500">({charts.length}/{MAX_CHARTS})</span>}
         </span>
         <button
           type="button"
           onClick={add}
           disabled={atCap}
-          title={atCap ? `Højst ${MAX_CHARTS} grafer pr. aktivitet` : undefined}
+          title={atCap ? t("maxCharts", { max: MAX_CHARTS }) : undefined}
           className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <Plus className="h-3.5 w-3.5" /> Tilføj graf
+          <Plus className="h-3.5 w-3.5" /> {t("add")}
         </button>
       </div>
 
       {atCap && (
-        <p className="text-xs text-slate-500">Højst {MAX_CHARTS} grafer pr. aktivitet.</p>
+        <p className="text-xs text-slate-500">{t("maxChartsSentence", { max: MAX_CHARTS })}</p>
       )}
 
       {charts.length === 0 && (
         <p className="text-xs text-slate-500">
-          Plotter kolonner fra datatabellen, mens eleven udfylder den (fx hastighed mod tid). Tilføj en
-          datatabel med mindst to talkolonner ovenfor, så grafen har noget at vise.
+          {t("help")}
         </p>
       )}
 
@@ -161,26 +159,26 @@ export function ChartEditor({ value, onChange, tables }: ChartEditorProps) {
               type="text"
               value={chart.title}
               onChange={(e) => update(idx, { title: e.target.value })}
-              placeholder="Grafens titel"
-              aria-label={`Titel på graf ${idx + 1}`}
+              placeholder={t("titlePlaceholder")}
+              aria-label={t("titleAria", { n: idx + 1 })}
               className="min-w-0 flex-1 rounded border border-slate-300 px-2 py-1 text-sm"
             />
             <select
               value={chart.chartKind}
               onChange={(e) => update(idx, { chartKind: e.target.value as ChartKind })}
-              aria-label={`Graftype for graf ${idx + 1}`}
+              aria-label={t("kindAria", { n: idx + 1 })}
               className="rounded border border-slate-300 px-2 py-1 text-xs"
             >
               {CHART_KINDS.map((k) => (
                 <option key={k.value} value={k.value}>
-                  {k.label}
+                  {t(`kind_${k.value}`)}
                 </option>
               ))}
             </select>
             <button
               type="button"
               onClick={() => onChange(charts.filter((_, i) => i !== idx))}
-              aria-label={`Fjern graf ${idx + 1}`}
+              aria-label={t("removeAria", { n: idx + 1 })}
               className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
             >
               <X className="h-3.5 w-3.5" />
@@ -189,7 +187,7 @@ export function ChartEditor({ value, onChange, tables }: ChartEditorProps) {
 
           {showTablePicker && (
             <label className="flex items-center gap-1 text-xs">
-              <span className="text-slate-500">Tabel</span>
+              <span className="text-slate-500">{t("table")}</span>
               <select
                 value={boundTable ? mintedTableId(boundTable) : ""}
                 onChange={(e) => {
@@ -206,12 +204,12 @@ export function ChartEditor({ value, onChange, tables }: ChartEditorProps) {
                     yColumn: nextCols[1]?.mintedId ?? null,
                   });
                 }}
-                aria-label={`Tabel for graf ${idx + 1}`}
+                aria-label={t("tableAria", { n: idx + 1 })}
                 className="rounded border border-slate-300 px-2 py-1"
               >
-                {allTables.map((t, i) => (
-                  <option key={mintedTableId(t)} value={mintedTableId(t)}>
-                    {t.title.trim() || `Tabel ${i + 1}`}
+                {allTables.map((tb, i) => (
+                  <option key={mintedTableId(tb)} value={mintedTableId(tb)}>
+                    {tb.title.trim() || t("tableFallback", { n: i + 1 })}
                   </option>
                 ))}
               </select>
@@ -230,7 +228,7 @@ export function ChartEditor({ value, onChange, tables }: ChartEditorProps) {
                       tableId: boundTable ? mintedTableId(boundTable) : null,
                     })
                   }
-                  aria-label={`X-akse for graf ${idx + 1}`}
+                  aria-label={t("xAria", { n: idx + 1 })}
                   className="rounded border border-slate-300 px-2 py-1"
                 >
                   {cols.map((c) => (
@@ -250,7 +248,7 @@ export function ChartEditor({ value, onChange, tables }: ChartEditorProps) {
                       tableId: boundTable ? mintedTableId(boundTable) : null,
                     })
                   }
-                  aria-label={`Y-akse for graf ${idx + 1}`}
+                  aria-label={t("yAria", { n: idx + 1 })}
                   className="rounded border border-slate-300 px-2 py-1"
                 >
                   {cols.map((c) => (
@@ -263,7 +261,7 @@ export function ChartEditor({ value, onChange, tables }: ChartEditorProps) {
             </div>
           ) : (
             <p className="text-xs text-slate-500">
-              Tilføj en datatabel med mindst to talkolonner for at vælge akser.
+              {t("needTable")}
             </p>
           )}
         </div>

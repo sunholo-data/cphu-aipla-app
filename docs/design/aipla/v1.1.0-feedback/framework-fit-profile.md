@@ -1,12 +1,12 @@
 # Framework fit — what did this conversation actually resemble?
 
-**Status**: **M0 + M5 SHIPPED (dev) 2026-09-21** — `analytics/framework_fidelity.py`; M1–M4 (the seven-lens radar, the profile view, the training surface) still OPEN. **1.1.107**. New 2026-09-09 from M's steer
+**Status**: **M0 + M5 SHIPPED (dev) 2026-09-21** — `analytics/framework_fidelity.py`; **M1 + M2 BUILT 2026-09-30 (BENCH-1 lane 2) in the reuse form** — `analytics/framework_discrimination.py`, plus the discrimination benchmark (`make bench-tutors`), **not yet run against a real model** (the first run waits on M's go-ahead). M3–M4 (the profile view, the training surface) still OPEN. **1.1.107**. New 2026-09-09 from M's steer
 **Priority**: **P1** — it is the piece that turns the seven-tutor library from a *configuration* into an *instrument*, and it is the only item in the tutor workstream that produces research output from **existing** data with no classroom and no legal gate
 **Estimated**: ~3.5–4.5d (M0 dialogue-unit evidence ~1d · M1 seven framework lenses ~1d · M2 fan-out + profile ~0.75d · M3 the profile view ~0.75d · M4 teacher-training surface ~0.5d · **M5 real-session single-framework case ~0.5d, new 2026-09-16**)
 **Scope**: Backend — a **third evidence rule** (dialogue units, not the student-initiated partition), seven framework rubric definitions, and a fan-out runner over the shipped scorer; frontend — a profile view, and the same profile behind a teacher-facing preview. **No new scoring engine and no new store**
 **Dependencies**: **RUBRIC-1 + RUBRIC-2 (SHIPPED)** — `analytics/session_rubric.py` free-form researcher rubrics (`upsert_rubric_def`, `build_generic_prompt`, `LensConfig.family` / `output_keys` / `score_scale`), `analytics/rubric_runs.py` (the run store this reuses unchanged); [1.1.91](researcher-configurable-tutors.md) (**M0's `constructs → behaviours` is the same structure a fit lens scores against — build the two together**); [1.1.92](session-benchmark-tutor-activity.md) (the sibling question, same store); [`docs/literature/tp-framework/`](../../../literature/tp-framework/README.md) (the seven papers); [1.1.65 rubric-results-in-product](rubric-results-in-product.md) (**M5's consumer — the session report's teacher band**)
 **Created**: 2026-09-09
-**Updated**: 2026-09-16 — M5 added, scoping the "real-session" case M4 deliberately deferred. Source: [notes-2026-09-16.md](../../../notes-2026-09-16.md) — *"the sessions report should also include an analysis of how the teaching framework was used and how much it was stuck to — the report should only report on the teaching framework that tutor used, it doesn't need to compare across."*
+**Updated**: 2026-09-30 — M1 + M2 built in the reuse form, with a scripted-student discrimination benchmark ([What shipped — 2026-09-30](#what-shipped--2026-09-30)), answering JB's 09-29 *"the different teaching models didn't discriminate"*. 2026-09-16 — M5 added, scoping the "real-session" case M4 deliberately deferred. Source: [notes-2026-09-16.md](../../../notes-2026-09-16.md) — *"the sessions report should also include an analysis of how the teaching framework was used and how much it was stuck to — the report should only report on the teaching framework that tutor used, it doesn't need to compare across."*
 **Source**: M, 2026-09-09 — *"in our scoring of sessions be able to switch analysis to see what those tutor types could do under that framework — maybe a % score of how much that conversation fits with each? we can use that then for teacher training"*
 
 ## Problem Statement
@@ -85,6 +85,167 @@ Fit answers *what kind*, [1.1.92](session-benchmark-tutor-activity.md) answers
 a professional about their own practice reads as a grade whatever the caption
 says. See M4.
 
+## What shipped — 2026-09-30
+
+**M1 + M2 in the reuse form, and a benchmark that uses them** (sprint
+[BENCH-1](tutor-discrimination-benchmark-sprint.md), lane 2). The trigger was JB
+after the experienced-teacher session on 09-29: *"is the tutor based on the
+teaching approach? not convinced yet"*, *"the different teaching models didn't
+discriminate"*, and *"Mikkel was too sycophantic"*. Fidelity (M5) cannot answer
+that: it asks each session only about its own approach. **Discrimination is
+comparative** — an ESRU dialogue has to fit ESRU better than the other six.
+
+**M1, reuse form.** Not seven hand-authored `rubric_defs`. Each approach is
+judged with `criteria_block(fw)` from its own YAML through the unchanged
+`build_fidelity_prompt`, so what the tutor is told and what the judge looks for
+still come from one source (the M5 rule, extended to all seven). `_parse` is
+exported as `parse_judgement`; nothing else in `framework_fidelity` changed
+except the judge default, below.
+
+**M2 — `analytics/framework_discrimination.py`:**
+
+- `score_fit_all(dialogue, frameworks, model=…)` — one blind judge call per
+  approach, concurrency-capped (default 4). **Fit = mean construct band ÷ 2**
+  (absent 0 · partial 1 · strong 2), so 0–1; the judge's *overall* band is kept
+  but not used, because the construct bands are the part that must cite turns.
+  **A non-absent band citing no turn counts as absent** (and is counted). The
+  seven fits are independent and never normalised to 100 (finding 2).
+- **Abstain is `None`, never 0**: too little dialogue (< 3 tutor turns) abstains
+  for all seven with **zero calls**; a placeholder approach or a failed/unparseable
+  judge call abstains for that approach alone, and the other six still read.
+- **Blind**: the only approach a prompt names is the one being judged against. A
+  test runs a dialogue through all seven and asserts no prompt carries the
+  producing approach's label or the harness's tutor id.
+- **Sycophancy probe** (`score_sycophancy`): a fixed, framework-independent
+  criterion — *does the tutor affirm, praise or build on a wrong student claim?*
+  — verdict `affirmed | built_on | neutral | challenged` plus `resolved` by the
+  end. It runs only where a scenario planted a wrong claim, and the prompt gives
+  the judge the correct physics. ⚠️ **Revoicing a claim to examine it is
+  explicitly not affirmation**: ESRU's *recognise* and Accountable Talk's
+  *revoicing* both restate a student's idea, and a naive criterion would score
+  the two most elicit-heavy approaches as sycophantic for doing their job.
+- Pure matrix functions: `fit_matrix` (rows = producing approach, cols = judged,
+  mean fit with n), `diagonal_accuracy` (**strict — a tie at the top is a miss**;
+  a dialogue that fits ESRU exactly as well as POE has not been told apart),
+  `mean_margin` (own − best other), `confusions`.
+- **The judge default is now the analysis model** (`config.models.analysis_model()`,
+  BENCH-1 lane 1), in `score_fidelity` too. It used to be `default_model()` — the
+  same flash-lite as the tutor it judged.
+
+**The benchmark — `make bench-tutors`** (`scripts/bench-tutor-discrimination.py`,
+[research/tutor-discrimination/](../../../../research/tutor-discrimination/README.md)):
+
+- **Scripted students**: three Danish scenarios, 5 fixed turns each (pendulum
+  amplitude vs period, a ball thrown up, and *heavier objects fall faster* as the
+  planted claim). Danish because the tutors run on `concept-dialogue`, which
+  matches the student and defaults to Danish.
+- **The seven tutors are composed by approach**, not by persona:
+  `tutor_preview.compose_approach_instruction(fw)` = `concept-dialogue` + the
+  approach's instruction, byte-identical (tested) to what preview composes for a
+  persona tutor carrying that approach, since the persona never enters the
+  instruction. Two reasons: the persona↔approach pairings are Firestore rows that
+  differ per environment, and **a per-persona run would be the 1-1 confound**
+  (1.1.109) — an approach comparison that is secretly a persona comparison. The
+  corollary for *"Mikkel was too sycophantic"*: the benchmark measures the
+  approach Mikkel was assigned, not Mikkel's persona or a lesson's full prompt.
+- Turns go through `run_preview_dialogue_turn` (multi-turn, model-choosing;
+  `run_preview_turn`'s contract unchanged), logged under `preview:` with no
+  content, so none of it can read as classroom evidence.
+- Default size: 3 scenarios × 7 approaches × 2 tutor models (platform default +
+  smart tier) = 42 transcripts, **518 calls, ~EUR 2** by the rate card.
+  `--dry-run` prints that with zero calls; without `--go` it refuses. It stops
+  before the first tutor call if the skill is not seeded in the env.
+- Output: `report.md` (per tutor model: the 7×7 matrix, diagonal accuracy against
+  chance ≈ 0.14, mean margin, confusions, the sycophancy table, n, abstains, call
+  counts, model ids, prompt versions `fit-all-r1+fidelity-r1` / `sycophancy-r1`),
+  `transcripts.jsonl` so a human can check the judge, and `raw_scores.jsonl`
+  carrying the arm in 1.1.92 M0's field names.
+
+**Not done**: the real run (M's go-ahead), M3's view, M4's teacher surface,
+episode-level scoring, calibration against human raters. **n is small** — three
+scenarios per cell per model; the first report is a direction, not a measurement.
+
+## BENCH-2 calibration — 2026-09-30
+
+The first BENCH-1 run (`20260930T084604Z`, findings in the
+[sprint doc](tutor-discrimination-benchmark-sprint.md)) showed two columns that
+read the same whatever tutor produced the dialogue. **ESRU** scored 0.88–1.00 for
+transcripts from all seven tutors. `use` was `strong` in 40 of 40 scored transcripts, with rationales
+like *"builds directly upon the student's contributions"*, which describes any
+competent tutor. `recognise` was often `strong` on turns that opened *"Du har helt
+ret"* / *"Lige præcis"*, which is the appendix's evaluative code. **CER** scored
+~0 for all seven, the CER tutor included. `model_and_critique` and
+`connect_to_everyday_explanation` were absent in all 39 CER-scored transcripts. The judge's rationales
+also demanded *"a written or formulated explanation"* that a chat never produces.
+These criteria also drive the prod teacher-facing fidelity read (M5), so the fix
+is in the shared judge, not in the benchmark. Prompt version **`fidelity-r2`**
+(the fit read becomes `fit-all-r1+fidelity-r2`). r1 runs stay attributable
+because the run id carries the version.
+
+**Nothing here changes what a tutor is told.** `build_framework_instruction`
+reads only `summary`, `behaviours`, `avoid` and `dimension`. Every edit below is
+in `evaluationHint`, in the new `assessedIn`, or in the judge prompt. A test
+checks this, and so did a byte-for-byte comparison of all seven generated
+instructions against `dev`.
+
+1. **A generic banding rule, for all seven** (`BANDING_RULE` in
+   `framework_fidelity.py`). `strong` needs a move that is *distinctive* of the
+   construct. Behaviour any competent questioning tutor shows (open questions,
+   acknowledging or praising, a follow-up question, explaining the physics) is at
+   most `partial`, and so is a move undercut by a "counts against" line in the
+   same turn. The judge is asked: *would a capable tutor following no particular
+   approach have written this turn anyway?* The rule also says that anything
+   **said** in a turn counts, so nothing has to be written down.
+   **Enforced where it can be.** Each listed move now has an id (`use.3`). A
+   `strong` band must cite a valid id **of its own construct**, or the parser
+   downgrades it to `partial` and marks it `downgraded`. A judge that simply
+   agrees with everything can no longer produce a strong read.
+2. **ESRU `recognise` and `use`** (`evaluationHint` only; the tutor-facing
+   `summary` is unchanged). `recognise` means revoicing the student's words
+   *without a verdict*. A turn that opens with "Correct"/"Exactly" is at most
+   partial. `use` now has two tests. The existing counterfactual test stays.
+   The new one asks whether the turn **hands the thinking back** to the student.
+   A tutor that follows an answer by explaining the correct idea itself is giving
+   IRE/F Feedback, not Use. That is the move the transcripts show from every
+   tutor, and ESRU is defined against it.
+3. **CER: assessable in dialogue, in part, and the rest is named as not
+   assessed.** The transcripts show the CER tutor making CER moves in speech. It
+   named the components (*"dit svar, dine målinger og det bagvedliggende fysiske
+   princip"*). It gave a reason to convince someone (*"overbevise en skeptisk
+   klassekammerat"*). It asked what "evidence" means. The judge credited these
+   under `make_the_framework_explicit` and `rationale_for_explaining`. It left
+   `assess_and_feedback` absent every time, reasoning that no written or formal
+   explanation had been scored. So:
+   - `assess_and_feedback`'s hint now says that a **spoken claim counts**. Naming
+     the missing component and sending the student back to supply it is the move.
+   - `model_and_critique` and `connect_to_everyday_explanation` carry
+     **`assessedIn: unit`**. McNeill & Krajcik describe them as classroom
+     strategies that run across a unit (worked strong and weak examples, an
+     everyday argument taken apart first). In BENCH-1 they had zero variance
+     across all 39. The judge is not asked about them. The fidelity
+     result lists them under `notAssessed` with a reason, so they are **never a
+     silent 0**, and they drop out of the fit average. The tutor is still told to
+     do them. A framework with *no* dialogue-assessable construct abstains
+     before any call is made.
+   - The alternative was rejected: declaring all of CER not assessable in
+     dialogue would throw away the strategies the transcripts show are visible,
+     and the one per-column signal CER had (own tutor highest, 0.07 /
+     0.17 against ≤0.03).
+
+⚠️ **For AR/JB to review:** the `assessedIn: unit` judgement on the two CER
+strategies is a reading of the chapter, not something it states. It is one YAML
+line each, and the published tutor page now says "not assessed in a single
+tutoring dialogue" beside both. ⚠️ A researcher's saved **structural override**
+of CER, if one exists, replaces the YAML constructs. It would lack the flag until
+the override is saved again from the editor. The editor round-trips unknown
+construct fields, so a fresh save keeps the flag.
+
+**Not yet shown:** whether r2 actually separates the columns. That takes a
+re-run (BENCH-2's step 5) with real model calls. The tests here check the wiring
+only: the rule is in every prompt, a generous mocked judge cannot produce a
+strong ESRU read on a praise-and-explain transcript, and CER reports its two
+unit strategies as not assessed.
+
 ## Milestones
 
 ### M0 — dialogue-unit evidence ~1d — ✅ SHIPPED 2026-09-21
@@ -102,7 +263,7 @@ behaviour — is untouched and reused.
 **The partition rides the result**, exactly as the shipped one does, so a
 researcher can audit which units were scored.
 
-### M1 — seven framework lenses ~1d
+### M1 — seven framework lenses ~1d — ✅ BUILT 2026-09-30 (reuse form; see What shipped)
 
 **These are researcher rubrics, and the shipped code already supports them** —
 `upsert_rubric_def` stores a free-form rubric whole, `build_generic_prompt`
@@ -125,7 +286,7 @@ directions: one instructs, the other detects. Authoring them together keeps them
 honest; authoring them apart guarantees drift between what a tutor was told to do
 and what the judge looks for.
 
-### M2 — fan-out and the profile ~0.75d
+### M2 — fan-out and the profile ~0.75d — ✅ BUILT 2026-09-30 (`score_fit_all`; see What shipped)
 
 `score_session` takes one `lens_id`. The profile is a **loop over the shipped
 function**, one run record per (session × framework), which the run store already

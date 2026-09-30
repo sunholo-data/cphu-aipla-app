@@ -1,5 +1,9 @@
+"use client";
+
 import Link from "next/link";
 
+import { LanguageSwitch } from "@/components/site/LanguageSwitch";
+import { useT, type MessageKey } from "@/i18n";
 import { BRANDING } from "@/lib/branding";
 import {
   ENGINEERING_CREDIT,
@@ -25,18 +29,27 @@ import {
  * cannot quietly add one.
  */
 
+// 1.1.108 — the footer speaks the person's own language (the DA | EN switch),
+// no longer both at once. Labels are message keys.
 const APP_LINKS = [
-  { href: "/guides", label: "Vejledninger / Guides" },
-  { href: "/group", label: "Tilslut din gruppe / Join your group" },
-  { href: "/teacher/sign-in", label: "Lærer-login / Teacher sign-in" },
+  { href: "/guides", key: "guides" },
+  { href: "/group", key: "join" },
+  { href: "/teacher/sign-in", key: "teacherSignIn" },
 ] as const;
 
 const ABOUT_LINKS = [
-  { href: "/project", label: "Om AIPLA / About AIPLA" },
-  { href: "/privacy", label: "Privatlivspolitik / Privacy" },
-  { href: "/terms", label: "Vilkår / Terms" },
-  { href: "/credits", label: "Krediteringer / Credits" },
+  { href: "/project", key: "aboutAipla" },
+  { href: "/privacy", key: "privacy" },
+  { href: "/terms", key: "terms" },
+  { href: "/credits", key: "credits" },
 ] as const;
+
+// The two KU links whose labels are ours to translate; the others are proper
+// names. Keyed by href so the shared ecosystem data (also JSON-LD) stays as is.
+const ECOSYSTEM_KEYS: Record<string, MessageKey<"SiteFooter">> = {
+  "https://www.ind.ku.dk/projekter/artificial-intelligence-in-physics-learning-and-assessment-aipla/": "officialPage",
+  "https://www.ind.ku.dk/Nyheder/nyheder-2026/aipla/": "announcement",
+};
 
 function ColumnHeading({ children }: { children: React.ReactNode }) {
   return (
@@ -50,6 +63,7 @@ const linkClass =
   "underline-offset-2 hover:text-foreground hover:underline";
 
 export function SiteFooter() {
+  const t = useT("SiteFooter");
   return (
     <footer className="mt-16 border-t border-border print:hidden">
       <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6">
@@ -67,12 +81,13 @@ export function SiteFooter() {
               {BRANDING.tagline}
             </span>
           </div>
+          <LanguageSwitch className="ml-auto" />
         </div>
 
         <div className="mt-7 grid gap-7 text-xs text-muted-foreground sm:grid-cols-3">
           <nav aria-labelledby="footer-project">
             <ColumnHeading>
-              <span id="footer-project">Projektet / The project</span>
+              <span id="footer-project">{t("project")}</span>
             </ColumnHeading>
             <ul className="flex flex-col gap-1.5">
               {KU_ECOSYSTEM.map((link) => (
@@ -83,11 +98,11 @@ export function SiteFooter() {
                     className={linkClass}
                     {...outboundLinkProps()}
                   >
-                    {link.label}
+                    {ECOSYSTEM_KEYS[link.href] ? t(ECOSYSTEM_KEYS[link.href]) : link.label}
                     <span aria-hidden="true" className="ml-1 opacity-60">
                       ↗
                     </span>
-                    <span className="sr-only"> (opens in a new tab)</span>
+                    <span className="sr-only"> {t("newTab")}</span>
                   </a>
                 </li>
               ))}
@@ -96,13 +111,13 @@ export function SiteFooter() {
 
           <nav aria-labelledby="footer-app">
             <ColumnHeading>
-              <span id="footer-app">Appen / The app</span>
+              <span id="footer-app">{t("app")}</span>
             </ColumnHeading>
             <ul className="flex flex-col gap-1.5">
               {APP_LINKS.map((link) => (
                 <li key={link.href}>
                   <Link href={link.href} className={linkClass}>
-                    {link.label}
+                    {t(link.key)}
                   </Link>
                 </li>
               ))}
@@ -111,13 +126,13 @@ export function SiteFooter() {
 
           <nav aria-labelledby="footer-about">
             <ColumnHeading>
-              <span id="footer-about">Om / About</span>
+              <span id="footer-about">{t("about")}</span>
             </ColumnHeading>
             <ul className="flex flex-col gap-1.5">
               {ABOUT_LINKS.map((link) => (
                 <li key={link.href}>
                   <Link href={link.href} className={linkClass}>
-                    {link.label}
+                    {t(link.key)}
                   </Link>
                 </li>
               ))}
@@ -127,12 +142,10 @@ export function SiteFooter() {
 
         <div className="mt-8 border-t border-border pt-5 text-[11px] leading-relaxed text-muted-foreground/90">
           <p>
-            Hosted by{" "}
-            <strong className="font-medium text-foreground/80">
-              {HOST_ATTRIBUTION.department}
-            </strong>
-            , {HOST_ATTRIBUTION.university}. Funded by the{" "}
-            {HOST_ATTRIBUTION.funder}, {HOST_ATTRIBUTION.period}.
+            {t.rich("hosted", {
+              ...HOST_ATTRIBUTION,
+              b: (chunks) => <strong className="font-medium text-foreground/80">{chunks}</strong>,
+            })}
           </p>
           <p className="mt-1.5">
             <a
@@ -140,13 +153,13 @@ export function SiteFooter() {
               className={`font-medium ${linkClass}`}
               {...outboundLinkProps()}
             >
-              {ENGINEERING_CREDIT.anchor}
+              {t("engineering")}
               <span aria-hidden="true" className="ml-1 opacity-60">
                 ↗
               </span>
-              <span className="sr-only"> (opens in a new tab)</span>
+              <span className="sr-only"> {t("newTab")}</span>
             </a>{" "}
-            {ENGINEERING_CREDIT.suffix}
+            {t("engineeringSuffix")}
           </p>
         </div>
       </div>

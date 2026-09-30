@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 
 import { RATIO_DEFAULT } from "@/hooks/useResizableWorkspaceRatio";
+import { useT } from "@/i18n";
 import { ChatRevealTab } from "./ChatRevealTab";
 import { WorkspaceDivider } from "./WorkspaceDivider";
 
@@ -55,11 +56,12 @@ interface WorkspaceShellProps {
  */
 export function WorkspaceShell({
   children,
-  title = "Arbejdsområde",
+  title,
   hideOnMobile = false,
   ratio,
   onRatioChange,
 }: WorkspaceShellProps) {
+  const t = useT("WorkspaceShell");
   const [collapsed, setCollapsed] = useState(false);
   const resizable = typeof ratio === "number" && typeof onRatioChange === "function";
   const effectiveRatio = resizable ? ratio : null;
@@ -89,14 +91,14 @@ export function WorkspaceShell({
     return (
       <aside
         className="hidden md:flex w-8 shrink-0 flex-col items-center border-l bg-muted/30"
-        aria-label="Workspace (collapsed)"
+        aria-label={t("collapsedLabel")}
       >
         <button
           type="button"
           onClick={toggle}
           className="mt-2 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-          aria-label="Expand workspace"
-          title="Vis arbejdsområde"
+          aria-label={t("expand")}
+          title={t("expand")}
         >
           {/* chevron-left */}
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -142,7 +144,7 @@ export function WorkspaceShell({
       className={`relative w-full flex-1 flex-col overflow-hidden border-t bg-muted/40 md:flex md:flex-none md:border-t-0 md:border-l ${mdWidthClass} ${
         hideOnMobile ? "hidden" : "flex"
       }`}
-      aria-label="Workspace"
+      aria-label={t("label")}
     >
       {resizable && !fullscreen ? (
         <WorkspaceDivider ratio={ratio} onChange={onRatioChange} />
@@ -152,14 +154,14 @@ export function WorkspaceShell({
       ) : null}
       <header className="flex shrink-0 items-center justify-between border-b border-border/60 px-3 py-2 bg-muted/60">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          {title}
+          {title ?? t("title")}
         </h2>
         <button
           type="button"
           onClick={toggle}
           className="hidden md:block rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
-          aria-label="Collapse workspace"
-          title="Skjul arbejdsområde"
+          aria-label={t("collapse")}
+          title={t("collapse")}
         >
           {/* chevron-right */}
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

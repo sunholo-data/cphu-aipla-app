@@ -1,4 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { render as rtlRender, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { LocaleProvider } from "@/i18n";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mockPathname = vi.fn<() => string>(() => "/teacher/insights");
@@ -8,6 +10,15 @@ const mockIsResearcher = vi.fn<() => boolean>(() => false);
 vi.mock("@/hooks/useIsResearcher", () => ({ useIsResearcher: () => mockIsResearcher() }));
 
 import { InsightsTabs } from "@/components/teacher/insights/InsightsTabs";
+
+// 1.1.108 — teacher screens follow the person's language, Danish by default.
+// These tests assert the English copy, so they render inside an English
+// context; the Danish default has its own assertion in teacherResearchLocale.test.tsx.
+function render(ui: ReactElement, options?: Parameters<typeof rtlRender>[1]) {
+  const wrap = (node: ReactElement) => <LocaleProvider locale="en">{node}</LocaleProvider>;
+  const result = rtlRender(wrap(ui), options);
+  return { ...result, rerender: (next: ReactElement) => result.rerender(wrap(next)) };
+}
 
 afterEach(() => mockIsResearcher.mockReturnValue(false));
 

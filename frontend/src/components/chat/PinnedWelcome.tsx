@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import type { PersonaSummary } from "@/components/chat/MessageBubble";
+import { useT } from "@/i18n";
+
 import { ChatMarkdown } from "./ChatMarkdown";
 
 interface PinnedWelcomeProps {
@@ -36,6 +38,7 @@ const KEY_PREFIX = "aipla.welcome.collapsed:";
  * skill don't share preference) and persists in sessionStorage.
  */
 export function PinnedWelcome({ content, skillId, persona }: PinnedWelcomeProps) {
+  const t = useT("PinnedWelcome");
   const [collapsed, setCollapsed] = useState(false);
 
   // Restore collapse state on mount; effect (not initial state) so SSR
@@ -81,7 +84,7 @@ export function PinnedWelcome({ content, skillId, persona }: PinnedWelcomeProps)
         >
           <polyline points="4 2 8 6 4 10" />
         </svg>
-        <span>👋 Sådan kommer du i gang</span>
+        <span>👋 {t("heading")}</span>
       </button>
       {!collapsed && (
         <div

@@ -11,27 +11,10 @@ import {
 } from "@/lib/teacherApi";
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
 import { TutorFace } from "@/components/teacher/research/TutorFace";
+import { useT } from "@/i18n";
 
 /** UI copy, lifted out of JSX (1.1.108 M4) so a translator can reach it. */
-const copy = {
-  title: "Try the tutors, side by side",
-  blurb:
-    "Ask the same question of two tutors and read what each does with it. This is your own conversation — no student is involved, and nothing here is recorded as teaching.",
-  pickPrompt: "Pick up to two tutors",
-  messageLabel: "Say something a student might say",
-  placeholder: "e.g. A heavy ball and a light ball are dropped together. Which lands first?",
-  run: "Ask both",
-  runOne: "Ask",
-  running: "Asking…",
-  needTutor: "Pick at least one tutor.",
-  needMessage: "Type something to ask.",
-  failed: "Could not reach the tutors. Try again.",
-  noApproach: "no teaching approach set",
-  composedTitle: "What this tutor was told",
-  notIncluded: (missing: string[]) =>
-    `A preview does not include ${missing.join(", ")} — a real lesson turn carries those too, so this shows the approach rather than the whole prompt.`,
-  sameBoth: "Both tutors were asked the same thing.",
-} as const;
+// Copy lives in messages/*/teacher-research.json — 1.1.108.
 
 const MAX_TUTORS = 2;
 
@@ -55,6 +38,7 @@ const MAX_TUTORS = 2;
  * sign off something they have not seen.
  */
 export function TutorPreviewPanel() {
+  const t = useT("TutorPreviewPanel");
   const [tutors, setTutors] = useState<TutorPayload[]>([]);
   const [picked, setPicked] = useState<string[]>([]);
   const [message, setMessage] = useState("");
@@ -69,7 +53,7 @@ export function TutorPreviewPanel() {
         if (cancelled) return;
         setTutors(cat.tutors);
         // Default to the first two, so the comparison is one click from here.
-        setPicked(cat.tutors.slice(0, MAX_TUTORS).map((t) => t.id));
+        setPicked(cat.tutors.slice(0, MAX_TUTORS).map((tu) => tu.id));
       })
       .catch(() => undefined);
     return () => {
@@ -83,14 +67,14 @@ export function TutorPreviewPanel() {
     );
 
   const run = async () => {
-    if (picked.length === 0) return setError(copy.needTutor);
-    if (!message.trim()) return setError(copy.needMessage);
+    if (picked.length === 0) return setError(t("needTutor"));
+    if (!message.trim()) return setError(t("needMessage"));
     setBusy(true);
     setError(null);
     try {
       setReplies(await previewTutors(message.trim(), picked));
     } catch {
-      setError(copy.failed);
+      setError(t("failed"));
     } finally {
       setBusy(false);
     }
@@ -100,42 +84,42 @@ export function TutorPreviewPanel() {
     <TeacherCard>
       <h2 className="flex items-center gap-2 text-base font-medium">
         <MessagesSquare className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-        {copy.title}
+        {t("title")}
       </h2>
-      <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{copy.blurb}</p>
+      <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{t("blurb")}</p>
 
-      <p className="mt-3 text-xs font-medium">{copy.pickPrompt}</p>
+      <p className="mt-3 text-xs font-medium">{t("pickPrompt")}</p>
       <div className="mt-1.5 flex flex-wrap gap-1.5">
-        {tutors.map((t) => {
-          const on = picked.includes(t.id);
+        {tutors.map((tu) => {
+          const on = picked.includes(tu.id);
           return (
             <button
-              key={t.id}
+              key={tu.id}
               type="button"
               aria-pressed={on}
-              onClick={() => toggle(t.id)}
+              onClick={() => toggle(tu.id)}
               className={
                 on
                   ? "flex items-center gap-1.5 rounded border border-brand bg-brand/10 py-0.5 pl-0.5 pr-2 text-xs font-medium"
                   : "flex items-center gap-1.5 rounded border border-border py-0.5 pl-0.5 pr-2 text-xs hover:bg-accent"
               }
             >
-              <TutorFace avatar={t.persona?.avatar} name={t.displayName} size="sm" />
-              {t.displayName}
-              <span className="ml-1.5 opacity-70">{t.frameworkName ?? copy.noApproach}</span>
+              <TutorFace avatar={tu.persona?.avatar} name={tu.displayName} size="sm" />
+              {tu.displayName}
+              <span className="ml-1.5 opacity-70">{tu.frameworkName ?? t("noApproach")}</span>
             </button>
           );
         })}
       </div>
 
       <label htmlFor="preview-message" className="mt-4 block text-xs font-medium">
-        {copy.messageLabel}
+        {t("messageLabel")}
       </label>
       <textarea
         id="preview-message"
         value={message}
         onChange={(e) => setMessage(e.target.value)}
-        placeholder={copy.placeholder}
+        placeholder={t("placeholder")}
         rows={3}
         className="mt-1 w-full rounded border bg-background p-2 text-sm"
       />
@@ -149,12 +133,12 @@ export function TutorPreviewPanel() {
         className="mt-2 flex items-center gap-1.5 rounded bg-brand px-3 py-1.5 text-sm text-white disabled:opacity-50"
       >
         <Play className="h-3.5 w-3.5" aria-hidden />
-        {busy ? copy.running : picked.length > 1 ? copy.run : copy.runOne}
+        {busy ? t("running") : picked.length > 1 ? t("run") : t("runOne")}
       </button>
 
       {replies ? (
         <div className="mt-4 space-y-2">
-          <p className="text-xs text-muted-foreground">{copy.sameBoth}</p>
+          <p className="text-xs text-muted-foreground">{t("sameBoth")}</p>
           <div className="grid gap-3 md:grid-cols-2">
             {replies.map((r) => (
               <div key={r.tutorId} className="rounded border border-border p-3">
@@ -162,13 +146,13 @@ export function TutorPreviewPanel() {
                     picker does, so the same face heads the column. */}
                 <div className="flex items-center gap-2">
                   <TutorFace
-                    avatar={tutors.find((t) => t.id === r.tutorId)?.persona?.avatar}
+                    avatar={tutors.find((tu) => tu.id === r.tutorId)?.persona?.avatar}
                     name={r.displayName ?? r.tutorId}
                   />
                   <div className="min-w-0">
                     <p className="text-sm font-medium">{r.displayName ?? r.tutorId}</p>
                     <p className="text-xs text-muted-foreground">
-                      {r.composedFrom?.approach ?? copy.noApproach}
+                      {r.composedFrom?.approach ?? t("noApproach")}
                       {r.composedFrom?.register ? ` · ${r.composedFrom.register}` : ""}
                     </p>
                   </div>
@@ -181,10 +165,10 @@ export function TutorPreviewPanel() {
                 {r.composedFrom?.notIncluded?.length ? (
                   <details className="mt-2">
                     <summary className="cursor-pointer text-[11px] text-muted-foreground">
-                      {copy.composedTitle}
+                      {t("composedTitle")}
                     </summary>
                     <p className="mt-1 text-[11px] text-muted-foreground">
-                      {copy.notIncluded(r.composedFrom.notIncluded)}
+                      {t("notIncluded", { missing: r.composedFrom.notIncluded.join(", ") })}
                     </p>
                   </details>
                 ) : null}

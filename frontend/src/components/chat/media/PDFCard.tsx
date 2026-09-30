@@ -1,6 +1,7 @@
 "use client";
 
 import { usePDFInfo } from "@/hooks/usePDFInfo";
+import { useT } from "@/i18n";
 
 interface PDFCardProps {
   url: string;
@@ -48,6 +49,7 @@ function DownloadIcon() {
 }
 
 export function PDFCard({ url }: PDFCardProps) {
+  const t = useT("PDFCard");
   const { info, loading } = usePDFInfo(url);
 
   const filename = info?.filename ?? decodeURIComponent(url.split("/").pop() ?? "document.pdf");
@@ -59,7 +61,7 @@ export function PDFCard({ url }: PDFCardProps) {
       target="_blank"
       rel="noopener noreferrer"
       className="inline-flex items-center gap-2 rounded border border-border bg-muted px-3 py-2 text-sm text-foreground no-underline hover:bg-muted/80"
-      aria-label={`Open PDF: ${filename}`}
+      aria-label={t("open", { filename })}
     >
       <PDFIcon />
       <span className="max-w-[200px] truncate font-medium">{filename}</span>
@@ -68,7 +70,7 @@ export function PDFCard({ url }: PDFCardProps) {
       )}
       {!loading && pages != null && (
         <span className="rounded bg-background px-1.5 py-0.5 text-xs text-muted-foreground">
-          {pages}p
+          {t("pages", { count: pages })}
         </span>
       )}
       <DownloadIcon />

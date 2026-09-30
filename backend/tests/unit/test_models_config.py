@@ -5,7 +5,14 @@ from __future__ import annotations
 import pytest
 
 # These imports will fail until models.py is implemented — that's the TDD red state.
-from config.models import ModelEntry, ModelsConfig, default_model, fast_model, load_models_config
+from config.models import (
+    ModelEntry,
+    ModelsConfig,
+    analysis_model,
+    default_model,
+    fast_model,
+    load_models_config,
+)
 
 
 class TestLoadModelsConfig:
@@ -74,6 +81,54 @@ class TestModelAccessors:
             # No separate cheap Google tier today — the platform default IS the lite
             # model — so the analytics sub-tasks resolve to the default.
             assert fast_model() == default_model()
+
+
+class TestAnalysisModel:
+    """BENCH-1 / 1.1.139 D1 — the after-the-fact analysis model."""
+
+    def test_yaml_names_a_registered_model(self):
+        cfg = load_models_config()
+        assert cfg.analysis_model in {m.id for m in cfg.models}
+
+    def test_default_is_the_smart_flash(self, monkeypatch):
+        monkeypatch.delenv("ANALYSIS_MODEL", raising=False)
+        assert analysis_model() == "gemini-3.8-flash"
+
+    def test_is_not_the_tutor_model(self, monkeypatch):
+        monkeypatch.delenv("ANALYSIS_MODEL", raising=False)
+        assert analysis_model() != default_model()
+
+    def test_env_override_by_id(self, monkeypatch):
+        monkeypatch.setenv("ANALYSIS_MODEL", "gemini-3-7-flash")
+        assert analysis_model() == "gemini-3.7-flash"
+
+    def test_env_override_by_api_name(self, monkeypatch):
+        monkeypatch.setenv("ANALYSIS_MODEL", "gemini-3.6-flash")
+        assert analysis_model() == "gemini-3.6-flash"
+
+    def test_env_override_unregistered_raises(self, monkeypatch):
+        monkeypatch.setenv("ANALYSIS_MODEL", "gemini-9-pro-imaginary")
+        with pytest.raises(ValueError, match="ANALYSIS_MODEL"):
+            analysis_model()
+
+    def test_bad_key_fails_validation(self):
+        cfg = load_models_config()
+        with pytest.raises(ValueError, match="analysis_model"):
+            ModelsConfig(
+                models=cfg.models,
+                defaults=cfg.defaults,
+                platform_default=cfg.platform_default,
+                analysis_model="no-such-model",
+            )
+
+    def test_absent_key_falls_back_to_smart(self, monkeypatch):
+        import config.models as cm
+
+        cfg = load_models_config()
+        stripped = ModelsConfig(models=cfg.models, defaults=cfg.defaults, platform_default=cfg.platform_default)
+        monkeypatch.delenv("ANALYSIS_MODEL", raising=False)
+        monkeypatch.setattr(cm, "load_models_config", lambda: stripped)
+        assert cm.analysis_model() == cm.smart_model()
 
 
 class TestModelEntry:

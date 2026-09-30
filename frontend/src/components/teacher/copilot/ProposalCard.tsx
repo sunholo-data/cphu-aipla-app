@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { Check, Pencil, X } from "lucide-react";
 
-import { DEFAULT_LABELS, type CopilotLabels, type ProposalDescriptor } from "./types";
+import { type CopilotLabels, type ProposalDescriptor } from "./types";
+import { useCopilotLabels } from "./useCopilotLabels";
 
 /** How long the "Applied ✓" confirmation lingers before it clears itself. The
  *  change is already visible in the builder field, so the badge is a brief
@@ -31,7 +32,7 @@ export function ProposalCard<P>({
   dismissOnApply?: boolean;
   labels?: Partial<CopilotLabels>;
 }) {
-  const labels: CopilotLabels = { ...DEFAULT_LABELS, ...labelsOverride };
+  const labels: CopilotLabels = useCopilotLabels(labelsOverride);
   const [applied, setApplied] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [editing, setEditing] = useState(false);

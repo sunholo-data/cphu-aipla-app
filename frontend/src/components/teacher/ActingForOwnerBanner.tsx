@@ -3,19 +3,12 @@
 import { Microscope, PenLine } from "lucide-react";
 
 import { useTeacherAuth } from "@/hooks/useTeacherAuth";
+// 1.1.108 M2: the relative time follows the teacher's own language, like the
+// sentence around it.
 import { formatRelativeTime } from "@/lib/relativeTime";
+import { useLocaleMode, useT } from "@/i18n";
 
 /** 1.1.108 M4 — copy lives here, never inline in JSX. */
-const copy = {
-  banner: {
-    class: (owner: string) => `You are editing ${owner}’s class as a researcher.`,
-    activity: (owner: string) => `You are editing ${owner}’s activity as a researcher.`,
-    detail:
-      "Everything you change here is live for their students, and the page will show them who last edited it.",
-  },
-  lastEdited: (who: string, when: string) => `Last edited by ${who}, ${when}`,
-  someoneElse: "another researcher",
-} as const;
 
 export interface OwnedResource {
   ownerUid: string;
@@ -39,6 +32,7 @@ export function ActingForOwnerBanner({
   kind: "class" | "activity";
 }) {
   const { user } = useTeacherAuth({ redirectOnSignedOut: false });
+  const t = useT("ActingForOwnerBanner");
   if (!user?.uid || user.uid === resource.ownerUid) return null;
   const owner = resource.ownerLabel ?? resource.ownerUid;
   return (
@@ -49,8 +43,10 @@ export function ActingForOwnerBanner({
     >
       <Microscope className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
       <div>
-        <p className="font-medium">{copy.banner[kind](owner)}</p>
-        <p className="text-xs opacity-80">{copy.banner.detail}</p>
+        <p className="font-medium">
+          {kind === "class" ? t("editingClass", { owner }) : t("editingActivity", { owner })}
+        </p>
+        <p className="text-xs opacity-80">{t("detail")}</p>
       </div>
     </div>
   );
@@ -68,10 +64,12 @@ export interface LastEditedResource {
  * renders when it is absent.
  */
 export function LastEditedLine({ resource }: { resource: LastEditedResource }) {
+  const t = useT("ActingForOwnerBanner");
+  const mode = useLocaleMode();
   const stamp = resource.lastEditedBy;
   if (!stamp) return null;
-  const who = resource.lastEditedByLabel ?? copy.someoneElse;
-  const when = formatRelativeTime(stamp.at) || stamp.at;
+  const who = resource.lastEditedByLabel ?? t("someoneElse");
+  const when = formatRelativeTime(stamp.at, Date.now(), mode === "bilingual" ? "da" : mode) || stamp.at;
   return (
     <p
       data-testid="last-edited-line"
@@ -79,7 +77,7 @@ export function LastEditedLine({ resource }: { resource: LastEditedResource }) {
       className="flex items-center gap-1.5 text-xs text-muted-foreground"
     >
       <PenLine className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-      {copy.lastEdited(who, when)}
+      {t("lastEdited", { who, when })}
     </p>
   );
 }

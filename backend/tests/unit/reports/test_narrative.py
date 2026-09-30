@@ -158,3 +158,60 @@ class _FakeIndex:
         self.summary_based_on_turn_count = based_on
         self.summary_generated_at = generated_at
         self.summary_based_on_voice_chars = voice_chars
+
+
+async def test_narrative_runs_on_the_analysis_model(monkeypatch) -> None:
+    """BENCH-1 / 1.1.139 D1 — the narrative is after-the-fact, so it calls the
+    analysis model, not the tutor's platform default."""
+    import types
+
+    from google import genai
+
+    from config.models import analysis_model, default_model
+
+    monkeypatch.delenv("ANALYSIS_MODEL", raising=False)
+    seen: dict[str, str] = {}
+
+    class _Models:
+        async def generate_content(self, *, model: str, contents: str):
+            seen["model"] = model
+            return types.SimpleNamespace(text="ok")
+
+    class _Client:
+        def __init__(self, **_kw):
+            self.aio = types.SimpleNamespace(models=_Models())
+
+    monkeypatch.setattr(genai, "Client", _Client)
+
+    assert await narrative._call_gemini("p") == "ok"
+    assert seen["model"] == analysis_model()
+    assert seen["model"] != default_model()
+
+
+async def test_session_index_io_runs_off_the_event_loop() -> None:
+    """1.1.131 follow-up: resolve_narrative's Firestore read and cache write are
+    synchronous; inside the async report route they must not run on the loop
+    thread that every student stream on the instance shares."""
+    import threading
+    from types import SimpleNamespace
+
+    loop_thread = threading.get_ident()
+    seen: dict[str, int] = {}
+
+    def fake_index(session_id: str):
+        seen["read"] = threading.get_ident()
+        return SimpleNamespace(summary_text="", summary_based_on_turn_count=0)
+
+    def fake_update(session_id: str, fields: dict) -> None:
+        seen["write"] = threading.get_ident()
+
+    with (
+        patch.object(narrative, "get_session_index", fake_index),
+        patch.object(narrative, "update_session_fields", fake_update),
+        patch.object(narrative, "generate_narrative", AsyncMock(return_value="**Narrative** ok")),
+    ):
+        out = await narrative.resolve_narrative(_summary())
+
+    assert out == "**Narrative** ok"
+    assert seen["read"] != loop_thread, "get_session_index ran on the event loop"
+    assert seen["write"] != loop_thread, "update_session_fields ran on the event loop"

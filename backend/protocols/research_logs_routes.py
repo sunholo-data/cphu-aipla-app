@@ -4,6 +4,9 @@ RESEARCHER-ONLY. Every route asserts the ``role:researcher`` claim, because
 these payloads carry **student conversation text** across every class and every
 teacher — the widest read in the product. Students are anonymous groups
 (ADR-001) so the text carries no names, but it is still what a student wrote.
+**One exception (1.1.136 M1):** ``/groups/{code}/sessions/{id}/timeline`` also
+admits the teacher who owns that group's class — the group report's view of the
+same record, narrowed to that one group.
 
 ⚠️ **A failed BigQuery read is reported, never rendered as "no data".** This is
 the footgun the deploy-status incident named: a read failure that falls into the
@@ -118,6 +121,71 @@ async def transcript_route(
     if not turns:
         raise HTTPException(status_code=404, detail="no turns recorded for that session")
     return {"sessionId": session_id, "turns": _rows(turns)}
+
+
+def _timeline_payload(session_id: str, timeline: dict[str, Any]) -> dict:
+    return {
+        "sessionId": session_id,
+        "items": _rows(timeline["items"]),
+        "workStatus": timeline["workStatus"],
+    }
+
+
+@router.get("/sessions/{session_id}/timeline")
+async def timeline_route(
+    session_id: str = Path(..., max_length=128),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """The conversation with the work it was about, interleaved (1.1.136 M1)."""
+    assert_researcher(user)
+    timeline = await _read(research_logs.session_timeline, session_id)
+    if not timeline["items"]:
+        raise HTTPException(status_code=404, detail="nothing recorded for that session")
+    return _timeline_payload(session_id, timeline)
+
+
+def _assert_can_read_group(user: User, group_code: str) -> None:
+    """Owner of the group's class, or a researcher — else an enumeration-
+    resistant 404 (same answer for "no such group" and "not yours").
+
+    Synchronous Firestore; the caller runs it off the event loop.
+    """
+    from analytics.auth import assert_can_read_class
+    from db.classes import get_class_for_group
+
+    cls = get_class_for_group(group_code)
+    if cls is None:
+        if getattr(user, "is_researcher", False):
+            return  # a researcher may read an unclassed group's log (legacy codes)
+        raise HTTPException(status_code=404, detail="group not found")
+    try:
+        assert_can_read_class(user, cls.class_id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=404, detail="group not found") from exc
+
+
+@router.get("/groups/{group_code}/sessions/{session_id}/timeline")
+async def group_timeline_route(
+    group_code: str = Path(..., max_length=128),
+    session_id: str = Path(..., max_length=128),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """The same timeline for the TEACHER group report (1.1.136 M1).
+
+    ⚠️ The one route in this module that is not researcher-only. A teacher reads
+    their OWN class's groups here; a researcher reads any. Both reads are
+    narrowed to ``group_code``, so pairing your own group with someone else's
+    session id returns 404, not their conversation. A student (group token) owns
+    no class and is refused like any other non-owner.
+
+    Lives here rather than in ``reports_routes`` because it is this module's
+    query, and so the report's summary path stays untouched.
+    """
+    await asyncio.to_thread(_assert_can_read_group, user, group_code)
+    timeline = await _read(research_logs.session_timeline, session_id, group_id=group_code)
+    if not timeline["items"]:
+        raise HTTPException(status_code=404, detail="nothing recorded for that session")
+    return _timeline_payload(session_id, timeline)
 
 
 @router.get("/export")

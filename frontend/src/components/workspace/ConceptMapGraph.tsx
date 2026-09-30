@@ -1,5 +1,7 @@
 "use client";
 
+import { useT } from "@/i18n";
+
 // ConceptMapGraph — the shared auto-layout SVG rendering of a concept map
 // (living-concept-map M0/M1). One renderer for BOTH the teacher's builder
 // preview and the student's read-only view, so the two can't drift. Layout is
@@ -105,6 +107,7 @@ export function ConceptMapGraph({
   onSelect?: (id: string) => void;
   selectedId?: string | null;
 }) {
+  const t = useT("ConceptMapGraph");
   if (nodes.length === 0) return null;
 
   const layers = conceptLayers(nodes, edges);
@@ -133,7 +136,7 @@ export function ConceptMapGraph({
   return (
     <svg
       role="img"
-      aria-label="Begrebskort"
+      aria-label={t("label")}
       viewBox={`0 0 ${width} ${height}`}
       width={width}
       height={height}

@@ -81,6 +81,15 @@ import { DocumentsPanel, type ActivityMaterial } from "@/components/workspace/Do
 import { reportDocumentEvent } from "@/lib/documentApi";
 import { workspaceContentKind } from "./workspaceContent";
 import { useResizableWorkspaceRatio } from "@/hooks/useResizableWorkspaceRatio";
+import {
+  LocaleProvider,
+  recallActivityLanguage,
+  rememberActivityLanguages,
+  toLocale,
+  useT,
+  type Locale,
+  type MessageKey,
+} from "@/i18n";
 
 // Sandbox origin for the sim artefact iframes. NEXT_PUBLIC_MCP_SANDBOX_URL
 // points at /sandbox.html on the sandbox service; strip the suffix so we
@@ -171,20 +180,23 @@ export default function ChatPage({
   // a tokenless request, get 401, and see "Skill not found" before the
   // redirect to / kicks in.
   const { skillId, loading: resolving, notFound } = useSlugResolution(path, !loading && !!user);
+  // No activity has been resolved yet: the person's own language (the root
+  // provider — their DA | EN choice, else the site default).
+  const t = useT("ChatPage");
 
   useEffect(() => {
     if (!loading && !user) router.replace("/");
   }, [loading, user, router]);
 
   if (loading || resolving) {
-    return <div className="p-6 text-sm text-muted-foreground">Loading…</div>;
+    return <div className="p-6 text-sm text-muted-foreground">{t("loading")}</div>;
   }
   if (!user) return null;
   if (notFound || !skillId) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-sm text-muted-foreground">
-        <p>Skill not found.</p>
-        <Link className="underline" href="/">Back to home</Link>
+        <p>{t("notFound")}</p>
+        <Link className="underline" href="/">{t("backHome")}</Link>
       </div>
     );
   }
@@ -321,9 +333,13 @@ function StreamErrorBanner({
   onRetry: () => void;
   onDismiss: () => void;
 }) {
+  const t = useT("ChatPage");
+  // The budget branch carries the backend's own sentence; every other kind is
+  // one of ours, translated by code.
+  const text = error.code === "budget" ? error.message : t(`error_${error.code}`);
   return (
     <div className="inline-block max-w-[80%] space-y-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-      <p>{error.message}</p>
+      <p>{text}</p>
       <div className="flex gap-2">
         {error.retryable && (
           <button
@@ -331,7 +347,7 @@ function StreamErrorBanner({
             onClick={onRetry}
             className="rounded border border-destructive/40 px-2 py-0.5 text-xs hover:bg-destructive/20"
           >
-            Try again
+            {t("tryAgain")}
           </button>
         )}
         <button
@@ -339,7 +355,7 @@ function StreamErrorBanner({
           onClick={onDismiss}
           className="rounded border border-destructive/20 px-2 py-0.5 text-xs text-destructive/70 hover:bg-destructive/10"
         >
-          Dismiss
+          {t("dismiss")}
         </button>
       </div>
     </div>
@@ -388,6 +404,7 @@ function ChatShell({
     thinkingContent,
     isThinking,
     stageLabel,
+    stage,
     sendMessage,
     isLoading,
     tidyingUp,
@@ -395,6 +412,8 @@ function ChatShell({
     error,
     clearError,
     stop,
+    stall,
+    retryStalled,
   } = useSkillAgent({ activityId });
   const {
     displayName,
@@ -438,6 +457,12 @@ function ChatShell({
   // The activity's title, stamped into a downloaded writing export so a file
   // that reaches a teacher says which lesson it came from.
   const [activeTitle, setActiveTitle] = useState<string>("");
+  // 1.1.108 M1 — the activity's language, from the same config field the tutor's
+  // language directive reads. null until the config arrives (or when this chat
+  // has no activity), in which case the skill's voice language decides below.
+  // Seeded from what the lesson picker already knew, so an English activity
+  // does not paint Danish while its config is in flight.
+  const [activeLanguage, setActiveLanguage] = useState<Locale | null>(() => recallActivityLanguage(activityId));
   // 1.1.45 M4 — the rich-text solution editor element (JB-2 "din løsning").
   const [activeSolution, setActiveSolution] = useState<SolutionElementDef[]>([]);
   // 1.1.41 M1 — the vetted sim artefact this activity hosts (resolved from the
@@ -511,9 +536,13 @@ function ChatShell({
       setActiveArtefact(null);
       setActivePersona(null);
       setActiveMaterials([]);
+      setActiveLanguage(recallActivityLanguage(activityId));
       return;
     }
     let alive = true;
+    // Switching activity: paint in the new one's remembered language, not the
+    // previous activity's, while its config is in flight.
+    setActiveLanguage(recallActivityLanguage(activityId));
     // ALS-1 M0: resolve the workbench config (checklist/tables/persona/materials)
     // by ACTIVITY id, not skill id — so two concept activities in one class show
     // their own elements. The /active endpoint is dual-read (act- → new store,
@@ -529,6 +558,9 @@ function ChatShell({
         if (Array.isArray(data.note)) setActiveNote(data.note as NoteElementDef[]);
         if (Array.isArray(data.writing)) setActiveWriting(data.writing as WritingElementDef[]);
         if (typeof data.title === "string") setActiveTitle(data.title);
+        const language = toLocale(typeof data.language === "string" ? data.language : null);
+        setActiveLanguage(language);
+        if (activityId) rememberActivityLanguages([[activityId, language]]);
         if (Array.isArray(data.solution)) setActiveSolution(data.solution as SolutionElementDef[]);
         if (Array.isArray(data.document)) setActiveDocument(data.document as DocumentElementDef[]);
         if (Array.isArray(data.conceptMap)) setActiveConceptMap(data.conceptMap as ConceptMapElementDef[]);
@@ -614,6 +646,18 @@ function ChatShell({
   // VOICE-IN-REC M3 — composer mic (talk-to-type XOR record-lesson). Gated on
   // the class capability flags from voice config; dictation fills the draft.
   const composerVoice = useVoiceConfig(skillId);
+  // The student UI speaks the activity's language (1.1.108 M1). A chat with no
+  // activity falls back to the skill/class voice language, then to Danish —
+  // never to the browser's.
+  const locale: Locale = activeLanguage ?? toLocale(composerVoice.tts.language);
+  const t = useT("ChatPage", locale);
+  const tStage = useT("StageProgress", locale);
+  // The typing indicator's stage, in the activity's language when the backend
+  // sent a key this client knows; its English label otherwise (1.1.108).
+  const stageText =
+    stage?.key && ["thinking", "callingTool", "readingDocuments"].includes(stage.key)
+      ? tStage(stage.key as MessageKey<"StageProgress">, stage.params)
+      : stageLabel;
   const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
   // A lesson recording holds the mic — block dictation so only one
   // getUserMedia stream is ever live at a time.
@@ -1081,6 +1125,7 @@ function ChatShell({
   }, [setProactiveSimWiring, skillId, onProactiveTrigger]);
 
   return (
+    <LocaleProvider locale={locale} syncHtmlLang>
     <SurfaceRegistryProvider>
     <SurfaceSessionLifecycle sessionId={sessionId} />
     <main className="flex h-full min-h-0 flex-col">
@@ -1113,7 +1158,7 @@ function ChatShell({
           Above md the tab bar is hidden and both panels render
           side-by-side. */}
       {showWorkspace && (
-        <div className="flex md:hidden border-b bg-muted/30" role="tablist" aria-label="Skift mellem chat og arbejdsområde">
+        <div className="flex md:hidden border-b bg-muted/30" role="tablist" aria-label={t("tabsLabel")}>
           <button
             type="button"
             role="tab"
@@ -1125,7 +1170,7 @@ function ChatShell({
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            💬 Chat
+            {t("tabChat")}
           </button>
           <button
             type="button"
@@ -1138,7 +1183,7 @@ function ChatShell({
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            📐 Arbejde
+            {t("tabWork")}
           </button>
         </div>
       )}
@@ -1153,7 +1198,7 @@ function ChatShell({
         {showDocumentUI && showDocBrowser && (
           <aside className="flex w-64 shrink-0 flex-col overflow-hidden border-r bg-muted/30">
             <div className="border-b px-3 py-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Sessions</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">{t("sessions")}</p>
               <div className="mt-1 max-h-40 overflow-y-auto">
                 <SkillSessionPanel
                   sessions={sessions}
@@ -1270,7 +1315,7 @@ function ChatShell({
             persona={activePersona}
             userInitial={userInitial}
             userDisplayName={userDisplayName}
-            stageLabel={stageLabel}
+            stageLabel={stageText}
             onAction={handleAction}
             mcpServerIds={mcpServerIds}
             sessionId={sessionId ?? agentSessionId}
@@ -1307,13 +1352,35 @@ function ChatShell({
             {voiceNotice && (
               <p className="mb-2 text-xs text-muted-foreground">{voiceNotice}</p>
             )}
+            {stall === "slow" && (
+              // 1.1.131 M2 — the run started and then went quiet for 15 s.
+              // Say so, quietly, before the student decides the tutor is dead.
+              <p role="status" className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                {t("stallSlow")}
+              </p>
+            )}
+            {stall === "stalled" && (
+              // 45 s: offer a retry that aborts the stalled run first, so it
+              // cannot double the turn the way re-typing the question does.
+              <p role="status" className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                <span>{t("stallStalled")}</span>
+                <button
+                  type="button"
+                  onClick={() => void retryStalled()}
+                  className="rounded border px-2 py-0.5 text-xs text-foreground hover:bg-muted"
+                >
+                  {t("stallRetry")}
+                </button>
+              </p>
+            )}
             {tidyingUp ? (
               // COMPACTION-LATENCY M2 — the answer is done; only history
               // housekeeping remains, so the composer is already re-enabled.
               // Saying so beats silently getting out of the way.
               <p className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-                Tidying up the conversation history — you can keep typing.
+                {t("tidyingUp")}
               </p>
             ) : (
               compactions.length > 0 && (
@@ -1322,16 +1389,14 @@ function ChatShell({
                 // this line a degraded answer is indistinguishable from a
                 // good one.
                 <p className="mb-2 text-xs text-muted-foreground">
-                  {`Earlier conversation summarised (${compactions[compactions.length - 1].eventsCompacted} entries condensed) so the tutor can keep the whole session in mind.`}
+                  {t("compacted", { count: compactions[compactions.length - 1].eventsCompacted })}
                 </p>
               )
             )}
             {groupTurnInFlight ? (
               <p className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
-                {queuedMessage
-                  ? "A classmate is asking the tutor — your message will send when it's your group's turn."
-                  : "A classmate is asking the tutor…"}
+                {queuedMessage ? t("classmateQueued") : t("classmateAsking")}
               </p>
             ) : (
               groupActiveDevices > 1 && (
@@ -1340,7 +1405,7 @@ function ChatShell({
                     className="inline-block h-2 w-2 rounded-full bg-emerald-500"
                     aria-hidden
                   />
-                  {groupActiveDevices} in your group are here
+                  {t("groupHere", { count: groupActiveDevices })}
                 </p>
               )
             )}
@@ -1400,7 +1465,7 @@ function ChatShell({
                 // Gated on the same flag as the upload buttons, so a skill
                 // that cannot take images does not silently swallow a paste.
                 onPaste={skillMultimodalInput && !inputDisabled ? images.handlePaste : undefined}
-                placeholder="Message…"
+                placeholder={t("placeholder")}
                 className="min-w-0 flex-1 rounded-md border px-3 py-2 text-base sm:text-sm"
                 disabled={inputDisabled}
               />
@@ -1410,7 +1475,7 @@ function ChatShell({
                   onClick={stop}
                   className="rounded-md border px-3 py-2 text-sm"
                 >
-                  Stop
+                  {t("stop")}
                 </button>
               ) : (
                 <button
@@ -1418,7 +1483,7 @@ function ChatShell({
                   className="rounded-md bg-primary px-3 py-2 text-sm text-primary-foreground"
                   disabled={(!draft.trim() && images.count === 0) || inputDisabled}
                 >
-                  Send
+                  {t("send")}
                 </button>
               )}
             </form>
@@ -1500,5 +1565,6 @@ function ChatShell({
       <ModalSurfaceRegion sessionId={sessionId ?? agentSessionId} />
     </main>
     </SurfaceRegistryProvider>
+    </LocaleProvider>
   );
 }

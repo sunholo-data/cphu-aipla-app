@@ -1,7 +1,9 @@
 // SETTINGS-1 M1 — the Defaults card (teacher account defaults).
 // Headline: defaults SEED, never override — and saving is a partial PUT.
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { LocaleProvider } from "@/i18n";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockFetch = vi.fn();
@@ -15,6 +17,14 @@ vi.mock("@/lib/teacherApi", () => ({
 }));
 
 import { DefaultsCard } from "../_DefaultsCard";
+
+// 1.1.108 M2 — these tests assert the English copy; a teacher's default
+// language is Danish, so render inside an English locale.
+function render(ui: ReactElement, options?: Parameters<typeof rtlRender>[1]) {
+  const wrap = (node: ReactElement) => <LocaleProvider locale="en">{node}</LocaleProvider>;
+  const r = rtlRender(wrap(ui), options);
+  return { ...r, rerender: (next: ReactElement) => r.rerender(wrap(next)) };
+}
 
 function ok(body: unknown): Response {
   return { ok: true, status: 200, json: async () => body } as Response;

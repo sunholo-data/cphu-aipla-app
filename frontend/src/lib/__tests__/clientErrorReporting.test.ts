@@ -85,7 +85,38 @@ describe("reportClientError", () => {
   it("sends no identity at all", () => {
     reportClientError({ kind: "render", message: "boom" });
     const body = lastBody(fetchMock);
-    expect(Object.keys(body).sort()).toEqual(["kind", "message", "role", "stack", "url"]);
+    // 1.1.138 M0 added three build/reload fields — an opaque build stamp and
+    // two booleans. Still nothing that identifies a person.
+    expect(Object.keys(body).sort()).toEqual([
+      "afterAutoReload",
+      "autoReloaded",
+      "buildId",
+      "kind",
+      "message",
+      "role",
+      "stack",
+      "url",
+    ]);
+  });
+
+  it("carries the tab's build id and the reload flags (1.1.138 M0)", () => {
+    vi.stubEnv("NEXT_PUBLIC_BUILD_ID", "b20260929080000-abcd");
+    try {
+      reportClientError({ kind: "render", message: "stale", autoReloaded: true });
+      const body = lastBody(fetchMock);
+      expect(body.buildId).toBe("b20260929080000-abcd");
+      expect(body.autoReloaded).toBe(true);
+      expect(body.afterAutoReload).toBe(false);
+      expect(body).not.toHaveProperty("previousBuildId");
+
+      reportClientError({ kind: "recovered", message: "ok", afterAutoReload: true, previousBuildId: "b-old" });
+      const recovered = lastBody(fetchMock);
+      expect(recovered.kind).toBe("recovered");
+      expect(recovered.previousBuildId).toBe("b-old");
+      expect(recovered.afterAutoReload).toBe(true);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("redacts the message and the stack before they leave the browser", () => {

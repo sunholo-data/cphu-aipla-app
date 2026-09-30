@@ -21,6 +21,7 @@ import {
   isAnonymousGroupAuthMode,
   readStoredGroupSession,
 } from "@/lib/anonymousGroupAuth";
+import { useT } from "@/i18n";
 import { getGroupSignal, lowerHand, raiseHand } from "@/lib/signalApi";
 
 type Props = {
@@ -30,6 +31,7 @@ type Props = {
 };
 
 export function CallTeacherButton({ activityTitle = "", disabled = false, pollMs = 10_000 }: Props) {
+  const t = useT("CallTeacherButton");
   const [raised, setRaised] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -96,7 +98,7 @@ export function CallTeacherButton({ activityTitle = "", disabled = false, pollMs
     }
   }
 
-  const label = acknowledged ? "Læreren er på vej" : raised ? "Hånden er rakt op" : "Tilkald lærer";
+  const label = acknowledged ? t("acknowledged") : raised ? t("raised") : t("call");
   const tone = raised
     ? "border-amber-500 bg-amber-50 text-amber-700"
     : acknowledged

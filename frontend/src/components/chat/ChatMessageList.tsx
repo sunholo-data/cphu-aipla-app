@@ -22,6 +22,8 @@ import { StreamingBubble } from "./StreamingBubble";
 import { TypingIndicator } from "./TypingIndicator";
 import type React from "react";
 
+import { useT } from "@/i18n";
+
 interface ChatMessageListProps {
   messages: SkillMessage[];
   initialMessages?: SkillMessage[];
@@ -120,6 +122,7 @@ export function ChatMessageList({
   sessionId,
   greetLoading,
 }: ChatMessageListProps) {
+  const t = useT("ChatMessageList");
   const scrollRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const [showScrollBadge, setShowScrollBadge] = useState(false);
@@ -242,7 +245,7 @@ export function ChatMessageList({
                   the backend cap — never a silent truncation. */}
               {interactionsTruncated && (
                 <p className="text-center text-[11px] text-muted-foreground italic">
-                  Tidligere interaktioner er skjult
+                  {t("olderHidden")}
                 </p>
               )}
               {initialMessages.map((m, i) => (
@@ -272,7 +275,7 @@ export function ChatMessageList({
               <HumanToolEventsAt index={initialMessages.length} restored />
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <div className="flex-1 border-t" />
-                <span>Earlier in this conversation</span>
+                <span>{t("earlier")}</span>
                 <div className="flex-1 border-t" />
               </div>
             </>
@@ -283,9 +286,7 @@ export function ChatMessageList({
               Keeps the inherited template's "first chat" prompt for
               non-AIPLA skills. */}
           {messages.length === 0 && !initialMessages?.length && !error && !isLoading && !skillInitialMessage && (
-            <p className="text-sm text-muted-foreground">
-              Send a message to start the conversation.
-            </p>
+            <p className="text-sm text-muted-foreground">{t("emptyPrompt")}</p>
           )}
 
           {stableMessages.map((m, i) => (

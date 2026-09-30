@@ -1,11 +1,21 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render as rtlRender, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { LocaleProvider } from "@/i18n";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { BudgetBanner } from "../BudgetBanner";
 import type { StreamError } from "@/hooks/useSkillAgent";
 
+// 1.1.108 — the banner follows the activity's language. These tests assert the
+// English strings, so they render inside an English activity.
+function render(ui: ReactElement) {
+  const r = rtlRender(<LocaleProvider locale="en">{ui}</LocaleProvider>);
+  return { ...r, rerender: (next: ReactElement) => r.rerender(<LocaleProvider locale="en">{next}</LocaleProvider>) };
+}
+
 function makeBudgetError(overrides: Partial<StreamError> = {}): StreamError {
   return {
     kind: "budget_exceeded",
+    code: "budget",
     message: "Cohort PHYS-7K2N is over its monthly budget.",
     retryable: true,
     rawMessage: "Cohort PHYS-7K2N is over its monthly budget.",
@@ -30,6 +40,7 @@ describe("BudgetBanner", () => {
   it("renders nothing when error is a non-budget kind", () => {
     const err: StreamError = {
       kind: "run_error",
+      code: "agentError",
       message: "Agent run failed",
       retryable: true,
       rawMessage: "Agent run failed",
@@ -104,5 +115,20 @@ describe("BudgetBanner", () => {
     const btn = screen.getByTestId("budget-banner-dismiss");
     btn.focus();
     expect(btn).toHaveFocus();
+  });
+
+  it("says a known reason in the activity's language, Danish by default (1.1.108)", () => {
+    vi.useRealTimers();
+    rtlRender(
+      <BudgetBanner error={makeBudgetError({ reason: "class_monthly", retryAfterSeconds: 7200 })} onDismiss={() => {}} />,
+    );
+    expect(screen.getByText(/Klassen har brugt sit månedlige AI-budget/)).toBeInTheDocument();
+    expect(screen.getByTestId("budget-countdown")).toHaveTextContent("Nulstilles om 2 timer.");
+    expect(screen.getByRole("button", { name: "OK" })).toBeInTheDocument();
+  });
+
+  it("falls back to the backend's sentence for a reason it does not know", () => {
+    rtlRender(<BudgetBanner error={makeBudgetError({ reason: "something_new" })} onDismiss={() => {}} />);
+    expect(screen.getByText("Cohort PHYS-7K2N is over its monthly budget.")).toBeInTheDocument();
   });
 });

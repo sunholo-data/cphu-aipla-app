@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { BookOpen, Check, Info, Radio } from "lucide-react";
 import { TutorFace } from "@/components/teacher/research/TutorFace";
+import { useT } from "@/i18n";
 
 import {
   ConflictError,
@@ -12,12 +13,6 @@ import {
   setClassTutor,
 } from "@/lib/teacherApi";
 
-const copy = {
-  needsRecording: "Needs lesson recording",
-  needsRecordingWhy:
-    "This approach builds on several students' statements, so it needs the class's lesson recording. Turn on \u201cRecord this class\u201d below to pick it.",
-  saveFailed: "Could not save that choice. Nothing has changed — try again.",
-} as const;
 
 /**
  * The one tutor choice for a class (1.1.91 M1).
@@ -62,6 +57,7 @@ export function TutorPicker({
    *  AR/JB, 2026-09-21: the moves are made of several students' statements. */
   recordingEnabled?: boolean;
 }) {
+  const t = useT("TutorPicker");
   const [tutors, setTutors] = useState<TutorPayload[]>([]);
   const [frameworks, setFrameworks] = useState<TutorCatalogue["frameworks"]>([]);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
@@ -104,19 +100,19 @@ export function TutorPicker({
       setSelected(previous);
       // A 409 carries the reason the pairing cannot work (e.g. the class is
       // not recording) — show it as written rather than a generic failure.
-      setError(err instanceof ConflictError ? err.message : copy.saveFailed);
+      setError(err instanceof ConflictError ? err.message : t("saveFailed"));
     } finally {
       setSaving(null);
     }
   };
 
   if (state === "loading") {
-    return <p className="text-sm text-muted-foreground">Loading tutors&hellip;</p>;
+    return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
   }
   if (state === "error") {
     return (
       <p className="text-sm text-muted-foreground">
-        Could not load the tutor list. Reload the page to try again.
+        {t("loadFailed")}
       </p>
     );
   }
@@ -124,19 +120,18 @@ export function TutorPicker({
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        One choice sets the tutor&rsquo;s name, picture, voice, tone and teaching approach for
-        every activity in this class.
+        {t("intro")}
       </p>
 
       <ul className="grid gap-2 sm:grid-cols-2">
-        {tutors.map((t) => (
-          <li key={t.id}>
+        {tutors.map((tu) => (
+          <li key={tu.id}>
             <TutorCard
-              tutor={t}
-              selected={selected === t.id}
-              saving={saving === t.id}
-              blocked={!!t.requiresGroupTalk && !recordingEnabled}
-              onClick={() => void choose(t.id)}
+              tutor={tu}
+              selected={selected === tu.id}
+              saving={saving === tu.id}
+              blocked={!!tu.requiresGroupTalk && !recordingEnabled}
+              onClick={() => void choose(tu.id)}
             />
           </li>
         ))}
@@ -149,7 +144,7 @@ export function TutorPicker({
       {selected === null ? (
         <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-          No tutor chosen — this class uses the default identity and teaches as it always has.
+          {t("noneChosen")}
         </p>
       ) : null}
     </div>
@@ -174,7 +169,8 @@ function TutorCard({
   // second, independently chosen axis. It is now a property OF the approach, so
   // naming it separately here would advertise a choice a teacher cannot make
   // and, worse, imply it might disagree with the approach beside it.
-  const teaches = tutor.frameworkName ?? "no set teaching approach";
+  const t = useT("TutorPicker");
+  const teaches = tutor.frameworkName ?? t("noApproach");
 
   return (
     <div
@@ -188,7 +184,7 @@ function TutorCard({
         aria-pressed={selected}
         aria-disabled={blocked || undefined}
         disabled={saving || blocked}
-        title={blocked ? copy.needsRecordingWhy : undefined}
+        title={blocked ? t("needsRecordingWhy") : undefined}
         className="flex w-full items-start gap-3 text-left disabled:opacity-60"
       >
         <TutorFace avatar={tutor.persona?.avatar} name={tutor.displayName} size="lg" />
@@ -198,7 +194,7 @@ function TutorCard({
             <span className="truncate font-medium text-foreground">{tutor.displayName}</span>
             {tutor.isVariant ? (
               <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                variant
+                {t("variant")}
               </span>
             ) : null}
             {selected ? <Check className="ml-auto h-4 w-4 shrink-0 text-brand" aria-hidden /> : null}
@@ -207,12 +203,12 @@ function TutorCard({
           {tutor.requiresGroupTalk ? (
             <span className="mt-1 inline-flex w-fit items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
               <Radio className="h-3 w-3" aria-hidden />
-              {copy.needsRecording}
+              {t("needsRecording")}
             </span>
           ) : null}
         </span>
       </button>
-      {blocked ? <p className="mt-1.5 text-xs text-muted-foreground">{copy.needsRecordingWhy}</p> : null}
+      {blocked ? <p className="mt-1.5 text-xs text-muted-foreground">{t("needsRecordingWhy")}</p> : null}
 
       {/* Reviewability, one disclosure away — a teacher can see what the
           teaching approach actually asks the tutor to do before choosing it. */}
@@ -220,7 +216,7 @@ function TutorCard({
         <details className="mt-2">
           <summary className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
             <BookOpen className="h-3 w-3" aria-hidden />
-            What does this teaching approach do?
+            {t("whatDoesItDo")}
           </summary>
           <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
             {tutor.frameworkSummary}

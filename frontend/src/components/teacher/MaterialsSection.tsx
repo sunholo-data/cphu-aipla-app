@@ -30,6 +30,7 @@ import type { MaterialRef } from "@/lib/teacherApi";
 // rather than growing a lookalike. Behaviour here is unchanged.
 import { ALL, ActiveChip, FacetRow } from "@/components/teacher/ui/FacetRow";
 import { SpendDeniedNotice } from "@/components/teacher/SpendDeniedNotice";
+import { useT } from "@/i18n";
 import { isSpendDenied } from "@/lib/accessTier";
 
 type ViewState =
@@ -88,6 +89,7 @@ const SUBJECTS = ["Fysik", "Matematik", "Kemi", "AIPLA guides"];
  * states are designed (Axiom 11).
  */
 export function MaterialsSection({ materials, onChange, activityId, mode = "cite" }: Props) {
+  const t = useT("MaterialsSection");
   const isLibrary = mode === "library";
   // Gates the "share to the shared library" upload option (curriculum-library.md
   // recommendation, enforced 2026-08-14): only researchers may add to the
@@ -132,8 +134,8 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
   // every keystroke (the browse loads the shared corpus; per-keystroke fetches
   // are the exact cost this milestone removes).
   useEffect(() => {
-    const t = setTimeout(() => setDebouncedTopic(topicFilter.trim()), 250);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setDebouncedTopic(topicFilter.trim()), 250);
+    return () => clearTimeout(timer);
   }, [topicFilter]);
 
   const browseParams = useCallback(
@@ -159,16 +161,16 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
       setTotal(page.total);
     } catch (e) {
       if (e instanceof CurriculumApiError && e.status === 403) {
-        setError("Curriculum library is teacher-only — sign in as a teacher.");
+        setError(t("teacherOnly"));
       } else {
-        setError(e instanceof Error ? e.message : "Failed to load the curriculum library.");
+        setError(e instanceof Error ? e.message : t("loadFailed"));
       }
       setDocs(null);
       setTotal(0);
     } finally {
       setLoading(false);
     }
-  }, [browseParams]);
+  }, [browseParams, t]);
 
   useEffect(() => {
     void load();
@@ -223,16 +225,16 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
   }
 
   function folderLabel(id: string): string {
-    if (id === UNFILED) return "Unfiled";
+    if (id === UNFILED) return t("unfiled");
     return (
       folders.find((f) => f.folderId === id)?.name ??
       facets.folders.find((f) => f.value === id)?.label ??
-      "Folder"
+      t("folder")
     );
   }
 
   async function newFolder() {
-    const name = window.prompt("New folder name")?.trim();
+    const name = window.prompt(t("newFolderPrompt"))?.trim();
     if (!name) return;
     try {
       await createCurriculumFolder(name);
@@ -249,7 +251,7 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
     const f = folders.find((x) => x.folderId === folderId);
     const name = f?.name ?? folderLabel(folderId);
     const count = f?.docCount ?? 0;
-    if (!window.confirm(`Delete folder “${name}”? Its ${count} document(s) will be unfiled, not deleted.`)) {
+    if (!window.confirm(t("deleteFolderConfirm", { name, count }))) {
       return;
     }
     try {
@@ -267,17 +269,14 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
   // also allowed to delete, so no separate permission check is needed here —
   // deleting a shared doc removes it for every teacher, which the confirm spells out.
   async function removeDoc(doc: CurriculumDoc) {
-    const scopeWarning =
-      doc.source === "shared"
-        ? "This is in the SHARED library — every teacher using it will lose access."
-        : "This removes it from your library.";
-    if (!window.confirm(`Delete “${doc.title}”? ${scopeWarning}`)) {
+    const scopeWarning = doc.source === "shared" ? t("sharedWarning") : t("ownWarning");
+    if (!window.confirm(t("deleteDocConfirm", { title: doc.title, warning: scopeWarning }))) {
       return;
     }
     try {
       await deleteCurriculumDoc(doc.docId);
       setDocs((prev) => (prev ? prev.filter((d) => d.docId !== doc.docId) : prev));
-      setTotal((t) => Math.max(0, t - 1));
+      setTotal((n) => Math.max(0, n - 1));
       if (citedIds.has(doc.docId)) {
         onChange(materials.filter((m) => m.docId !== doc.docId));
       }
@@ -296,7 +295,7 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
   }, [loadFacets]);
 
   function toggleTagFilter(tag: string) {
-    setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]));
+    setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((x) => x !== tag) : [...prev, tag]));
   }
 
   // Persist a tag edit for one doc, then reflect it locally + refresh facets so a
@@ -365,8 +364,8 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
         kind: "error",
         message:
           e instanceof CurriculumApiError && e.status === 403
-            ? "You don't have access to this document."
-            : "Couldn't load this document.",
+            ? t("noAccess")
+            : t("docLoadFailed"),
       });
     }
   }
@@ -375,39 +374,25 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
     <fieldset className="flex flex-col gap-4">
       <legend className="flex items-center gap-1.5 text-sm font-medium">
         <BookOpen className="h-4 w-4" aria-hidden="true" />
-        Materials
+        {t("legend")}
       </legend>
       <p className="text-xs text-muted-foreground">
         {isLibrary ? (
-          <>
-            The shared document library. Upload documents, and file them by
-            subject, folder and tag so they are findable when you build an
-            activity. Every teacher sees — and can organise — the shared corpus.
-          </>
+          t("libraryIntro")
         ) : (
-          <>
-            Cite curriculum documents so the tutor can ground its answers with a
-            source. Each cited document is either{" "}
-            <span className="font-medium">Reference</span> — the tutor looks it up
-            when relevant, right for a textbook — or{" "}
-            <span className="font-medium">In context</span>, where the tutor is
-            given the full text on every turn. Use In context for the task your
-            students are working on, so the tutor never has to search for it or
-            ask them to paste it in. Students only see the documents you mark{" "}
-            <span className="font-medium">visible</span>.
-          </>
+          t.rich("citeIntro", { b: (chunks) => <span className="font-medium">{chunks}</span> })
         )}
       </p>
 
       {/* Cited materials chips — each with a per-material student-visibility toggle (1.1.33 M2a).
           Library mode has no activity to cite INTO, so this block never renders there. */}
       {!isLibrary && materials.length > 0 ? (
-        <ul className="flex flex-wrap gap-2" aria-label="Cited materials">
+        <ul className="flex flex-wrap gap-2" aria-label={t("cited")}>
           {materials.map((m) => {
             // 1.1.44 — image materials: an icon chip (the tutor sees the image;
             // there's no text-extraction viewer). Same visibility toggle + remove.
             if (m.kind === "image") {
-              const imgLabel = m.alt || "Image";
+              const imgLabel = m.alt || t("image");
               const imgVisible = Boolean(m.studentVisible);
               return (
                 <li
@@ -421,8 +406,8 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
                   <button
                     type="button"
                     aria-pressed={imgVisible}
-                    aria-label={imgVisible ? `Hide ${imgLabel} from students` : `Show ${imgLabel} to students`}
-                    title={imgVisible ? "Visible to students" : "Hidden from students"}
+                    aria-label={imgVisible ? t("hideFromStudents", { label: imgLabel }) : t("showToStudents", { label: imgLabel })}
+                    title={imgVisible ? t("visibleTitle") : t("hiddenTitle")}
                     onClick={() =>
                       onChange(
                         materials.map((x) =>
@@ -443,11 +428,11 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
                     ) : (
                       <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
                     )}
-                    <span>{imgVisible ? "Visible" : "Hidden"}</span>
+                    <span>{imgVisible ? t("visible") : t("hidden")}</span>
                   </button>
                   <button
                     type="button"
-                    aria-label={`Remove ${imgLabel}`}
+                    aria-label={t("removeAria", { label: imgLabel })}
                     onClick={() => {
                       if (activityId && m.materialId) {
                         void deleteActivityImage(activityId, m.materialId).catch(() => {});
@@ -472,7 +457,7 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
                 <button
                   type="button"
                   onClick={() => openContent(m.docId, label)}
-                  title="View what was extracted"
+                  title={t("viewExtracted")}
                   className="font-medium underline-offset-2 hover:underline"
                 >
                   {label}
@@ -481,14 +466,10 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
                   type="button"
                   aria-pressed={inContext}
                   aria-label={
-                    inContext
-                      ? `Stop always giving ${label} to the tutor`
-                      : `Always give ${label} to the tutor`
+                    inContext ? t("stopContext", { label }) : t("startContext", { label })
                   }
                   title={
-                    inContext
-                      ? "The tutor always has this text — use it for the task students are working on. Costs prompt space on every turn."
-                      : "The tutor can look this up when relevant — the right choice for reference material."
+                    inContext ? t("contextTitle") : t("referenceTitle")
                   }
                   onClick={() => toggleInContext(m.docId)}
                   className={
@@ -502,17 +483,15 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
                   ) : (
                     <Search className="h-3.5 w-3.5" aria-hidden="true" />
                   )}
-                  <span>{inContext ? "In context" : "Reference"}</span>
+                  <span>{inContext ? t("inContext") : t("reference")}</span>
                 </button>
                 <button
                   type="button"
                   aria-pressed={visible}
                   aria-label={
-                    visible
-                      ? `Hide ${label} from students`
-                      : `Show ${label} to students`
+                    visible ? t("hideFromStudents", { label }) : t("showToStudents", { label })
                   }
-                  title={visible ? "Visible to students" : "Hidden from students"}
+                  title={visible ? t("visibleTitle") : t("hiddenTitle")}
                   onClick={() => toggleStudentVisible(m.docId)}
                   className={
                     visible
@@ -525,11 +504,11 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
                   ) : (
                     <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
                   )}
-                  <span>{visible ? "Visible" : "Hidden"}</span>
+                  <span>{visible ? t("visible") : t("hidden")}</span>
                 </button>
                 <button
                   type="button"
-                  aria-label={`Remove ${label}`}
+                  aria-label={t("removeAria", { label })}
                   onClick={() =>
                     onChange(materials.filter((x) => x.docId !== m.docId))
                   }
@@ -547,13 +526,13 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
           strip below, so Level no longer sits apart as a lone <select>. */}
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-1 flex-col gap-1 text-xs font-medium">
-          Search materials
+          {t("search")}
           <input
             type="text"
             value={topicFilter}
             onChange={(e) => setTopicFilter(e.target.value)}
-            placeholder="title, topic, tag…"
-            aria-label="Search materials"
+            placeholder={t("searchPlaceholder")}
+            aria-label={t("search")}
             className="rounded border border-border bg-background px-2 py-1.5 text-sm"
           />
         </label>
@@ -571,7 +550,7 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
             // Add the new doc to the visible list + cite it immediately. Default
             // not student-visible (opt-in, 1.1.33 M2a) — same as toggleCite.
             setDocs((prev) => (prev ? [doc, ...prev] : [doc]));
-            setTotal((t) => t + 1);
+            setTotal((n) => n + 1);
             // Library mode has no activity to cite into — the upload just joins
             // the corpus. Citing there would silently mutate a `materials` array
             // nobody is saving.
@@ -594,14 +573,14 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
           narrowed by the other active facets. */}
       <div className="flex flex-col gap-2 rounded border border-border/60 bg-muted/20 p-2.5">
         <FacetRow
-          label="Subject"
+          label={t("subject")}
           icon={<BookOpen className="h-3.5 w-3.5" aria-hidden="true" />}
           options={facets.subjects}
           selected={selectedSubject}
           onSelect={setSelectedSubject}
         />
         <FacetRow
-          label="Folders"
+          label={t("folders")}
           icon={<Folder className="h-3.5 w-3.5" aria-hidden="true" />}
           options={facets.folders}
           selected={selectedFolder}
@@ -612,7 +591,7 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
             o.value === UNFILED ? null : (
               <button
                 type="button"
-                aria-label={`Delete folder ${o.label}`}
+                aria-label={t("deleteFolderAria", { label: o.label })}
                 onClick={() => void removeFolder(o.value)}
                 className="hover:text-destructive"
               >
@@ -627,17 +606,17 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
             className="flex items-center gap-1 rounded-full border border-dashed border-border px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted"
           >
             <FolderPlus className="h-3.5 w-3.5" aria-hidden="true" />
-            New
+            {t("newFolder")}
           </button>
         </FacetRow>
         <FacetRow
-          label="Level"
+          label={t("level")}
           options={facets.levels}
           selected={levelFilter}
           onSelect={(v) => setLevelFilter(v as LevelFilter | "")}
         />
         <FacetRow
-          label="Tags"
+          label={t("tags")}
           icon={<Tag className="h-3.5 w-3.5" aria-hidden="true" />}
           options={facets.tags}
           selected={selectedTags}
@@ -649,16 +628,16 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
       {/* Active-filter chips (1.1.58 M4) — echo every applied filter, each
           removable, plus Clear all. Only shown when something is active. */}
       {hasActiveFilters ? (
-        <div className="flex flex-wrap items-center gap-1.5" aria-label="Active filters">
-          <span className="text-xs font-medium text-muted-foreground">Active</span>
+        <div className="flex flex-wrap items-center gap-1.5" aria-label={t("activeFilters")}>
+          <span className="text-xs font-medium text-muted-foreground">{t("active")}</span>
           {levelFilter ? (
             <ActiveChip
-              label={levelFilter === UNLEVELLED ? "No level" : `Level ${levelFilter}`}
+              label={levelFilter === UNLEVELLED ? t("noLevel") : t("levelChip", { level: levelFilter })}
               onRemove={() => setLevelFilter("")}
             />
           ) : null}
           {topicFilter.trim() ? (
-            <ActiveChip label={`“${topicFilter.trim()}”`} onRemove={() => setTopicFilter("")} />
+            <ActiveChip label={t("queryChip", { q: topicFilter.trim() })} onRemove={() => setTopicFilter("")} />
           ) : null}
           {selectedSubject ? (
             <ActiveChip label={selectedSubject} onRemove={() => setSelectedSubject("")} />
@@ -666,11 +645,11 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
           {selectedFolder ? (
             <ActiveChip label={folderLabel(selectedFolder)} onRemove={() => setSelectedFolder("")} />
           ) : null}
-          {selectedTags.map((t) => (
+          {selectedTags.map((tag) => (
             <ActiveChip
-              key={t}
-              label={`#${t}`}
-              onRemove={() => setSelectedTags((prev) => prev.filter((x) => x !== t))}
+              key={tag}
+              label={t("tagChip", { tag })}
+              onRemove={() => setSelectedTags((prev) => prev.filter((x) => x !== tag))}
             />
           ))}
           <button
@@ -678,7 +657,7 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
             onClick={clearAllFilters}
             className="ml-1 text-xs font-medium text-muted-foreground underline-offset-2 hover:underline"
           >
-            Clear all
+            {t("clearAll")}
           </button>
         </div>
       ) : null}
@@ -688,7 +667,7 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
         {loading ? (
           <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            Loading library…
+            {t("loadingLibrary")}
           </div>
         ) : error ? (
           <div className="flex flex-col gap-2 p-4 text-sm">
@@ -698,25 +677,25 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
               onClick={() => void load()}
               className="w-fit rounded border border-border px-2 py-1 text-xs font-medium hover:bg-muted"
             >
-              Retry
+              {t("retry")}
             </button>
           </div>
         ) : !docs || docs.length === 0 ? (
           hasActiveFilters ? (
             // No-match (filters active) — never a dead end: always a way back.
             <div className="flex flex-col items-start gap-2 p-4 text-sm text-muted-foreground">
-              <span>No materials match your filters.</span>
+              <span>{t("noMatch")}</span>
               <button
                 type="button"
                 onClick={clearAllFilters}
                 className="rounded border border-border px-2 py-1 text-xs font-medium hover:bg-muted"
               >
-                Clear all filters
+                {t("clearAllFilters")}
               </button>
             </div>
           ) : (
             <div className="p-4 text-sm text-muted-foreground">
-              No documents yet. Browse the shared A/B/C library or upload your own.
+              {t("emptyLibrary")}
             </div>
           )
         ) : (
@@ -732,14 +711,14 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
                     <button
                       type="button"
                       onClick={() => openContent(doc.docId, doc.title)}
-                      title="View what was extracted"
+                      title={t("viewExtracted")}
                       className="truncate text-left font-medium underline-offset-2 hover:underline"
                     >
                       {doc.title}
                     </button>
                     <span className="text-xs text-muted-foreground">
                       {doc.origin}
-                      {doc.level ? ` · Level ${doc.level}` : ""}
+                      {doc.level ? t("levelMeta", { level: doc.level }) : ""}
                       {doc.subject ? ` · ${doc.subject}` : ""}
                       {doc.topic ? ` · ${doc.topic}` : ""}
                     </span>
@@ -752,11 +731,11 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
                       {editTagsFor === doc.docId ? (
                         <select
                           value={doc.subject ?? ""}
-                          aria-label={`Set subject for ${doc.title}`}
+                          aria-label={t("setSubject", { title: doc.title })}
                           onChange={(e) => void applyTagEdit(doc.docId, { subject: e.target.value || null })}
                           className="rounded border border-border bg-background px-1 py-0.5 text-[11px]"
                         >
-                          <option value="">No subject</option>
+                          <option value="">{t("noSubject")}</option>
                           {(doc.subject && !SUBJECTS.includes(doc.subject) ? [doc.subject, ...SUBJECTS] : SUBJECTS).map(
                             (s) => (
                               <option key={s} value={s}>
@@ -770,11 +749,11 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
                       {editTagsFor === doc.docId ? (
                         <select
                           value={doc.folderId ?? ""}
-                          aria-label={`Set folder for ${doc.title}`}
+                          aria-label={t("setFolder", { title: doc.title })}
                           onChange={(e) => void applyTagEdit(doc.docId, { folderId: e.target.value || null })}
                           className="rounded border border-border bg-background px-1 py-0.5 text-[11px]"
                         >
-                          <option value="">No folder</option>
+                          <option value="">{t("noFolder")}</option>
                           {folders
                             .filter((f) => f.ownerScope === doc.ownerScope)
                             .map((f) => (
@@ -793,7 +772,7 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
                           {editTagsFor === doc.docId ? (
                             <button
                               type="button"
-                              aria-label={`Remove tag ${tag} from ${doc.title}`}
+                              aria-label={t("removeTagFrom", { tag, title: doc.title })}
                               onClick={() => void applyTagEdit(doc.docId, { removeTags: [tag] })}
                               className="hover:text-foreground"
                             >
@@ -806,8 +785,8 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
                         <input
                           type="text"
                           autoFocus
-                          placeholder="add tag, Enter"
-                          aria-label={`Add a tag to ${doc.title}`}
+                          placeholder={t("addTagPlaceholder")}
+                          aria-label={t("addTagTo", { title: doc.title })}
                           onKeyDown={(e) => {
                             if (e.key === "Enter") {
                               e.preventDefault();
@@ -830,13 +809,13 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
                         aria-label={
                           editTagsFor === doc.docId
                             ? isLibrary
-                              ? `Done organising ${doc.title}`
-                              : `Done editing tags for ${doc.title}`
+                              ? t("doneOrganising", { title: doc.title })
+                              : t("doneEditingTags", { title: doc.title })
                             : isLibrary
-                              ? `Organise ${doc.title}`
+                              ? t("organiseAria", { title: doc.title })
                               : doc.tags.length === 0
-                                ? `Add tags for ${doc.title}`
-                                : `Edit tags for ${doc.title}`
+                                ? t("addTagsAria", { title: doc.title })
+                                : t("editTagsAria", { title: doc.title })
                         }
                         onClick={() => setEditTagsFor((cur) => (cur === doc.docId ? null : doc.docId))}
                         className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[11px] text-muted-foreground hover:text-foreground"
@@ -844,12 +823,12 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
                         {editTagsFor === doc.docId ? (
                           <>
                             <Check className="h-3 w-3" aria-hidden="true" />
-                            Done
+                            {t("done")}
                           </>
                         ) : (
                           <>
                             <Tag className="h-3 w-3" aria-hidden="true" />
-                            {isLibrary ? "Organise" : doc.tags.length === 0 ? "Add tags" : "Edit"}
+                            {isLibrary ? t("organise") : doc.tags.length === 0 ? t("addTags") : t("edit")}
                           </>
                         )}
                       </button>
@@ -863,7 +842,7 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
                         type="button"
                         onClick={() => toggleCite(doc)}
                         aria-pressed={cited}
-                        aria-label={cited ? `Remove ${doc.title}` : `Cite ${doc.title}`}
+                        aria-label={cited ? t("uncite", { title: doc.title }) : t("cite", { title: doc.title })}
                         className={`flex items-center gap-1 rounded border px-2 py-1 text-xs font-medium transition-colors ${
                           cited
                             ? "border-primary bg-primary/10 text-foreground"
@@ -873,20 +852,20 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
                         {cited ? (
                           <>
                             <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                            Cited
+                            {t("citedLabel")}
                           </>
                         ) : (
                           <>
                             <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                            Cite
+                            {t("citeLabel")}
                           </>
                         )}
                       </button>
                     )}
                     <button
                       type="button"
-                      aria-label={`Delete ${doc.title}`}
-                      title="Delete from the library"
+                      aria-label={t("deleteDocAria", { title: doc.title })}
+                      title={t("deleteDocTitle")}
                       onClick={() => void removeDoc(doc)}
                       className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                     >
@@ -902,9 +881,7 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
             unbounded dump). Shown only once a page is loaded. */}
         {docs && docs.length > 0 ? (
           <div className="flex items-center justify-between gap-3 border-t border-border p-2 text-xs text-muted-foreground">
-            <span>
-              Showing {docs.length} of {total}
-            </span>
+            <span>{t("showing", { shown: docs.length, total })}</span>
             {docs.length < total ? (
               <button
                 type="button"
@@ -913,7 +890,7 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
                 className="flex items-center gap-1 rounded border border-border px-2 py-1 font-medium hover:bg-muted disabled:opacity-60"
               >
                 {loadingMore ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null}
-                Load more
+                {t("loadMore")}
               </button>
             ) : null}
           </div>
@@ -936,10 +913,10 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
             <div className="flex items-center justify-between gap-2 border-b border-border px-4 py-2">
               <Dialog.Title className="flex min-w-0 items-center gap-1.5 text-sm font-semibold">
                 <FileText className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                <span className="truncate">What we extracted — {viewDoc?.title}</span>
+                <span className="truncate">{t("extractedTitle", { title: viewDoc?.title ?? "" })}</span>
               </Dialog.Title>
               <Dialog.Close
-                aria-label="Close"
+                aria-label={t("close")}
                 className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <X className="h-4 w-4" aria-hidden="true" />
@@ -949,18 +926,17 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
               {view?.kind === "loading" ? (
                 <p className="flex items-center gap-2 text-muted-foreground">
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                  Loading…
+                  {t("loading")}
                 </p>
               ) : view?.kind === "error" ? (
                 <p className="text-destructive">{view.message}</p>
               ) : view?.kind === "ready" && !view.content.available ? (
                 <p className="text-muted-foreground">
-                  This document was added before content viewing existed — re-upload it to see what
-                  was extracted.
+                  {t("unavailable")}
                 </p>
               ) : view?.kind === "ready" && !view.content.text.trim() ? (
                 <p className="text-destructive">
-                  Nothing was extracted — check the file parsed correctly before relying on it.
+                  {t("nothingExtracted")}
                 </p>
               ) : view?.kind === "ready" ? (
                 <>
@@ -969,8 +945,7 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
                   </pre>
                   {view.content.text.length < view.content.chars ? (
                     <p className="mt-2 text-xs text-muted-foreground">
-                      Showing the first {view.content.text.length.toLocaleString()} of{" "}
-                      {view.content.chars.toLocaleString()} characters.
+                      {t("truncated", { shown: view.content.text.length, chars: view.content.chars })}
                     </p>
                   ) : null}
                 </>
@@ -1010,6 +985,7 @@ function UploadButton({
   onUploaded: (doc: CurriculumDoc) => void;
   onImageUploaded: (ref: MaterialRef) => void;
 }) {
+  const t = useT("MaterialsSection");
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -1033,7 +1009,7 @@ function UploadButton({
       // into the curriculum/RAG corpus.
       if (_IMAGE_EXT_RE.test(file.name)) {
         if (!activityId) {
-          setErr("Save the activity before adding an image.");
+          setErr(t("saveFirst"));
           return;
         }
         const ref = await uploadActivityImage(activityId, file, file.name.replace(/\.[^.]+$/, ""));
@@ -1057,7 +1033,7 @@ function UploadButton({
     } catch (e) {
       if ((e instanceof CurriculumApiError || e instanceof ActivityImageApiError) && e.status === 422) {
         // 422 = a genuinely unsupported type (PDFs/images are supported).
-        setErr(e.message || "Unsupported file type.");
+        setErr(e.message || t("unsupported"));
       } else if (
         (e instanceof CurriculumApiError || e instanceof ActivityImageApiError) &&
         isSpendDenied(e)
@@ -1066,7 +1042,7 @@ function UploadButton({
         // that is the reason the backend does not overload 403.
         setSpendDenied(e.message || "");
       } else {
-        setErr(e instanceof Error ? e.message : "Upload failed.");
+        setErr(e instanceof Error ? e.message : t("uploadFailed"));
       }
     } finally {
       setBusy(false);
@@ -1087,7 +1063,7 @@ function UploadButton({
         ) : (
           <FileUp className="h-4 w-4" aria-hidden="true" />
         )}
-        {busy ? "Uploading…" : "Upload"}
+        {busy ? t("uploading") : t("upload")}
       </button>
       <input
         ref={inputRef}
@@ -1095,7 +1071,7 @@ function UploadButton({
         accept=".pdf,.txt,.md,.docx,.pptx,.xlsx,.odt,.odp,.ods,.epub,.html,.htm,.csv,.png,.jpg,.jpeg,.webp,.gif"
         onChange={handleFile}
         className="hidden"
-        aria-label="Upload document or image"
+        aria-label={t("uploadAria")}
       />
       {/* Researcher-only: mark the next upload as cleared for the shared
           library instead of your own private one. Backend-enforced (403 for
@@ -1107,14 +1083,14 @@ function UploadButton({
             checked={shareToLibrary}
             onChange={(e) => setShareToLibrary(e.target.checked)}
           />
-          Share to the shared library (asserts copyright clearance)
+          {t("share")}
         </label>
       ) : null}
       {/* Say where it will land — inheriting the filter is only a good default if
           the teacher can see it happening. */}
       {subject || folderLabel ? (
         <span className="text-xs text-muted-foreground">
-          Files into {[subject, folderLabel].filter(Boolean).join(" · ")}
+          {t("filesInto", { where: [subject, folderLabel].filter(Boolean).join(" · ") })}
         </span>
       ) : null}
       {err ? <span className="text-xs text-destructive">{err}</span> : null}

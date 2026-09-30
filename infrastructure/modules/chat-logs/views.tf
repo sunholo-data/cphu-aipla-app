@@ -76,6 +76,10 @@ resource "google_bigquery_table" "chat_turns" {
         -- going forward: 'tutor' means a Tutor object decided, 'fields' means
         -- the pre-tutor activity/class fields did.
         JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.tutor_id") AS tutor_id,
+        -- 1.1.92 M0 (2026-09-30): which EDIT of the tutor taught. An edited
+        -- tutor bumps its version, so (tutor_id, tutor_version) is the arm.
+        -- NULL on every earlier row — unknown, never "version 1".
+        SAFE_CAST(SAFE_CAST(JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.tutor_version") AS FLOAT64) AS INT64) AS tutor_version,
         JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.framework_id") AS framework_id,
         JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.persona_id") AS persona_id,
         JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.class_id") AS class_id,
@@ -115,6 +119,11 @@ resource "google_bigquery_table" "workbench_events" {
         JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.tool") AS tool,
         JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.field") AS field,
         JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.value") AS value,
+        -- 1.1.136 M0 (2026-09-29): which activity/class, and the trust-card
+        -- text the student saw. NULL on every earlier row — not backfilled.
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.activity_id") AS activity_id,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.class_id") AS class_id,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.label") AS label,
         -- A/B arm key — see the chat_turns view for why this matters.
         JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.revision") AS revision,
         JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.app_version") AS app_version

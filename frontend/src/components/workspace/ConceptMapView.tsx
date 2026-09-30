@@ -8,6 +8,7 @@
 
 import { Map as MapIcon } from "lucide-react";
 
+import { useT } from "@/i18n";
 import type { ConceptMapElement } from "@/lib/elementTypes";
 
 import { ConceptMapGraph, type ConceptNodeStatus } from "./ConceptMapGraph";
@@ -16,10 +17,10 @@ import { ConceptMapGraph, type ConceptNodeStatus } from "./ConceptMapGraph";
  *  (the canonical wire type lives in `lib/elementTypes.ts`). */
 export type ConceptMapElementDef = ConceptMapElement;
 
-const LEGEND: { status: ConceptNodeStatus; label: string; dot: string }[] = [
-  { status: "not_yet", label: "ikke endnu", dot: "border-slate-300 bg-white" },
-  { status: "partial", label: "på vej", dot: "border-amber-400 bg-amber-50" },
-  { status: "demonstrated", label: "forstået", dot: "border-emerald-500 bg-emerald-50" },
+const LEGEND: { status: ConceptNodeStatus; label: "notYet" | "partial" | "demonstrated"; dot: string }[] = [
+  { status: "not_yet", label: "notYet", dot: "border-slate-300 bg-white" },
+  { status: "partial", label: "partial", dot: "border-amber-400 bg-amber-50" },
+  { status: "demonstrated", label: "demonstrated", dot: "border-emerald-500 bg-emerald-50" },
 ];
 
 export function ConceptMapView({
@@ -30,6 +31,7 @@ export function ConceptMapView({
   /** node id → checkpoint status; absent = all not_yet (pre-M3 / fresh session). */
   nodeStates?: Record<string, ConceptNodeStatus>;
 }) {
+  const t = useT("ConceptMapView");
   const map = conceptMap[0];
   if (!map || map.nodes.length === 0) return null;
 
@@ -37,7 +39,7 @@ export function ConceptMapView({
     <div className="space-y-3 p-4" data-testid="concept-map-view">
       <h2 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
         <MapIcon className="h-4 w-4 text-slate-500" />
-        {map.title?.trim() || "Begrebskort"}
+        {map.title?.trim() || t("untitled")}
       </h2>
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white p-2">
         <ConceptMapGraph nodes={map.nodes} edges={map.edges} nodeStates={nodeStates} />
@@ -46,7 +48,7 @@ export function ConceptMapView({
         {LEGEND.map((l) => (
           <span key={l.status} className="flex items-center gap-1.5">
             <span className={`inline-block h-3 w-3 rounded-full border ${l.dot}`} />
-            {l.label}
+            {t(l.label)}
           </span>
         ))}
       </div>

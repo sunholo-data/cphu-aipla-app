@@ -444,6 +444,16 @@ check-domains:
 deploy-status:
 	@./scripts/deploy-status.sh $(ENVS)
 
+# What screen sizes are people using? Read-only distribution of the
+# `aipla_client_env` beacons (viewport width bucket x surface, DPR, pointer).
+#   make screen-sizes ENV=prod            # last 30 days
+#   make screen-sizes ENV=prod DAYS=7
+#   make screen-sizes ENV=prod DRY_RUN=1  # print the gcloud command only
+.PHONY: screen-sizes
+DAYS ?= 30
+screen-sizes:
+	@./scripts/screen-sizes.sh $(if $(filter 1,$(DRY_RUN)),--dry-run) $(ENV) $(DAYS)
+
 tf-local:
 	@test -n "$(ENV)" || { echo "ENV is required, e.g. make tf-local ENV=prod ACTION=plan"; exit 1; }
 	@./scripts/tf.sh $(ENV) $(or $(ACTION),plan)
@@ -561,12 +571,26 @@ check-doc-status: ## Advisory: design docs claiming 'not shipped' that have ship
 check-brand-literals: ## Fail if a brand surface hardcodes a red-* utility instead of the brand token (CI-gated)
 	@bash scripts/check-brand-literals.sh
 
+check-i18n: ## Fail if a localised (student) surface has Danish text in code instead of frontend/messages/ (CI-gated, 1.1.108)
+	@bash scripts/check-i18n-literals.sh
+
 .PHONY: tutor-docs check-tutor-docs
 tutor-docs: ## Regenerate the per-tutor design docs + public /project/tutors pages from backend/frameworks/*.yaml
 	@cd backend && uv run python scripts/generate_tutor_docs.py
 
 check-tutor-docs: ## Fail if the tutor docs have drifted from the framework YAML (CI-gated)
 	@cd backend && uv run python scripts/generate_tutor_docs.py --check
+
+# BENCH-1 (2026-09-30): do the seven tutors teach differently? Scripted students x
+# seven approach tutors x tutor models, each transcript judged blind against all
+# seven. ARGS=--dry-run prints the plan, call count and cost with ZERO model
+# calls; without --go it refuses to call anything. Reads the env's Firestore
+# (skill + approach instructions) and calls Vertex as your ADC.
+.PHONY: bench-tutors
+bench-tutors: ## Tutor discrimination benchmark (ARGS=--dry-run | ARGS=--go; ENV=dev by default)
+	@# PLATFORM_OWNER_UID: the deployed services set aipla-platform; a laptop falls back to the
+	@# template's aitana-platform and finds no platform skills (first --go run, 2026-09-30).
+	@cd backend && GOOGLE_CLOUD_PROJECT=aipla-$(ENV)-2026 PLATFORM_OWNER_UID=aipla-platform uv run python ../scripts/bench-tutor-discrimination.py $(ARGS)
 
 # Home-screen icon gate (2026-08-14). The PWA shipped in v0.1.18 with icons cut
 # from the ROUNDED aipla-mark.svg, so their corners were transparent. iOS rounds
@@ -608,6 +632,37 @@ check-guides: ## Fail if a how-to guide has bad front matter, a stranded transla
 # the way to prod; this is the mechanical version.
 check-stream-allowlist: ## Fail if the client renders a tool result the SSE filter redacts (CI-gated)
 	@bash scripts/check-stream-render-allowlist.sh
+
+# 1.1.135 / TUTOR-2 M6. CLAUDE.md's "a whole stack ships with the control
+# unmounted" row was marked MANUAL, and manual produced four instances plus a
+# hand audit that got this exact question wrong in both directions. An exported
+# API-client function with no caller is an endpoint the user cannot reach.
+check-client-api: ## Fail if an exported API-client function has no call site (CI-gated)
+	@bash scripts/check-client-api-mounted.sh
+
+# TUTOR-2 M4. The avatar set a teacher chooses from — generated from the
+# directory so "we will upload more so there is more choice" does not mean a
+# code change each time. Writes BOTH sides (the picker's TS manifest and the
+# backend's allow-list JSON) from one source: the directory listing.
+# 2026-09-30. The laptop runs Node 26, CI runs Node 22, and Node >= 25 ships a
+# global localStorage that SHADOWS jsdom's — so storage never persists between
+# tests locally and does on CI. Five dev builds died on that before anyone
+# reproduced it, and the first "fix" blamed a fetch race. CLAUDE.md carries the
+# row; this is the command, because a remembered incantation is not a check.
+test-frontend-ci-node: ## Run the frontend suite on CI's Node (catches localStorage leaks that pass on Node 26)
+	@NODE_BIN=$$(ls -d /opt/homebrew/opt/node@20/bin /opt/homebrew/opt/node@22/bin 2>/dev/null | head -1); \
+	if [ -z "$$NODE_BIN" ]; then \
+	  echo "SKIP: no node@20 or node@22 found (brew install node@20). CI runs Node 22; your default is $$(node --version)."; \
+	  exit 0; \
+	fi; \
+	echo "Running the frontend suite on $$($$NODE_BIN/node --version) — CI parity for storage behaviour."; \
+	cd frontend && CI=true PATH="$$NODE_BIN:$$PATH" npx vitest run
+
+avatars: ## Regenerate the avatar manifest after adding an image
+	@node scripts/generate-avatar-manifest.mjs
+
+check-avatars: ## Fail if the avatar manifest and frontend/public/personas disagree (CI-gated)
+	@node scripts/generate-avatar-manifest.mjs --check
 
 check-upstream-routing: ## Advisory: which changed paths belong upstream, not here (RANGE=... or --all)
 	@bash scripts/check-upstream-routing.sh $(RANGE)
@@ -667,10 +722,14 @@ help:
 	@echo "make seed-job           — P1.3: seed SKILL.md->Firestore via the aipla-seed-skills Cloud Run job (ENV=dev; same path Cloud Build runs post-deploy)"
 	@echo "make check-skills       — verify CLAUDE.md skill catalogue matches .claude/skills/ (CI-gated)"
 	@echo "make check-brand-literals — brand-drift gate: fail if a brand surface hardcodes red-* instead of the KU-red token (CI-gated)"
+	@echo "make check-i18n — localisation gate: fail if a student surface has Danish text in code instead of frontend/messages/ (CI-gated)"
 	@echo "make check-local-path-links — fail if a doc links to a file:///Users/ path that resolves on one machine only (CI-gated)"
 	@echo "make check-doc-status — advisory: design docs whose Status header disagrees with the commit history"
 	@echo "make check-guides       — fail if a how-to guide has bad front matter, a stranded translation or a missing screenshot (CI-gated)"
 	@echo "make check-stream-allowlist — fail if the client renders a tool result the SSE filter redacts (CI-gated)"
+	@echo "make check-client-api        — fail if an exported API-client function has no call site (CI-gated)"
+	@echo "make avatars                 — regenerate the avatar manifest after adding an image"
+	@echo "make test-frontend-ci-node   — run the frontend suite on CI's Node (localStorage leaks pass on Node 26)"
 	@echo
 	@echo "make check-upstream-routing — advisory: which changed paths are platform code and belong upstream (RANGE=...)"
 	@echo "make upstream-reconcile — full divergence report against the template (every shared path)"

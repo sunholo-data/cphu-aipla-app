@@ -394,6 +394,15 @@ describe("useActivityBuilder — applyTemplate", () => {
     expect(b.workbenchType).toBe("none");
   });
 
+  it("carries the template's subject, and leaves the builder's alone when it has none", () => {
+    // The first maths sim (sekant-intro) would otherwise land under no subject.
+    const { result } = renderHook(() => useActivityBuilder());
+    act(() => result.current.applyTemplate({ ...TEMPLATE, subject: "Matematik" }));
+    expect(result.current.subject).toBe("Matematik");
+    act(() => result.current.applyTemplate(TEMPLATE));
+    expect(result.current.subject).toBe("Matematik");
+  });
+
   it("a template's elementPayload round-trips the full element set", () => {
     const { result } = renderHook(() => useActivityBuilder());
     act(() => result.current.applyTemplate(TEMPLATE));

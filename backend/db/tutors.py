@@ -58,6 +58,22 @@ def get_authored_tutor(tutor_id: str) -> Tutor | None:
     return _row_to_tutor(row) if row else None
 
 
+def set_visibility(tutor_id: str, visibility: str) -> Tutor | None:
+    """Share an authored tutor, or take it back (TUTOR-2 M0).
+
+    Only an AUTHORED tutor can carry visibility — a YAML base has no Firestore
+    row to write it on, and a base is shared by definition. Returns None when
+    there is nothing authored under that id, which the route turns into a 404.
+    """
+    tutor = get_authored_tutor(tutor_id)
+    if tutor is None:
+        return None
+    updated = tutor.model_copy(update={"visibility": visibility, "updated_at": datetime.now(UTC)})
+    set_document(_COLLECTION, tutor_id, updated.model_dump(by_alias=True, mode="json"))
+    log.info("tutors: visibility set id=%s -> %s", tutor_id, visibility)
+    return updated
+
+
 def list_authored_tutors() -> list[Tutor]:
     # No filters — the whole collection. Authored tutors are a small,
     # human-curated set, not per-session data.
@@ -109,19 +125,53 @@ def resolve_tutor(tutor_id: str | None) -> Tutor | None:
     return _with_assignment(get_authored_tutor(tutor_id) or load_base_tutor(tutor_id))
 
 
-def list_tutor_catalogue() -> list[Tutor]:
-    """Every selectable tutor — bases plus authored, authored shadowing a base
-    of the same id, with researcher framework assignments applied.
+def resolve_tutor_for(tutor_id: str | None, uid: str | None, *, see_all: bool = False) -> Tutor | None:
+    """``resolve_tutor`` as a PERSON sees it (TUTOR-2 M0).
+
+    ⚠️ Deliberately separate from ``resolve_tutor``, which must stay unfiltered:
+    that one is the AGENT path. A student's lesson resolving the tutor its class
+    was given has no uid to filter by, and filtering there would change what a
+    class is taught with — the passthrough guarantee, broken from a new angle.
+    Visibility is a question about a chooser, so it is asked where there is one.
+
+    An authored tutor the caller cannot see FALLS BACK to the YAML base of the
+    same id rather than disappearing. An authored row shadowing a base is one
+    person's override of a shared thing; keeping it private must not delete
+    "Sofie" for everybody else.
+    """
+    if not tutor_id:
+        return None
+    authored = get_authored_tutor(tutor_id)
+    if authored is not None and authored.visible_to(uid, see_all=see_all):
+        return _with_assignment(authored)
+    return _with_assignment(load_base_tutor(tutor_id))
+
+
+def list_tutor_catalogue(for_uid: str | None = None, *, see_all: bool = False) -> list[Tutor]:
+    """Every tutor this caller may select — bases plus authored, authored
+    shadowing a base of the same id, with researcher framework assignments
+    applied.
 
     Assignments are applied here as well as in ``resolve_tutor`` so the teacher's
     picker shows the same teaching approach the tutor will actually run with. A
     catalogue that disagreed with the resolver would be the "two lists" bug in a
-    different costume.
+    different costume — and TUTOR-2 M0 adds visibility to exactly that list of
+    things both must agree about, which is why ``visible_to`` lives on the model
+    and not in either caller.
+
+    ``for_uid`` omitted keeps the old behaviour (everything), because plenty of
+    internal callers — the migration, the docs generator, analytics — are not
+    a person and must not be filtered.
     """
     from db.tutor_assignments import list_assignments
 
+    bases = {t.id: t for t in load_base_tutors()}
     authored = {t.id: t for t in list_authored_tutors()}
-    merged = {t.id: t for t in load_base_tutors()} | authored
+    if for_uid is not None:
+        # An authored row the caller cannot see falls back to its base rather
+        # than removing the id — same reason as ``resolve_tutor_for``.
+        authored = {tid: t for tid, t in authored.items() if t.visible_to(for_uid, see_all=see_all) or tid not in bases}
+    merged = bases | authored
     assigned = list_assignments()
     out = [
         t.model_copy(update={"framework_id": assigned[t.id]})
@@ -129,6 +179,8 @@ def list_tutor_catalogue() -> list[Tutor]:
         else t
         for t in merged.values()
     ]
+    if for_uid is not None:
+        out = [t for t in out if t.visible_to(for_uid, see_all=see_all)]
     return sorted(out, key=lambda t: (t.is_variant, t.display_name.lower()))
 
 
@@ -154,6 +206,7 @@ def create_variant(
     display_name: str,
     created_by: str,
     author_role: str = "researcher",
+    visibility: str = "private",
     framework_id: str | None = None,
     persona_id: str | None = None,
     interaction_style: str | None = None,
@@ -181,6 +234,11 @@ def create_variant(
             "version": 1,
             "status": "draft",
             "author_role": author_role,
+            # TUTOR-2 M0 — a NEW tutor is private EXPLICITLY, which is what
+            # keeps it distinguishable from the absent-means-shared rows that
+            # predate the field. Never inherited from the parent: forking a
+            # shared tutor must not publish your draft of it.
+            "visibility": visibility,
             "created_at": None,
             "updated_at": None,
         }
@@ -201,5 +259,7 @@ __all__ = [
     "list_authored_tutors",
     "list_tutor_catalogue",
     "resolve_tutor",
+    "resolve_tutor_for",
     "save_tutor",
+    "set_visibility",
 ]

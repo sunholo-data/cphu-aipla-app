@@ -9,11 +9,12 @@ import {
   formatEur,
   usedVoice,
 } from "@/lib/costApi";
+import { useT, type MessageKey } from "@/i18n";
 
-const PERIODS: { value: SpendPeriod; label: string }[] = [
-  { value: "this_month", label: "This month" },
-  { value: "last_month", label: "Last month" },
-  { value: "all_time", label: "All time" },
+const PERIODS: { value: SpendPeriod; label: MessageKey<"BudgetPanel"> }[] = [
+  { value: "this_month", label: "thisMonth" },
+  { value: "last_month", label: "lastMonth" },
+  { value: "all_time", label: "allTime" },
 ];
 
 /**
@@ -24,6 +25,7 @@ const PERIODS: { value: SpendPeriod; label: string }[] = [
  * caps are deferred (the shipped enforcer is skill-level). EUR only.
  */
 export function BudgetPanel({ classId }: { classId: string }) {
+  const t = useT("BudgetPanel");
   const [period, setPeriod] = useState<SpendPeriod>("this_month");
   const [data, setData] = useState<ClassSpendPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -38,7 +40,7 @@ export function BudgetPanel({ classId }: { classId: string }) {
         if (!cancelled) setData(d);
       })
       .catch((e) => {
-        if (!cancelled) setError(e instanceof Error ? e.message : "failed to load spend");
+        if (!cancelled) setError(e instanceof Error ? e.message : t("loadFailedFallback"));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -46,16 +48,18 @@ export function BudgetPanel({ classId }: { classId: string }) {
     return () => {
       cancelled = true;
     };
+    // `t` is stable per locale; a language switch need not refetch.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classId, period]);
 
   return (
     <section aria-labelledby="budget-panel-label" className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
         <h3 id="budget-panel-label" className="text-sm font-semibold">
-          Spend
+          {t("spend")}
         </h3>
         <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <span className="sr-only">Period</span>
+          <span className="sr-only">{t("period")}</span>
           <select
             value={period}
             onChange={(e) => setPeriod(e.target.value as SpendPeriod)}
@@ -63,7 +67,7 @@ export function BudgetPanel({ classId }: { classId: string }) {
           >
             {PERIODS.map((p) => (
               <option key={p.value} value={p.value}>
-                {p.label}
+                {t(p.label)}
               </option>
             ))}
           </select>
@@ -71,10 +75,10 @@ export function BudgetPanel({ classId }: { classId: string }) {
       </div>
 
       {loading ? (
-        <p className="text-sm text-muted-foreground">Loading spend&hellip;</p>
+        <p className="text-sm text-muted-foreground">{t("loading")}</p>
       ) : error ? (
         <p role="alert" className="text-sm text-destructive">
-          Couldn&rsquo;t load spend: {error}
+          {t("loadFailed", { error })}
         </p>
       ) : data ? (
         <div className="flex flex-col gap-3">
@@ -82,14 +86,14 @@ export function BudgetPanel({ classId }: { classId: string }) {
             <span className="text-2xl font-semibold">{formatEur(data.total_eur)}</span>
             {data.projected_eur !== null ? (
               <span className="text-sm text-muted-foreground">
-                projected {formatEur(data.projected_eur)} at current usage rate
+                {t("projected", { amount: formatEur(data.projected_eur) })}
               </span>
             ) : null}
           </div>
 
           {usedVoice(data) ? (
             <p className="text-xs text-muted-foreground" data-testid="voice-cost-line">
-              Includes voice {formatEur(data.voice_eur)}
+              {t("voice", { amount: formatEur(data.voice_eur) })}
               {data.by_voice_kind.length > 0
                 ? ` (${data.by_voice_kind
                     .map((v) => `${v.kind.toUpperCase()} ${formatEur(v.eur)}`)
@@ -99,15 +103,15 @@ export function BudgetPanel({ classId }: { classId: string }) {
           ) : null}
 
           {data.total_eur === 0 ? (
-            <p className="text-sm text-muted-foreground">No spend recorded for this period.</p>
+            <p className="text-sm text-muted-foreground">{t("noSpend")}</p>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
               <SpendList
-                title="Top activities"
+                title={t("topActivities")}
                 rows={data.by_activity.slice(0, 3).map((a) => ({ label: a.skill_id, eur: a.eur }))}
               />
               <SpendList
-                title="Top groups"
+                title={t("topGroups")}
                 rows={data.by_group.slice(0, 3).map((g) => ({ label: g.group_id, eur: g.eur }))}
               />
             </div>

@@ -320,6 +320,7 @@ if (drive) {
   // reveal or unblock buttons that were earlier in DOM order (closing a modal
   // makes the whole toolbar behind it clickable), and one pass would miss them.
   const rounds = [false, false, false, false, true];
+  let numericSeq = 0;
   let clickedThisRound = 0;
   for (let r = 0; r < rounds.length; r++) {
     const destructivePass = rounds[r];
@@ -341,10 +342,17 @@ if (drive) {
       if (await b.isDisabled().catch(() => true)) continue;
       if (!(await b.isVisible().catch(() => false))) continue;
       // A written-answer step cannot commit empty; give every visible, empty
-      // text box something to send before the button that submits it.
-      for (const box of await page.$$("textarea, input[type=text]:not([readonly])")) {
+      // text box something to send before the button that submits it. A
+      // numeric box (inputmode decimal/numeric, or type=number) gets a number,
+      // and each one a DIFFERENT number: sekant-intro's secant rejects prose as
+      // "not a number" and two equal x values as a vertical line, so words or a
+      // repeated constant reported "no labelled emit" for a sim that has two.
+      for (const box of await page.$$("textarea, input[type=text]:not([readonly]), input[type=number]:not([readonly])")) {
         if ((await box.isVisible().catch(() => false)) && !(await box.inputValue().catch(() => "x"))) {
-          await box.fill("Svar fra verify_sim").catch(() => {});
+          const numeric = await box
+            .evaluate((el) => el.type === "number" || /^(decimal|numeric)$/.test(el.inputMode || ""))
+            .catch(() => false);
+          await box.fill(numeric ? String(++numericSeq) : "Svar fra verify_sim").catch(() => {});
         }
       }
       // Short timeout: a click blocked by an overlay (a modal the sweep itself

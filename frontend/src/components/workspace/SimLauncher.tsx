@@ -3,6 +3,7 @@
 import { FlaskConical, TabletSmartphone } from "lucide-react";
 
 import { useViewportTooNarrow } from "@/hooks/useViewportTooNarrow";
+import { useT } from "@/i18n";
 import type { ActivityArtefact } from "./GenericArtefactFrame";
 
 interface SimLauncherProps {
@@ -25,6 +26,7 @@ interface SimLauncherProps {
  * half a circuit board reads as a worse one.
  */
 export function SimLauncher({ artefact, onOpen, disabled }: SimLauncherProps) {
+  const t = useT("SimLauncher");
   const tooNarrow = useViewportTooNarrow(artefact.minViewportPx);
 
   if (tooNarrow) {
@@ -42,16 +44,10 @@ export function SimLauncher({ artefact, onOpen, disabled }: SimLauncherProps) {
           </span>
           <span className="flex-1">
             <span className="block font-medium">
-              {artefact.displayName} kræver en større skærm
+              {t("tooNarrowTitle", { name: artefact.displayName })}
             </span>
             <span className="mt-0.5 block text-xs text-muted-foreground">
-              Simulationen har brug for mindst {artefact.minViewportPx} px i
-              bredden — åbn aktiviteten på en tablet eller computer. Du kan godt
-              chatte med tutoren her imens.
-            </span>
-            <span className="mt-1 block text-xs text-muted-foreground opacity-70">
-              (This simulation needs a wider screen — open the activity on a
-              tablet or laptop. You can still chat with the tutor here.)
+              {t("tooNarrowBody", { px: String(artefact.minViewportPx ?? "") })}
             </span>
           </span>
         </div>
@@ -65,7 +61,7 @@ export function SimLauncher({ artefact, onOpen, disabled }: SimLauncherProps) {
         type="button"
         onClick={onOpen}
         disabled={disabled}
-        aria-label={`Åbn ${artefact.displayName}`}
+        aria-label={t("open", { name: artefact.displayName })}
         className="flex w-full items-center gap-3 rounded-lg border border-border bg-card p-3 text-left text-sm transition hover:border-primary hover:bg-muted/30 disabled:cursor-not-allowed disabled:opacity-50"
       >
         <span
@@ -75,9 +71,9 @@ export function SimLauncher({ artefact, onOpen, disabled }: SimLauncherProps) {
           <FlaskConical className="h-5 w-5" />
         </span>
         <span className="flex-1">
-          <span className="block font-medium">Åbn {artefact.displayName}</span>
+          <span className="block font-medium">{t("open", { name: artefact.displayName })}</span>
           <span className="block text-xs text-muted-foreground">
-            Virtuel simulation — åbn for at udforske.
+            {t("hint")}
           </span>
         </span>
         <span className="text-xs text-muted-foreground" aria-hidden="true">

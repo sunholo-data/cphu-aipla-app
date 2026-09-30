@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Sparkles } from "lucide-react";
 import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
 import { useSimSnapshotPush } from "@/hooks/useSimSnapshotPush";
+import { useT } from "@/i18n";
 import { fetchWithAuth } from "@/lib/apiClient";
 import type { ChecklistItem } from "@/lib/elementTypes";
 
@@ -84,6 +85,7 @@ export function ProgressChecklist({
   // the next fetch from the page reconciles it.
   const [pending, setPending] = useState<Record<string, boolean>>({});
 
+  const t = useT("ProgressChecklist");
   const pushChecklistSnapshot = useSimSnapshotPush<ProgressSnapshot>(sessionId ?? null, "progress");
   const humanToolEvents = useHumanToolEvents();
 
@@ -136,7 +138,10 @@ export function ProgressChecklist({
       .map((i) => i.id);
 
   const pushSnapshotSilent = () => {
-    const req = pushChecklistSnapshot(buildSnapshot(currentDoneIds()), "progress.sync");
+    const req = pushChecklistSnapshot(buildSnapshot(currentDoneIds()), "progress.sync", null, {
+      logLabel: t("label"),
+      activityId,
+    });
     if (!req) return;
     void req.catch((err) => {
       if (process.env.NODE_ENV !== "production") {
@@ -180,13 +185,16 @@ export function ProgressChecklist({
     // Kind: marking done → "progress.advance" (maps to step_advance → fires the
     // proactive gate-check). Un-marking → "progress.undo" (not progress).
     const kind = becomingDone ? "progress.advance" : "progress.undo";
-    const req = pushChecklistSnapshot(buildSnapshot(currentDoneIds({ id, done: becomingDone })), kind);
+    const itemLabel = items.find((i) => i.id === id)?.label ?? id;
+    const label = becomingDone ? t("markedCard", { label: itemLabel }) : t("unmarkedCard", { label: itemLabel });
+    // 1.1.136 M0 — the card's text rides the push (a card per action, so it IS
+    // the card label: restored on reload, synced live to a groupmate).
+    const req = pushChecklistSnapshot(buildSnapshot(currentDoneIds({ id, done: becomingDone })), kind, label, {
+      activityId,
+    });
     if (req) {
       // A deliberate student action — card it so the student sees their action
       // reached the agent (workbench-element-builder: push AND card).
-      const label = becomingDone
-        ? `Markerede '${items.find((i) => i.id === id)?.label ?? id}' som klar`
-        : `Fjernede '${items.find((i) => i.id === id)?.label ?? id}' fra klare`;
       humanToolEvents.dispatch({ label, push: () => req });
     }
   };
@@ -207,11 +215,11 @@ export function ProgressChecklist({
   return (
     <section
       className="rounded-lg border border-border bg-card p-4 text-sm"
-      aria-label="Progress checklist"
+      aria-label={t("label")}
     >
       <header className="mb-2 flex items-center justify-between">
         <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          Fremgang
+          {t("heading")}
         </h3>
         <span className="text-xs text-muted-foreground">
           {completed}/{items.length}
@@ -229,7 +237,7 @@ export function ProgressChecklist({
                 onClick={() => toggle(item.id)}
                 className="flex w-full items-start gap-2 rounded px-1 py-1 text-left hover:bg-muted"
                 aria-pressed={isDone}
-                title={evidence ? `AI: ${evidence}` : undefined}
+                title={evidence ? t("evidenceTitle", { evidence }) : undefined}
               >
                 <span
                   className={`mt-0.5 inline-flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
@@ -257,7 +265,7 @@ export function ProgressChecklist({
                       data-testid={`ai-marked-${item.id}`}
                     >
                       <Sparkles className="h-2.5 w-2.5" aria-hidden="true" />
-                      markeret af AI
+                      {t("markedByAi")}
                     </span>
                   )}
                   {evidence && (
@@ -272,9 +280,7 @@ export function ProgressChecklist({
         })}
       </ul>
       <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">
-        {serverBacked
-          ? "AI'en kan markere trin ud fra jeres samtale — tryk for at ændre en markering. Fremgangen deles med din gruppe."
-          : "Du bestemmer selv hvornår en delopgave er klar — markeringen er kun til din egen oversigt."}
+        {serverBacked ? t("footerShared") : t("footerLocal")}
       </p>
     </section>
   );

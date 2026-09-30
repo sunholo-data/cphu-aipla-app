@@ -24,6 +24,7 @@
 
 import { MaterialsSection } from "@/components/teacher/MaterialsSection";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
+import { useT } from "@/i18n";
 
 /** The library curates the corpus; it cites nothing. A frozen empty set and a
  *  no-op keep the controlled component honest — there is no activity here whose
@@ -32,10 +33,11 @@ const NO_MATERIALS: never[] = [];
 const noop = () => {};
 
 export default function TeacherMaterialsPage() {
+  const t = useT("TeacherMaterialsPage");
   return (
     <TeacherPage
-      title="Materials"
-      subtitle="Upload, organise and read the documents your activities draw on."
+      title={t("title")}
+      subtitle={t("subtitle")}
     >
       <MaterialsSection mode="library" materials={NO_MATERIALS} onChange={noop} />
     </TeacherPage>

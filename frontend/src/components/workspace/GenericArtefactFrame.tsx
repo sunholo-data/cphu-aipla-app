@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
 import { useSimSnapshotPush } from "@/hooks/useSimSnapshotPush";
+import { DEFAULT_LOCALE, useLocaleMode } from "@/i18n";
 
-import { StaticArtefactFrame, type StaticArtefactFrameHandle } from "./StaticArtefactFrame";
+import { StaticArtefactFrame, type McpAppHostContext, type StaticArtefactFrameHandle } from "./StaticArtefactFrame";
 
 // Host → artefact signal sent right before a student chat message goes out, so
 // an artefact that buffers continuous input (e.g. Boldkast's commit-on-submit
@@ -43,6 +44,8 @@ interface GenericArtefactFrameProps {
   artefact: ActivityArtefact;
   /** Active chat session id; when set, artefact events push to the tutor. */
   sessionId?: string | null;
+  /** The hosting activity — stamped on the workbench event (1.1.136 M0). */
+  activityId?: string;
   /** Registers a "flush pending state" callback the chat page awaits right
    *  before each outgoing student message (and `null` on unmount). Lets a
    *  buffering artefact commit its latest state to the tutor for that turn —
@@ -90,9 +93,24 @@ export function GenericArtefactFrame({
   sandboxOrigin,
   artefact,
   sessionId,
+  activityId,
   onRegisterFlush,
 }: GenericArtefactFrameProps) {
   const frameRef = useRef<StaticArtefactFrameHandle | null>(null);
+  // 1.1.108 rule 5 — the supply side. A sim reads `locale` from the host context
+  // it receives at ui/initialize; until this was passed, every sim fell back to
+  // its own default. The locale is the ACTIVITY's (via the provider), never the
+  // browser's. A sim cannot render two languages at once, so "bilingual" (no
+  // single activity known) resolves to the platform default.
+  const localeMode = useLocaleMode();
+  const hostContext = useMemo<McpAppHostContext>(
+    () => ({
+      displayMode: "inline",
+      locale: localeMode === "bilingual" ? DEFAULT_LOCALE : localeMode,
+      timeZone: "Europe/Copenhagen",
+    }),
+    [localeMode],
+  );
   const pushSnapshot = useSimSnapshotPush<Record<string, unknown>>(sessionId ?? null, artefact.id);
   // Trust-card dispatcher. No-op fallback when rendered outside a
   // HumanToolEventsProvider (the builder preview), so this stays safe there.
@@ -138,7 +156,13 @@ export function GenericArtefactFrame({
     const label = cardLabel(sc);
     // Pass the label through so the backend persists it on the iframe-context
     // state_delta — the chat transcript re-renders the same card on reload.
-    const req = pushSnapshot(sc, kind, label);
+    // 1.1.136 M0 — a label-less event (an artefact with no `label`, no scalar
+    // state) is still named in the log: the sim's name and the event kind are
+    // data, not copy, so they need no translation.
+    const req = pushSnapshot(sc, kind, label, {
+      logLabel: label ?? `${artefact.displayName || artefact.id} · ${kind}`,
+      activityId,
+    });
     // If a flush is awaiting, hand it THIS push so it resolves on commit.
     const awaiting = flushAwaitRef.current;
     if (awaiting) {
@@ -166,6 +190,7 @@ export function GenericArtefactFrame({
         ref={frameRef}
         sandboxOrigin={sandboxOrigin}
         artefactPath={artefact.artefactPath}
+        hostContext={hostContext}
         onUpdateModelContext={handleStructuredContent}
         title={artefact.displayName}
         className="w-full min-h-[700px] border-0"

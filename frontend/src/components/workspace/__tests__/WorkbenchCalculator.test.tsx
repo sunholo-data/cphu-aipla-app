@@ -76,6 +76,27 @@ describe("WorkbenchCalculator", () => {
     expect(dispatch).not.toHaveBeenCalled(); // but no card for a half-filled calc
   });
 
+  it("sends the card's own text on the push, with the activity (1.1.136 M0)", () => {
+    render(<WorkbenchCalculator skillId="s" activityId="act-7" sessionId="sess-1" calculators={[CALC]} />);
+    fireEvent.change(screen.getByLabelText("Strækning"), { target: { value: "100" } });
+    fireEvent.change(screen.getByLabelText("Tid"), { target: { value: "10" } });
+    fireEvent.blur(screen.getByLabelText("Tid"));
+    const [, , label, meta] = pushCalc.mock.calls[0];
+    // The SAME text the student's card shows — one record for both readers.
+    expect(label).toBe(dispatch.mock.calls[0][0].label);
+    expect(meta).toMatchObject({ logLabel: label, activityId: "act-7" });
+  });
+
+  it("still names an incomplete calculator's push for the review log", () => {
+    render(<WorkbenchCalculator skillId="s" sessionId="sess-1" calculators={[CALC]} />);
+    const s = screen.getByLabelText("Strækning");
+    fireEvent.change(s, { target: { value: "100" } });
+    fireEvent.blur(s);
+    const [, , label, meta] = pushCalc.mock.calls[0];
+    expect(label).toBeNull(); // no card, so no card label
+    expect(meta.logLabel).toBeTruthy();
+  });
+
   it("does not re-push or re-card when nothing changed (dedup)", () => {
     render(<WorkbenchCalculator skillId="s" sessionId="sess-1" calculators={[CALC]} />);
     const t = screen.getByLabelText("Tid");

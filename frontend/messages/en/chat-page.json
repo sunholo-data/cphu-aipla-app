@@ -1,0 +1,49 @@
+{
+  "ChatPage": {
+    "loading": "Loading…",
+    "notFound": "This activity could not be found.",
+    "backHome": "Back to home",
+    "tabsLabel": "Switch between chat and workspace",
+    "tabChat": "💬 Chat",
+    "tabWork": "📐 Work",
+    "sessions": "Sessions",
+    "tidyingUp": "Tidying up the conversation history — you can keep typing.",
+    "compacted": "Earlier conversation summarised ({count} {count, plural, one {entry} other {entries}} condensed) so the tutor can keep the whole session in mind.",
+    "classmateQueued": "A classmate is asking the tutor — your message will send when it's your group's turn.",
+    "classmateAsking": "A classmate is asking the tutor…",
+    "stallSlow": "The tutor is responding slowly — please wait.",
+    "stallStalled": "The tutor still hasn't answered. You can wait, or ask again — your question will only be sent once.",
+    "stallRetry": "Ask again",
+    "groupHere": "{count} in your group are here",
+    "placeholder": "Message…",
+    "stop": "Stop",
+    "send": "Send",
+    "tryAgain": "Try again",
+    "dismiss": "Dismiss",
+    "error_sessionExpired": "Session expired — please refresh the page",
+    "error_notFound": "This activity could not be found.",
+    "error_unreachable": "Can't reach the server. Try again.",
+    "error_serverError": "Something went wrong on our end. Try again.",
+    "error_requestFailed": "Request failed. Try again.",
+    "error_connectionLost": "Connection lost. Try again.",
+    "error_agentError": "The tutor ran into an error. Try again."
+  },
+  "StageProgress": {
+    "thinking": "Thinking…",
+    "callingTool": "Calling {tool}…",
+    "readingDocuments": "Reading {count, plural, one {# document} other {# documents}}…"
+  },
+  "BudgetBanner": {
+    "reason_paused": "AI usage is paused for this class. Contact the AIPLA team to resume it.",
+    "reason_class_monthly": "This class has reached its monthly AI budget. The tutor will resume at the start of next month, or contact the AIPLA team to raise the limit.",
+    "reason_programme_daily": "The AIPLA programme has reached its daily AI budget. The tutor will resume tomorrow, or contact the AIPLA team.",
+    "reason_unavailable": "The tutor is unavailable for this account right now. Please contact the AIPLA team.",
+    "reason_period_exhausted": "The budget for this period is used up.",
+    "resetsIn": "Resets in {duration}.",
+    "days": "{n, plural, one {# day} other {# days}}",
+    "hours": "{n, plural, one {# hour} other {# hours}}",
+    "minutes": "{n, plural, one {# minute} other {# minutes}}",
+    "seconds": "{n, plural, one {# second} other {# seconds}}",
+    "dismiss": "Got it"
+  }
+}

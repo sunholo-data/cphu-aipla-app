@@ -1,0 +1,17 @@
+{
+  "JoinPage": {
+    "title": "Join your group",
+    "intro": "Your teacher gave you a short code (like <code>{example}</code>). Type it below to start.",
+    "codeLabel": "Group code",
+    "join": "Join",
+    "joining": "Joining…",
+    "comeBack": "If you close this tab and come back later, just paste the same code again — it's valid for 30 days. Lost the code? Ask your teacher.",
+    "howItWorks": "How it works",
+    "teacher": "Are you a teacher? <link>Sign in here.</link>",
+    "rateLimited": "Too many tries. Try again in {seconds}s.",
+    "atCapacity": "This group is at capacity for today. Try again tomorrow or ask your teacher.",
+    "unknownCode": "Code not found, expired, or revoked. Ask your teacher for a fresh code.",
+    "network": "Couldn't reach the server. {detail}",
+    "wrongSite": "Codes only work on the site they were created on. You are on <strong>{where}</strong> ({host}). Check the address with your teacher."
+  }
+}

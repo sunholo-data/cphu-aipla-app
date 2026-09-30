@@ -4,14 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { HelpCircle, Sparkles } from "lucide-react";
 
 import { useCopilotEntry } from "./CopilotEntryContext";
+import { useT } from "@/i18n";
 
 /** 1.1.108 M4 — copy lives here, never inline in JSX. */
-const copy = {
-  button: "Ask AIPLA",
-  menu: "Ask AIPLA",
-  help: "AIPLA Hjælp — how do I…",
-  helpOnly: "Hjælp",
-} as const;
 
 /**
  * The one entry to every copilot (1.1.125 M3). On a page with a work copilot
@@ -23,6 +18,7 @@ const copy = {
  * is what the header did before.
  */
 export function AskAiplaButton({ helpEnabled, onOpenHelp }: { helpEnabled: boolean; onOpenHelp: () => void }) {
+  const t = useT("AskAiplaButton");
   const entry = useCopilotEntry();
   const page = entry?.registered ?? null;
   const [open, setOpen] = useState(false);
@@ -54,7 +50,7 @@ export function AskAiplaButton({ helpEnabled, onOpenHelp }: { helpEnabled: boole
     return (
       <button type="button" onClick={onOpenHelp} className={cls} data-testid="ask-aipla">
         <HelpCircle className="h-3.5 w-3.5" aria-hidden="true" />
-        <span>{copy.helpOnly}</span>
+        <span>{t("helpOnly")}</span>
       </button>
     );
   }
@@ -78,10 +74,10 @@ export function AskAiplaButton({ helpEnabled, onOpenHelp }: { helpEnabled: boole
         data-testid="ask-aipla"
       >
         <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-        <span>{copy.button}</span>
+        <span>{t("button")}</span>
       </button>
       {open ? (
-        <ul role="menu" aria-label={copy.menu} className="absolute right-0 z-20 mt-1 w-56 rounded border border-border bg-background py-1 text-sm shadow-lg">
+        <ul role="menu" aria-label={t("menu")} className="absolute right-0 z-20 mt-1 w-56 rounded border border-border bg-background py-1 text-sm shadow-lg">
           <li role="none">
             <button
               role="menuitem"
@@ -107,7 +103,7 @@ export function AskAiplaButton({ helpEnabled, onOpenHelp }: { helpEnabled: boole
               className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-accent"
             >
               <HelpCircle className="h-4 w-4" aria-hidden="true" />
-              {copy.help}
+              {t("help")}
             </button>
           </li>
         </ul>

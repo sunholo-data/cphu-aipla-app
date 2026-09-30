@@ -1,4 +1,7 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen, waitFor, type RenderOptions } from "@testing-library/react";
+import type { ReactElement, ReactNode } from "react";
+
+import { LocaleProvider } from "@/i18n";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 // Mock the browser audio lib + the authed fetch.
@@ -26,6 +29,16 @@ const fetchMock = vi.fn();
 vi.mock("@/lib/apiClient", () => ({ fetchWithAuth: (...a: unknown[]) => fetchMock(...a) }));
 
 import { VoiceComposerControls } from "../VoiceComposerControls";
+
+// 1.1.108: these assertions are about behaviour, written against the English
+// labels — render under an English activity. The Danish default is covered by
+// the component's own `da` assertions / i18n tests.
+const EnglishActivity = ({ children }: { children: ReactNode }) => (
+  <LocaleProvider locale="en">{children}</LocaleProvider>
+);
+const render = (ui: ReactElement, options?: RenderOptions) =>
+  rtlRender(ui, { wrapper: EnglishActivity, ...options });
+
 
 afterEach(() => {
   vi.clearAllMocks();

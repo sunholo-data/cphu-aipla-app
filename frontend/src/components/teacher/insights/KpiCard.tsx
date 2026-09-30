@@ -16,6 +16,7 @@ import { useState } from "react";
 import { Info } from "lucide-react";
 
 import type { InsightsQueryDebugEntry } from "@/lib/insightsApi";
+import { useT } from "@/i18n";
 
 interface KpiCardProps {
   label: string;
@@ -28,6 +29,7 @@ interface KpiCardProps {
 }
 
 export function KpiCard({ label, value, unit, definition, queries }: KpiCardProps) {
+  const t = useT("KpiCard");
   const [tipOpen, setTipOpen] = useState(false);
   const displayValue = value === null || value === undefined ? "—" : String(value);
 
@@ -41,7 +43,7 @@ export function KpiCard({ label, value, unit, definition, queries }: KpiCardProp
         <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</h3>
         <button
           type="button"
-          aria-label={`Definition: ${definition}`}
+          aria-label={t("definitionAria", { definition })}
           aria-expanded={tipOpen}
           onClick={() => setTipOpen((o) => !o)}
           className="text-muted-foreground hover:text-foreground"
@@ -63,7 +65,7 @@ export function KpiCard({ label, value, unit, definition, queries }: KpiCardProp
 
       {queries && queries.length > 0 ? (
         <details className="text-xs text-muted-foreground">
-          <summary className="cursor-pointer select-none">Show data</summary>
+          <summary className="cursor-pointer select-none">{t("showData")}</summary>
           <div className="mt-2 flex flex-col gap-2">
             {queries.map((q, i) => (
               <div key={`${q.name}-${i}`}>

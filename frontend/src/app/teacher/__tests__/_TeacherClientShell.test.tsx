@@ -1,4 +1,6 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { LocaleProvider } from "@/i18n";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({ usePathname: () => "/teacher/classes" }));
@@ -22,6 +24,14 @@ vi.mock("@/components/site/SiteFooter", () => ({ SiteFooter: () => <footer>foote
 
 import { TeacherClientShell } from "@/app/teacher/_TeacherClientShell";
 import * as researcherHook from "@/hooks/useIsResearcher";
+
+// 1.1.108 M2 — these tests assert the English copy; a teacher's default
+// language is Danish, so render inside an English locale.
+function render(ui: ReactElement, options?: Parameters<typeof rtlRender>[1]) {
+  const wrap = (node: ReactElement) => <LocaleProvider locale="en">{node}</LocaleProvider>;
+  const r = rtlRender(wrap(ui), options);
+  return { ...r, rerender: (next: ReactElement) => r.rerender(wrap(next)) };
+}
 
 beforeEach(() => {
   // Default: a plain teacher. Individual tests override for the researcher case.

@@ -2,7 +2,9 @@
 // Headline: researcher-only (renders NOTHING for a plain teacher) and
 // abstains render as designed states.
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { LocaleProvider } from "@/i18n";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockIsResearcher = vi.fn(() => false);
@@ -27,6 +29,14 @@ vi.mock("@/components/skill/ModelSelector", () => ({
 }));
 
 import { LensConfigPanel } from "../_LensConfigPanel";
+
+// 1.1.108 M2 — these tests assert the English copy; a teacher's default
+// language is Danish, so render inside an English locale.
+function render(ui: ReactElement, options?: Parameters<typeof rtlRender>[1]) {
+  const wrap = (node: ReactElement) => <LocaleProvider locale="en">{node}</LocaleProvider>;
+  const r = rtlRender(wrap(ui), options);
+  return { ...r, rerender: (next: ReactElement) => r.rerender(wrap(next)) };
+}
 
 const LENSES = {
   lenses: [

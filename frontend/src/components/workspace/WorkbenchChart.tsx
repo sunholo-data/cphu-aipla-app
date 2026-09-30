@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { TABLE_CHANGE_EVENT, tableStorageKey, type TableElementDef } from "./WorkbenchTable";
+import { useT } from "@/i18n";
 import type { ChartElement } from "@/lib/elementTypes";
 
 import {
@@ -82,6 +83,7 @@ function scale(value: number, min: number, max: number, lo: number, hi: number):
 }
 
 function ChartSvg({ kind, plot }: { kind: ChartElementDef["chartKind"]; plot: Plotted }) {
+  const t = useT("WorkbenchChart");
   const { points } = plot;
   const xs = points.map((p) => p.x);
   const ys = points.map((p) => p.y);
@@ -105,7 +107,7 @@ function ChartSvg({ kind, plot }: { kind: ChartElementDef["chartKind"]; plot: Pl
   const ordered = kind === "line" ? [...points].sort((a, b) => a.x - b.x) : points;
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={`${plot.xLabel} vs ${plot.yLabel}`}>
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label={t("plotLabel", { x: plot.xLabel, y: plot.yLabel })}>
       {/* gridlines, behind everything — faint enough to read past, present
           enough to carry the eye from a point to its value */}
       {yAxis.ticks.map((t, i) => (
@@ -219,6 +221,7 @@ function ChartSvg({ kind, plot }: { kind: ChartElementDef["chartKind"]; plot: Pl
  * each commit, so the plot grows as the student enters readings. Zero LLM.
  */
 export function WorkbenchChart({ skillId, charts, tables }: WorkbenchChartProps) {
+  const t = useT("WorkbenchChart");
   const [tick, setTick] = useState(0);
   const hasTable = tables.length > 0;
 
@@ -251,7 +254,7 @@ export function WorkbenchChart({ skillId, charts, tables }: WorkbenchChartProps)
         <section
           key={chart.id}
           className="rounded-lg border border-border bg-card p-4 text-sm"
-          aria-label={chart.title || "Graf"}
+          aria-label={chart.title || t("untitled")}
         >
           {chart.title && (
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -260,16 +263,14 @@ export function WorkbenchChart({ skillId, charts, tables }: WorkbenchChartProps)
           )}
           {binding?.note && (
             <p className="mb-2 rounded border border-amber-200 bg-amber-50/60 px-2 py-1 text-[10px] text-amber-900">
-              {binding.note}
+              {t(`note_${binding.note}`)}
             </p>
           )}
           {plots[i] && plots[i]!.points.length > 0 ? (
             <ChartSvg kind={chart.chartKind} plot={plots[i]!} />
           ) : (
             <p className="py-6 text-center text-xs text-muted-foreground">
-              {hasTable
-                ? "Udfyld datatabellen for at se grafen."
-                : "Denne graf kræver en datatabel med to talkolonner."}
+              {hasTable ? t("fillTable") : t("needsTable")}
             </p>
           )}
         </section>

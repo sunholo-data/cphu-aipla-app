@@ -16,6 +16,7 @@ import { ClipboardCopy, FlaskConical, RotateCcw } from "lucide-react";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
 import { fetchWithTeacherAuth } from "@/lib/apiClient";
 import ModelSelector from "@/components/skill/ModelSelector";
+import { useT } from "@/i18n";
 
 interface LensConfig {
   lens_id: string;
@@ -41,6 +42,7 @@ interface RubricScore {
 
 
 export function LensConfigPanel() {
+  const t = useT("LensConfigPanel");
   const isResearcher = useIsResearcher();
   const [lenses, setLenses] = useState<LensConfig[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -49,8 +51,8 @@ export function LensConfigPanel() {
     fetchWithTeacherAuth("/api/proxy/api/research/lens-configs")
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`${r.status}`))))
       .then((d) => setLenses(d.lenses ?? []))
-      .catch(() => setError("Couldn't load lens configs."));
-  }, []);
+      .catch(() => setError(t("loadFailed")));
+  }, [t]);
 
   useEffect(() => {
     if (isResearcher) load();
@@ -62,17 +64,13 @@ export function LensConfigPanel() {
     <section data-testid="lens-config-panel" className="flex flex-col gap-4 rounded-lg border border-violet-200 p-4">
       <div>
         <h2 className="flex items-center gap-1.5 text-sm font-semibold text-violet-900">
-          <FlaskConical className="h-4 w-4" /> Research · judge lenses
+          <FlaskConical className="h-4 w-4" /> {t("title")}
         </h2>
-        <p className="mt-1 text-xs text-slate-500">
-          Competency-rubric judges (1.1.57) — researcher-only; nothing here is shown to teachers or
-          students. Prompt edits bump the version, and every score is stamped with the version that
-          produced it.
-        </p>
+        <p className="mt-1 text-xs text-slate-500">{t("intro")}</p>
       </div>
 
       {error ? <p className="text-sm text-red-600">{error}</p> : null}
-      {lenses === null && !error ? <p className="text-sm text-slate-400">Loading lenses…</p> : null}
+      {lenses === null && !error ? <p className="text-sm text-slate-400">{t("loading")}</p> : null}
 
       {(lenses ?? []).map((lens) => (
         <LensCard key={lens.lens_id} lens={lens} onSaved={load} />
@@ -84,6 +82,7 @@ export function LensConfigPanel() {
 }
 
 function LensCard({ lens, onSaved }: { lens: LensConfig; onSaved: () => void }) {
+  const t = useT("LensConfigPanel");
   const [enabled, setEnabled] = useState(lens.enabled);
   const [model, setModel] = useState(lens.model);
   const [prompt, setPrompt] = useState(lens.prompt_override ?? "");
@@ -103,7 +102,7 @@ function LensCard({ lens, onSaved }: { lens: LensConfig; onSaved: () => void }) 
       setNote(message);
       onSaved();
     } catch {
-      setNote("Save failed.");
+      setNote(t("saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -123,32 +122,29 @@ function LensCard({ lens, onSaved }: { lens: LensConfig; onSaved: () => void }) 
             checked={enabled}
             onChange={(e) => {
               setEnabled(e.target.checked);
-              void put({ enabled: e.target.checked }, e.target.checked ? "Lens enabled." : "Lens disabled.");
+              void put({ enabled: e.target.checked }, e.target.checked ? t("lensOn") : t("lensOff"));
             }}
           />
-          enabled
+          {t("enabled")}
         </label>
       </div>
 
       <label className="flex flex-col gap-1 text-xs text-slate-600">
-        <span>Judge model (from the platform&apos;s curated list)</span>
+        <span>{t("modelLabel")}</span>
         <ModelSelector
           value={model}
           providers={["google"]}
           onChange={(apiName) => {
             setModel(apiName);
-            void put({ model: apiName }, `Model set to ${apiName}.`);
+            void put({ model: apiName }, t("modelSet", { model: apiName }));
           }}
         />
-        <span className="text-[11px] text-slate-400">
-          Gemini for now. Multi-provider judges (local / self-hosted, Ollama-focused) are on the
-          roadmap.
-        </span>
+        <span className="text-[11px] text-slate-400">{t("modelRoadmap")}</span>
       </label>
 
       <details className="rounded-md border border-slate-200 bg-slate-50/70 px-3 py-2" data-testid={`lens-default-${lens.lens_id}`}>
         <summary className="cursor-pointer text-xs font-medium text-slate-600">
-          Default prompt {prompt.trim() ? "" : "(currently in use)"} — click to view
+          {prompt.trim() ? t("defaultPrompt") : t("defaultPromptInUse")}
         </summary>
         <p className="mt-1 whitespace-pre-wrap font-mono text-xs text-slate-600" data-testid={`lens-default-text-${lens.lens_id}`}>
           {lens.default_prompt}
@@ -158,47 +154,42 @@ function LensCard({ lens, onSaved }: { lens: LensConfig; onSaved: () => void }) 
           onClick={() => setPrompt(lens.default_prompt)}
           className="mt-2 flex items-center gap-1 rounded border border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-white"
         >
-          <ClipboardCopy className="h-3 w-3" /> Copy into editor
+          <ClipboardCopy className="h-3 w-3" /> {t("copyIntoEditor")}
         </button>
       </details>
 
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-slate-600">
-          Judge prompt override (empty = the default above; saving bumps the version)
-        </span>
+        <span className="text-xs font-medium text-slate-600">{t("overrideLabel")}</span>
         <textarea
-          aria-label={`Prompt override for ${lens.lens_id}`}
+          aria-label={t("overrideAria", { lens: lens.lens_id })}
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           rows={5}
           maxLength={8000}
-          placeholder="Empty → the default prompt above is used. Click “Copy into editor” to start from it."
+          placeholder={t("overridePlaceholder")}
           className="rounded-md border border-slate-300 px-3 py-2 font-mono text-xs"
         />
-        <span className="text-[11px] text-slate-400">
-          The override replaces only these instructions. The rubric categories, your anchor pack, the
-          attribution, and the student&apos;s evidence are always appended automatically.
-        </span>
+        <span className="text-[11px] text-slate-400">{t("overrideNote")}</span>
       </label>
       <div className="flex items-center gap-2">
         <button
           type="button"
           disabled={saving}
-          onClick={() => void put({ promptOverride: prompt.trim() || null }, "Prompt saved — version bumped.")}
+          onClick={() => void put({ promptOverride: prompt.trim() || null }, t("promptSaved"))}
           className="rounded border border-violet-300 bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-800 hover:bg-violet-100 disabled:opacity-50"
         >
-          Save prompt
+          {t("savePrompt")}
         </button>
         <button
           type="button"
           disabled={saving}
           onClick={() => {
             setPrompt("");
-            void put({ promptOverride: null }, "Reset to the code default — version bumped.");
+            void put({ promptOverride: null }, t("resetDone"));
           }}
           className="flex items-center gap-1 rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-100"
         >
-          <RotateCcw className="h-3 w-3" /> Reset to default
+          <RotateCcw className="h-3 w-3" /> {t("reset")}
         </button>
         {note ? <span className="text-xs text-slate-500">{note}</span> : null}
       </div>
@@ -207,6 +198,7 @@ function LensCard({ lens, onSaved }: { lens: LensConfig; onSaved: () => void }) 
 }
 
 function ExperimentBox({ lenses }: { lenses: LensConfig[] }) {
+  const t = useT("LensConfigPanel");
   const [sessionId, setSessionId] = useState("");
   const [lens, setLens] = useState("maps");
   const [running, setRunning] = useState(false);
@@ -223,11 +215,11 @@ function ExperimentBox({ lenses }: { lenses: LensConfig[] }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sessionId: sessionId.trim(), lens }),
       });
-      if (res.status === 404) throw new Error("Session not found.");
-      if (!res.ok) throw new Error(`Scoring failed (${res.status}).`);
+      if (res.status === 404) throw new Error(t("sessionNotFound"));
+      if (!res.ok) throw new Error(t("scoringFailedStatus", { status: res.status }));
       setResult((await res.json()) as RubricScore);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Scoring failed.");
+      setError(e instanceof Error ? e.message : t("scoringFailed"));
     } finally {
       setRunning(false);
     }
@@ -238,18 +230,18 @@ function ExperimentBox({ lenses }: { lenses: LensConfig[] }) {
       data-testid="lens-experiment-box"
       className="flex flex-col gap-2 rounded-md border border-dashed border-violet-300 p-3"
     >
-      <span className="text-xs font-semibold text-violet-900">Experiment — score a captured session</span>
+      <span className="text-xs font-semibold text-violet-900">{t("experimentTitle")}</span>
       <div className="flex flex-wrap items-center gap-2">
         <input
           type="text"
-          aria-label="Session id"
+          aria-label={t("sessionAria")}
           value={sessionId}
           onChange={(e) => setSessionId(e.target.value)}
-          placeholder="session id"
+          placeholder={t("sessionPlaceholder")}
           className="min-w-56 flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
         />
         <select
-          aria-label="Lens"
+          aria-label={t("lensAria")}
           value={lens}
           onChange={(e) => setLens(e.target.value)}
           className="rounded border border-slate-300 px-2 py-1.5 text-sm"
@@ -266,7 +258,7 @@ function ExperimentBox({ lenses }: { lenses: LensConfig[] }) {
           onClick={() => void run()}
           className="rounded border border-violet-300 bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-800 hover:bg-violet-100 disabled:opacity-50"
         >
-          {running ? "Scoring…" : "Run judge"}
+          {running ? t("scoring") : t("run")}
         </button>
       </div>
 
@@ -275,14 +267,20 @@ function ExperimentBox({ lenses }: { lenses: LensConfig[] }) {
       {result ? (
         <div data-testid="lens-experiment-result" className="flex flex-col gap-1.5 text-sm">
           <p className="text-xs text-slate-500">
-            {result.lensId} · {result.promptVersion} · {result.model} — evidence: student-initiated{" "}
-            {result.partitionSummary?.student_initiated ?? 0}, tutor-prompted{" "}
-            {result.partitionSummary?.tutor_prompted ?? 0} (excluded)
+            {t("resultMeta", {
+              lens: result.lensId,
+              version: result.promptVersion,
+              model: result.model,
+              student: result.partitionSummary?.student_initiated ?? 0,
+              tutor: result.partitionSummary?.tutor_prompted ?? 0,
+            })}
           </p>
           {result.abstained ? (
             <p className="rounded bg-slate-50 px-2 py-1.5 text-slate-600" data-testid="lens-abstain">
-              <span className="font-medium">Abstained</span> — {result.abstainReason}. This is the designed
-              outcome for an uncalibrated or evidence-less session, not an error.
+              {t.rich("abstained", {
+                reason: result.abstainReason ?? "",
+                b: (c) => <span className="font-medium">{c}</span>,
+              })}
             </p>
           ) : (
             <table className="text-left text-xs">

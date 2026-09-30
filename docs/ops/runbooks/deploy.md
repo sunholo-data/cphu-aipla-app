@@ -219,6 +219,24 @@ make promote VERSION=vX.Y.Z FROM=test TO=prod              # dry-run plan first
 make promote VERSION=vX.Y.Z FROM=test TO=prod GO=1         # run it
 ```
 
+> **Not in school hours (1.1.138 M1, 2026-09-29).** `promote-env.sh` **refuses
+> a promote to prod Mon–Fri 08:00–16:00 Europe/Copenhagen** and says why. Every
+> prod deploy lands under open tabs; four in the week of 21 Sep landed in class
+> (one mid-lesson, 22 Sep 12:12) and lined up with 14 *"the platform crashed,
+> refreshing fixed it"* error-boundary crashes. Promote after 16:00 or at the
+> weekend. A hotfix that cannot wait still goes out — deliberately:
+>
+> ```bash
+> make promote VERSION=vX.Y.Z FROM=test TO=prod GO=1 FORCE=1   # or --force on the script
+> ```
+>
+> The dry-run is never refused: it prints the plan plus a `school hours :
+> WARNING` line saying a real run would be. Dev and test are not gated. If the
+> host cannot read the Copenhagen clock (no tz database), the script treats it
+> as school hours rather than guess in UTC. ⚠️ **Route B below is not covered** —
+> the guard lives in the script, and approving a held build in the console
+> bypasses it. Look at the clock before you approve.
+
 **Route B — without a laptop.** Pushing a `v*` tag also queues a prod promote on
 the `aipla-prod-promote-on-tag` trigger, **held pending approval**. Nothing
 reaches prod until someone approves it — the same decision `GO=1` encodes, in a

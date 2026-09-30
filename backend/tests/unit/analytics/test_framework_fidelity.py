@@ -178,6 +178,7 @@ async def test_scored_read_carries_prose_bands_and_evidence():
     # Re-key onto whatever ESRU's constructs are actually called, so the test
     # follows the YAML rather than pinning its names.
     payload["constructs"] = dict(zip(keys, payload["constructs"].values(), strict=False))
+    payload["constructs"][keys[0]]["moves"] = [ff.move_id(keys[0], 1)]  # r2: a strong band cites its move
     with patch("analytics.session_rubric._call_judge_model", new=AsyncMock(return_value=json.dumps(payload))):
         r = await ff.score_fidelity(_summary(ESRU_DIALOGUE))
     assert not r.abstained
@@ -211,3 +212,179 @@ async def test_resolve_caches_in_the_run_store_and_regenerates_when_the_session_
         assert grown.based_on_message_count == 9
         forced = await ff.resolve_fidelity(_summary(ESRU_DIALOGUE), force=True)
         assert judge.await_count == 3 and forced is not None
+
+
+# ── BENCH-1: the judge runs on the analysis model, never the tutor's ─────────
+
+
+@pytest.mark.asyncio
+async def test_the_judge_defaults_to_the_analysis_model_not_the_tutors():
+    """The judge used to run on the same flash-lite as the tutor it judges."""
+    from config.models import default_model
+
+    fw = load_framework("esru")
+    _, keys = ff.criteria_block(fw)
+    payload = json.loads(_JUDGE_JSON)
+    payload["constructs"] = dict(zip(keys, payload["constructs"].values(), strict=False))
+    judge = AsyncMock(return_value=json.dumps(payload))
+    with patch("analytics.session_rubric._call_judge_model", new=judge):
+        r = await ff.score_fidelity(_summary(ESRU_DIALOGUE))
+    assert r.model == ff.analysis_judge_model()
+    assert judge.await_args.args[1] == ff.analysis_judge_model()
+    assert ff.analysis_judge_model() != default_model()
+
+
+# ── BENCH-2: calibration (fidelity-r2) ────────────────────────────────────────
+#
+# BENCH-1 (2026-09-30) found ESRU's column at 0.88-1.00 for transcripts from ALL
+# seven tutors and CER's at ~0 for all seven. These pin the judge-side fixes.
+# No real model call anywhere: the judge is mocked, so what is tested is the
+# rule WIRING (prompt text + parser), not the model's obedience to it.
+
+
+def test_prompt_version_is_bumped_so_stored_runs_stay_attributable():
+    assert ff.PROMPT_VERSION == "fidelity-r2"
+
+
+@pytest.mark.parametrize("fw_id", ["5e", "accountable-talk", "authentic-dialogue", "cer", "esru", "poe", "toulmin"])
+def test_the_generic_specific_move_rule_is_in_every_prompt(fw_id):
+    fw = load_framework(fw_id)
+    prompt = ff.build_fidelity_prompt(fw, ff.dialogue_units(ESRU_DIALOGUE), None)
+    assert ff.BANDING_RULE in prompt
+    assert "any competent questioning tutor" in prompt
+    assert "would a capable tutor following NO particular teaching approach" in prompt
+    # Spoken counts — the CER failure was a judge demanding a written product.
+    assert "SAID in a turn counts" in prompt
+    assert '"moves"' in prompt
+    # The rule sits between the criteria and the dialogue it governs.
+    assert prompt.index("# Criteria") < prompt.index(ff.BANDING_RULE) < prompt.index("# The dialogue")
+
+
+def test_criteria_number_every_move_so_a_strong_band_can_cite_one():
+    fw = load_framework("esru")
+    text, keys = ff.criteria_block(fw)
+    counts = ff.move_counts(fw)
+    for c, k in zip(fw.constructs, keys, strict=True):
+        assert counts[k] == len(c.behaviours)
+        for i, b in enumerate(c.behaviours, 1):
+            assert f"[{ff.move_id(k, i)}] {b.text}" in text
+
+
+def test_esru_criteria_require_the_use_step_to_hand_the_thinking_back():
+    """ESRU's discriminating move is USE; generic follow-up questioning is not it."""
+    text, keys = ff.criteria_block(load_framework("esru"))
+    assert "use" in keys
+    use = text[text.index("### use") :]
+    assert "hand the thinking BACK" in use
+    assert "explaining the correct idea itself is IRE/F Feedback, not Use" in use
+    recognise = text[text.index("### recognise") : text.index("### use")]
+    assert "WITHOUT a verdict" in recognise
+
+
+def test_cer_scores_what_a_dialogue_can_show_and_names_what_it_cannot():
+    fw = load_framework("cer")
+    text, keys = ff.criteria_block(fw)
+    assert keys == ["make_the_framework_explicit", "rationale_for_explaining", "assess_and_feedback"]
+    na = ff.not_assessed(fw)
+    assert set(na) == {"model_and_critique", "connect_to_everyday_explanation"}
+    assert all("teaching unit" in reason for reason in na.values())
+    assert "### model_and_critique" not in text and "### connect_to_everyday_explanation" not in text
+    assert "A spoken claim counts" in text
+
+
+def test_assessed_in_is_judge_only_the_tutor_is_still_told_every_move():
+    """Calibrating the judge must not change what the tutor is told."""
+    from frameworks.instruction import build_framework_instruction
+
+    fw = load_framework("cer")
+    instruction = build_framework_instruction(fw)
+    for c in fw.constructs:
+        for b in c.behaviours:
+            assert b.text in instruction
+    assert "assessedIn" not in instruction and "teaching unit" not in instruction
+    for other in ("5e", "accountable-talk", "authentic-dialogue", "esru", "poe", "toulmin"):
+        assert ff.not_assessed(load_framework(other)) == {}
+
+
+def _all_strong(keys: list[str], moves: dict[str, list[str]] | None = None) -> str:
+    return json.dumps(
+        {
+            "constructs": {
+                k: {"band": "strong", "rationale": "r", "moves": (moves or {}).get(k, []), "evidence": [0]}
+                for k in keys
+            },
+            "overall": {"band": "strong", "summary": "s", "drift": []},
+        }
+    )
+
+
+def test_parser_downgrades_a_strong_band_without_its_own_move():
+    keys = ["elicit", "use"]
+    raw = _all_strong(keys, {"elicit": ["elicit.2"], "use": ["elicit.1"]})  # use cites ANOTHER construct's move
+    parsed = ff.parse_judgement(raw, keys)
+    assert parsed["constructs"]["elicit"]["band"] == "strong" and parsed["constructs"]["elicit"]["score"] == 2
+    assert parsed["constructs"]["elicit"]["moves"] == ["elicit.2"]
+    assert parsed["constructs"]["use"]["band"] == "partial" and parsed["constructs"]["use"]["score"] == 1
+    assert parsed["constructs"]["use"]["downgraded"]
+
+
+def test_parser_range_checks_move_ids_when_counts_are_known():
+    keys = ["use"]
+    raw = _all_strong(keys, {"use": ["use.99"]})
+    assert ff.parse_judgement(raw, keys)["constructs"]["use"]["band"] == "strong"  # shape-only check
+    assert ff.parse_judgement(raw, keys, {"use": 12})["constructs"]["use"]["band"] == "partial"
+
+
+GENERIC_QUESTIONING = [
+    _turn("tutor", "Godt spørgsmål! Hvad tror du selv?"),
+    _turn("student", "At den tunge falder hurtigst."),
+    _turn("tutor", "Helt rigtigt tænkt! Tyngdekraften er større, men massen er også større, så de falder ens."),
+    _turn("student", "Okay."),
+    _turn("tutor", "Præcis. Har du andre spørgsmål om frit fald?"),
+    _turn("student", "Nej."),
+    _turn("tutor", "Super, godt arbejde i dag!"),
+]
+
+
+@pytest.mark.asyncio
+async def test_judge_sanity_generic_questioning_is_not_strong_esru():
+    """A generous judge that calls every ESRU construct strong on a generic,
+    praise-and-explain transcript, citing no ESRU move, must not produce a
+    strong ESRU read. Tests the rule wiring, not the model."""
+    fw = load_framework("esru")
+    _, keys = ff.criteria_block(fw)
+    judge = AsyncMock(return_value=_all_strong(keys))
+    with patch("analytics.session_rubric._call_judge_model", new=judge):
+        r = await ff.score_fidelity(_summary(GENERIC_QUESTIONING))
+    assert not r.abstained
+    assert all(c["band"] != "strong" for c in r.constructs.values())
+    assert all(c.get("downgraded") for c in r.constructs.values())
+    assert r.prompt_version == "fidelity-r2"
+
+
+@pytest.mark.asyncio
+async def test_cer_read_records_what_was_not_assessed_rather_than_a_zero():
+    fw = load_framework("cer")
+    _, keys = ff.criteria_block(fw)
+    judge = AsyncMock(return_value=_all_strong(keys, {k: [ff.move_id(k, 1)] for k in keys}))
+    with patch("analytics.session_rubric._call_judge_model", new=judge):
+        r = await ff.score_fidelity(_summary(ESRU_DIALOGUE, framework_id="cer"))
+    assert set(r.constructs) == set(keys)
+    assert set(r.not_assessed) == {"model_and_critique", "connect_to_everyday_explanation"}
+    assert "notAssessed" in r.researcher_view()
+    assert "model_and_critique" not in judge.await_args.args[0]
+
+
+@pytest.mark.asyncio
+async def test_a_framework_with_nothing_a_dialogue_can_show_abstains_without_a_call():
+    fw = load_framework("cer").model_copy(deep=True)
+    for c in fw.constructs:
+        c.assessed_in = "unit"
+    judge = AsyncMock()
+    with (
+        patch.object(ff, "effective_framework", return_value=fw),
+        patch("analytics.session_rubric._call_judge_model", new=judge),
+    ):
+        r = await ff.score_fidelity(_summary(ESRU_DIALOGUE, framework_id="cer"))
+    assert r.abstained and "single tutoring dialogue" in r.abstain_reason
+    judge.assert_not_called()

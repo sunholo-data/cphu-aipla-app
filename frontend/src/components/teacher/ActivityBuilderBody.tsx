@@ -17,6 +17,7 @@ import { SolutionEditor } from "@/components/teacher/SolutionEditor";
 import { TableEditor } from "@/components/teacher/TableEditor";
 import { useCopilotEntry } from "@/components/teacher/copilot";
 import type { ActivityBuilder } from "@/hooks/useActivityBuilder";
+import { useT } from "@/i18n";
 
 // Living concept map (CONCEPT-1 M1) — dark-flagged like the authoring co-pilot;
 // bakes at build time (cloudbuild `_CONCEPT_MAP`), on for dev.
@@ -59,6 +60,7 @@ export function ActivityBuilderBody({
   footer,
   error,
 }: ActivityBuilderBodyProps) {
+  const t = useT("ActivityBuilderBody");
   const b = builder;
   // CONCEPT-2 M3 — "Foreslå begrebskort" asks the page's co-pilot for a draft.
   // `useCopilotEntry` is null outside the teacher shell and `ask` returns false
@@ -68,10 +70,8 @@ export function ActivityBuilderBody({
   const entry = useCopilotEntry();
   const proposeConceptMap = entry?.registered
     ? () => {
-        entry.ask(
-          "Foreslå et begrebskort til denne aktivitet: de vigtigste begreber, " +
-            "hvad der bygger på hvad, og hvornår hvert begreb er forstået.",
-        );
+        // Sent as the teacher's own turn, so it is in the teacher's language.
+        entry.ask(t("proposeConceptMap"));
       }
     : undefined;
   return (
@@ -87,13 +87,13 @@ export function ActivityBuilderBody({
         />
 
         <BuilderSection section={SECTION.setup}>
-          <Field label="Activity name" htmlFor="activity-title">
+          <Field label={t("name")} htmlFor="activity-title">
             <input
               id="activity-title"
               type="text"
               value={b.title}
               onChange={(e) => b.setTitle(e.target.value)}
-              placeholder="e.g. Energibevarelse — gruppe 7B"
+              placeholder={t("namePlaceholder")}
               maxLength={200}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             />
@@ -101,7 +101,9 @@ export function ActivityBuilderBody({
 
           {classControl}
 
-          <Field label="Language" htmlFor="activity-language">
+          {/* The STUDENTS' language (data on the activity) — not the teacher's own
+              DA | EN setting, which only changes this screen (1.1.108). */}
+          <Field label={t("language")} htmlFor="activity-language">
             <select
               id="activity-language"
               value={b.language}
@@ -111,6 +113,7 @@ export function ActivityBuilderBody({
               <option value="da">Dansk</option>
               <option value="en">English</option>
             </select>
+            <span className="text-xs text-slate-500">{t("languageHelp")}</span>
           </Field>
 
           {/* The tutor is class-default-only (1.1.32 Q4): chosen once in class
@@ -120,20 +123,19 @@ export function ActivityBuilderBody({
         </BuilderSection>
 
         <BuilderSection section={SECTION.lesson}>
-          <Field label="Lesson prompt (the teaching goal)" htmlFor="activity-goal">
+          <Field label={t("goal")} htmlFor="activity-goal">
             <textarea
               id="activity-goal"
               value={b.teachingGoal}
               onChange={(e) => b.setTeachingGoal(e.target.value)}
-              placeholder="e.g. Guide students to discover why the horizontal and vertical components of projectile motion are independent — without giving the answer."
+              placeholder={t("goalPlaceholder")}
               rows={6}
               maxLength={2000}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
             />
           </Field>
           <p className="text-xs text-slate-500">
-            This shapes how the tutor guides — it never gives the answer away. Write the goal, not the
-            solution.
+            {t("goalHelp")}
           </p>
         </BuilderSection>
 
@@ -141,9 +143,7 @@ export function ActivityBuilderBody({
           <p className="flex items-start gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
             <MessageCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
             <span>
-              Optionally host a vetted simulation — the same sim can power many activities with
-              different goals — or keep it chat-only. Add a checklist, data table, chart, calculator,
-              or note to structure the student&apos;s work.
+              {t("workspaceIntro")}
             </span>
           </p>
 
@@ -151,23 +151,21 @@ export function ActivityBuilderBody({
 
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-slate-700">Checklist (optional)</span>
+              <span className="text-sm font-medium text-slate-700">{t("checklist")}</span>
               <button
                 type="button"
                 onClick={b.addChecklistItem}
                 className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
               >
-                <Plus className="h-3.5 w-3.5" /> Add step
+                <Plus className="h-3.5 w-3.5" /> {t("addStep")}
               </button>
             </div>
             <p className="text-xs text-slate-500">
-              Sub-steps students tick off as they work. Shown in the workspace; the tutor can see
-              what&apos;s done.
+              {t("checklistHelp")}
             </p>
             {b.checklist.length === 0 ? (
               <p className="rounded border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-400">
-                No checklist — the activity is an open conversation with the tutor. Add steps to
-                give students a visible structure.
+                {t("noChecklist")}
               </p>
             ) : (
               <ul className="flex flex-col gap-2">
@@ -176,17 +174,17 @@ export function ActivityBuilderBody({
                     <span className="w-5 text-right text-xs text-slate-400">{idx + 1}.</span>
                     <input
                       type="text"
-                      aria-label={`Checklist step ${idx + 1}`}
+                      aria-label={t("stepAria", { n: idx + 1 })}
                       value={item.label}
                       onChange={(e) => b.setChecklistLabel(item.key, e.target.value)}
-                      placeholder="e.g. Identify the system"
+                      placeholder={t("stepPlaceholder")}
                       maxLength={200}
                       className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
                     />
                     <button
                       type="button"
                       onClick={() => b.removeChecklistItem(item.key)}
-                      aria-label={`Remove step ${idx + 1}`}
+                      aria-label={t("removeStep", { n: idx + 1 })}
                       className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
                     >
                       <X className="h-4 w-4" />
@@ -233,6 +231,7 @@ export function ActivityBuilderBody({
       <div className="lg:sticky lg:top-2 lg:max-h-[calc(100vh-1rem)] lg:overflow-y-auto">
         <ActivityPreview
           artefactId={b.artefactId}
+          language={b.language}
           materials={b.materials}
           activityId={activityId}
           state={{

@@ -15,6 +15,8 @@
 
 import { CheckCircle2, CircleDashed } from "lucide-react";
 
+import { useT } from "@/i18n";
+
 export interface CheckpointResult {
   nodeLabel: string;
   status: "demonstrated" | "partial";
@@ -49,12 +51,13 @@ export function parseCheckpointResult(resultContent: string | null | undefined):
 }
 
 export function CheckpointCard({ result }: { result: CheckpointResult }) {
+  const t = useT("CheckpointCard");
   const demonstrated = result.status === "demonstrated";
   const observed = result.kind === "observed";
   // A passive mark says what the tutor noticed; a checkpoint says what was
   // checked. Claiming the stronger of the two for the weaker one would be the
   // card lying about how the mark was earned.
-  const heading = observed ? "bemærket" : demonstrated ? "forstået" : "på vej";
+  const heading = observed ? t("observed") : demonstrated ? t("demonstrated") : t("onTheWay");
   return (
     <div
       data-testid="checkpoint-card"

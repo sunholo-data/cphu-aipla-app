@@ -11,7 +11,16 @@ import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
 
 import { FloatingCopilot } from "./FloatingCopilot";
 import { ProposalCard } from "./ProposalCard";
-import { DEFAULT_LABELS, type TeacherCopilotConfig } from "./types";
+import { type TeacherCopilotConfig } from "./types";
+import { useCopilotLabels } from "./useCopilotLabels";
+import { useLocaleMode, useT } from "@/i18n";
+
+// 1.1.108 — every co-pilot turn carries the language the teacher reads the app
+// in, so a reply to a canned request (a button, a pending ask) — where the
+// teacher wrote nothing the model could match — still comes back in their
+// language. The skills' rule: match what the teacher writes; fall back to this.
+// Stripped before display, ahead of each surface's own `stripPrefix`.
+export const UI_LANGUAGE_TAG = /^\[ui_language=(?:da|en)\] /;
 
 const STORAGE_PREFIX = "teacherCopilot:";
 
@@ -100,6 +109,7 @@ function CopilotResolver<P>({
   onAskSent?: () => void;
 }) {
   const { skillId, resolveError } = useSkillSlugResolver(config.skillName);
+  const labels = useCopilotLabels(config.labels);
 
   if (resolveError) {
     return (
@@ -111,7 +121,7 @@ function CopilotResolver<P>({
   if (!skillId) {
     return (
       <p data-testid="copilot-loading" className="p-3 text-sm text-muted-foreground">
-        {config.loadingText ?? DEFAULT_LABELS.thinking}
+        {config.loadingText ?? labels.thinking}
       </p>
     );
   }
@@ -133,8 +143,11 @@ function CopilotChat<P>({
   pendingAsk?: string | null;
   onAskSent?: () => void;
 }) {
-  const labels = { ...DEFAULT_LABELS, ...config.labels };
+  const labels = useCopilotLabels(config.labels);
+  const t = useT("TeacherCopilot");
   const { messages: liveMessages, toolCalls, sendMessage, isLoading, error } = useSkillAgent();
+  const localeMode = useLocaleMode();
+  const langTag = `[ui_language=${localeMode === "bilingual" ? "da" : localeMode}] `;
   // Prior turns for a resumed thread (empty for a fresh one — a 404 lands as
   // sessionGone, not an error). Prepend before the live turns; ids never clash
   // (history ids are `hist-*`, live ids are AG-UI message ids).
@@ -153,7 +166,7 @@ function CopilotChat<P>({
   useEffect(() => {
     if (!pendingAsk || isLoading) return;
     onAskSent?.();
-    void sendMessage(`${config.scopePrefix ?? ""}${pendingAsk}`);
+    void sendMessage(`${langTag}${config.scopePrefix ?? ""}${pendingAsk}`);
     // `sendMessage` identity is not stable across renders; the guard above is
     // what makes this fire once, not the dependency list.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -164,7 +177,7 @@ function CopilotChat<P>({
     const trimmed = input.trim();
     if (!trimmed || isLoading) return;
     setInput("");
-    await sendMessage(`${config.scopePrefix ?? ""}${trimmed}`);
+    await sendMessage(`${langTag}${config.scopePrefix ?? ""}${trimmed}`);
   };
 
   const parse = config.parseProposal;
@@ -175,7 +188,8 @@ function CopilotChat<P>({
     : [];
 
   const empty = visibleMessages.length === 0 && proposals.length === 0 && !isLoading;
-  const strip = config.stripPrefix ?? ((c: string) => c);
+  const surfaceStrip = config.stripPrefix ?? ((c: string) => c);
+  const strip = (c: string) => surfaceStrip(c.replace(UI_LANGUAGE_TAG, ""));
 
   return (
     <div className="flex min-h-0 flex-1 flex-col" data-testid={config.testId ?? "teacher-copilot"}>
@@ -249,7 +263,7 @@ function CopilotChat<P>({
           className="flex items-center gap-1.5 rounded border border-border bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60"
         >
           <Send className="h-4 w-4" aria-hidden="true" />
-          Send
+          {t("send")}
         </button>
       </form>
     </div>

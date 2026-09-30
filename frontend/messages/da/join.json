@@ -1,0 +1,17 @@
+{
+  "JoinPage": {
+    "title": "Tilslut din gruppe",
+    "intro": "Din lærer har givet dig en kort kode (ligner <code>{example}</code>). Skriv den her for at starte.",
+    "codeLabel": "Gruppekode",
+    "join": "Tilslut",
+    "joining": "Tilslutter…",
+    "comeBack": "Hvis du lukker fanen og kommer tilbage senere, skal du bare skrive koden igen — den er gyldig i 30 dage. Glemt koden? Spørg din lærer.",
+    "howItWorks": "Sådan virker det",
+    "teacher": "Er du lærer? <link>Log ind her</link>",
+    "rateLimited": "For mange forsøg. Prøv igen om {seconds} sekunder.",
+    "atCapacity": "Gruppen er fuld for i dag. Prøv igen i morgen, eller spørg din lærer.",
+    "unknownCode": "Koden findes ikke, er udløbet eller er trukket tilbage. Bed din lærer om en ny kode.",
+    "network": "Kunne ikke få forbindelse til serveren. {detail}",
+    "wrongSite": "Koder virker kun på den udgave af siden, de er lavet på. Du er på <strong>{where}</strong> ({host}). Tjek med din lærer, at det er den rigtige adresse."
+  }
+}

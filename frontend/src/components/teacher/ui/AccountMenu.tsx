@@ -2,15 +2,11 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { BookOpen, ChevronDown, LogOut, Settings } from "lucide-react";
+import { BookOpen, ChevronDown, Languages, LogOut, Settings } from "lucide-react";
 
-/** 1.1.108 M4 — copy lives here, never inline in JSX. */
-const copy = {
-  open: "Account menu",
-  settings: "Settings",
-  approaches: "Approaches",
-  signOut: "Sign out",
-} as const;
+import { LanguageSwitch } from "@/components/site/LanguageSwitch";
+import { useT } from "@/i18n";
+
 
 /**
  * The account menu (1.1.125 M0): where Settings and Approaches went when they
@@ -35,6 +31,7 @@ export function AccountMenu({
   avatar: React.ReactNode;
   onSignOut: () => void;
 }) {
+  const t = useT("AccountMenu");
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
 
@@ -60,13 +57,13 @@ export function AccountMenu({
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={copy.open}
+        aria-label={t("open")}
         title={label}
         onClick={() => setOpen((o) => !o)}
         className="flex min-w-0 items-center gap-2 rounded border border-transparent px-1 py-0.5 hover:border-border hover:bg-accent"
       >
         {avatar}
-        <span className="sr-only">Signed in as {label}</span>
+        <span className="sr-only">{t("signedInAs", { label })}</span>
         <span aria-hidden="true" className="hidden max-w-[14rem] truncate text-[11px] text-muted-foreground md:block">
           {label}
         </span>
@@ -75,26 +72,33 @@ export function AccountMenu({
       {open ? (
         <ul
           role="menu"
-          aria-label={copy.open}
+          aria-label={t("open")}
           className="absolute right-0 z-20 mt-1 w-48 overflow-hidden rounded border border-border bg-background py-1 text-sm shadow-lg"
         >
           <li role="none">
             <Link role="menuitem" href="/teacher/settings" onClick={() => setOpen(false)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-accent">
               <Settings className="h-4 w-4" aria-hidden="true" />
-              {copy.settings}
+              {t("settings")}
             </Link>
           </li>
           <li role="none">
             <Link role="menuitem" href="/teacher/research/frameworks" onClick={() => setOpen(false)} className="flex items-center gap-2 px-3 py-1.5 hover:bg-accent">
               <BookOpen className="h-4 w-4" aria-hidden="true" />
-              {copy.approaches}
+              {t("approaches")}
             </Link>
+          </li>
+          {/* 1.1.108 — the teacher's OWN language, remembered in this browser.
+              Not the students': that is each activity's language setting. */}
+          <li role="none" className="flex items-center gap-2 px-3 py-1.5">
+            <Languages className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            <span className="flex-1 text-muted-foreground">{t("language")}</span>
+            <LanguageSwitch />
           </li>
           <li role="none" className="my-1 border-t border-border" />
           <li role="none">
             <button role="menuitem" type="button" onClick={onSignOut} className="flex w-full items-center gap-2 px-3 py-1.5 text-left hover:bg-accent">
               <LogOut className="h-4 w-4" aria-hidden="true" />
-              {copy.signOut}
+              {t("signOut")}
             </button>
           </li>
         </ul>

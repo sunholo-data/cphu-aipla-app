@@ -15,6 +15,8 @@
 
 import { AlertTriangle, Check, Loader2, User } from "lucide-react";
 
+import { useT } from "@/i18n";
+
 export type HumanToolUseStatus = "pending" | "confirmed" | "failed";
 
 export interface HumanToolUseCardProps {
@@ -34,6 +36,7 @@ export interface HumanToolUseCardProps {
 const MAX_LABEL_CHARS = 80;
 
 export function HumanToolUseCard({ label, status, httpStatus, detail }: HumanToolUseCardProps) {
+  const t = useT("HumanToolUseCard");
   const shown = label.length > MAX_LABEL_CHARS ? label.slice(0, MAX_LABEL_CHARS) + "…" : label;
   const titleParts: string[] = [];
   if (httpStatus !== undefined) titleParts.push(`HTTP ${httpStatus}`);
@@ -47,16 +50,16 @@ export function HumanToolUseCard({ label, status, httpStatus, detail }: HumanToo
       data-status={status}
       title={title}
     >
-      <User className="h-3 w-3 shrink-0" aria-label="You" />
+      <User className="h-3 w-3 shrink-0" aria-label={t("you")} />
       <span>{shown}</span>
       {status === "pending" && (
-        <Loader2 className="h-3 w-3 shrink-0 animate-spin text-orange-500" aria-label="Pending" />
+        <Loader2 className="h-3 w-3 shrink-0 animate-spin text-orange-500" aria-label={t("pending")} />
       )}
       {status === "confirmed" && (
-        <Check className="h-3 w-3 shrink-0 text-green-600" aria-label="Confirmed" />
+        <Check className="h-3 w-3 shrink-0 text-green-600" aria-label={t("confirmed")} />
       )}
       {status === "failed" && (
-        <AlertTriangle className="h-3 w-3 shrink-0 text-red-600" aria-label="Failed" />
+        <AlertTriangle className="h-3 w-3 shrink-0 text-red-600" aria-label={t("failed")} />
       )}
     </div>
   );

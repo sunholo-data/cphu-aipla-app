@@ -790,3 +790,83 @@ class TestGroupRevisionBumpM2:
 
         assert resp.status_code == 204, resp.text
         mock_bump.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# 1.1.136 M0 — every workbench event says what it was: activity, class, and the
+# trust-card label. `logLabel` names a per-commit push that is NOT a card moment
+# (a table cell) without storing `_label` or bumping the revision.
+# ---------------------------------------------------------------------------
+
+
+def _make_tagged_group_client(tags: frozenset[str]) -> TestClient:
+    user = User(uid="anon-grp1", email="", domain="", group_id="grp-1", group_tags=tags)
+    ctx = AccessContext(uid="anon-grp1", email="", domain="", group_tags=tags)
+
+    test_app = FastAPI()
+    test_app.include_router(router)
+
+    @test_app.middleware("http")
+    async def _inject_access(request, call_next):
+        request.state.access = ctx
+        return await call_next(request)
+
+    test_app.dependency_overrides[get_current_user] = lambda: user
+    return TestClient(test_app)
+
+
+class TestWorkbenchEventSaysWhatItWasM0:
+    @patch("db.group_sessions.bump_turn_revision_for_session")
+    @patch("protocols.iframe_context_routes.get_session_service")
+    @patch("protocols.iframe_context_routes.skill_config")
+    @patch("protocols.iframe_context_routes.get_session_index")
+    def test_card_label_activity_and_class_reach_the_event(
+        self, mock_get_index, mock_skill_module, mock_get_svc, mock_bump
+    ):
+        mock_get_index.return_value = _make_index()
+        mock_skill_module.get_skill.return_value = _make_skill()
+        mock_get_svc.return_value = _mock_session_service()
+        body = {
+            "serverId": "calculator",
+            "toolName": "state",
+            "structuredContent": {"calculators": []},
+            "label": "Calculated v = 3.4",
+            "activityId": "act-7",
+        }
+        with patch("observability.chat_log.emit_workbench_event") as emit:
+            resp = _make_tagged_group_client(frozenset({"class:teacher-1:cls-9"})).post(
+                "/api/sessions/sess-1/iframe-context", json=body
+            )
+        assert resp.status_code == 204, resp.text
+        kw = emit.call_args.kwargs
+        assert kw["label"] == "Calculated v = 3.4"
+        assert kw["activity_id"] == "act-7"
+        # From the VERIFIED group tags, never from the request.
+        assert kw["class_id"] == "cls-9"
+
+    @patch("db.group_sessions.bump_turn_revision_for_session")
+    @patch("protocols.iframe_context_routes.get_session_service")
+    @patch("protocols.iframe_context_routes.skill_config")
+    @patch("protocols.iframe_context_routes.get_session_index")
+    def test_log_label_is_logged_but_not_a_card(self, mock_get_index, mock_skill_module, mock_get_svc, mock_bump):
+        """A per-cell table push is labelled for review WITHOUT becoming a card:
+        no `_label` (the transcript restore would render one card per cell) and
+        no revision bump (a groupmate refetch per cell)."""
+        mock_get_index.return_value = _make_index()
+        mock_skill_module.get_skill.return_value = _make_skill()
+        svc = _mock_session_service()
+        mock_get_svc.return_value = svc
+        body = {
+            "serverId": "table",
+            "toolName": "state",
+            "structuredContent": {"tables": []},
+            "logLabel": "Data table shared with the tutor (3 cells)",
+        }
+        with patch("observability.chat_log.emit_workbench_event") as emit:
+            resp = _make_group_client("grp-1").post("/api/sessions/sess-1/iframe-context", json=body)
+        assert resp.status_code == 204, resp.text
+        assert emit.call_args.kwargs["label"] == "Data table shared with the tutor (3 cells)"
+        assert emit.call_args.kwargs["class_id"] is None
+        event = svc.append_event.call_args.args[1]
+        assert "_label" not in event.actions.state_delta["mcp_app_context.table.state"]
+        mock_bump.assert_not_called()

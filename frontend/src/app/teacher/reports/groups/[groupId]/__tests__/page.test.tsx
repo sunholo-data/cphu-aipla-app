@@ -1,4 +1,6 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { LocaleProvider } from "@/i18n";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -19,7 +21,14 @@ vi.mock("@/lib/teacherApi", async () => {
   return {
     ...actual,
     fetchGroupLatestReport: vi.fn(),
+    getGroupReportTimeline: vi.fn(),
   };
+});
+
+// 1.1.136 §Exports — capture what the buttons would download.
+vi.mock("@/lib/download", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/download")>("@/lib/download");
+  return { ...actual, downloadCsv: vi.fn(), downloadJson: vi.fn() };
 });
 
 import TeacherGroupReportPage from "@/app/teacher/reports/groups/[groupId]/page";
@@ -27,9 +36,24 @@ import {
   NotFoundError,
   type SessionSummaryPayload,
   fetchGroupLatestReport,
+  getGroupReportTimeline,
 } from "@/lib/teacherApi";
 
+// 1.1.108 — teacher screens follow the person's language, Danish by default.
+// These tests assert the English copy, so they render inside an English
+// context; the Danish default has its own assertion in teacherResearchLocale.test.tsx.
+function render(ui: ReactElement, options?: Parameters<typeof rtlRender>[1]) {
+  const wrap = (node: ReactElement) => <LocaleProvider locale="en">{node}</LocaleProvider>;
+  const result = rtlRender(wrap(ui), options);
+  return { ...result, rerender: (next: ReactElement) => result.rerender(wrap(next)) };
+}
+
+import { downloadCsv, downloadJson, toCsv, UTF8_BOM } from "@/lib/download";
+
 const fetchReport = vi.mocked(fetchGroupLatestReport);
+const csvSpy = vi.mocked(downloadCsv);
+const jsonSpy = vi.mocked(downloadJson);
+const fetchTimeline = vi.mocked(getGroupReportTimeline);
 
 const LIVE_REPORT: SessionSummaryPayload = {
   sessionId: "sess-12345678",
@@ -48,7 +72,25 @@ const LIVE_REPORT: SessionSummaryPayload = {
 };
 
 beforeEach(() => {
+  // A FRESH in-memory localStorage per test. The page remembers "transcript
+  // open" there, so a test that clicks "View full transcript" left the NEXT
+  // test starting open ("Hide full transcript"). That only happened on Node 22
+  // (CI), where jsdom's storage persists across tests; Node 26's own global
+  // shadows it, so it passed locally — five dev deploys failed on it.
+  const store = new Map<string, string>();
+  Object.defineProperty(window, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+    },
+  });
   fetchReport.mockReset();
+  fetchTimeline.mockReset();
+  csvSpy.mockReset();
+  jsonSpy.mockReset();
+  fetchTimeline.mockRejectedValue(new NotFoundError());
 });
 
 describe("/teacher/reports/groups/[groupId] — real session report", () => {
@@ -81,13 +123,81 @@ describe("/teacher/reports/groups/[groupId] — real session report", () => {
       screen.queryByText(LIVE_REPORT.conversation[0].content),
     ).not.toBeInTheDocument();
 
-    await userEvent.click(
-      screen.getByRole("button", { name: /view full transcript/i }),
-    );
+    await userEvent.click(await screen.findByRole("button", { name: /view full transcript/i }));
 
     for (const turn of LIVE_REPORT.conversation) {
       expect(screen.getByText(turn.content)).toBeInTheDocument();
     }
+  });
+
+  it("interleaves the work with the turns and retires the raw 80-char list (1.1.136)", async () => {
+    const longValue = JSON.stringify({ docs: [{ title: "Rapport", text: "x".repeat(120) + " ENDE" }] });
+    fetchReport.mockResolvedValue({
+      ...LIVE_REPORT,
+      workbenchEvents: [
+        { timestamp: "2026-06-15T09:31:30Z", server: "writing", tool: "state", field: "state", value: longValue },
+      ],
+    });
+    render(<TeacherGroupReportPage />);
+    await waitFor(() => expect(screen.queryByText(/loading report/i)).not.toBeInTheDocument());
+    // The old separate list is gone.
+    expect(screen.queryByText(/^Workbench activity$/)).not.toBeInTheDocument();
+
+    await userEvent.click(await screen.findByRole("button", { name: /view full transcript/i }));
+    // Unlabelled (pre-1.1.136) row → derived label, placed between the turns.
+    const card = await screen.findByText("Writing updated");
+    const q = screen.getByText(LIVE_REPORT.conversation[0].content);
+    const a = screen.getByText(LIVE_REPORT.conversation[1].content);
+    expect(q.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(card.compareDocumentPosition(a) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Expands to the whole text — not cut at 80 characters.
+    await userEvent.click(screen.getByRole("button", { name: /show what they had/i }));
+    expect(screen.getByText(/ENDE$/)).toBeInTheDocument();
+  });
+
+  it("uses the labelled server timeline for this group's session when it can read it", async () => {
+    fetchReport.mockResolvedValue(LIVE_REPORT);
+    fetchTimeline.mockReset();
+    fetchTimeline.mockResolvedValue({
+      sessionId: LIVE_REPORT.sessionId,
+      workStatus: "ok",
+      items: [
+        { kind: "turn", ts: "2026-06-15T09:31:00Z", turn_index: 0, role: "student", content: "Hej" } as never,
+        {
+          kind: "work",
+          ts: "2026-06-15T09:31:10Z",
+          server: "calculator",
+          tool: "state",
+          field: "state",
+          value: null,
+          label: "Calculated Fart = 10",
+        },
+      ],
+    });
+    render(<TeacherGroupReportPage />);
+    await waitFor(() => expect(screen.queryByText(/loading report/i)).not.toBeInTheDocument());
+    await userEvent.click(await screen.findByRole("button", { name: /view full transcript/i }));
+    expect(await screen.findByText("Calculated Fart = 10")).toBeInTheDocument();
+    expect(fetchTimeline).toHaveBeenCalledWith(groupId, LIVE_REPORT.sessionId);
+  });
+
+  it("says how long ago a past session was active — never 'NaNh ago' (recency read from the raw timestamp)", async () => {
+    fetchReport.mockResolvedValueOnce(LIVE_REPORT); // last turn 2026-06-15, long past
+    render(<TeacherGroupReportPage />);
+    const line = await screen.findByText(/last active/i);
+    expect(line.textContent).toMatch(/last active \d+h ago/i);
+    expect(line.textContent).not.toMatch(/NaN/);
+  });
+
+  it("shows the live badge when the group was active a moment ago", async () => {
+    const recent = new Date(Date.now() - 60_000).toISOString();
+    fetchReport.mockResolvedValueOnce({
+      ...LIVE_REPORT,
+      conversation: [{ timestamp: recent, role: "student", content: "Hej" }],
+    });
+    render(<TeacherGroupReportPage />);
+    expect(await screen.findByText(/^live$/i)).toBeInTheDocument();
+    expect(screen.queryByText(/last active/i)).not.toBeInTheDocument();
   });
 
   it("shows an honest empty state (no mock) when no session exists yet", async () => {
@@ -103,5 +213,71 @@ describe("/teacher/reports/groups/[groupId] — real session report", () => {
     render(<TeacherGroupReportPage />);
 
     expect(await screen.findByText(/couldn.t load this report/i)).toBeInTheDocument();
+  });
+});
+
+describe("/teacher/reports/groups/[groupId] — exports carry the timeline (1.1.136)", () => {
+  const WORK_VALUE = JSON.stringify({ docs: [{ title: "Rapport", text: "Kuglen falder" }] });
+  const REPORT_WITH_WORK: SessionSummaryPayload = {
+    ...LIVE_REPORT,
+    workbenchEvents: [
+      { timestamp: "2026-06-15T09:31:30Z", server: "writing", tool: "state", field: "state", value: WORK_VALUE },
+    ],
+  };
+
+  async function renderLoaded() {
+    fetchReport.mockResolvedValue(REPORT_WITH_WORK);
+    render(<TeacherGroupReportPage />);
+    await waitFor(() => expect(screen.queryByText(/loading report/i)).not.toBeInTheDocument());
+  }
+
+  it("CSV: turns and work interleaved in time order, BOM first, unlabelled work gets the fallback label", async () => {
+    // Server timeline unreadable (beforeEach: 404) -> the report's own payload.
+    await renderLoaded();
+    await userEvent.click(screen.getByRole("button", { name: /^csv$/i }));
+    await waitFor(() => expect(csvSpy).toHaveBeenCalledTimes(1));
+
+    const [filename, rows] = csvSpy.mock.calls[0];
+    expect(filename).toMatch(/^report-bold-kazoo-87-sess-123-.*\.csv$/);
+    expect(rows[0]).toEqual(["timestamp", "role", "content", "kind", "label"]);
+    expect(rows.slice(1).map((r) => [r[0], r[3]])).toEqual([
+      ["2026-06-15T09:31:00Z", "turn"],
+      ["2026-06-15T09:31:30Z", "work"],
+      ["2026-06-15T09:32:00Z", "turn"],
+    ]);
+    expect(rows[2]).toEqual(["2026-06-15T09:31:30Z", "", "Rapport: Kuglen falder", "work", "Writing updated"]);
+    expect(toCsv(rows).startsWith(UTF8_BOM)).toBe(true);
+    // The export read the timeline itself; it did not need the transcript open.
+    expect(fetchTimeline).toHaveBeenCalledWith(groupId, LIVE_REPORT.sessionId);
+  });
+
+  it("CSV: uses the labelled server timeline when it can read it", async () => {
+    fetchTimeline.mockReset();
+    fetchTimeline.mockResolvedValue({
+      sessionId: LIVE_REPORT.sessionId,
+      workStatus: "ok",
+      items: [
+        { kind: "turn", ts: "2026-06-15T09:31:00Z", turn_index: 0, role: "student", content: "Hej" } as never,
+        { kind: "work", ts: "2026-06-15T09:31:10Z", server: "table", tool: "state", field: "state", value: null, label: "Data table: Fald" },
+      ],
+    });
+    await renderLoaded();
+    await userEvent.click(screen.getByRole("button", { name: /^csv$/i }));
+    await waitFor(() => expect(csvSpy).toHaveBeenCalledTimes(1));
+    const rows = csvSpy.mock.calls[0][1];
+    expect(rows[2]).toEqual(["2026-06-15T09:31:10Z", "", "", "work", "Data table: Fald"]);
+  });
+
+  it("JSON: keeps the report payload and adds the timeline array", async () => {
+    await renderLoaded();
+    await userEvent.click(screen.getByRole("button", { name: /^json$/i }));
+    await waitFor(() => expect(jsonSpy).toHaveBeenCalledTimes(1));
+    const data = jsonSpy.mock.calls[0][1] as Record<string, unknown> & { timeline: { kind: string; value?: string }[] };
+    expect(data.sessionId).toBe(LIVE_REPORT.sessionId);
+    expect(data.workbenchEvents).toEqual(REPORT_WITH_WORK.workbenchEvents);
+    expect(data.timelineSource).toBe("report");
+    expect(data.timeline.map((i) => i.kind)).toEqual(["turn", "work", "turn"]);
+    // The raw value lives in the JSON (only).
+    expect(data.timeline[1].value).toBe(WORK_VALUE);
   });
 });

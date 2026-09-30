@@ -1,5 +1,7 @@
 "use client";
 
+import { useT } from "@/i18n";
+
 export interface ActiveDocumentContext {
   folderName: string;
   docCount: number;
@@ -10,6 +12,7 @@ interface ContextBannerProps {
 }
 
 export function ContextBanner({ context }: ContextBannerProps) {
+  const t = useT("ContextBanner");
   if (!context) return null;
 
   return (
@@ -28,9 +31,11 @@ export function ContextBanner({ context }: ContextBannerProps) {
         />
       </svg>
       <span>
-        Analyzing <strong className="font-semibold text-foreground">{context.docCount}</strong>{" "}
-        {context.docCount === 1 ? "document" : "documents"} from{" "}
-        <strong className="font-semibold text-foreground">{context.folderName}</strong>
+        {t.rich("analyzing", {
+          count: context.docCount,
+          folder: context.folderName,
+          b: (chunks) => <strong className="font-semibold text-foreground">{chunks}</strong>,
+        })}
       </span>
     </div>
   );

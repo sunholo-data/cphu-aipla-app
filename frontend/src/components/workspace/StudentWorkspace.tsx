@@ -2,6 +2,8 @@
 
 import { type ComponentProps, useState } from "react";
 
+import { useT } from "@/i18n";
+
 import { DocumentsPanel, type ActivityMaterial } from "./DocumentsPanel";
 import { GenericArtefactFrame, type ActivityArtefact } from "./GenericArtefactFrame";
 import { SimFrameHeader } from "./SimFrameHeader";
@@ -100,6 +102,7 @@ export function StudentWorkspace({
   documentViewerRole = "student",
   onRegisterArtefactFlush,
 }: StudentWorkspaceProps) {
+  const t = useT("StudentWorkspace");
   const [simOpen, setSimOpen] = useState(false);
   // Callback ref → state so SimFrameHeader gets the real wrapper element once it
   // mounts (a plain ref is still null on first render).
@@ -114,9 +117,9 @@ export function StudentWorkspace({
       <div ref={setSimWrap} className="flex min-h-0 flex-col bg-background">
         <SimFrameHeader
           title={artefact.displayName}
-          closeAriaLabel={`Luk ${artefact.displayName}`}
-          closeLabel="Luk"
-          fullscreenAriaLabel="Fuld skærm"
+          closeAriaLabel={t("closeSimLabel", { name: artefact.displayName })}
+          closeLabel={t("close")}
+          fullscreenAriaLabel={t("fullscreen")}
           onClose={() => setSimOpen(false)}
           fullscreenTarget={simWrap}
         />
@@ -124,6 +127,7 @@ export function StudentWorkspace({
           sandboxOrigin={sandboxOrigin}
           artefact={artefact}
           sessionId={sessionId}
+          activityId={activityId}
           onRegisterFlush={onRegisterArtefactFlush}
         />
       </div>

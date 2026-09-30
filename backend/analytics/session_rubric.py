@@ -34,7 +34,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from config.models import default_model, fast_model, provider_for_api_name
+from config.models import analysis_model, provider_for_api_name
 from db.firestore import get_document, query_documents, set_document
 from reports.session_summary import SessionSummary, SessionTurn
 
@@ -46,9 +46,15 @@ _ANCHOR_COLLECTION = "rubric_anchor_packs"
 #: code lenses below — a new framework is a new doc here, not a code change.
 _RUBRIC_DEFS_COLLECTION = "rubric_defs"
 
-#: Default judge model for a researcher rubric that doesn't pin one. Registry-sourced
-#: (fast tier) so it can't silently point at a deprecated model — see fast_model().
-_DEFAULT_JUDGE_MODEL = fast_model()
+
+def _default_judge_model() -> str:
+    """Judge model for a rubric that doesn't name one — the ANALYSIS model
+    (BENCH-1 / 1.1.139 D1): scoring is after-the-fact, so it runs on the
+    strongest registered model, never the tutor's. Resolved at call time so
+    ``ANALYSIS_MODEL`` is honoured. A researcher-stored model always wins over
+    this (an override doc / a ``rubric_defs`` doc that names one keeps it)."""
+    return analysis_model()
+
 
 #: Anchor-pack floor (Docktor's calibration finding): fewer than this and the
 #: lens abstains. The CLI's ``rubric anchors validate`` lints the same bound.
@@ -62,20 +68,21 @@ MIN_ANCHORS = 5
 class LensSpec:
     lens_id: str
     label: str
-    model: str
     prompt_version: str
     enabled: bool = True
+    #: Empty = the analysis model, resolved at read time by get_lens_config.
+    model: str = ""
 
 
 LENS_REGISTRY: dict[str, LensSpec] = {
     # Lens C — MAPS problem-solving judge (Docktor et al. 2016, CC-BY).
-    # Model defaults come from the curated registry (config/models.yaml) via the
-    # single-knob default_model() — never hardcode a model string, so a lens
-    # rides the same platform default + deprecation moves as every skill.
+    # No model here: the default is the curated ANALYSIS model
+    # (config/models.yaml analysis_model, BENCH-1) — never a hardcoded string,
+    # and never the tutor's lite model. A researcher override that names a
+    # model (analytics_lens_configs/{lens_id}) keeps it.
     "maps": LensSpec(
         lens_id="maps",
         label="MAPS problem solving (Docktor 2016)",
-        model=default_model(),
         prompt_version="maps-r1",
     ),
     # Lens D — SAAR scientific-abilities judge (Etkina et al. 2006);
@@ -83,7 +90,6 @@ LENS_REGISTRY: dict[str, LensSpec] = {
     "saar": LensSpec(
         lens_id="saar",
         label="SAAR scientific abilities (Etkina 2006)",
-        model=default_model(),
         prompt_version="saar-r1",
     ),
 }
@@ -125,7 +131,7 @@ def _rubric_def_to_config(doc: dict[str, Any]) -> LensConfig:
     return LensConfig(
         lens_id=rid,
         label=doc.get("label") or rid,
-        model=doc.get("model") or _DEFAULT_JUDGE_MODEL,
+        model=doc.get("model") or _default_judge_model(),
         prompt_version=doc.get("prompt_version") or f"{rid}-r1",
         enabled=doc.get("enabled", True),
         prompt_override=None,  # for a rubric_def the stored prompt IS the default
@@ -150,7 +156,7 @@ def get_lens_config(lens_id: str) -> LensConfig:
         base = {
             "lens_id": spec.lens_id,
             "label": spec.label,
-            "model": spec.model,
+            "model": spec.model or _default_judge_model(),
             "prompt_version": spec.prompt_version,
             "enabled": spec.enabled,
             "prompt_override": None,
@@ -231,7 +237,7 @@ def upsert_rubric_def(
         "prompt": prompt,
         "output_keys": list(output_keys),
         "score_scale": score_scale,
-        "model": model or _DEFAULT_JUDGE_MODEL,
+        "model": model or _default_judge_model(),
         "requires_anchors": requires_anchors,
         "prompt_version": version,
         "versions": versions,
@@ -578,8 +584,28 @@ class RubricResult(BaseModel):
     partition_summary: dict[str, int] = Field(default_factory=dict, alias="partitionSummary")
     #: RUBRIC-2 M2 — uploaded evidence the judge saw (``doc:{id}``/``image:{id}``).
     evidence_refs: list[str] = Field(default_factory=list, alias="evidenceRefs")
+    #: 1.1.92 M0 (BENCH-1) — the ARM this session ran under, so scores can be
+    #: compared by tutor. Read from the session's own chat-turn stamps (TUTOR-5),
+    #: never re-derived from what the class teaches with today. ⚠️ UNKNOWN STAYS
+    #: UNKNOWN: a session from before the stamp reads null, never a default tutor.
+    tutor_id: str | None = Field(default=None, alias="tutorId")
+    tutor_version: int | None = Field(default=None, alias="tutorVersion")
+    framework_id: str | None = Field(default=None, alias="frameworkId")
+    revision: str | None = Field(default=None, alias="revision")
+    group_id: str | None = Field(default=None, alias="groupId")
 
     model_config = ConfigDict(populate_by_name=True)
+
+
+def _arm(summary: SessionSummary) -> dict[str, Any]:
+    """The arm fields for a result, straight off the summary — no defaults."""
+    return {
+        "tutorId": summary.tutor_id,
+        "tutorVersion": summary.tutor_version,
+        "frameworkId": summary.framework_id,
+        "revision": summary.revision,
+        "groupId": summary.group_code,
+    }
 
 
 def _abstain(summary: SessionSummary, config: LensConfig, partition: EvidencePartition, reason: str) -> RubricResult:
@@ -592,6 +618,7 @@ def _abstain(summary: SessionSummary, config: LensConfig, partition: EvidencePar
         abstained=True,
         abstainReason=reason,
         partitionSummary=partition.summary,
+        **_arm(summary),
     )
 
 
@@ -676,6 +703,7 @@ async def score_session_summary(summary: SessionSummary, lens_id: str) -> Rubric
         profile=profile,
         partitionSummary=partition.summary,
         evidenceRefs=evidence.refs,
+        **_arm(summary),
     )
 
 

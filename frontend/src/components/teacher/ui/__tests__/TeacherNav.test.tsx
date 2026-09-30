@@ -1,4 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { render as rtlRender, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { LocaleProvider } from "@/i18n";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockPathname = vi.fn<() => string>(() => "/teacher/classes");
@@ -9,6 +11,14 @@ const { researcherRef } = vi.hoisted(() => ({ researcherRef: { current: false } 
 vi.mock("@/hooks/useIsResearcher", () => ({ useIsResearcher: () => researcherRef.current }));
 
 import { TeacherNav } from "@/components/teacher/ui/TeacherNav";
+
+// 1.1.108 M2 — these tests assert the English copy; a teacher's default
+// language is Danish, so render inside an English locale.
+function render(ui: ReactElement, options?: Parameters<typeof rtlRender>[1]) {
+  const wrap = (node: ReactElement) => <LocaleProvider locale="en">{node}</LocaleProvider>;
+  const r = rtlRender(wrap(ui), options);
+  return { ...r, rerender: (next: ReactElement) => r.rerender(wrap(next)) };
+}
 
 beforeEach(() => {
   researcherRef.current = false;
@@ -109,4 +119,24 @@ describe("TeacherNav — no two destinations claim the same page", () => {
       unmount();
     }
   });
+
+  // 1.1.108 M2 — the teacher shell follows the teacher's own language.
+  it("speaks Danish by default, and English with no Danish letters when chosen", () => {
+    mockPathname.mockReturnValue("/teacher/classes");
+    const { container, unmount } = rtlRender(<TeacherNav />);
+    expect(screen.getAllByRole("link", { name: /Klasser/ })).toHaveLength(2);
+    expect(screen.getAllByRole("navigation", { name: "Lærerafsnit" })).toHaveLength(2);
+    expect(container.textContent).toMatch(/Aktiviteter/);
+    unmount();
+
+    const en = render(<TeacherNav />);
+    const text = [
+      en.container.textContent ?? "",
+      ...Array.from(en.container.querySelectorAll("[aria-label],[title]")).map(
+        (el) => `${el.getAttribute("aria-label") ?? ""} ${el.getAttribute("title") ?? ""}`,
+      ),
+    ].join(" ");
+    expect(text).not.toMatch(/[æøåÆØÅ]/);
+  });
 });
+

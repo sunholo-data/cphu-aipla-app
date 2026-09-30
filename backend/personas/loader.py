@@ -7,6 +7,7 @@ static at runtime.
 
 from __future__ import annotations
 
+import json
 import os
 from functools import lru_cache
 from pathlib import Path
@@ -35,8 +36,37 @@ def load_personas() -> list[Persona]:
     return personas
 
 
+@lru_cache(maxsize=1)
+def allowed_avatars() -> frozenset[str]:
+    """The avatar images the project ships (TUTOR-2 M4).
+
+    Generated from ``frontend/public/personas`` by
+    ``scripts/generate-avatar-manifest.mjs``, which writes the picker's TS
+    manifest and this JSON from ONE source — the directory listing. A hand-kept
+    backend list would drift from the images the moment someone added one.
+
+    Empty when the file is missing, which makes ``save_custom_persona`` refuse
+    every avatar rather than accept any: a missing allow-list must fail closed.
+    """
+    path = _PERSONA_DIR / "avatars.json"
+    try:
+        return frozenset(json.loads(path.read_text(encoding="utf-8")).get("avatars", []))
+    except Exception:
+        return frozenset()
+
+
 def load_persona(persona_id: str) -> Persona | None:
-    """Return one persona by id, or None if absent."""
+    """Return one persona by id, or None if absent.
+
+    TUTOR-2 M3: a custom (Firestore) persona resolves here too, so every caller
+    that already used this — the chat identity, the tutor serializer, the
+    resolution chain — gets custom personas for free rather than through a
+    second path that could disagree with this one.
+    """
+    if persona_id and persona_id.startswith("persona-"):
+        from db.custom_personas import get_custom_persona
+
+        return get_custom_persona(persona_id)
     return next((p for p in load_personas() if p.id == persona_id), None)
 
 

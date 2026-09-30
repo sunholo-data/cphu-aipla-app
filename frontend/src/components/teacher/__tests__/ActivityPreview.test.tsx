@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen, waitFor, within, type RenderOptions } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 // Capture the props the preview passes to the (mocked) workspace renderer —
@@ -29,6 +29,16 @@ URL.revokeObjectURL = vi.fn();
 import { ActivityPreview } from "../ActivityPreview";
 import { type BuilderElements } from "@/lib/activityPreview";
 
+import { LocaleProvider } from "@/i18n";
+
+// 1.1.108 M2 — these tests assert the English copy; the teacher UI defaults to
+// Danish, so render inside an English locale (the teacher chose EN).
+function EnglishUI({ children }: { children: React.ReactNode }) {
+  return <LocaleProvider locale="en">{children}</LocaleProvider>;
+}
+const render = (ui: React.ReactElement, options?: Omit<RenderOptions, "wrapper">) =>
+  rtlRender(ui, { wrapper: EnglishUI, ...options });
+
 const EMPTY: BuilderElements = {
   checklist: [],
   table: [],
@@ -45,7 +55,7 @@ const WITH_CHECKLIST: BuilderElements = { ...EMPTY, checklist: [{ key: 1, label:
 describe("ActivityPreview", () => {
   it("shows an empty hint when there are no elements", () => {
     render(<ActivityPreview state={EMPTY} />);
-    expect(screen.getByText(/tilføj elementer/i)).toBeInTheDocument();
+    expect(screen.getByText(/add elements/i)).toBeInTheDocument();
     expect(screen.queryByTestId("workspace-elements")).not.toBeInTheDocument();
   });
 
@@ -76,7 +86,7 @@ describe("ActivityPreview", () => {
     ]);
     render(<ActivityPreview state={EMPTY} artefactId="boldkast" />);
     // The sim counts as workspace content, so the empty hint must NOT show.
-    expect(screen.queryByText(/tilføj elementer/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/add elements/i)).not.toBeInTheDocument();
     // The sim is named in the preview (the labelled card when no sandbox origin
     // is configured in the test env; the live frame uses the same name).
     expect(await screen.findByText("Boldkast")).toBeInTheDocument();

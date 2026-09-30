@@ -16,6 +16,7 @@ import { InheritedTutor } from "@/components/teacher/InheritedTutor";
 import { TemplatePicker } from "@/components/teacher/TemplatePicker";
 import { ActivityBuilderBody } from "@/components/teacher/ActivityBuilderBody";
 import { useActivityBuilder } from "@/hooks/useActivityBuilder";
+import { useT } from "@/i18n";
 import { conceptMapDefault, languageSeed, useTeacherPrefs } from "@/hooks/useTeacherPrefs";
 import { AuthoringCopilot } from "../[id]/_AuthoringCopilot";
 import { applyCopilotProposal } from "../applyCopilotProposal";
@@ -42,14 +43,16 @@ type ClassesState =
 // Wrapped in Suspense because the form reads useSearchParams() — Next.js
 // requires a Suspense boundary for that during static prerender.
 export default function NewActivityPage() {
+  const t = useT("NewActivityPage");
   return (
-    <Suspense fallback={<div className="px-1 py-6 text-sm text-slate-500">Loading…</div>}>
+    <Suspense fallback={<div className="px-1 py-6 text-sm text-slate-500">{t("loading")}</div>}>
       <NewActivityForm />
     </Suspense>
   );
 }
 
 function NewActivityForm() {
+  const t = useT("NewActivityPage");
   const router = useRouter();
   // Pre-select the class the teacher came from (the "New activity" button on
   // the class-detail page passes ?classId=…).
@@ -139,7 +142,7 @@ function NewActivityForm() {
       );
     } catch (err) {
       console.error("[teacher-ui] create activity failed:", err);
-      setSaveError("Could not create the activity — your changes were not saved. Please try again.");
+      setSaveError(t("saveFailed"));
     } finally {
       setIsSaving(false);
     }
@@ -153,14 +156,13 @@ function NewActivityForm() {
           onClick={() => router.push("/teacher/classes")}
           className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
         >
-          <ArrowLeft className="h-4 w-4" /> Back to classes
+          <ArrowLeft className="h-4 w-4" /> {t("back")}
         </button>
         <h1 className="flex items-center gap-2 text-xl font-semibold sm:text-2xl">
-          <Sparkles className="h-6 w-6 text-primary" /> New activity
+          <Sparkles className="h-6 w-6 text-primary" /> {t("title")}
         </h1>
         <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-          Build a guided activity: set a teaching goal, add a workspace — a simulation, tables, a chart, a
-          calculator, or guiding notes — and watch the live preview update as you go. Students join with a group code.
+          {t("intro")}
         </p>
       </div>
 
@@ -181,24 +183,25 @@ function NewActivityForm() {
         />
       ) : classesState.status === "loading" ? (
         <PanelMessage>
-          <span className="animate-pulse">Loading your classes…</span>
+          <span className="animate-pulse">{t("loadingClasses")}</span>
         </PanelMessage>
       ) : classesState.status === "error" ? (
         <PanelMessage tone="error">
-          Could not load your classes. Refresh the page to try again.
+          {t("classesFailed")}
         </PanelMessage>
       ) : classesState.status === "no-skill" ? (
         <PanelMessage tone="error">
-          The concept-dialogue tutor isn&apos;t set up here yet. Ask an administrator to add it, then
-          you&apos;ll be able to create concept activities.
+          {t("noSkill")}
         </PanelMessage>
       ) : classesState.status === "empty" ? (
         <PanelMessage>
-          You don&apos;t have a class yet. {""}
-          <Link href="/teacher/classes" className="font-medium text-indigo-600 hover:underline">
-            Create a class first
-          </Link>{" "}
-          — an activity belongs to a class.
+          {t.rich("noClass", {
+            link: (chunks) => (
+              <Link href="/teacher/classes" className="font-medium text-indigo-600 hover:underline">
+                {chunks}
+              </Link>
+            ),
+          })}
         </PanelMessage>
       ) : (
         <form onSubmit={handleSave} className="flex flex-col gap-5">
@@ -216,7 +219,7 @@ function NewActivityForm() {
             activityId={classesState.conceptSkillId}
             classControl={
               <label htmlFor="activity-class" className="flex flex-col gap-1">
-                <span className="text-sm font-medium text-slate-700">Class</span>
+                <span className="text-sm font-medium text-slate-700">{t("class")}</span>
                 <select
                   id="activity-class"
                   value={classId}
@@ -247,7 +250,7 @@ function NewActivityForm() {
                   className="inline-flex items-center gap-2 rounded-md bg-indigo-600 px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   <Save className="h-4 w-4" />
-                  {isSaving ? "Creating…" : "Create activity"}
+                  {isSaving ? t("creating") : t("create")}
                 </button>
               </div>
             }
@@ -293,15 +296,14 @@ function SuccessPanel({
   configureHref: string | null;
   onAnother: () => void;
 }) {
+  const t = useT("NewActivityPage");
   return (
     <div className="flex max-w-2xl flex-col gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-6">
       <p className="text-sm font-medium text-green-800">
-        Activity “{title}” is live for <span className="font-semibold">{className}</span>.
+        {t.rich("live", { title, className, b: (chunks) => <span className="font-semibold">{chunks}</span> })}
       </p>
       <p className="text-sm text-green-700">
-        Students who join this class&apos;s group code can open it now and explore the topic you set. Configure
-        it to add a workspace — a simulation, tables, a chart, a calculator, or guiding notes (and curriculum
-        documents if you want).
+        {t("liveHelp")}
       </p>
       <div className="flex flex-wrap gap-3">
         {configureHref ? (
@@ -309,7 +311,7 @@ function SuccessPanel({
             href={configureHref}
             className="rounded-md bg-green-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-green-700"
           >
-            Configure activity
+            {t("configure")}
           </Link>
         ) : null}
         <button
@@ -317,13 +319,13 @@ function SuccessPanel({
           onClick={onAnother}
           className="rounded-md border border-green-300 bg-white px-3 py-1.5 text-sm font-medium text-green-800 hover:bg-green-100"
         >
-          Create another
+          {t("another")}
         </button>
         <Link
           href="/teacher/classes"
           className="rounded-md border border-green-300 bg-white px-3 py-1.5 text-sm font-medium text-green-800 hover:bg-green-100"
         >
-          Back to classes
+          {t("back")}
         </Link>
       </div>
     </div>

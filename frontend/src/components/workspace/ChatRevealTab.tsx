@@ -1,5 +1,7 @@
 "use client";
 
+import { useT } from "@/i18n";
+
 interface ChatRevealTabProps {
   /** Click handler — restores the workspace to its default ratio so
    *  the chat panel becomes visible again. */
@@ -12,13 +14,14 @@ interface ChatRevealTabProps {
  * the workspace to a sensible default (0.50).
  */
 export function ChatRevealTab({ onReveal }: ChatRevealTabProps) {
+  const t = useT("ChatRevealTab");
   return (
     <button
       type="button"
       onClick={onReveal}
       className="absolute left-0 top-1/2 z-20 -translate-y-1/2 rounded-r-md border border-l-0 border-border bg-card px-1.5 py-3 text-xs text-muted-foreground shadow-sm hover:bg-muted hover:text-foreground"
-      aria-label="Vis chat"
-      title="Vis chat"
+      aria-label={t("showChat")}
+      title={t("showChat")}
     >
       <svg
         width="14"

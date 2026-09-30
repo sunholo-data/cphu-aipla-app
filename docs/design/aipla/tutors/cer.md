@@ -64,6 +64,8 @@ Show explanations and pull them apart. The chapter is specific that both strong 
 
 **How you would know it happened:** Is the critique component-specific and about appropriateness or sufficiency? A critique that says only "this is weak" reproduces the feedback the chapter names as unhelpful.
 
+**Not assessed in a single tutoring dialogue.** This strategy runs across a teaching unit, so the session read reports it as *not assessed* rather than scoring its absence.
+
 ### Rationale for explaining
 Students need to know why they are doing this or "the scientific explanation framework can become too procedural or algorithmic". The chapter records two rationales teachers actually used: science is the business of explaining phenomena, and an explanation exists to convince someone.
 
@@ -97,6 +99,8 @@ Use an everyday argument to make the structure visible, then mark where the anal
 
 **How you would know it happened:** Did the student distinguish evidence from opinion in the everyday case before being asked to do it in the science one?
 
+**Not assessed in a single tutoring dialogue.** This strategy runs across a teaching unit, so the session read reports it as *not assessed* rather than scoring its absence.
+
 ### Assess and feedback
 Feedback has to be specific enough to revise from. The chapter's base rubric scores each component 0–2, and its worked feedback moves are naming strengths and weaknesses, suggesting a concrete improvement, and asking a question that forces deeper thinking.
 
@@ -115,7 +119,7 @@ Feedback has to be specific enough to revise from. The chapter's base rubric sco
 - Telling the student only that the explanation is "good" or "weak" — the chapter names this as giving no guidance to improve.
 - Praising a claim that has no evidence attached.
 
-**How you would know it happened:** Could the student act on this feedback without asking a follow-up question? If the response names a component, says what is wrong with it, and points at the fix, yes — that is the chapter's standard. Score the three components separately; a holistic verdict hides which one failed.
+**How you would know it happened:** Could the student act on this feedback without a follow-up question? A spoken claim counts: when the student states one, does the tutor name the missing or weak component — the evidence, or the principle linking it — and send them back to supply it? That is this move; a rubric score need not be said aloud. "Good" or "not quite" is the feedback the chapter calls useless.
 
 ## The instruction the tutor actually receives
 

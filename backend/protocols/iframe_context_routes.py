@@ -135,6 +135,19 @@ class IframeContextRequest(BaseModel):
     # the persisted state_delta so the resumed transcript can re-render the card
     # without re-deriving per-sim label text server-side. Optional + capped.
     label: str | None = Field(default=None, max_length=200)
+    # 1.1.136 M0 — the review label for a push that is NOT a card moment. A data
+    # table pushes on every cell commit but shows ONE debounced card per editing
+    # burst; putting the card label on every per-cell push would (a) bump the
+    # group's turn revision per cell and (b) restore one card per cell on reload,
+    # because `_label` is what the transcript restore renders. So a per-commit
+    # push says what it was here instead: logged to BigQuery for the review
+    # timeline, never stored as `_label`, never bumps. `label` wins when both.
+    log_label: str | None = Field(default=None, alias="logLabel", max_length=200)
+    # 1.1.136 M0 — the activity the element belongs to, so a workbench row can be
+    # joined to its activity. Telemetry only: it selects nothing and grants
+    # nothing (the session gates below already decided the write), so a client
+    # that sends a wrong id costs a wrong column, not access.
+    activity_id: str | None = Field(default=None, alias="activityId", max_length=128)
 
     model_config = {"populate_by_name": True, "extra": "forbid"}
 
@@ -372,6 +385,12 @@ async def post_iframe_context(
         sc = body.structured_content or {}
         field = (sc.get("changed") if isinstance(sc, dict) else None) or body.tool_name
         value = sc.get("value") if (isinstance(sc, dict) and "value" in sc) else (sc or body.content)
+        # 1.1.136 M0 — say what the event was. The class comes from the
+        # student's VERIFIED group tags (no I/O, no request field); the activity
+        # from the client, as telemetry. The label is the trust-card text the
+        # student saw, so researcher and student read the same record.
+        from adk.teacher_focus import class_id_from_group_tags
+
         emit_workbench_event(
             group_id=group_id,
             session_id=session_id,
@@ -380,6 +399,9 @@ async def post_iframe_context(
             tool=body.tool_name,
             field=field,
             value=value,
+            activity_id=body.activity_id or None,
+            class_id=class_id_from_group_tags(getattr(user, "group_tags", None)),
+            label=body.label or body.log_label or None,
         )
 
         # 1.1.53 M2 — when this push is a "shared with the tutor" moment (it

@@ -600,12 +600,49 @@ def test_default_prompt_is_the_builder_fallback_and_is_not_persisted():
 # --- RVIEW-1 M0: curated models (no more hardcoded stale gemini-2.5-flash) ---
 
 
-def test_lens_default_model_is_the_curated_platform_default():
-    from config.models import default_model
+def test_lens_default_model_is_the_curated_analysis_model(monkeypatch):
+    from config.models import analysis_model, default_model
 
-    # NOT the old hardcoded "gemini-2.5-flash" — the app's single-knob default.
-    assert sr.get_lens_config("maps").model == default_model()
-    assert sr.get_lens_config("saar").model == default_model()
+    # BENCH-1: scoring is after-the-fact, so the seed lenses default to the
+    # ANALYSIS model — never a hardcoded string, and not the tutor's model.
+    monkeypatch.delenv("ANALYSIS_MODEL", raising=False)
+    assert sr.get_lens_config("maps").model == analysis_model()
+    assert sr.get_lens_config("saar").model == analysis_model()
+    assert sr.get_lens_config("maps").model != default_model()
+
+
+def test_lens_default_follows_the_analysis_model_env_at_read_time(monkeypatch):
+    monkeypatch.setenv("ANALYSIS_MODEL", "gemini-3-7-flash")
+    assert sr.get_lens_config("maps").model == "gemini-3.7-flash"
+
+
+def test_researcher_stored_lens_model_is_kept_over_the_analysis_default(monkeypatch):
+    from config.models import analysis_model
+
+    # A researcher override that names a model keeps it — the default only
+    # fills the gap, it never rewrites a stored choice.
+    monkeypatch.delenv("ANALYSIS_MODEL", raising=False)
+    set_document("analytics_lens_configs", "saar", {"model": "gemini-3.5-flash-lite"})
+    assert sr.get_lens_config("saar").model == "gemini-3.5-flash-lite"
+    # an override that stores OTHER fields but no model still gets the default
+    set_document("analytics_lens_configs", "maps", {"enabled": False, "model": None})
+    assert sr.get_lens_config("maps").model == analysis_model()
+
+
+def test_researcher_rubric_def_keeps_its_model_and_defaults_to_analysis(monkeypatch):
+    from config.models import analysis_model
+
+    monkeypatch.delenv("ANALYSIS_MODEL", raising=False)
+    set_document(
+        "rubric_defs",
+        "pinned",
+        {"rubric_id": "pinned", "prompt": "p", "output_keys": ["k"], "model": "gemini-3.6-flash"},
+    )
+    set_document("rubric_defs", "unpinned", {"rubric_id": "unpinned", "prompt": "p", "output_keys": ["k"]})
+    assert sr.get_lens_config("pinned").model == "gemini-3.6-flash"
+    assert sr.get_lens_config("unpinned").model == analysis_model()
+    created = sr.upsert_rubric_def("fresh", label="Fresh", prompt="p", output_keys=["k"])
+    assert created["model"] == analysis_model()
 
 
 @pytest.mark.asyncio

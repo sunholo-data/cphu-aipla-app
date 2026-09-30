@@ -163,6 +163,27 @@ jobs:
         # caught by hand on the way to prod. The next card will be added by
         # someone who has never read stream_redaction.py.
         run: bash scripts/check-stream-render-allowlist.sh
+      - name: Every exported API-client function is reachable
+        # 1.1.135 / TUTOR-2 M6. The "whole stack ships with the control
+        # unmounted" row in CLAUDE.md — the endpoint works, the client has a
+        # passing test, and nobody can click it. patchClass hid for months;
+        # ALS-SHARE M3b for three, while three pages said read-only. The row was
+        # marked MANUAL, and a hand audit of this exact question got it wrong in
+        # BOTH directions in one sitting: reported a mounted function as
+        # unmounted, and missed six that were.
+        #
+        # ⚠️ A test is not a call site. Test files are excluded on purpose.
+        run: bash scripts/check-client-api-mounted.sh
+      - name: The avatar manifest matches the avatar directory
+        # TUTOR-2 M4. Avatars are CHOSEN from a shipped set, never uploaded —
+        # which removed the need for a moderation policy on student-facing
+        # user images. The cost is that adding one must not need a code change,
+        # so the picker reads a generated manifest.
+        #
+        # ⚠️ This check is the half that matters: an image nobody regenerated
+        # the manifest for is invisible in the picker, which looks exactly like
+        # the feature not working.
+        run: node scripts/generate-avatar-manifest.mjs --check
       - name: No laptop-bound documentation links
         # P4.2: 138 citations in docs/ were file:///Users/<someone>/... — the
         # scoping site, agent-memory notes, and two other local trees. Dead for
@@ -184,6 +205,12 @@ jobs:
         # KU coat-of-arms. Semantic reds (error, recording) are allowlisted with
         # reasons in the script.
         run: bash scripts/check-brand-literals.sh
+      - name: Localisation gate (no inline Danish on student surfaces)
+        # 1.1.108: an English activity showed Danish buttons for months because
+        # the student UI's strings were typed into JSX, where no locale could
+        # switch them. They now live in frontend/messages/{da,en}/; this keeps
+        # the next string from being typed inline. Scope widens per surface (M2).
+        run: bash scripts/check-i18n-literals.sh
       - name: Home-screen icons are opaque
         # 2026-08-14: the PWA shipped with apple-touch-icon cut from the ROUNDED
         # mark, so its corners were rgba(0,0,0,0). iOS applies its own rounding
