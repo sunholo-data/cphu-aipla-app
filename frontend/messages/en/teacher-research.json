@@ -107,7 +107,7 @@
     "vouchedBy": "vouched by {who}"
   },
   "ResearchConsent": {
-    "privateMeaning": "Private means other teachers cannot see it. The research team can."
+    "privateMeaning": "Private means: hidden from other teachers, but visible to the research team."
   },
   "MyTutorsPanel": {
     "title": "Tutors",

@@ -124,6 +124,6 @@ describe("PersonaEditorPanel", () => {
       avatars: [],
     });
     render(<PersonaEditorPanel />);
-    await waitFor(() => expect(screen.getAllByText(/The research team can/).length).toBeGreaterThan(0));
+    await waitFor(() => expect(screen.getAllByText(/visible to the research team/).length).toBeGreaterThan(0));
   });
 });

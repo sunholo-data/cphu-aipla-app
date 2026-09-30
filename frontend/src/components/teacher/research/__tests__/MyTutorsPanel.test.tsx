@@ -119,7 +119,7 @@ describe("MyTutorsPanel", () => {
     );
     render(<MyTutorsPanel />);
     expect(await screen.findByTestId("tutor-visibility-sofie")).toHaveTextContent("Only you");
-    expect(screen.getByText(/The research team can/)).toBeInTheDocument();
+    expect(screen.getByText(/visible to the research team/)).toBeInTheDocument();
   });
 
   it("offers share and delete only on a tutor you may edit", async () => {

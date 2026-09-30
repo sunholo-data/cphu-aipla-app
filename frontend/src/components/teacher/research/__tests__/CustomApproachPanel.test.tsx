@@ -150,7 +150,7 @@ describe("sharing a custom approach (TUTOR-2 M0/M1)", () => {
     vi.spyOn(teacherApi, "listCustomApproaches").mockResolvedValue([approach({ visibility: "private" })]);
     render(<CustomApproachPanel />);
     expect(await screen.findByTestId("approach-visibility-custom-warm-coach")).toHaveTextContent("Only you");
-    expect(screen.getByText(/The research team can/)).toBeInTheDocument();
+    expect(screen.getByText(/visible to the research team/)).toBeInTheDocument();
   });
 
   it("shares with one control and takes it back with the same one", async () => {

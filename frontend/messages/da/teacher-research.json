@@ -107,7 +107,7 @@
     "vouchedBy": "godkendt af {who}"
   },
   "ResearchConsent": {
-    "privateMeaning": "Privat betyder, at andre lærere ikke kan se den. Det kan forskergruppen."
+    "privateMeaning": "Privat betyder: skjult for andre lærere, men synlig for forskergruppen."
   },
   "MyTutorsPanel": {
     "title": "Tutorer",
@@ -144,7 +144,7 @@
   },
   "PersonaEditorPanel": {
     "title": "Ansigter og stemmer",
-    "blurb": "En tutors ansigt, navn og stemme. Vælg et billede fra samlingen, vælg hvordan den lyder, og brug den på enhver tutor, du bygger.",
+    "blurb": "En tutors ansigt, navn og stemme. Vælg et billede fra samlingen, vælg hvordan det lyder, og brug det på enhver tutor, du bygger.",
     "loading": "Indlæser…",
     "failed": "Ansigterne kunne ikke indlæses lige nu.",
     "create": "Nyt ansigt",
