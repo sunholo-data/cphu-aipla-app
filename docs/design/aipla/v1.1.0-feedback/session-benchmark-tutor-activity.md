@@ -1,6 +1,6 @@
 # The tutor × activity matrix — adding the arm the shipped scorer never recorded
 
-**Status**: **Design (OPEN)** — **1.1.92**. Decision **D3, 2026-09-02**: mechanism first, rubric pluggable.
+**Status**: **M0 SHIPPED 2026-09-30** (sprint BENCH-1, lane 1) · M1–M2 OPEN — **1.1.92**. Decision **D3, 2026-09-02**: mechanism first, rubric pluggable. See [What shipped](#what-shipped--2026-09-30)
 **⚠️ REWRITTEN 2026-09-09 — the first version's premise was false.** It opened *"nothing scores a session"*. The scorer shipped **2026-07-11** (RUBRIC-1) and was extended by RUBRIC-2, which is most of what the old M0 and M1 proposed. What is missing is one field, one view and one measurement — see [What was wrong](#what-was-wrong-and-why-it-matters-beyond-this-doc)
 **Priority**: **P2** — high research value, and the payoff for [1.1.91](researcher-configurable-tutors.md). Not pilot-blocking
 **Estimated**: **~1.5–2d** (M0 the tutor arm ~0.5d · M1 the matrix ~1d · M2 calibration ~0.5d) — **was ~3–4d against a harness that already existed**
@@ -129,6 +129,38 @@ exemplars calibrate a judge, they do not make one trustworthy.
 - The matrix renders n=0 and n=1 as insufficient, not as scores
 - Scoring never appears in a student-turn code path (the shipped rule; assert it
   still holds after the arm is added)
+
+## What shipped — 2026-09-30
+
+**M0, the arm.** Sprint BENCH-1, lane 1.
+
+- `RubricResult` carries `tutorId`, `tutorVersion`, `frameworkId`, `revision` and
+  `groupId`. All are optional, and a session with no stamp reads **null**. There is
+  no default tutor anywhere on the path.
+- They are read from the session's **own chat-turn stamps** (TUTOR-5), through
+  `SessionSummary`. They are never re-derived from what the class teaches with
+  today. `tutor_version` comes from the **same row** as `tutor_id`, so an arm is
+  never stitched from two rows. `revision` is the last one recorded. The Firestore
+  live-state fallback has no stamps, so it reads unknown.
+- The `rubric_runs` doc and its BigQuery mirror row (`aipla_rubric_run`, which
+  has no fixed schema, since the sink infers it) carry the same four fields. The
+  run's `group_id` falls back to the result's own. On that row, `revision` is the
+  **session's** revision, not the scorer's `K_REVISION`. Re-scoring the same
+  `run_id` overwrites the arm in place, so existing runs gain it on a re-score
+  with no duplicate.
+- **`tutor_version` was not stamped anywhere**, so this doc's M0 was unbuildable
+  as written. It is now stamped at emit time (`TeachingContext.tutor_version` →
+  `emit_chat_turn`). It is added to the `chat_turns` view (edited, **not applied**)
+  and to the researcher-lens CTE to keep the lockstep guards green. It is read
+  with `JSON_VALUE`, because a struct-member read of a field the sink has never
+  seen 400s the whole query. **Every row before 2026-09-30 has no version**, so
+  tutor-scored sessions before then read `tutorVersion: null` even when
+  `tutorId` is known.
+- Scoring stays off the student-turn path. No such guard existed, so one was
+  added: `test_rubric_arm.py` scans `adk/`, `tools/`, `channels/`, `app.py` and
+  the AG-UI/proactive routes for any import of the scorer.
+
+Tests: `backend/tests/unit/test_rubric_arm.py`.
 
 ## Open questions
 

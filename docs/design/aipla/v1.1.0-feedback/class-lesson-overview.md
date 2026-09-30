@@ -1,6 +1,6 @@
 # The lesson, for the whole class first — concepts and teaching approach aggregated, groups second
 
-**Status:** Design (OPEN) — **1.1.139**
+**Status:** Design (OPEN) — **1.1.139**. **D1 BUILT 2026-09-30** (sprint BENCH-1, lane 1): `config.models.analysis_model()` + `analysis_model:` in `models.yaml` (default `gemini-3-8-flash`, env `ANALYSIS_MODEL`); the narrative and the rubric lens defaults use it. M0–M4 not started
 **Priority:** **P1** — the teacher's first question after a lesson is *"what did the class get?"*, and today the only answer is to read one report per group. JB, 2026-09-29: *"reports for each group is too much to the teachers — in the insights have the concepts discussed in aggregate"*. Needs only teachers and existing sessions, so it is **un-gated**
 **Estimated:** ~6–6.5d phased (M0 structured concepts per session ~1d · M1 class roll-up ~1–1.5d · M2 the overview UI ~2d · M3 the wizard ~1–1.5d · M4 calibration on JB's session ~0.5d)
 **Scope:** Backend: `reports/narrative.py`, `reports/session_summary.py` (cache doc), `analytics/framework_fidelity.py` (read side only), `db/concept_progress.py` (`docs_for_class`), `protocols/insights_routes.py`, `config/models.yaml`. Frontend: `app/teacher/insights/` (new **Lessons** entry), `components/teacher/ClassConceptGraph.tsx`, `components/teacher/TeachingApproachSection.tsx`, `app/teacher/classes/[id]/page.tsx`, `app/teacher/reports/groups/[groupId]/page.tsx`
@@ -170,6 +170,16 @@ tutor.**
   switching. It also makes the judge a different model from the tutor, which the
   fidelity read needs in order to mean anything. This dovetails with JB's "top tier"
   ask and gives 1.1.92 a model arm to compare.
+  **Built 2026-09-30 (BENCH-1).** `analysis_model()` in `backend/config/models.py`, validated
+  like `platform_default`; `ANALYSIS_MODEL` overrides with a registry id or a registered
+  api_name, and an unregistered value raises rather than pointing at an unpriced model. The
+  default is `gemini-3-8-flash`, the strongest *registered* Gemini: no Pro model is
+  registered and none was invented, so moving up is a registry edit plus a price row.
+  Switched: the report narrative (and its "model" input line), the MAPS/SAAR lens
+  defaults, and the default for a researcher rubric that names no model. A model a
+  researcher stored is kept. The fidelity judge moves in the same sprint's lane 2. The
+  tutor, live-class summaries, titles and extraction stay on `platform_default`. The
+  1.1.106 cost-envelope check is still owed before the first real benchmark run.
 - **D2 — Is a "lesson" (activity, date) right, or should it be a teacher-named
   session?** (M + JB). Start with (activity, date). Add naming only if a class
   runs one activity across several days.
