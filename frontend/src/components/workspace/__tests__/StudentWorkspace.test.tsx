@@ -1,5 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { type ReactNode, useState } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { WorkspaceLayoutContext } from "../workspaceLayout";
 
 // Stub the heavy children — this test covers the launch/takeover logic, not the
 // sim iframe / element renderers / document fetches.
@@ -127,5 +130,131 @@ describe("StudentWorkspace — activityId plumbing (1.1.120)", () => {
     renderWS({ activityId: "act-777" });
     expect(screen.getByTestId("workspace-elements").getAttribute("data-activity-id")).toBe("act-777");
     expect(screen.getByTestId("documents").getAttribute("data-activity-id")).toBe("act-777");
+  });
+});
+
+describe("StudentWorkspace — sim focus mode (1.1.140 M1)", () => {
+  // A FRESH in-memory localStorage per test: on CI's Node 22 jsdom's storage
+  // persists across a file's tests, and a remembered focus would leak.
+  let store: Map<string, string>;
+  beforeEach(() => {
+    store = new Map();
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (k: string) => store.get(k) ?? null,
+        setItem: (k: string, v: string) => void store.set(k, v),
+        removeItem: (k: string) => void store.delete(k),
+      },
+    });
+  });
+
+  // Stands in for the chat page + WorkspaceShell: holds the split ratio and
+  // exposes it, so a test can read whether the chat column would be hidden.
+  function Harness({ initial = 0.5, children }: { initial?: number; children: ReactNode }) {
+    const [ratio, setRatio] = useState(initial);
+    return (
+      <WorkspaceLayoutContext.Provider value={{ ratio, setRatio }}>
+        <output data-testid="ratio">{ratio}</output>
+        <button type="button" onClick={() => setRatio(0.5)}>
+          reveal-chat
+        </button>
+        {children}
+      </WorkspaceLayoutContext.Provider>
+    );
+  }
+
+  const WS_PROPS = {
+    skillId: "s",
+    activityId: "act-1",
+    sandboxOrigin: "https://sandbox.example",
+    artefact: ARTEFACT,
+    checklist: [],
+    conceptMap: [],
+    table: [],
+    chart: [],
+    calculator: [],
+    note: [],
+    writing: [],
+    solution: [],
+    document: [],
+    materials: [],
+  };
+  const ratio = () => screen.getByTestId("ratio").textContent;
+  const toggle = () => screen.getByRole("button", { name: /vis chat/i });
+  const openSim = () => fireEvent.click(screen.getByRole("button", { name: /åbn boldkast/i }));
+
+  it("offers no focus toggle where there is no chat beside the sim (builder preview)", () => {
+    renderWS();
+    openSim();
+    expect(screen.queryByRole("button", { name: /vis chat/i })).not.toBeInTheDocument();
+  });
+
+  it("hides the chat column and gives it back, remembering the choice per activity", () => {
+    render(
+      <Harness>
+        <StudentWorkspace {...WS_PROPS} />
+      </Harness>,
+    );
+    openSim();
+    expect(toggle()).toHaveAttribute("aria-pressed", "true"); // chat shown
+    fireEvent.click(toggle());
+    expect(ratio()).toBe("1");
+    expect(toggle()).toHaveAttribute("aria-pressed", "false");
+    expect(store.get("aipla.simFocus:act-1")).toBe("1");
+
+    fireEvent.click(toggle());
+    expect(ratio()).toBe("0.5");
+    expect(store.get("aipla.simFocus:act-1")).toBe("0");
+  });
+
+  it("re-applies a remembered focus on open, and hands the chat back on close", () => {
+    store.set("aipla.simFocus:act-1", "1");
+    render(
+      <Harness initial={0.6}>
+        <StudentWorkspace {...WS_PROPS} />
+      </Harness>,
+    );
+    expect(ratio()).toBe("0.6"); // nothing happens until the sim is open
+    openSim();
+    expect(ratio()).toBe("1");
+    fireEvent.click(screen.getByRole("button", { name: /luk boldkast/i }));
+    expect(ratio()).toBe("0.6");
+    expect(store.get("aipla.simFocus:act-1")).toBe("1"); // closing is not opting out
+  });
+
+  it("does not re-hide the chat after the student brought it back another way", () => {
+    store.set("aipla.simFocus:act-1", "1");
+    render(
+      <Harness>
+        <StudentWorkspace {...WS_PROPS} />
+      </Harness>,
+    );
+    openSim();
+    expect(ratio()).toBe("1");
+    fireEvent.click(screen.getByRole("button", { name: "reveal-chat" })); // the "Show chat" tab
+    expect(store.get("aipla.simFocus:act-1")).toBe("0");
+  });
+
+  it("keeps a separate preference per activity", () => {
+    store.set("aipla.simFocus:other-activity", "1");
+    render(
+      <Harness>
+        <StudentWorkspace {...WS_PROPS} />
+      </Harness>,
+    );
+    openSim();
+    expect(ratio()).toBe("0.5");
+  });
+
+  it("compacts the header below ~900px: tighter padding, icon-only close", () => {
+    renderWS();
+    openSim();
+    const header = document.querySelector("[data-sim-frame-header]")!;
+    expect(header.className).toMatch(/max-\[899px\]:py-1/);
+    const closeText = screen.getByText("Luk");
+    expect(closeText.className).toMatch(/max-\[899px\]:hidden/);
+    // ...and the button keeps its accessible name when the text is hidden.
+    expect(screen.getByRole("button", { name: /luk boldkast/i })).toBeInTheDocument();
   });
 });

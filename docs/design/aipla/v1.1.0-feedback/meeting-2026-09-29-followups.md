@@ -88,6 +88,34 @@ Verified against code and prod data on 2026-09-30, they come in two groups.
 - Relation to 1.1.78: the question-set **element** will emit the same verb, so one
   mechanism covers sims and elements.
 
+**What shipped — 2026-09-30** ✅ (frontend + guidance; ⚠️ one line outstanding)
+
+- `proactiveEventCheck.ts`: `completion` category, checked **first** (a kind like
+  `quiz-submitted` or `step-complete` reads as "finished"); `answered-all` /
+  `mission-complete` match hyphenated too. Per-verb tests, plus an end-to-end test in
+  `GenericArtefactFrame.test.tsx`: `<id>.complete` → gate called with
+  `eventKind: "completion"` → the trigger reaches `onProactiveTrigger`.
+  `verify_sim.mjs` mirrors the list.
+- Tutor guidance: `backend/adk/proactive_reactive.py` — the REACTIVE GUIDANCE block
+  gives `completion` its own shape (acknowledge specifically, per `praise.md`; one
+  reflection/transfer question; **stop condition** at the top tier — consolidate,
+  ask nothing). English prose, reply in the session language. New
+  `REACTIVE_EVENT_KINDS` names the kinds the guidance covers.
+- Authoring prompt: completion verbs in the trigger list, a *mission / question set
+  finished* example carrying `tier` / `maxTier`, self-review item 13. Regenerated.
+- ⚠️ **Not yet live end to end:** the gate allowlist `MEANINGFUL_EVENT_KINDS` in
+  `backend/protocols/proactive_routes.py` still lacks `completion`, so the gate
+  answers "event kind not meaningful". That file was being edited in a parallel
+  session; the one-line fix is to add `"completion"` (better: import
+  `REACTIVE_EVENT_KINDS`). A **strict-xfail** test in `test_proactive_reactive.py`
+  flips red the moment it lands — delete the marker then.
+- Retrofit still to do with JB: `sol-jord-maane` has no finish event (its
+  `answer-commit` maps to `measurement_commit`).
+- Extra: `GenericArtefactFrame` now sends `ui/notifications/host-context-changed
+  {locale}` to a running sim when the student switches DA/EN, instead of the locale
+  reaching it only at the next load. No sim listens for it yet; the guest bridge
+  would need to merge it into `hostContext()`.
+
 ### M1 — Sim chrome the student can get out of the way (~0.75d) · **P1**
 
 - **Platform frame:** `GenericArtefactFrame` / `SimFrameHeader` gain a **focus
@@ -99,6 +127,29 @@ Verified against code and prod data on 2026-09-30, they come in two groups.
 - Tell teachers, via the guide and the build-a-simulation page, to start from the
   standard prompt. JB's sim is the example of what it prevents.
 
+**What shipped — 2026-09-30** ✅ (the teacher-guide nudge is still open)
+
+- **Focus mode** reuses the split's existing "chat hidden" state (ratio 1.0, which
+  the chat page already renders as `md:hidden` on the chat column) — no chat-page
+  change. `WorkspaceShell` hands the split down (`workspaceLayout.tsx`,
+  `WorkspaceLayoutContext`); `useSimFocusMode` applies it for the life of the open
+  sim: a toggle in `SimFrameHeader` (md+ only — below md the chat is already a tab),
+  remembered **per activity** in `localStorage` (`aipla.simFocus:<activityId>`,
+  try/catch); closing the sim hands the chat back; bringing the chat back by the
+  "Show chat" tab clears the preference. No toggle where there is no chat (the
+  builder preview). Tests use a fresh in-memory `localStorage` per test and pass on
+  Node 20.
+- **Compact header** below 900px: tighter padding, icon-only close (keeps its
+  aria-label). 900 is the prompt's number; revisit with `make screen-sizes`.
+- ⚠️ **Interim label:** the toggle reuses the existing `ChatRevealTab.showChat`
+  string as a pressed-state toggle ("Show chat", pressed while the chat is shown),
+  because new message keys need `frontend/src/i18n/messages.ts`, which was being edited
+  in a parallel session. Wanted: `StudentWorkspace.focusMode` (en *Focus on the
+  simulation* / da *Fokus på simuleringen*) and `StudentWorkspace.exitFocusMode`
+  (en *Show the chat again* / da *Vis chatten igen*).
+- **Authoring prompt:** control panels collapsible, folded by default below 900px,
+  never overlaying the visualisation; self-review item 14.
+
 ### M2 — Test and dev teach what prod teaches (~0.25d) · **P1** · ✅ built
 
 **What shipped — 2026-09-30.** `make sync-tutor-assignments FROM=prod TO=test|dev [GO=1] [PRUNE=1]`
@@ -108,7 +159,7 @@ per env, diffs on `frameworkId`, a `frameworkId: null` row is copied as a row, w
 `TO=prod` refused without `FORCE=1`, a read failure exits 1 and never reads as "0 rows".
 `make deploy-status` now prints `assign <n> rows #<hash>` per env and `ASSIGNMENT DRIFT`
 (or `(CANNOT READ)` + no verdict + exit 1). Dry-run on 2026-09-30: prod 11 rows → test 11
-adds, dev 11 adds. **Still to do: run with `GO=1` for test and dev** (a human step).
+adds, dev 11 adds. **Applied 2026-09-30:** `GO=1` run for test and dev; `deploy-status` reports all three envs level (11 rows `#4fc66c51`).
 
 `make sync-tutor-assignments FROM=prod TO=test` (dry-run by default, `GO=1` to write):
 copies `tutor_framework_assignments` rows, stamping `updatedBy` as the sync and keeping

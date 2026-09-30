@@ -226,9 +226,9 @@ describe("GenericArtefactFrame", () => {
 
   it("a finished mission (`<id>.complete`) asks the gate for a completion turn and fires it (1.1.140 M0)", async () => {
     const onTrigger = vi.fn();
-    vi.mocked(fetchWithAuth).mockImplementation((url: string) =>
+    vi.mocked(fetchWithAuth).mockImplementation((url) =>
       Promise.resolve(
-        url.includes("/proactive-event-check")
+        String(url).includes("/proactive-event-check")
           ? new Response(JSON.stringify({ shouldFire: true, trigger: "[event_reactive:completion]" }), {
               status: 200,
               headers: { "Content-Type": "application/json" },

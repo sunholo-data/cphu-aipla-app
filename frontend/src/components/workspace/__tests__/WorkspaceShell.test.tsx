@@ -1,6 +1,7 @@
 import { render, screen, fireEvent } from "@testing-library/react";
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import { WorkspaceShell } from "../WorkspaceShell";
+import { useWorkspaceLayout } from "../workspaceLayout";
 
 const COLLAPSE_KEY = "aipla.workspace.collapsed";
 
@@ -137,6 +138,27 @@ describe("WorkspaceShell", () => {
       );
       fireEvent.click(screen.getByLabelText(/Vis chat/i));
       expect(onRatioChange).toHaveBeenCalledWith(0.5);
+    });
+
+    it("hands the split down to its children (1.1.140 M1 focus mode), and only when resizable", () => {
+      function Probe() {
+        const layout = useWorkspaceLayout();
+        return <p>{layout ? `ratio=${layout.ratio}` : "no-layout"}</p>;
+      }
+      const onRatioChange = vi.fn();
+      const { unmount } = render(
+        <WorkspaceShell ratio={0.6} onRatioChange={onRatioChange}>
+          <Probe />
+        </WorkspaceShell>,
+      );
+      expect(screen.getByText("ratio=0.6")).toBeInTheDocument();
+      unmount();
+      render(
+        <WorkspaceShell>
+          <Probe />
+        </WorkspaceShell>,
+      );
+      expect(screen.getByText("no-layout")).toBeInTheDocument();
     });
   });
 });

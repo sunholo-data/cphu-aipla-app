@@ -10,6 +10,7 @@ import { SimFrameHeader } from "./SimFrameHeader";
 import { SimLauncher } from "./SimLauncher";
 import { WorkbenchTabs } from "./WorkbenchTabs";
 import { WorkspaceElements } from "./elementRenderers";
+import { useSimFocusMode } from "./workspaceLayout";
 import type { CalculatorElementDef } from "./WorkbenchCalculator";
 import type { ChartElementDef } from "./WorkbenchChart";
 import type { ChecklistItem, ChecklistItemState } from "./ProgressChecklist";
@@ -102,11 +103,7 @@ export function StudentWorkspace({
   documentViewerRole = "student",
   onRegisterArtefactFlush,
 }: StudentWorkspaceProps) {
-  const t = useT("StudentWorkspace");
   const [simOpen, setSimOpen] = useState(false);
-  // Callback ref → state so SimFrameHeader gets the real wrapper element once it
-  // mounts (a plain ref is still null on first render).
-  const [simWrap, setSimWrap] = useState<HTMLDivElement | null>(null);
   const hasSim = !!(artefact && sandboxOrigin);
 
   // Launched: the sim takes over the workspace (the element tools + documents
@@ -114,23 +111,15 @@ export function StudentWorkspace({
   // unmount via sessionStorage, so closing returns the workbench intact.
   if (hasSim && simOpen && artefact) {
     return (
-      <div ref={setSimWrap} className="flex min-h-0 flex-col bg-background">
-        <SimFrameHeader
-          title={artefact.displayName}
-          closeAriaLabel={t("closeSimLabel", { name: artefact.displayName })}
-          closeLabel={t("close")}
-          fullscreenAriaLabel={t("fullscreen")}
-          onClose={() => setSimOpen(false)}
-          fullscreenTarget={simWrap}
-        />
-        <GenericArtefactFrame
-          sandboxOrigin={sandboxOrigin}
-          artefact={artefact}
-          sessionId={sessionId}
-          activityId={activityId}
-          onRegisterFlush={onRegisterArtefactFlush}
-        />
-      </div>
+      <OpenSim
+        artefact={artefact}
+        sandboxOrigin={sandboxOrigin}
+        sessionId={sessionId}
+        activityId={activityId}
+        focusKey={activityId ?? skillId}
+        onClose={() => setSimOpen(false)}
+        onRegisterArtefactFlush={onRegisterArtefactFlush}
+      />
     );
   }
 
@@ -202,5 +191,66 @@ export function StudentWorkspace({
         </>
       )}
     </>
+  );
+}
+
+interface OpenSimProps {
+  artefact: ActivityArtefact;
+  sandboxOrigin: string;
+  sessionId: string | null;
+  activityId?: string;
+  /** Focus mode is remembered per activity (the skill for a bare-skill mount). */
+  focusKey: string;
+  onClose: () => void;
+  onRegisterArtefactFlush?: (flush: (() => Promise<void>) | null) => void;
+}
+
+/** The launched sim: header + frame. Its own component so focus mode (1.1.140
+ *  M1) lives exactly as long as the sim is open — it is applied on open and the
+ *  chat is handed back on close. */
+function OpenSim({
+  artefact,
+  sandboxOrigin,
+  sessionId,
+  activityId,
+  focusKey,
+  onClose,
+  onRegisterArtefactFlush,
+}: OpenSimProps) {
+  const t = useT("StudentWorkspace");
+  // The toggle is named for the chat it shows or hides, and pressed while the
+  // chat is shown. Reuses the "Show chat" string the reveal tab already has.
+  const tChat = useT("ChatRevealTab");
+  const focus = useSimFocusMode(focusKey);
+  // Callback ref → state so SimFrameHeader gets the real wrapper element once it
+  // mounts (a plain ref is still null on first render).
+  const [simWrap, setSimWrap] = useState<HTMLDivElement | null>(null);
+  return (
+    <div
+      ref={setSimWrap}
+      data-sim-focused={focus.focused ? "" : undefined}
+      className="flex min-h-0 flex-col bg-background"
+    >
+      <SimFrameHeader
+        title={artefact.displayName}
+        closeAriaLabel={t("closeSimLabel", { name: artefact.displayName })}
+        closeLabel={t("close")}
+        fullscreenAriaLabel={t("fullscreen")}
+        onClose={onClose}
+        fullscreenTarget={simWrap}
+        focus={
+          focus.available
+            ? { chatShown: !focus.focused, onToggle: focus.toggle, label: tChat("showChat") }
+            : undefined
+        }
+      />
+      <GenericArtefactFrame
+        sandboxOrigin={sandboxOrigin}
+        artefact={artefact}
+        sessionId={sessionId}
+        activityId={activityId}
+        onRegisterFlush={onRegisterArtefactFlush}
+      />
+    </div>
   );
 }

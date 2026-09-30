@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 
 import { RATIO_DEFAULT } from "@/hooks/useResizableWorkspaceRatio";
 import { useT } from "@/i18n";
 import { ChatRevealTab } from "./ChatRevealTab";
 import { WorkspaceDivider } from "./WorkspaceDivider";
+import { WorkspaceLayoutContext, type WorkspaceLayout } from "./workspaceLayout";
 
 const COLLAPSE_KEY = "aipla.workspace.collapsed";
 
@@ -66,6 +67,11 @@ export function WorkspaceShell({
   const resizable = typeof ratio === "number" && typeof onRatioChange === "function";
   const effectiveRatio = resizable ? ratio : null;
   const fullscreen = effectiveRatio === 1;
+  // 1.1.140 M1 — hand the split down so a sim's focus mode can take the row.
+  const layout = useMemo<WorkspaceLayout | null>(
+    () => (typeof ratio === "number" && onRatioChange ? { ratio, setRatio: onRatioChange } : null),
+    [ratio, onRatioChange],
+  );
 
   // Restore collapse state on mount. Done in effect (not initial state)
   // so SSR doesn't read sessionStorage and React doesn't hydrate a mismatch.
@@ -170,7 +176,7 @@ export function WorkspaceShell({
         </button>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        {children}
+        <WorkspaceLayoutContext.Provider value={layout}>{children}</WorkspaceLayoutContext.Provider>
       </div>
     </aside>
   );
