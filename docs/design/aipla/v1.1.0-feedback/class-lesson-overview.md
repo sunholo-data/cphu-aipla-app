@@ -107,6 +107,14 @@ an **(activity, date)** pair derived from sessions, most recent first.
 
 ### M2 — The overview UI: concepts first, findable (~2d)
 
+> **M2 first slice shipped 2026-09-30: concepts moved to the top of the class page.**
+> `ClassConceptsOverview` ("Concepts across the class", anchor `#class-concepts`)
+> now renders the existing `ClassConceptGraph` right after the class header, above
+> the groups list, open by default and collapsible (remembered per class in
+> `localStorage`); the bottom placement is gone. With no concepts it renders one
+> muted line; on a failed read, nothing. The Lessons tab, strip, search/chips and
+> "Latest lesson" card below are still to build.
+
 A new **Lessons** entry as the **first** tab of Insights, and a
 **"Latest lesson"** card at the **top** of the class page that replaces the
 concept graph's position at the bottom. One page per lesson, in reading order:

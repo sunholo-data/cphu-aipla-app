@@ -69,6 +69,11 @@
     "overall": "Samlet",
     "turns": "{tutor} tutor- / {student} elevture"
   },
+  "ClassConceptsOverview": {
+    "title": "Begreber på tværs af klassen",
+    "description": "Alle begreber fra klassens aktiviteter, og hvordan grupperne fordeler sig på dem.",
+    "emptyHint": "Begreberne for hele klassen vises her, når grupperne arbejder med en aktivitet, der har et begrebskort."
+  },
   "ClassConceptGraph": {
     "status_demonstrated": "forstået",
     "status_partial": "på vej",
@@ -334,8 +339,6 @@
     "noSessions": "Ingen elevsessioner endnu. Sessionerne dukker op her, når eleverne tilslutter sig en gruppe og begynder at skrive.",
     "turns": "{n, plural, one {# tur} other {# ture}}",
     "view": "Se",
-    "conceptMapTitle": "Begrebskort for klassen",
-    "conceptMapDescription": "Begreber fra klassens aktiviteter, og hvordan grupperne fordeler sig på dem.",
     "pairingsTitle": "Grupper der kan hjælpe hinanden",
     "pairingsDescription": "Forslag til hvem der kunne tale sammen, ud fra hvad grupperne har vist.",
     "pickerLabel": "Vælg en aktivitet at tildele",

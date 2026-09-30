@@ -42,7 +42,16 @@ interface Rollup {
 
 const OVERRIDE_CHOICES: Status[] = ["demonstrated", "partial", "not_yet"];
 
-export function ClassConceptGraph({ classId }: { classId: string }) {
+export function ClassConceptGraph({
+  classId,
+  onLoaded,
+}: {
+  classId: string;
+  /** 1.1.139 M2 — reports how many concepts the rollup holds (null on a
+   *  failed read), so a host can collapse to nothing rather than show an
+   *  empty card. */
+  onLoaded?: (conceptCount: number | null) => void;
+}) {
   const t = useT("ClassConceptGraph");
   const statusLabel = (s: string) => t(`status_${s}` as MessageKey<"ClassConceptGraph">);
   const [rollup, setRollup] = useState<Rollup | null>(null);
@@ -61,16 +70,23 @@ export function ClassConceptGraph({ classId }: { classId: string }) {
         if (alive) {
           setRollup(body);
           setState("ready");
+          onLoaded?.(body.concepts?.length ?? 0);
         }
       } catch {
         // A concept graph that fails to load must never take the class page
         // with it — every other section on this page still works.
-        if (alive) setState("error");
+        if (alive) {
+          setState("error");
+          onLoaded?.(null);
+        }
       }
     })();
     return () => {
       alive = false;
     };
+    // onLoaded is a notification, not an input — re-fetching when a host
+    // passes a fresh closure would loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [classId, reload]);
 
   /** Record the teacher's own read. Written as `kind="teacher"` server-side,

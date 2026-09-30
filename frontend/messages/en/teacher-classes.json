@@ -69,6 +69,11 @@
     "overall": "Overall",
     "turns": "{tutor} tutor / {student} student turns"
   },
+  "ClassConceptsOverview": {
+    "title": "Concepts across the class",
+    "description": "Every concept the class's activities have mapped, and how the groups are spread across them.",
+    "emptyHint": "Concepts across the class will show here once groups work on an activity with a concept map."
+  },
   "ClassConceptGraph": {
     "status_demonstrated": "understood",
     "status_partial": "on the way",
@@ -334,8 +339,6 @@
     "noSessions": "No student sessions yet. Sessions appear here once students join a group and start chatting.",
     "turns": "{n, plural, one {# turn} other {# turns}}",
     "view": "View",
-    "conceptMapTitle": "Concept map for the class",
-    "conceptMapDescription": "Concepts from the class's activities, and how the groups are spread across them.",
     "pairingsTitle": "Groups that can help each other",
     "pairingsDescription": "Suggestions for who might talk, based on what the groups have shown.",
     "pickerLabel": "Pick an activity to assign",

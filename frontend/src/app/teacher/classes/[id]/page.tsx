@@ -38,7 +38,7 @@ import { ActingForOwnerBanner, LastEditedLine } from "@/components/teacher/Actin
 import { ClassDetailsPanel } from "@/components/teacher/ClassDetailsPanel";
 import { ClassVoiceSettingsPanel } from "@/components/teacher/ClassVoiceSettingsPanel";
 import { TutorPicker } from "@/components/teacher/TutorPicker";
-import { ClassConceptGraph } from "@/components/teacher/ClassConceptGraph";
+import { ClassConceptsOverview } from "@/components/teacher/ClassConceptsOverview";
 import { ClassGroupPairings } from "@/components/teacher/ClassGroupPairings";
 import { SettingsSection } from "@/components/teacher/ui/SettingsSection";
 import { SettingsMap } from "@/components/teacher/SettingsMap";
@@ -356,6 +356,11 @@ export default function TeacherClassDetailPage() {
     >
       <ActingForOwnerBanner resource={cls} kind="class" />
       <SettingsMap highlight="class" classId={cls.classId} />
+      {/* 1.1.139 M2 (first slice) — the class's concepts, in aggregate, are
+          the first thing after the header. They used to sit collapsed at the
+          very bottom; JB: "the UI of finding concepts [should be] easier".
+          Renders nothing (or one muted line) until there are concepts. */}
+      <ClassConceptsOverview classId={cls.classId} />
       <LiveClassView classId={cls.classId} />
       <SettingsSection
         title={t("groups")}
@@ -777,18 +782,6 @@ export default function TeacherClassDetailPage() {
             )}
           </ul>
         )}
-      </SettingsSection>
-
-      {/* CONCEPT-2 M5 — the class's concepts across the year. Collapsed by
-          default: it is the longitudinal view, not the thing a teacher opens
-          this page to do, and it costs a query. */}
-      <SettingsSection
-        title={t("conceptMapTitle")}
-        description={t("conceptMapDescription")}
-        collapsible
-        defaultOpen={false}
-      >
-        <ClassConceptGraph classId={cls.classId} />
       </SettingsSection>
 
       {/* CONCEPT-2 M7 — the payoff of not flattening the class into an average
