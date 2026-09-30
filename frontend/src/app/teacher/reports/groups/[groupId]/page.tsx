@@ -15,6 +15,11 @@ import {
 } from "@/lib/teacherApi";
 import { downloadCsv, downloadJson } from "@/lib/download";
 import { ChatLogTranscript, timelineFromSummary } from "@/components/teacher/research/ChatLogTranscript";
+import {
+  type ExportTimeline,
+  resolveExportTimeline,
+  timelineToCsvRows,
+} from "@/components/teacher/research/timelineExport";
 import { GroupTranscriptSection } from "@/components/teacher/GroupTranscriptSection";
 import { TeachingApproachSection } from "@/components/teacher/TeachingApproachSection";
 import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
@@ -98,6 +103,8 @@ function toDisplay(state: ReportState): ReportDisplay | null {
 
 export default function TeacherGroupReportPage() {
   const t = useT("TeacherGroupReportPage");
+  // The work cards' labels (and their fallback for unlabelled rows), for exports.
+  const tCards = useT("ChatLogTranscript");
   const params = useParams();
   const searchParams = useSearchParams();
   const groupId =
@@ -424,7 +431,7 @@ export default function TeacherGroupReportPage() {
           <div className="flex items-center gap-1.5">
             <button
               type="button"
-              onClick={() => handleDownloadCsv(state, groupId)}
+              onClick={() => void handleDownloadCsv(state, groupId, tCards)}
               className="flex items-center gap-1.5 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
             >
               <Download className="h-3.5 w-3.5" aria-hidden="true" />
@@ -432,7 +439,7 @@ export default function TeacherGroupReportPage() {
             </button>
             <button
               type="button"
-              onClick={() => handleDownloadJson(state, groupId)}
+              onClick={() => void handleDownloadJson(state, groupId)}
               className="flex items-center gap-1.5 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
             >
               <Download className="h-3.5 w-3.5" aria-hidden="true" />
@@ -472,22 +479,41 @@ function reportFilenameStem(state: ReportState, groupId: string): string {
   return `report-${groupId}-${today}`;
 }
 
-/** CSV: flat conversation log (timestamp, role, content). The teacher
- *  audience asked for spreadsheet-friendly transcripts; workbench
- *  interactions live in the JSON export instead. */
-function handleDownloadCsv(state: ReportState, groupId: string): void {
-  const conversation = state.kind === "live" ? state.data.conversation : [];
-  const rows: ReadonlyArray<ReadonlyArray<unknown>> = [
-    ["timestamp", "role", "content"],
-    ...conversation.map((t) => [t.timestamp, t.role, t.content]),
-  ];
-  downloadCsv(`${reportFilenameStem(state, groupId)}.csv`, rows);
+/** 1.1.136 §Exports — the timeline to export: the labelled server timeline, read
+ *  fresh (same `fetchWithAuth` client the transcript uses; the route admits the
+ *  class owner or a researcher), else the report's own payload interleaved. The
+ *  RAW `state.data.conversation` timestamps, never the HH:MM display copy. */
+async function exportTimeline(state: ReportState, groupId: string): Promise<ExportTimeline | null> {
+  if (state.kind !== "live") return null;
+  const d = state.data;
+  return resolveExportTimeline(
+    () => getGroupReportTimeline(d.groupCode || groupId, d.sessionId),
+    () => timelineFromSummary(d.conversation, d.workbenchEvents ?? []),
+  );
 }
 
-/** JSON: the full SessionSummary payload including metadata, conversation,
- *  and workbench events. */
-function handleDownloadJson(state: ReportState, groupId: string): void {
-  const data = state.kind === "live" ? state.data : {};
+/** CSV: the turns AND the work, one row each, in time order. Columns
+ *  `timestamp, role, content` are the chat-only file's, unchanged in name and
+ *  position; `kind` (turn | work) and `label` are appended. Work rows carry the
+ *  card's label and a readable summary of the state, not the raw snapshot. */
+async function handleDownloadCsv(
+  state: ReportState,
+  groupId: string,
+  tCards: Translate<"ChatLogTranscript">,
+): Promise<void> {
+  const tl = await exportTimeline(state, groupId);
+  downloadCsv(`${reportFilenameStem(state, groupId)}.csv`, timelineToCsvRows(tl?.items ?? [], tCards));
+}
+
+/** JSON: the full SessionSummary payload (metadata, conversation, raw
+ *  workbench events) plus `timeline` — the API's timeline items as-is, raw
+ *  values included — with where it came from and whether work was readable. */
+async function handleDownloadJson(state: ReportState, groupId: string): Promise<void> {
+  const tl = await exportTimeline(state, groupId);
+  const data =
+    state.kind === "live" && tl
+      ? { ...state.data, timeline: tl.items, timelineSource: tl.source, timelineWorkStatus: tl.workStatus }
+      : {};
   downloadJson(`${reportFilenameStem(state, groupId)}.json`, data);
 }
 

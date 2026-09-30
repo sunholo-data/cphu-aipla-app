@@ -25,6 +25,12 @@ vi.mock("@/lib/teacherApi", async () => {
   };
 });
 
+// 1.1.136 §Exports — capture what the buttons would download.
+vi.mock("@/lib/download", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/download")>("@/lib/download");
+  return { ...actual, downloadCsv: vi.fn(), downloadJson: vi.fn() };
+});
+
 import TeacherGroupReportPage from "@/app/teacher/reports/groups/[groupId]/page";
 import {
   NotFoundError,
@@ -42,7 +48,11 @@ function render(ui: ReactElement, options?: Parameters<typeof rtlRender>[1]) {
   return { ...result, rerender: (next: ReactElement) => result.rerender(wrap(next)) };
 }
 
+import { downloadCsv, downloadJson, toCsv, UTF8_BOM } from "@/lib/download";
+
 const fetchReport = vi.mocked(fetchGroupLatestReport);
+const csvSpy = vi.mocked(downloadCsv);
+const jsonSpy = vi.mocked(downloadJson);
 const fetchTimeline = vi.mocked(getGroupReportTimeline);
 
 const LIVE_REPORT: SessionSummaryPayload = {
@@ -78,6 +88,8 @@ beforeEach(() => {
   });
   fetchReport.mockReset();
   fetchTimeline.mockReset();
+  csvSpy.mockReset();
+  jsonSpy.mockReset();
   fetchTimeline.mockRejectedValue(new NotFoundError());
 });
 
@@ -201,5 +213,71 @@ describe("/teacher/reports/groups/[groupId] — real session report", () => {
     render(<TeacherGroupReportPage />);
 
     expect(await screen.findByText(/couldn.t load this report/i)).toBeInTheDocument();
+  });
+});
+
+describe("/teacher/reports/groups/[groupId] — exports carry the timeline (1.1.136)", () => {
+  const WORK_VALUE = JSON.stringify({ docs: [{ title: "Rapport", text: "Kuglen falder" }] });
+  const REPORT_WITH_WORK: SessionSummaryPayload = {
+    ...LIVE_REPORT,
+    workbenchEvents: [
+      { timestamp: "2026-06-15T09:31:30Z", server: "writing", tool: "state", field: "state", value: WORK_VALUE },
+    ],
+  };
+
+  async function renderLoaded() {
+    fetchReport.mockResolvedValue(REPORT_WITH_WORK);
+    render(<TeacherGroupReportPage />);
+    await waitFor(() => expect(screen.queryByText(/loading report/i)).not.toBeInTheDocument());
+  }
+
+  it("CSV: turns and work interleaved in time order, BOM first, unlabelled work gets the fallback label", async () => {
+    // Server timeline unreadable (beforeEach: 404) -> the report's own payload.
+    await renderLoaded();
+    await userEvent.click(screen.getByRole("button", { name: /^csv$/i }));
+    await waitFor(() => expect(csvSpy).toHaveBeenCalledTimes(1));
+
+    const [filename, rows] = csvSpy.mock.calls[0];
+    expect(filename).toMatch(/^report-bold-kazoo-87-sess-123-.*\.csv$/);
+    expect(rows[0]).toEqual(["timestamp", "role", "content", "kind", "label"]);
+    expect(rows.slice(1).map((r) => [r[0], r[3]])).toEqual([
+      ["2026-06-15T09:31:00Z", "turn"],
+      ["2026-06-15T09:31:30Z", "work"],
+      ["2026-06-15T09:32:00Z", "turn"],
+    ]);
+    expect(rows[2]).toEqual(["2026-06-15T09:31:30Z", "", "Rapport: Kuglen falder", "work", "Writing updated"]);
+    expect(toCsv(rows).startsWith(UTF8_BOM)).toBe(true);
+    // The export read the timeline itself; it did not need the transcript open.
+    expect(fetchTimeline).toHaveBeenCalledWith(groupId, LIVE_REPORT.sessionId);
+  });
+
+  it("CSV: uses the labelled server timeline when it can read it", async () => {
+    fetchTimeline.mockReset();
+    fetchTimeline.mockResolvedValue({
+      sessionId: LIVE_REPORT.sessionId,
+      workStatus: "ok",
+      items: [
+        { kind: "turn", ts: "2026-06-15T09:31:00Z", turn_index: 0, role: "student", content: "Hej" } as never,
+        { kind: "work", ts: "2026-06-15T09:31:10Z", server: "table", tool: "state", field: "state", value: null, label: "Data table: Fald" },
+      ],
+    });
+    await renderLoaded();
+    await userEvent.click(screen.getByRole("button", { name: /^csv$/i }));
+    await waitFor(() => expect(csvSpy).toHaveBeenCalledTimes(1));
+    const rows = csvSpy.mock.calls[0][1];
+    expect(rows[2]).toEqual(["2026-06-15T09:31:10Z", "", "", "work", "Data table: Fald"]);
+  });
+
+  it("JSON: keeps the report payload and adds the timeline array", async () => {
+    await renderLoaded();
+    await userEvent.click(screen.getByRole("button", { name: /^json$/i }));
+    await waitFor(() => expect(jsonSpy).toHaveBeenCalledTimes(1));
+    const data = jsonSpy.mock.calls[0][1] as Record<string, unknown> & { timeline: { kind: string; value?: string }[] };
+    expect(data.sessionId).toBe(LIVE_REPORT.sessionId);
+    expect(data.workbenchEvents).toEqual(REPORT_WITH_WORK.workbenchEvents);
+    expect(data.timelineSource).toBe("report");
+    expect(data.timeline.map((i) => i.kind)).toEqual(["turn", "work", "turn"]);
+    // The raw value lives in the JSON (only).
+    expect(data.timeline[1].value).toBe(WORK_VALUE);
   });
 });

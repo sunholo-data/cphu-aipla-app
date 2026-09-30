@@ -1,6 +1,6 @@
 # Review a group's work beside its conversation, not just the conversation
 
-**Status:** 🚧 PARTIAL — **1.1.136** · M0, M1, M3 shipped 2026-09-29 (sprint CLASSVISIT-1, lane D) · M2, M4 OPEN (next sprint, sequenced with 1.1.99)
+**Status:** 🚧 PARTIAL — **1.1.136** · M0, M1, M3 shipped 2026-09-29 (sprint CLASSVISIT-1, lane D) · group-report Exports shipped 2026-09-30 · M2, M4 OPEN (next sprint, sequenced with 1.1.99)
 **Priority:** **P1** — directly serves the extension's strategic bet (*"rubric-scored logs as assessment evidence"*, [plan](../v2.1.0-extension/plan-2026-09-to-2027-04.md) workstream D). A transcript without the table it discusses is half the evidence. Needs only researchers and **existing** data, so it is **un-gated** by either legal blocker
 **Estimated:** ~3–4d phased (M0 labelled events ~0.5d · M1 interleaved timeline ~1.5d · M2 final-state panel ~0.75d · M3 researcher read + lens wiring ~0.5d · M4 rubric evidence ~0.5d)
 **Scope:** Backend: `observability/chat_log.py` (`emit_workbench_event`), `protocols/iframe_context_routes.py`, `reports/session_summary.py`, `analytics/research_logs.py`, `protocols/{table,writing}_progress_routes.py`, `analytics/rubric_evidence.py`, the `aipla_workbench_event` BQ view (`infrastructure/modules/chat-logs/views.tf`). Frontend: `components/teacher/research/ChatLogTranscript.tsx`, `app/teacher/reports/groups/[groupId]/page.tsx`, `app/teacher/insights/conversations/page.tsx`, the four `Workbench*` elements (label on push)
@@ -125,6 +125,33 @@ The CSV/JSON exports gain the timeline rows (`kind = turn | work`). The CSV
 must use the fixed `downloadCsv` from [1.1.137](class-list-on-the-teacher-device.md)
 M0 (BOM + Excel-safe). Otherwise Danish writing arrives garbled in Excel.
 
+**Shipped 2026-09-30 for the group report** (`/teacher/reports/groups/[groupId]`,
+`components/teacher/research/timelineExport.ts`). Both buttons read the
+labelled timeline fresh at click time (`getGroupReportTimeline`, the same client
+the transcript uses), so an export no longer depends on the transcript being
+open; if it cannot be read, or is empty, they interleave the report's own
+payload — the same fallback the page renders.
+
+- **CSV** — one row per timeline item, in time order:
+  `timestamp, role, content, kind, label`. The first three are the chat-only
+  file's columns, **unchanged in name and position**, so an existing sheet or
+  script still finds them; `kind` (`turn` | `work`) and `label` are appended,
+  and the filename is unchanged. That is the compatibility choice: appending
+  columns keeps old consumers working, and `kind` lets them filter back to the
+  chat-only view. Work rows leave `role` empty, carry the card's label (the
+  derived fallback — *"Writing updated"* — for rows before M0) and a readable
+  summary of the state in `content` (table as header + rows, writing as text,
+  calculators as inputs → result, checklist as ☑/☐) — never the raw JSON.
+  Timestamps are the raw ISO values, not the page's HH:MM.
+- **JSON** — the SessionSummary payload as before, plus `timeline` (the API's
+  items as-is, raw `value` included), `timelineSource` (`server` | `report`) and
+  `timelineWorkStatus`.
+
+**Not changed:** the researcher lens's export on `/teacher/insights/conversations`
+is a server-generated bulk file of chat turns across many sessions
+(`fetchChatLogExport` → `/api/research/logs/export`), not a per-session
+download. Adding work rows there is a backend change to that route — left open.
+
 ## Decision needed — photos and whiteboard drawings (JB)
 
 The solution element's photos and drawings are the one piece of student
@@ -207,7 +234,8 @@ activity. Students still read only their own group. The Firestore scan moved off
 the event loop. No UI calls these yet — M2 is the first consumer.
 
 **Not done here:** the Exports section (timeline rows in CSV/JSON — needs
-1.1.137's `downloadCsv`, lane C) · M2 · M4 · the photo placeholder card (the
+1.1.137's `downloadCsv`, lane C; **since shipped 2026-09-30 for the group report**,
+see §Exports; the researcher lens's server-side bulk export is still chat-only) · M2 · M4 · the photo placeholder card (the
 solution element does not push, so there is no event to hang it on; M2).
 
 ## Acceptance
