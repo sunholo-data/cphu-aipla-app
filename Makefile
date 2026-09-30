@@ -634,6 +634,20 @@ check-client-api: ## Fail if an exported API-client function has no call site (C
 # directory so "we will upload more so there is more choice" does not mean a
 # code change each time. Writes BOTH sides (the picker's TS manifest and the
 # backend's allow-list JSON) from one source: the directory listing.
+# 2026-09-30. The laptop runs Node 26, CI runs Node 22, and Node >= 25 ships a
+# global localStorage that SHADOWS jsdom's — so storage never persists between
+# tests locally and does on CI. Five dev builds died on that before anyone
+# reproduced it, and the first "fix" blamed a fetch race. CLAUDE.md carries the
+# row; this is the command, because a remembered incantation is not a check.
+test-frontend-ci-node: ## Run the frontend suite on CI's Node (catches localStorage leaks that pass on Node 26)
+	@NODE_BIN=$$(ls -d /opt/homebrew/opt/node@20/bin /opt/homebrew/opt/node@22/bin 2>/dev/null | head -1); \
+	if [ -z "$$NODE_BIN" ]; then \
+	  echo "SKIP: no node@20 or node@22 found (brew install node@20). CI runs Node 22; your default is $$(node --version)."; \
+	  exit 0; \
+	fi; \
+	echo "Running the frontend suite on $$($$NODE_BIN/node --version) — CI parity for storage behaviour."; \
+	cd frontend && CI=true PATH="$$NODE_BIN:$$PATH" npx vitest run
+
 avatars: ## Regenerate the avatar manifest after adding an image
 	@node scripts/generate-avatar-manifest.mjs
 
@@ -705,6 +719,7 @@ help:
 	@echo "make check-stream-allowlist — fail if the client renders a tool result the SSE filter redacts (CI-gated)"
 	@echo "make check-client-api        — fail if an exported API-client function has no call site (CI-gated)"
 	@echo "make avatars                 — regenerate the avatar manifest after adding an image"
+	@echo "make test-frontend-ci-node   — run the frontend suite on CI's Node (localStorage leaks pass on Node 26)"
 	@echo
 	@echo "make check-upstream-routing — advisory: which changed paths are platform code and belong upstream (RANGE=...)"
 	@echo "make upstream-reconcile — full divergence report against the template (every shared path)"
