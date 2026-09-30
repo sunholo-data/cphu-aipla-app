@@ -32,6 +32,17 @@ bounded number of times with exponential backoff, and every retry is logged
 and counted; anything else fails that transcript (or abstains that read) with
 the exception's status and message recorded, not just its class name.
 
+--from-sessions (1.1.140 M3) judges REAL classroom sessions instead of scripted
+students: it selects sessions from ``chat_logs.chat_turns`` on --env (default
+prod, read-only), keeps only ``teaching_source = 'tutor'`` rows with a
+framework (no previews, no persona-field turns, no teacher/preview groups), and
+judges each session blind against every approach plus the tone probe. No tutor
+is called. --dry-run runs only the selection query (no model calls); --go judges.
+Outputs go to research/tutor-discrimination/sessions-<UTC>/ with group ids only
+as a salted hash (ADR-001).
+
+    make bench-tutor-sessions ARGS="--dry-run --since 2026-09-26 --until 2026-09-30"
+
 Auth for a real run: Application Default Credentials with Vertex + Firestore
 read on the chosen project (``gcloud auth application-default login``).
 """
@@ -64,6 +75,7 @@ ComposeFn = Callable[[str], dict[str, Any]]
 TutorTurnFn = Callable[..., Awaitable[dict[str, Any]]]
 JudgeFn = Callable[[str, str], Awaitable[str]]
 SleepFn = Callable[[float], Awaitable[None]]
+QueryFn = Callable[[str, dict[str, Any]], list[Any]]
 
 
 @dataclass
@@ -109,7 +121,20 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="total attempts per tutor turn / judge call on a 429 or 5xx (1 = no retry)",
     )
     p.add_argument("--out", type=Path, default=None, help="output dir (default: a timestamped dir)")
+    g = p.add_argument_group("--from-sessions (1.1.140 M3): judge real classroom sessions, no tutor calls")
+    g.add_argument("--from-sessions", action="store_true", help="judge real sessions from chat_turns")
+    g.add_argument("--env", default="prod", choices=["dev", "test", "prod"], help="environment to read (read-only)")
+    g.add_argument("--since", type=_date, default=None, help="first day, YYYY-MM-DD (UTC)")
+    g.add_argument("--until", type=_date, default=None, help="last day INCLUSIVE, YYYY-MM-DD (UTC; default today)")
+    g.add_argument("--min-turns", type=int, default=None, help="minimum tutor turns per session (default 6)")
+    g.add_argument("--tutor", default="", help="comma-separated tutor ids to keep (default: all)")
+    g.add_argument("--framework", default="", help="comma-separated assigned framework ids to keep (default: all)")
+    g.add_argument("--max-sessions", type=int, default=None, help="cap on sessions judged (earliest first)")
     return p.parse_args(argv)
+
+
+def _date(s: str) -> Any:
+    return datetime.strptime(s, "%Y-%m-%d").date()
 
 
 def _csv(s: str) -> list[str]:
@@ -594,6 +619,183 @@ async def run_benchmark(
     return {"records": records, "report": report, "calls": total}
 
 
+# --- --from-sessions (1.1.140 M3): real classroom sessions ------------------------------
+
+
+def _sessions_view(env: str) -> str:
+    return f"`aipla-{env}-2026.chat_logs.chat_turns`"
+
+
+def _sessions_judge_model(args: argparse.Namespace) -> str:
+    from analytics.framework_fidelity import analysis_judge_model
+    from config.models import model_api_names
+
+    judge_model = args.judge_model or analysis_judge_model()
+    if judge_model not in model_api_names():
+        raise SystemExit(f"model(s) not in the registry (config/models.yaml): {judge_model}")
+    return judge_model
+
+
+def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
+    with path.open("w", encoding="utf-8") as fh:
+        for r in rows:
+            fh.write(json.dumps(r, ensure_ascii=False) + "\n")
+
+
+def from_sessions(
+    args: argparse.Namespace,
+    *,
+    query: QueryFn | None,
+    judge: JudgeFn | None,
+    sleep: SleepFn = asyncio.sleep,
+) -> int:
+    """Select real sessions (read-only BigQuery), then — only with --go — judge
+    them. --dry-run and a bare invocation make ZERO model calls."""
+    import secrets
+
+    from analytics import session_discrimination as sd
+    from frameworks.loader import ready_frameworks
+
+    if args.since is None:
+        raise SystemExit("--from-sessions needs --since YYYY-MM-DD")
+    until = args.until or datetime.now(UTC).date()
+    min_turns = args.min_turns if args.min_turns is not None else sd.DEFAULT_MIN_TUTOR_TURNS
+    project = f"aipla-{args.env}-2026"
+    # The Makefile defaults GOOGLE_CLOUD_PROJECT to dev; --env is the one that counts here.
+    os.environ["GOOGLE_CLOUD_PROJECT"] = project
+    if query is None:
+        from db.bigquery import run_query
+
+        query = run_query
+    frameworks = ready_frameworks()
+    order = [f.id for f in frameworks]
+    judge_model = _sessions_judge_model(args)
+    view = _sessions_view(args.env)
+
+    sel = sd.select_sessions(
+        query,
+        view,
+        since=args.since,
+        until=until,
+        min_turns=min_turns,
+        tutors=_csv(args.tutor),
+        frameworks=_csv(args.framework),
+        max_sessions=args.max_sessions,
+    )
+    plan = sd.plan_session_calls(sel.sessions, frameworks, judge_model)
+    costs = plan.cost_eur()
+    est_total = sum(costs.values())
+    selection_md = sd.render_selection(sel, order, min_turns)
+    cost_line = ", ".join(
+        f"{m} EUR {c:.2f} ({plan.tokens[m][0]:,} in / {plan.tokens[m][1]:,} out tok)" for m, c in costs.items()
+    )
+    print(
+        "\n".join(
+            [
+                "BENCH tutor discrimination — from real sessions (read-only selection)",
+                f"  project       : {project} · view {view}",
+                f"  window        : {args.since} .. {until} (inclusive, UTC) · min tutor turns {min_turns}",
+                f"  filters       : tutor={args.tutor or 'all'} · framework={args.framework or 'all'}"
+                f" · max-sessions={args.max_sessions or 'none'}",
+                f"  sessions      : {len(sel.sessions)} in {len({s.group_id for s in sel.sessions})} groups",
+                f"  judge model   : {judge_model} (blind; analysis model) · approaches judged: {len(order)}",
+                f"  fit calls     : {plan.fit_calls} · tone calls: {plan.tone_calls} · sycophancy: 0 (no planted claim)",
+                f"  TOTAL CALLS   : {plan.total_calls} (before any 429/5xx retries; zero tutor calls)",
+                f"  est. cost     : {cost_line or 'EUR 0.00'}",
+                f"  est. total    : EUR {est_total:.2f} (rough: chars/4 tokens, generous output sizes)",
+                "",
+                selection_md,
+            ]
+        )
+    )
+    if args.dry_run:
+        print("\n--dry-run: no model was called (one read-only BigQuery selection only).")
+        return 0
+    if not args.go:
+        print("\nRefusing to call any model without --go. The judge costs real money; get M's go-ahead first.")
+        return 2
+    if not sel.sessions:
+        print("\nNo sessions selected; nothing to judge.")
+        return 0
+
+    os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "global")
+    from analytics.framework_discrimination import FIT_PROMPT_VERSION, TONE_PROMPT_VERSION, resolve_judge
+    from analytics.model_retry import call_with_retry
+
+    judge_retries = [0]
+
+    def _count(_attempt: int, _desc: str) -> None:
+        judge_retries[0] += 1
+
+    async def retrying_judge(prompt: str, model: str) -> str:
+        base = resolve_judge(judge)  # resolved per call, so a patched seam is honoured
+        return await call_with_retry(
+            lambda: base(prompt, model),
+            label=f"judge {model}",
+            attempts=args.retry_attempts,
+            sleep=sleep,
+            on_retry=_count,
+        )
+
+    started = time.monotonic()
+    transcripts = sd.fetch_transcripts(query, view, sel.sessions, since=args.since, until=until)
+    # Per-run salt, never written: a group code is a small space, so an unsalted
+    # (or recorded-salt) hash could be reversed by hashing candidates.
+    salt = os.environ.get("BENCH_GROUP_SALT") or secrets.token_hex(16)
+    rows = asyncio.run(
+        sd.judge_sessions(
+            sel.sessions,
+            transcripts,
+            frameworks,
+            judge_model=judge_model,
+            judge=retrying_judge,
+            salt=salt,
+            concurrency=args.concurrency,
+        )
+    )
+    out_dir = args.out or DEFAULT_OUT_ROOT / f"sessions-{datetime.now(UTC).strftime('%Y%m%dT%H%M%SZ')}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    revision = _git_revision()
+    _write_jsonl(
+        out_dir / "transcripts.jsonl",
+        [
+            {
+                "sessionId": s.session_id,
+                "frameworkId": s.framework_id,
+                "groupHash": sd.group_hash(s.group_id, salt),
+                "turns": [t.model_dump() for t in transcripts.get(s.session_id, [])],
+            }
+            for s in sel.sessions
+        ],
+    )
+    _write_jsonl(out_dir / "raw_scores.jsonl", [{**r, "revision": revision, "judgeModel": judge_model} for r in rows])
+
+    calls = sum((r["fit"] or {}).get("calls", 0) + (r["tone"] or {}).get("calls", 0) for r in rows)
+    provenance = [
+        f"- Run: {datetime.now(UTC).isoformat(timespec='seconds')} · project `{project}` · "
+        f"{time.monotonic() - started:.0f}s · code revision `{revision or 'unknown'}`",
+        f"- Selection: `{args.since}` .. `{until}` inclusive (UTC) · `teaching_source = 'tutor'` with a framework · "
+        f"student groups only · >= {min_turns} tutor turns · tutor={args.tutor or 'all'} · "
+        f"framework={args.framework or 'all'}",
+        f"- Judge: `{judge_model}` (blind) · fit `{FIT_PROMPT_VERSION}` · tone `{TONE_PROMPT_VERSION}` · "
+        f"judge calls made **{calls}** · retries on 429/5xx {judge_retries[0]} · estimate was EUR {est_total:.2f}",
+        "- Group ids appear nowhere in this directory except as a salted hash in the jsonl files (salt per run, "
+        "not written). `transcripts.jsonl` and `raw_scores.jsonl` hold transcript text and quotes: gitignored, "
+        "for human checking only.",
+    ]
+    report = sd.build_sessions_report(
+        rows,
+        order=order,
+        selection_md=selection_md,
+        provenance=provenance,
+        title=f"Tutor discrimination on classroom sessions — {args.env}, {args.since} .. {until}",
+    )
+    (out_dir / "report.md").write_text(report, encoding="utf-8")
+    print("\n" + _headline_of(report))
+    print(f"\n{calls} judge calls made. Report: {out_dir / 'report.md'}")
+    return 0
+
+
 def _headline_of(report: str) -> str:
     """The headline section of a rendered report, for the terminal."""
     start = report.find("## Headline")
@@ -608,8 +810,11 @@ def main(
     tutor_turn: TutorTurnFn | None = None,
     judge: JudgeFn | None = None,
     sleep: SleepFn = asyncio.sleep,
+    query: QueryFn | None = None,
 ) -> int:
     args = _parse_args(argv)
+    if args.from_sessions:
+        return from_sessions(args, query=query, judge=judge, sleep=sleep)
     if args.report_only is not None:
         target, report = report_only(args.report_only, args.out)
         print(_headline_of(report))

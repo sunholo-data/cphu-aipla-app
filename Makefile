@@ -616,6 +616,13 @@ bench-tutors: ## Tutor discrimination benchmark (ARGS=--dry-run | ARGS=--go; ENV
 	@# template's aitana-platform and finds no platform skills (first --go run, 2026-09-30).
 	@cd backend && GOOGLE_CLOUD_PROJECT=aipla-$(ENV)-2026 PLATFORM_OWNER_UID=aipla-platform uv run python ../scripts/bench-tutor-discrimination.py $(ARGS)
 
+# 1.1.140 M3: the same judge on REAL classroom sessions (chat_turns, teaching_source=tutor,
+# previews excluded). Reads PROD by default (read-only; pass --env in ARGS to change).
+# ARGS="--dry-run --since 2026-09-26 --until 2026-09-30" runs the selection query only.
+.PHONY: bench-tutor-sessions
+bench-tutor-sessions: ## Tutor discrimination on real sessions (ARGS="--dry-run --since YYYY-MM-DD" | add --go)
+	@cd backend && uv run python ../scripts/bench-tutor-discrimination.py --from-sessions $(ARGS)
+
 # Home-screen icon gate (2026-08-14). The PWA shipped in v0.1.18 with icons cut
 # from the ROUNDED aipla-mark.svg, so their corners were transparent. iOS rounds
 # apple-touch-icon itself and, given transparency, shows a blank tile — reported

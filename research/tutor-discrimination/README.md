@@ -122,6 +122,36 @@ test, not a result):
   tone and sycophancy judgements, and the failure reason of a failed transcript.
   Enough to re-score with `--report-only`.
 
+## Real classroom sessions (`--from-sessions`, 1.1.140 M3)
+
+The same blind judge on **real prod sessions** instead of scripted students, to
+answer JB with his own classes. No tutor is called; cost is judge-only
+(~7 fit calls + 1 tone call per session).
+
+```bash
+make bench-tutor-sessions ARGS="--dry-run --since 2026-09-26 --until 2026-09-30"   # selection only, ZERO model calls
+make bench-tutor-sessions ARGS="--go --since 2026-09-26 --until 2026-09-30"        # judge (costs money: M's go-ahead)
+# filters: --env dev|test|prod (default prod) · --min-turns 6 · --tutor mikkel,henrik · --framework esru · --max-sessions N
+```
+
+- **Selection** (read-only BigQuery on `chat_logs.chat_turns`): only
+  `teaching_source = 'tutor'` rows with a `framework_id`, student groups only
+  (`teacher:`, `preview:`, `preview-` excluded), sessions with at least
+  `--min-turns` tutor turns. A session assigned to more than one approach inside
+  the window is excluded and counted. The `[session_start]` sentinel is dropped.
+- **Rows** = the approach the session's tutor was assigned. The report adds an
+  n table (sessions *and* groups per row, small-n flagged) and a tutor-turns
+  histogram, and says what differs from preview: the tutor ran on the full lesson
+  prompt (materials, teacher focus, history, persona), and the dialogues are not
+  matched across approaches.
+- **Privacy (ADR-001).** `report.md` carries counts and scores only, no
+  transcript text and no group ids. `raw_scores.jsonl` and `transcripts.jsonl`
+  carry `sessionId` and a **salted hash** of the group (salt per run, never
+  written), and **do hold transcript text and judge quotes** — they are
+  gitignored, for human checking of the judge only. To reach a group, join back
+  from `sessionId` through the research-logs lens, which is access-controlled.
+- Outputs: `research/tutor-discrimination/sessions-<UTC>/`.
+
 ## Limits worth stating with any result
 
 - A scripted student cannot answer the question the tutor actually asked, so

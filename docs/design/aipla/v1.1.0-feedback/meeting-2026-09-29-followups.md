@@ -127,6 +127,22 @@ Henrik, Jonas, Amina). **This is the direct answer to JB's two complaints with h
 own sessions.** Guard: group ids never leave the report (ADR-001, group grain only),
 and preview-prefixed turns are excluded.
 
+- [x] **Build (2026-09-30)** — `make bench-tutor-sessions` (`scripts/bench-tutor-discrimination.py
+  --from-sessions`, logic in `backend/analytics/session_discrimination.py`). Selects
+  `teaching_source='tutor'` rows with a framework, student groups only; a session reassigned to
+  a second approach inside the window is excluded and counted. Report adds per-row n (sessions
+  and groups, small-n flagged) and a tutor-turns histogram; group ids only as a per-run salted
+  hash in the gitignored jsonl. **Run awaits go.**
+- **Real dry run, prod, 26–30 Sep** (min 6 tutor turns): **14 sessions in 13 groups** — ESRU 7
+  (mikkel) · authentic-dialogue 3 (henrik) · 5E 2 (astrid, 1 group) · CER 1 (jonas) · POE 1
+  (sofie) · Toulmin 0 · Accountable Talk 0. Excluded: 8 under 6 tutor turns, **7 assigned to
+  more than one approach in the window**. 112 judge calls (98 fit + 14 tone), est. **EUR 0.53**
+  on `gemini-3.8-flash`. Only the ESRU row clears small-n; the headline will be ESRU's column plus
+  anecdote, and the 7 mixed sessions (a tutor switched mid-session) are worth a look by hand
+  before the run — they are the closest thing in the data to JB's "different personas gave the
+  same answers".
+- [ ] **Run:** `make bench-tutor-sessions ARGS="--go --since 2026-09-26 --until 2026-09-30"`
+
 ### M4 — Persona ↔ activity contradiction pass (~1.5d) · P2
 
 1. **Detect:** a lint over the *assembled* lesson prompt that flags instructions
