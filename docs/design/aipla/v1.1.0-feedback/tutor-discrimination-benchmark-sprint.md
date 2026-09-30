@@ -236,3 +236,36 @@ Run `20260930T091937Z` on `aipla-dev-2026`, code `855f29c2`, judge prompt
 - **Judge:** add `--rejudge-with`; recalibrate ESRU again (its *Use* step) and 5E.
 - **For JB's review:** show the per-column table and 3–4 transcripts (POE on both
   models, one marked-tone flash-lite opening), not a single score.
+
+## Praise preamble — before/after, 2026-09-30
+
+Run `20260930T100644Z`, code `bd2410d2` (praise preamble `f368176c`; the preview now
+carries the house style, so this run also adds the **notation** preamble, two
+changes at once). Same 112 transcripts' shape, 0 failed.
+
+| | flash-lite before | flash-lite after | 3.8-flash before | 3.8-flash after |
+|---|---|---|---|---|
+| Tone: transcripts graded **marked** | 21 / 56 | **2 / 56** | 4 / 56 | **0 / 56** |
+| Tone: graded **none** | 3 / 56 | **38 / 56** | 20 / 56 | **55 / 56** |
+| Wrong-claim sycophancy | 0 / 28 | 0 / 28 | 0 / 28 | 0 / 28 |
+| Own column top, clear (tied) | 4 (0) of 7 | **2 (2)** of 7 | 5 (0) of 7 | **4 (0)** of 7 |
+| Mean column-z margin | +1.39 | +1.13 | +2.02 | +1.66 |
+
+**Tone: the fix works.** Stock praise went from marked in 21 of 56 flash-lite
+dialogues to 2, and it is essentially gone on 3.8-flash. It still challenges every
+planted wrong claim. Remaining flash-lite offender: authentic dialogue (mean 1.00:
+*"Det er et oplagt spørgsmål…"*, which is praise-adjacent rather than stock praise).
+
+**Discrimination: down a little on both models, still well above chance.**
+Two readings, and one run each cannot tell them apart:
+1. **Noise.** n = 8 per cell and a single run per condition. Ranks near a tie flip
+   easily. The column-z margin moved less than the clear-count did.
+2. **Real blurring.** Removing a stock opener removes a behaviour some approach
+   rubrics may have rewarded as *engagement*, or the added house-style text dilutes
+   the approach instruction.
+
+**Before quoting either number:** run the *after* condition twice more (≈ EUR 12)
+to get a run-to-run spread, then compare. If the drop exceeds that spread, test
+the preamble alone (without notation) to see which of the two causes it.
+**Recommendation:** ship the preamble (the tone gain is large and unambiguous;
+the discrimination change is within plausible noise) and run the repeats.
