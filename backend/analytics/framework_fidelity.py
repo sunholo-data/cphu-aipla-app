@@ -57,7 +57,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from config.models import provider_for_api_name
+from config.models import analysis_model, provider_for_api_name
 from db.framework_overrides import effective_framework
 from db.models.teaching_framework import TeachingFramework
 from reports.session_summary import SessionSummary, SessionTurn
@@ -85,18 +85,10 @@ def analysis_judge_model() -> str:
 
     BENCH-1 (2026-09-30): the judge used to run on ``default_model()`` — the
     same flash-lite the tutor it judges runs on. Judging is after-the-fact batch
-    work, so it moves to ``config.models.analysis_model()`` (lane 1 of BENCH-1).
-
-    ⚠️ The import is local and falls back to the ``smart`` tier, which is what
-    ``analysis_model`` defaults to, so this lane runs before lane 1 merges. Once
-    ``analysis_model`` exists in ``config.models`` the fallback is dead code and
-    can go; it is here instead of a stub in ``config/models.py`` so the two
-    lanes never edit the same file.
+    work, so it moves to ``config.models.analysis_model()``. A named function
+    rather than a bare import so the fit-all profile and the benchmark share
+    one answer to "what does the judge run on".
     """
-    try:
-        from config.models import analysis_model
-    except ImportError:  # lane 1 not merged yet
-        from config.models import smart_model as analysis_model
     return analysis_model()
 
 

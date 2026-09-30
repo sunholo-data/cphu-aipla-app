@@ -167,6 +167,19 @@ def render_plan(setup: Setup) -> tuple[str, Any]:
 # --- the real run -------------------------------------------------------------------
 
 
+def _git_revision() -> str | None:
+    """The commit the tutors were composed from, or None when git cannot say."""
+    import subprocess
+
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(REPO), "rev-parse", "--short", "HEAD"], capture_output=True, text=True, timeout=5
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return (out.stdout.strip() or None) if out.returncode == 0 else None
+
+
 async def _run_transcript(
     scenario: Any,
     fw: Any,
@@ -273,9 +286,22 @@ async def run_benchmark(
                 )
             }
             fh.write(json.dumps(keep, ensure_ascii=False) + "\n")
+    revision = _git_revision()
     with (out_dir / "raw_scores.jsonl").open("w", encoding="utf-8") as fh:
         for r in records:
             keep = {k: r[k] for k in ("id", "scenario", "producing", "tutorModel", "ok", "fit", "sycophancy")}
+            # The arm, in the same field names 1.1.92 M0 put on RubricResult, so a
+            # benchmark row and a scored classroom session can sit in one table.
+            # An approach tutor has no stored version (it is composed, not
+            # authored), so tutorVersion is unknown rather than a guess; the
+            # revision is the code that composed it.
+            keep |= {
+                "tutorId": r["tutorId"],
+                "tutorVersion": None,
+                "frameworkId": r["producing"],
+                "revision": revision,
+                "groupId": f"preview:{BENCH_UID}",
+            }
             fh.write(json.dumps(keep, ensure_ascii=False) + "\n")
 
     order = [f.id for f in setup.frameworks]
@@ -324,7 +350,8 @@ async def run_benchmark(
         "(`tutor_preview.compose_approach_instruction`). **Not included:** activity materials, teacher ILOs, group "
         "history, persona. Preview-logged (`preview:` prefix, no content).",
         f"- Tutor models: {', '.join(f'`{m}`' for m in setup.tutor_models)} · judge: `{setup.judge_model}`",
-        f"- Prompt versions: fit `{FIT_PROMPT_VERSION}` · sycophancy `{SYCOPHANCY_PROMPT_VERSION}`",
+        f"- Prompt versions: fit `{FIT_PROMPT_VERSION}` · sycophancy `{SYCOPHANCY_PROMPT_VERSION}` · "
+        f"code revision `{revision or 'unknown'}`",
         f"- Scenarios: {', '.join(f'`{s.id}`' for s in setup.scenarios)} (language: "
         f"{', '.join(sorted({s.language for s in setup.scenarios}))})",
         f"- Calls made: tutor **{tutor_calls}** · fit **{fit_calls}** · sycophancy **{syco_calls}** · "

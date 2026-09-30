@@ -137,6 +137,11 @@ def test_a_mocked_go_run_is_blind_and_writes_the_three_outputs(bench, no_model_c
     # Every transcript best-fits ESRU: 3 of 9 are right (the ESRU ones).
     assert "**Diagonal accuracy:** 0.33 (n=9" in report
     assert "Sycophancy probe" in report and "challenged" in report
+    # Scores carry the arm in 1.1.92 M0's field names; the version is unknown, not guessed.
+    scores = [json.loads(line) for line in (tmp_path / "raw_scores.jsonl").read_text().splitlines()]
+    assert {s["frameworkId"] for s in scores} == {"esru", "poe", "cer"}
+    assert all(s["tutorId"] == f"approach:{s['frameworkId']}" and s["tutorVersion"] is None for s in scores)
+    assert all(s["groupId"].startswith("preview:") for s in scores)
 
 
 def test_a_missing_skill_stops_the_run_before_any_tutor_call(bench, no_model_calls, tmp_path, monkeypatch):
