@@ -196,10 +196,14 @@ with no dependency. Everything below can slip; this cannot.
    guides, seeded corpus, help text: `<slug>.md` + `<slug>.da.md`, English the
    default and the fallback. A surface that ships single-language ships with a
    `// locale: en-only, by decision <ref>` comment or it is a bug.
-3. **Language is never inferred from the browser.** Student surfaces resolve
-   from `activity.language`; teacher surfaces from `teacher_prefs.locale`;
-   `/project` from the URL edition. `navigator.language` is not read anywhere.
-   (A Danish student in an English activity sees English — the teacher decided.)
+3. **Language is never inferred from the browser.** There are exactly two
+   languages and both are CHOSEN: the **students' language** (`activity.language`,
+   set by the teacher — wins inside an activity, because the tutor speaks it)
+   and the **person's own language** (the DA | EN switch, remembered in this
+   browser — everywhere else). No choice → the site default. `navigator.language`
+   is not read anywhere. (A Danish student in an English activity sees English —
+   the teacher decided. *Revised 2026-09-30 — was `teacher_prefs.locale`; see
+   "The person's language vs the students' language".*)
 4. **Prompt prose does not bake in a language.** A SKILL.md or framework YAML
    says *what* the tutor does; `compose_teacher_focus` says *in which language*,
    from `activity.language`. A new tutor that writes *"svar altid på dansk"*
@@ -402,6 +406,41 @@ English end to end (`<html lang="en">`, no æøå on the page); the Danish class
 Danish; Boldkast received `hostContext.locale: "da"` read from inside its
 iframe. An English sim was not checked on dev — no English activity there
 carries one.
+
+### The person's language vs the students' language (2026-09-30)
+
+M, 2026-09-30: *"we need a user's language setting (e.g. English) vs the
+students language (e.g. Danish) and a user's settings are remembered locally."*
+The bilingual "Dansk / English" surfaces had become clutter, and there was no
+switch at all.
+
+| | Chosen by | Stored | Governs |
+|---|---|---|---|
+| **Students' language** | the teacher, per activity | `activity.language` (server) | the student surface inside that activity, the tutor's replies, the sim, `<html lang>` there; the teacher's live preview of it |
+| **Person's language** | anyone, with the DA \| EN switch | `localStorage["aipla.uiLocale"]` (this browser) | everything outside an activity: homepage, join page, lesson picker, footer, and teacher screens as M2 translates them |
+
+- **Default** when a person has not chosen: the site default (`DEFAULT_LOCALE`,
+  Danish). Rule M4.3 holds — nothing is read from the browser.
+- **Lesson picker:** the person's choice if they made one; otherwise the class's
+  language when every activity agrees; otherwise the default. The bilingual
+  mode is no longer used on any page.
+- **`<html lang>` belongs to the deepest provider** that claims it (the
+  activity inside the user root) — React runs child effects first, so "last
+  effect wins" would have handed it back to the root.
+- **The switch** sits in the footer (every public page), the homepage, the join
+  page, the lesson picker's top bar and the teacher's account menu. Each option
+  is written in its own language.
+- **Teacher shell deliberately NOT translated piecemeal.** The account menu
+  gained the switch but keeps its English copy: translating one menu inside an
+  English shell recreates the mixed screen. M2 translates the shell as a whole;
+  until then the switch changes the public surfaces and footer only, on teacher
+  pages. This supersedes `teacher_prefs.locale` (M1's original plan) — a
+  per-browser preference was asked for; syncing it to the account is a later
+  option, not a need.
+- **Known seam:** the page renders the default before the stored choice is read
+  (server render → client effect), so an English-choosing visitor sees a brief
+  Danish first paint on public pages. A cookie read on the server would remove
+  it; not done — the cost is one frame on pages without an activity.
 
 ### M1 — Locale resolution (~0.5d)
 

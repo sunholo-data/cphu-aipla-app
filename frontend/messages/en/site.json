@@ -1,0 +1,35 @@
+{
+  "LanguageSwitch": {
+    "label": "Language",
+    "da": "Dansk",
+    "en": "English"
+  },
+  "SiteFooter": {
+    "project": "The project",
+    "app": "The app",
+    "about": "About",
+    "guides": "Guides",
+    "join": "Join your group",
+    "teacherSignIn": "Teacher sign-in",
+    "aboutAipla": "About AIPLA",
+    "privacy": "Privacy",
+    "terms": "Terms",
+    "credits": "Credits",
+    "officialPage": "Official project page",
+    "announcement": "Project announcement",
+    "newTab": "(opens in a new tab)",
+    "hosted": "Hosted by <b>{department}</b>, {university}. Funded by the {funder}, {period}.",
+    "engineering": "AI platform engineering",
+    "engineeringSuffix": "by Sunholo"
+  },
+  "HomeEntry": {
+    "join": "Join your group →",
+    "guides": "Guides",
+    "aboutProject": "About the AIPLA project"
+  },
+  "TeacherEntryLink": {
+    "signIn": "Are you a teacher? Sign in",
+    "signedIn": "Go to your classes →",
+    "signedInAs": "Signed in as {email}"
+  }
+}

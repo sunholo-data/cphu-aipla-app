@@ -1,6 +1,6 @@
 import { BackendHealthBadge } from "@/components/BackendHealthBadge";
 import { SignInButton } from "@/components/SignInButton";
-import { TeacherEntryLink } from "@/components/site/TeacherEntryLink";
+import { HomeEntryLinks } from "@/components/site/HomeEntryLinks";
 import { skillHref } from "@/components/navigation/skillHref";
 import { BRANDING } from "@/lib/branding";
 import Link from "next/link";
@@ -62,27 +62,7 @@ export default async function HomePage() {
           // AIPLA v0.1 — anonymous group join is the primary student-facing
           // auth path. Students go straight to /group; teachers get a quiet
           // secondary link to the email/Google sign-in (ADR-001 teacher auth).
-          <div className="flex flex-col items-center gap-3">
-            <Link
-              href="/group"
-              className="rounded-lg bg-primary px-6 py-3 text-primary-foreground font-medium hover:opacity-90 transition-opacity"
-            >
-              Tilslut din gruppe / Join your group →
-            </Link>
-            <TeacherEntryLink />
-            <Link
-              href="/guides"
-              className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-            >
-              Vejledninger <span className="opacity-70">/ Guides</span>
-            </Link>
-            <Link
-              href="/project"
-              className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-            >
-              About the AIPLA project
-            </Link>
-          </div>
+          <HomeEntryLinks />
         ) : (
           <SignInButton />
         )}
