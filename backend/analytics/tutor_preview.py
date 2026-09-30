@@ -216,8 +216,13 @@ async def run_preview_dialogue_turn(
         token_in = getattr(usage, "prompt_token_count", None) or 0
         token_out = getattr(usage, "candidates_token_count", None) or 0
     except Exception as exc:
-        log.warning("tutor preview dialogue turn failed for %s: %s", composed.get("tutorId"), type(exc).__name__)
-        return {"ok": False, "tutorId": composed.get("tutorId"), "error": type(exc).__name__}
+        from analytics.model_retry import describe_error, status_of
+
+        # The message and status, not just the class: BENCH-1 lost two transcripts
+        # to a bare "ClientError" and could not say whether it was a 400 or a 429.
+        desc = describe_error(exc)
+        log.warning("tutor preview dialogue turn failed for %s: %s", composed.get("tutorId"), desc)
+        return {"ok": False, "tutorId": composed.get("tutorId"), "error": desc, "status": status_of(exc)}
 
     _log_preview_turn(composed["tutorId"], composed, uid=uid, model=model, turn_index=turn_index)
     return {"ok": True, "tutorId": composed["tutorId"], "reply": text, "tokenIn": token_in, "tokenOut": token_out}
