@@ -20,8 +20,11 @@ from protocols.client_error_routes import router
 
 @pytest.fixture
 def client(monkeypatch) -> TestClient:
-    """A client whose limiter starts empty for every test."""
+    """A client whose limiter starts empty for every test, and frozen in time so a
+    slow CI box cannot refill a token mid-loop (the env-beacon twin of this test
+    failed a dev deploy that way, 2026-09-30)."""
     client_error_routes._limiter.reset_all()
+    monkeypatch.setattr(client_error_routes._limiter, "time_provider", lambda: 1_000.0)
     test_app = FastAPI()
     test_app.include_router(router)
     return TestClient(test_app)

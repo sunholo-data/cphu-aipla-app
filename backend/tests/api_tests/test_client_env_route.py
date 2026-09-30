@@ -36,9 +36,13 @@ GOOD = {
 
 
 @pytest.fixture
-def client() -> TestClient:
-    client_error_routes._limiter.reset_all()
-    client_error_routes._env_limiter.reset_all()
+def client(monkeypatch) -> TestClient:
+    """Limiters start empty AND frozen in time. The env bucket refills ~1 token/s,
+    so on a slow CI box a 300-post loop outlasts a second and the 301st post is
+    allowed. That failed the dev deploy of 6c73be3 (2026-09-30)."""
+    for limiter in (client_error_routes._limiter, client_error_routes._env_limiter):
+        limiter.reset_all()
+        monkeypatch.setattr(limiter, "time_provider", lambda: 1_000.0)
     app = FastAPI()
     app.include_router(router)
     return TestClient(app)
