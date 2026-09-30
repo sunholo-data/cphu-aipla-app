@@ -180,7 +180,17 @@ simultaneously — prod running code test had never been verified on.
 >
 > `make deploy-status` prints the sandbox version per env alongside ui/backend,
 > so a sandbox that has run ahead of the app is visible there — expect it after
-> any tag, and treat sandbox ahead of ui as normal rather than as drift to fix.
+> any tag that changes a sim, and treat sandbox ahead of ui as normal rather
+> than as drift to fix.
+>
+> **Since 1.1.140 M7 (2026-09-30) a tag with no sandbox change is a no-op.**
+> The first step of `infrastructure/mcp-sandbox/cloudbuild.yaml`
+> (`sandbox-changed`) diffs `infrastructure/mcp-sandbox/` between the tag the
+> live service is running and the new tag, and compares `ALLOWED_HOST_ORIGINS`;
+> if neither moved, build/push/deploy print `skipped` and the live revision is
+> kept (the smoke step still runs). So the sandbox version in `deploy-status`
+> now also sits **behind** ui for tags that touched no sim — normal, not drift.
+> It fails open: any read it cannot complete deploys, as before.
 
 ---
 
@@ -387,6 +397,12 @@ locally, and the build will use the TAG's code, not yours.
 artefact HTML built deterministically from the tag — there is no tested digest to
 preserve and the promote pipeline does not carry it. A bad sandbox deploy
 degrades sims, not the tutor. This asymmetry is a decision, not an oversight.
+What it no longer does (1.1.140 M7) is roll the host on a tag that changed no
+sim: see the `sandbox-changed` skip gate above. A tag trigger's `included_files`
+was not used for this because Cloud Build documents its changed-files diff only
+for branch pushes; for a new tag the semantics are undefined, and a filter that
+diffed only the tagged commit would silently drop sim changes made earlier in
+the release.
 
 ---
 

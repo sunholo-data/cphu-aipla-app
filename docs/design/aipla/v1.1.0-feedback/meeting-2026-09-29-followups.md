@@ -155,7 +155,23 @@ already ranked at parity with flash-lite. Run on the existing GPU path
 path's analysis step (not recording, which is separate) meets its latency budget on
 the local model. Take the question to the **Klaus (Brighton) call, Thu 13:00**.
 
-### M7 — Release plumbing (~0.5d) · P2
+### M7 — Release plumbing (~0.5d) · P2 · ✅ built 2026-09-30
+
+> **Built.** `make release-notes FROM=… [TO=…] [ALL=1]` (`scripts/release_notes.py`,
+> stdlib-only, tests `scripts/tests/test_release_notes.py`, CI `local-mode-safety`).
+> Deviations from the plan below: `build:` is **kept** (as *behind the scenes*,
+> with `fix(test)`, `refactor`, `ci` and infra scopes); `docs:`/`test:`/`chore:`
+> are excluded unless `ALL=1`; notes are one section per tag, newest first.
+> **The sandbox half is a skip step, not `includedFiles`, and needs no
+> terraform:** Cloud Build documents the changed-files diff for branch pushes
+> only, so for a new tag it is undefined — and a filter that diffed only the
+> tagged commit would silently drop a sim change made earlier in the release.
+> `infrastructure/mcp-sandbox/cloudbuild.yaml` now starts with `sandbox-changed`,
+> which diffs `infrastructure/mcp-sandbox/` (the whole docker context) between the
+> **live** image's tag and the new one and compares `ALLOWED_HOST_ORIGINS`; it
+> fails open (deploys) on any read it cannot complete. Takes effect on the next
+> `v*` tag, since the triggers read the YAML from the tag. See
+> [deploy.md](../../../ops/runbooks/deploy.md).
 
 - `make release-notes FROM=v0.1.69 TO=v0.1.74` prints teacher-readable notes
   from conventional-commit subjects, grouped as *teachers / students / researchers /

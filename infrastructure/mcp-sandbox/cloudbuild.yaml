@@ -38,55 +38,125 @@ options:
 logsBucket: ${_LOGS_BUCKET}
 
 steps:
+  # --- Skip gate: a release tag with no sandbox change does not roll the host ---
+  # 1.1.140 M7. The test/prod sandbox triggers fire on EVERY `v*` tag, so each
+  # release rebuilt and redeployed the sim host even when nothing under
+  # infrastructure/mcp-sandbox/ had moved: a new revision on prod mid-lesson for
+  # zero change.
+  #
+  # WHY A STEP AND NOT `included_files` ON THE TRIGGER: Cloud Build documents
+  # the changed-files diff only for branch pushes ("between the commit you just
+  # pushed and the commit to which the branch previously pointed"). A new tag
+  # has no previous pointer and the docs give no semantics for it. If it diffs
+  # only the tagged commit against its parent, a sandbox change landed EARLIER
+  # in the release range is invisible and a legitimate sim deploy silently never
+  # happens, which is worse than the churn this removes.
+  #
+  # WHAT IT COMPARES AGAINST: the tag of the image the service is running NOW,
+  # not "the previous v* tag". A tag whose sandbox build failed or was skipped
+  # therefore cannot hide a change from the next one.
+  #
+  # INPUTS: the docker build context is infrastructure/mcp-sandbox/ (the
+  # Dockerfile COPYs only from there) and this file lives there too, so that
+  # directory is the whole source input. The one non-git input is
+  # _ALLOWED_HOST_ORIGINS (a trigger substitution from terraform), compared
+  # against the live env var.
+  #
+  # FAILS OPEN: any read it cannot complete (no git metadata, fetch fails,
+  # describe fails, live tag unknown to git) means DEPLOY, never skip. A checker
+  # that could not read its subject must not produce the reassuring answer.
+  # Branch builds (the dev trigger, TAG_NAME empty) always deploy.
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: sandbox-changed
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        rm -f /workspace/.sandbox-unchanged
+        deploy() { echo "sandbox gate: DEPLOY ($$1)"; exit 0; }
+        [ -n "${TAG_NAME}" ] || deploy "branch build, no tag"
+        command -v git >/dev/null || deploy "git not available"
+        git rev-parse --git-dir >/dev/null 2>&1 || deploy "no git metadata in workspace"
+        SVC_JSON=$(gcloud run services describe ${_SERVICE_NAME} \
+          --region=${_REGION} --project=${_PROJECT_ID} --format=json) \
+          || deploy "cannot read the live service"
+        LIVE_IMAGE=$(printf '%s' "$$SVC_JSON" | python3 -c 'import json,sys; print(json.load(sys.stdin)["spec"]["template"]["spec"]["containers"][0]["image"])') \
+          || deploy "cannot parse the live image"
+        LIVE_TAG="$${LIVE_IMAGE##*:}"
+        [ -n "$$LIVE_TAG" ] && [ "$$LIVE_TAG" != "$$LIVE_IMAGE" ] || deploy "live image has no tag"
+        LIVE_ORIGINS=$(printf '%s' "$$SVC_JSON" | python3 -c 'import json,sys; env=json.load(sys.stdin)["spec"]["template"]["spec"]["containers"][0].get("env",[]); print(next((v.get("value","") for v in env if v.get("name")=="ALLOWED_HOST_ORIGINS"),""))') \
+          || deploy "cannot parse the live env"
+        [ "$$LIVE_ORIGINS" = "${_ALLOWED_HOST_ORIGINS}" ] || deploy "ALLOWED_HOST_ORIGINS differs from the live service"
+        git fetch --quiet --force --tags --unshallow origin 2>/dev/null \
+          || git fetch --quiet --force --tags origin 2>/dev/null \
+          || git fetch --quiet --force --tags "https://github.com/${REPO_FULL_NAME}.git" 2>/dev/null \
+          || deploy "cannot fetch tags"
+        git rev-parse --verify --quiet "refs/tags/$$LIVE_TAG^{commit}" >/dev/null || deploy "live image tag $$LIVE_TAG is not a git tag"
+        git rev-parse --verify --quiet "refs/tags/${TAG_NAME}^{commit}" >/dev/null || deploy "tag ${TAG_NAME} not found in git"
+        if git diff --quiet "refs/tags/$$LIVE_TAG" "refs/tags/${TAG_NAME}" -- infrastructure/mcp-sandbox; then
+          echo "sandbox gate: SKIP (nothing under infrastructure/mcp-sandbox/ changed between live $$LIVE_TAG and ${TAG_NAME}; live revision kept)"
+          touch /workspace/.sandbox-unchanged
+        else
+          git diff --stat "refs/tags/$$LIVE_TAG" "refs/tags/${TAG_NAME}" -- infrastructure/mcp-sandbox | tail -n 20
+          deploy "sandbox changed since live $$LIVE_TAG"
+        fi
+
   # --- Build the sandbox image ---
   - name: 'gcr.io/cloud-builders/docker'
     id: build-mcp-sandbox
+    waitFor: ['sandbox-changed']
     dir: infrastructure/mcp-sandbox
+    entrypoint: bash
     args:
-      - 'build'
-      - '-t'
-      - '${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/sandbox:${_IMAGE_TAG}'
-      - '.'
+      - '-c'
+      - |
+        if [ -f /workspace/.sandbox-unchanged ]; then echo "skipped: sandbox unchanged"; exit 0; fi
+        docker build -t '${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/sandbox:${_IMAGE_TAG}' .
 
   # --- Push image ---
   - name: 'gcr.io/cloud-builders/docker'
     id: push-mcp-sandbox
     waitFor: ['build-mcp-sandbox']
+    entrypoint: bash
     args:
-      - 'push'
-      - '${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/sandbox:${_IMAGE_TAG}'
+      - '-c'
+      - |
+        if [ -f /workspace/.sandbox-unchanged ]; then echo "skipped: sandbox unchanged"; exit 0; fi
+        docker push '${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/sandbox:${_IMAGE_TAG}'
 
   # --- Deploy to Cloud Run (single container, public) ---
+  #
+  # "--set-env-vars=^|^..." CHANGES THE DELIMITER, and it is required here. By
+  # default gcloud splits --set-env-vars on COMMAS, and ALLOWED_HOST_ORIGINS is
+  # itself a comma-separated list (the run.app origin AND the ku.dk one, so both
+  # work during the domain cutover). Without this, gcloud read the second origin
+  # as a second variable with no '=' and failed the whole deploy with "Bad syntax
+  # for dict arg" (build b61db9d2, 2026-08-04).
+  #
+  # '|' not '@': the delimiter must not occur in the value, and while these
+  # origins are URLs (no '@'), the sibling fix in the root cloudbuild.yaml used
+  # ^@^ against a service-account email and split it in half. In THIS bash step
+  # '|' is also a pipe, so the whole flag MUST stay double-quoted (make
+  # check-cloudbuild enforces it; the v0.1.33 promote died on exactly that).
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
-    entrypoint: gcloud
+    id: deploy-mcp-sandbox
     waitFor: ['push-mcp-sandbox']
+    entrypoint: bash
     args:
-      - 'run'
-      - 'deploy'
-      - '${_SERVICE_NAME}'
-      - '--region=${_REGION}'
-      - '--project=${_PROJECT_ID}'
-      - '--platform=managed'
-      - '--allow-unauthenticated'           # browser-loaded iframe; allUsers
-      - '--max-instances=3'
-      - '--image=${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/sandbox:${_IMAGE_TAG}'
-      - '--port=8080'
-      - '--memory=512Mi'
-      - '--cpu=1'
-      # ^@^ CHANGES THE DELIMITER, and it is required here. By default gcloud
-      # splits --set-env-vars on COMMAS, and ALLOWED_HOST_ORIGINS is itself a
-      # comma-separated list (the run.app origin AND the ku.dk one, so both work
-      # during the domain cutover). Without this, gcloud read the second origin
-      # as a second variable with no '=' and failed the whole deploy with
-      # "Bad syntax for dict arg" — build b61db9d2, 2026-08-04.
-      #
-      # The value was single-valued when this line was written, so the bug was
-      # latent until the day a second origin was added.
-      # '|' not '@': the delimiter must not occur in the value, and while these
-      # origins are URLs (no '@'), the sibling fix in the root cloudbuild.yaml
-      # used ^@^ against a service-account email and split it in half. Same
-      # delimiter in both places, chosen so it is safe for emails AND URLs.
-      - '--set-env-vars=^|^ALLOWED_HOST_ORIGINS=${_ALLOWED_HOST_ORIGINS}'
+      - '-c'
+      - |
+        if [ -f /workspace/.sandbox-unchanged ]; then echo "skipped: sandbox unchanged, live revision kept"; exit 0; fi
+        gcloud run deploy ${_SERVICE_NAME} \
+          --region=${_REGION} \
+          --project=${_PROJECT_ID} \
+          --platform=managed \
+          --allow-unauthenticated \
+          --max-instances=3 \
+          --image='${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/sandbox:${_IMAGE_TAG}' \
+          --port=8080 \
+          --memory=512Mi \
+          --cpu=1 \
+          "--set-env-vars=^|^ALLOWED_HOST_ORIGINS=${_ALLOWED_HOST_ORIGINS}"
 
   # --- Smoke probe ---
   # cloud-sdk image has both gcloud + curl. Resolve the service URL after
