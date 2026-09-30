@@ -584,8 +584,28 @@ class RubricResult(BaseModel):
     partition_summary: dict[str, int] = Field(default_factory=dict, alias="partitionSummary")
     #: RUBRIC-2 M2 — uploaded evidence the judge saw (``doc:{id}``/``image:{id}``).
     evidence_refs: list[str] = Field(default_factory=list, alias="evidenceRefs")
+    #: 1.1.92 M0 (BENCH-1) — the ARM this session ran under, so scores can be
+    #: compared by tutor. Read from the session's own chat-turn stamps (TUTOR-5),
+    #: never re-derived from what the class teaches with today. ⚠️ UNKNOWN STAYS
+    #: UNKNOWN: a session from before the stamp reads null, never a default tutor.
+    tutor_id: str | None = Field(default=None, alias="tutorId")
+    tutor_version: int | None = Field(default=None, alias="tutorVersion")
+    framework_id: str | None = Field(default=None, alias="frameworkId")
+    revision: str | None = Field(default=None, alias="revision")
+    group_id: str | None = Field(default=None, alias="groupId")
 
     model_config = ConfigDict(populate_by_name=True)
+
+
+def _arm(summary: SessionSummary) -> dict[str, Any]:
+    """The arm fields for a result, straight off the summary — no defaults."""
+    return {
+        "tutorId": summary.tutor_id,
+        "tutorVersion": summary.tutor_version,
+        "frameworkId": summary.framework_id,
+        "revision": summary.revision,
+        "groupId": summary.group_code,
+    }
 
 
 def _abstain(summary: SessionSummary, config: LensConfig, partition: EvidencePartition, reason: str) -> RubricResult:
@@ -598,6 +618,7 @@ def _abstain(summary: SessionSummary, config: LensConfig, partition: EvidencePar
         abstained=True,
         abstainReason=reason,
         partitionSummary=partition.summary,
+        **_arm(summary),
     )
 
 
@@ -682,6 +703,7 @@ async def score_session_summary(summary: SessionSummary, lens_id: str) -> Rubric
         profile=profile,
         partitionSummary=partition.summary,
         evidenceRefs=evidence.refs,
+        **_arm(summary),
     )
 
 

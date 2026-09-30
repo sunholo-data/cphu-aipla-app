@@ -112,6 +112,7 @@ def _turns_cte() -> str:
         SAFE_CAST(SAFE_CAST({j.format("latency_ms")} AS FLOAT64) AS INT64) AS latency_ms,
         {j.format("teacher_focus")} AS teacher_focus,
         {j.format("tutor_id")} AS tutor_id,
+        SAFE_CAST(SAFE_CAST({j.format("tutor_version")} AS FLOAT64) AS INT64) AS tutor_version,
         {j.format("framework_id")} AS framework_id,
         {j.format("persona_id")} AS persona_id,
         {j.format("class_id")} AS class_id,

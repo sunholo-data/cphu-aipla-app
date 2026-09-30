@@ -127,6 +127,12 @@ class TeachingContext:
     #: activity/class fields did. Distinguishes "no framework was configured"
     #: from "a tutor was chosen that carries none" — different findings.
     source: str
+    #: 1.1.92 M0 (BENCH-1) — the version of the tutor that taught. An edited
+    #: tutor bumps ``version``, so (tutor_id, tutor_version) is the arm; without
+    #: the version, scores from before and after an edit share one cell. Stamped
+    #: here for the same reason as the rest: the tutor doc's CURRENT version is
+    #: not the version that taught a past turn. None when no tutor decided.
+    tutor_version: int | None = None
 
 
 _PASSTHROUGH = TeachingResolution(
@@ -242,6 +248,7 @@ def resolve_teaching_context(
             activity_id=activity_id,
             interaction_style=register,
             source=r.source,
+            tutor_version=r.tutor.version if r.tutor is not None else None,
         )
     except Exception as exc:
         log.warning("resolve_teaching_context: failed for activity=%s: %s", activity_id, exc)

@@ -49,6 +49,8 @@ CHAT_TURN_KEYS = {
     # in create_agent and carried to the emitter, so the log records the same
     # context the tutor's prompt was built from rather than a second derivation.
     "tutor_id",
+    # 1.1.92 M0 — which edit of the tutor taught; (tutor_id, tutor_version) is the arm.
+    "tutor_version",
     "framework_id",
     "persona_id",
     "class_id",
