@@ -9,7 +9,8 @@ telemetry at all. Found the honest way: M took a live co-pilot turn on dev and
 asked what it cost, and nothing could answer.
 
 The two properties that must both hold, and which pull in opposite directions:
-teacher spend is VISIBLE, and teacher content is NOT LOGGED.
+teacher spend is VISIBLE, and — since 2026-09-30 — teacher content is logged
+too, under the `teacher:` key the research lens excludes.
 """
 
 from __future__ import annotations
@@ -77,29 +78,24 @@ def test_token_counts_survive():
     assert tutor[0]["token_out"] == 130
 
 
-# --- Not logged -------------------------------------------------------------
+# --- Content (logged since 2026-09-30) -------------------------------------
 
 
-def test_a_teachers_transcript_is_NEVER_logged():
-    """The ADR-001 line, and not a compromise: the cost question needs model +
-    token counts, never the words.
+def test_teacher_turns_carry_their_transcript():
+    """A co-pilot turn nobody can read cannot be debugged (2026-09-30)."""
+    calls = _run(TEACHER_UID)
+    contents = [c["content"] for c in calls]
+    assert "how many students finished?" in contents
+    assert "Twelve of eighteen." in contents
 
-    A teacher's chat can quote a student's work — analytics-chat exists to
-    discuss it — so logging teacher content would add a student-PII surface by
-    the back door. Which is exactly what the original blanket `return` was
-    protecting against, over-broadly.
-    """
+
+def test_teacher_turns_stay_under_the_prefix_the_research_lens_excludes():
+    from analytics.research_logs import NON_STUDENT_PREFIXES
+
     calls = _run(TEACHER_UID)
     assert calls
-    for c in calls:
-        assert c["content"] == "", f"teacher content leaked into the log: {c['content']!r}"
-
-
-def test_no_teacher_email_or_transcript_anywhere_in_the_payload():
-    calls = _run(TEACHER_UID)
-    blob = repr(calls)
-    assert "how many students finished?" not in blob
-    assert "Twelve of eighteen." not in blob
+    assert all(c["group_id"] == f"teacher:{TEACHER_UID}" for c in calls)
+    assert "teacher:" in NON_STUDENT_PREFIXES
 
 
 # --- Students are unchanged -------------------------------------------------

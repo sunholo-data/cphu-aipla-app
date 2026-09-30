@@ -93,13 +93,16 @@ def _emit_new_turns(
         # enforcer meters on (`teacher:{uid}`), so spend reconciles across the
         # two systems instead of each seeing half.
         #
-        # WITHOUT CONTENT. That is the ADR-001 line, and it is not a compromise:
-        # the cost question needs model + token counts, never the transcript.
-        # A teacher's chat can quote a student's work (analytics-chat exists to
-        # discuss it), so logging teacher content would add a student-PII
-        # surface by the back door — which is precisely what the original
-        # `return` was protecting against, over-broadly.
-        log_content = bool(group_code)
+        # WITH CONTENT, since 2026-09-30. Ring 3 logged teacher turns for cost
+        # only, on the reasoning that analytics-chat can quote student work.
+        # But the student work it quotes is already in this table under its
+        # group code, and a co-pilot turn nobody can read cannot be debugged:
+        # when a teacher reports "the assistant did something odd", the
+        # transcript is the only evidence. M decided teacher chats are logged.
+        #
+        # They stay out of the RESEARCH lens by construction — the `teacher:`
+        # prefix is in `analytics.research_logs.NON_STUDENT_PREFIXES`, so a
+        # teacher's conversation never reads as classroom evidence.
         if not group_code:
             if not owner_uid:
                 return
@@ -182,10 +185,9 @@ def _emit_new_turns(
                 activity_id=getattr(teaching, "activity_id", None),
                 interaction_style=getattr(teaching, "interaction_style", None),
                 teaching_source=getattr(teaching, "source", None),
-                # Student turns carry the transcript (that IS the research
-                # data); teacher turns carry only its length, which answers
-                # "was this a long context?" without quoting anyone.
-                content=text if log_content else "",
+                # Every turn carries its transcript — students' is the research
+                # data, teachers' is how a co-pilot turn gets debugged.
+                content=text,
                 model=turn_model if role == "tutor" else None,
                 token_in=token_in,
                 token_out=token_out,

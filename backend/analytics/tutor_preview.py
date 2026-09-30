@@ -15,10 +15,12 @@ alone tells you what it said; two tell you what the approach changed.
 
 ## No student data, and nothing that can read as teaching
 
-The author's own turns only. Turns are logged under ``preview:{uid}``, WITHOUT
-content, so:
+The author's own turns only. Turns are logged under ``preview:{uid}``, with the
+author's message and the tutor's reply (since 2026-09-30 — before that, cost
+only), so:
 
-* spend stays visible (a preview costs real money — ACCESS-1's whole point), and
+* spend stays visible (a preview costs real money — ACCESS-1's whole point),
+* a reviewer's "the tutor said something odd" can be looked up, and
 * the researcher chat-log lens excludes them by construction
   (``analytics.research_logs.NON_STUDENT_PREFIXES``).
 
@@ -180,7 +182,7 @@ async def run_preview_turn(tutor_id: str, message: str, *, uid: str) -> dict[str
         log.warning("tutor preview failed for %s: %s", tutor_id, type(exc).__name__)
         return {"ok": False, "tutorId": tutor_id, "error": f"the tutor did not answer ({type(exc).__name__})"}
 
-    _log_preview_turn(tutor_id, composed, uid=uid)
+    _log_preview_turn(tutor_id, composed, uid=uid, message=message, reply=text)
     return {
         "ok": True,
         "tutorId": tutor_id,
@@ -205,8 +207,8 @@ async def run_preview_dialogue_turn(
     contract is unchanged. The benchmark needs a conversation and a model axis,
     so this takes an already-composed instruction (from either compose function),
     the prior turns as ``[{"role": "student"|"tutor", "content": ...}]`` and the
-    tutor model. It logs exactly as a preview does: ``preview:`` prefix, no
-    content, so the turn can never read as classroom evidence.
+    tutor model. It logs exactly as a preview does: ``preview:`` prefix, so the
+    turn can never read as classroom evidence.
     """
     if not composed.get("ok") or not (composed.get("instruction") or "").strip():
         return {"ok": False, "tutorId": composed.get("tutorId"), "error": "nothing to run"}
@@ -236,36 +238,43 @@ async def run_preview_dialogue_turn(
         log.warning("tutor preview dialogue turn failed for %s: %s", composed.get("tutorId"), desc)
         return {"ok": False, "tutorId": composed.get("tutorId"), "error": desc, "status": status_of(exc)}
 
-    _log_preview_turn(composed["tutorId"], composed, uid=uid, model=model, turn_index=turn_index)
+    _log_preview_turn(
+        composed["tutorId"], composed, uid=uid, model=model, turn_index=turn_index, message=message, reply=text
+    )
     return {"ok": True, "tutorId": composed["tutorId"], "reply": text, "tokenIn": token_in, "tokenOut": token_out}
 
 
 def _log_preview_turn(
-    tutor_id: str, composed: dict[str, Any], *, uid: str, model: str | None = None, turn_index: int = 0
+    tutor_id: str,
+    composed: dict[str, Any],
+    *,
+    uid: str,
+    model: str | None = None,
+    turn_index: int = 0,
+    message: str = "",
+    reply: str = "",
 ) -> None:
-    """Record that a preview happened — for COST, never for content.
+    """Record a preview exchange — the author's message, then the tutor's reply.
 
-    ⚠️ ``group_id`` carries the ``preview:`` prefix and the content argument is
-    empty on purpose. A preview is a real tutor turn with a real framework_id;
-    logged as anything else it would read as teaching in the researcher lens,
-    and nobody was taught.
+    ⚠️ ``group_id`` carries the ``preview:`` prefix on both rows. A preview is a
+    real tutor turn with a real framework_id; logged as anything else it would
+    read as teaching in the researcher lens, and nobody was taught.
     """
     try:
         from observability.chat_log import emit_chat_turn
 
-        emit_chat_turn(
-            group_id=f"{PREVIEW_PREFIX}{uid}",
-            session_id="",
-            skill_id=composed["composedFrom"]["skill"],
-            turn_index=turn_index,
-            role="tutor",
-            content="",
-            model=model,
-            tutor_id=tutor_id,
-            framework_id=composed["composedFrom"]["approachId"],
-            interaction_style=composed["composedFrom"]["register"],
-            teaching_source="preview",
-        )
+        common = {
+            "group_id": f"{PREVIEW_PREFIX}{uid}",
+            "session_id": "",
+            "skill_id": composed["composedFrom"]["skill"],
+            "tutor_id": tutor_id,
+            "framework_id": composed["composedFrom"]["approachId"],
+            "interaction_style": composed["composedFrom"]["register"],
+            "teaching_source": "preview",
+        }
+        if message:
+            emit_chat_turn(**common, turn_index=turn_index, role="student", content=message)
+        emit_chat_turn(**common, turn_index=turn_index, role="tutor", content=reply, model=model)
     except Exception as exc:
         log.warning("preview turn not logged (%s) — the turn still ran", type(exc).__name__)
 

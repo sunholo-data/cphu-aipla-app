@@ -281,7 +281,7 @@ def test_after_agent_falls_back_to_latest_event_invocation_id():
     assert [c.kwargs["turn_index"] for c in mock_emit.call_args_list] == [1, 2]
 
 
-def test_after_agent_emits_non_anon_owner_WITHOUT_content():
+def test_after_agent_emits_non_anon_owner_WITH_content():
     """CONTRACT CHANGED 2026-08-12 (ACCESS-1 Ring 3).
 
     This used to assert `call_count == 0` — a non-anonymous owner (teacher,
@@ -291,7 +291,9 @@ def test_after_agent_emits_non_anon_owner_WITHOUT_content():
     most tool-heavy skills in the product were invisible to every spend view.
 
     The turn is now emitted under the billing identity the budget enforcer
-    meters on, with the transcript stripped. Visible spend, no new PII surface.
+    meters on. Since 2026-09-30 it also carries the transcript — a co-pilot
+    turn nobody can read cannot be debugged. The `teacher:` prefix keeps it out
+    of the research lens.
     """
     from adk.callbacks import make_after_agent_response
 
@@ -303,7 +305,7 @@ def test_after_agent_emits_non_anon_owner_WITHOUT_content():
     assert mock_emit.call_count == 1
     kwargs = mock_emit.call_args_list[0].kwargs
     assert kwargs["group_id"] == "teacher:workshop-user"
-    assert kwargs["content"] == "", "a non-student transcript must never be logged"
+    assert kwargs["content"] == "hello"
 
 
 def test_after_agent_no_chatlog_without_owner_skill():

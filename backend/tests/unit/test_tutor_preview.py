@@ -68,26 +68,31 @@ def test_a_tutor_with_nothing_to_say_is_refused_rather_than_run(monkeypatch):
     assert "no instructions to run" in out["error"]
 
 
-def test_a_preview_turn_is_logged_for_COST_and_without_CONTENT(monkeypatch):
-    """Both halves matter. Without the log a preview is invisible spend; with
-    content it would be a transcript nobody consented to."""
-    captured = {}
+def test_a_preview_exchange_is_logged_with_its_content_under_the_preview_prefix(monkeypatch):
+    """Spend stays visible, the words can be looked up, and the prefix keeps it
+    out of the researcher lens — a preview is not teaching."""
+    captured: list[dict] = []
 
     import observability.chat_log as cl
 
-    monkeypatch.setattr(cl, "emit_chat_turn", lambda **kw: captured.update(kw))
+    monkeypatch.setattr(cl, "emit_chat_turn", lambda **kw: captured.append(kw))
     tp._log_preview_turn(
         "mikkel",
         {"composedFrom": {"skill": "concept-dialogue", "approachId": "esru", "register": None}},
         uid="r-1",
+        message="Why is the sky blue?",
+        reply="What do you notice about sunsets?",
+        model="gemini-x",
     )
 
-    assert captured["group_id"] == "preview:r-1"
-    assert captured["content"] == ""
-    assert captured["framework_id"] == "esru"
+    assert [c["role"] for c in captured] == ["student", "tutor"]
+    assert [c["content"] for c in captured] == ["Why is the sky blue?", "What do you notice about sunsets?"]
+    assert all(c["group_id"] == "preview:r-1" for c in captured)
+    assert all(c["framework_id"] == "esru" for c in captured)
+    assert captured[1]["model"] == "gemini-x"
     # `teaching_source` says what decided this turn. 'preview' is neither
     # 'tutor' nor 'fields' — it is "no teaching happened here".
-    assert captured["teaching_source"] == "preview"
+    assert all(c["teaching_source"] == "preview" for c in captured)
 
 
 def test_a_logging_failure_does_not_lose_the_turn(monkeypatch):
@@ -178,5 +183,7 @@ def test_a_dialogue_turn_carries_history_the_chosen_model_and_logs_as_preview(mo
     assert captured["model"] == "m-x"
     assert [c["role"] for c in captured["contents"]] == ["user", "model", "user"]
     assert captured["config"]["system_instruction"] == "SYSTEM"
-    assert logged["group_id"] == "preview:bench" and logged["content"] == "" and logged["model"] == "m-x"
+    # The last emit is the tutor row; it carries the reply (logged since 2026-09-30).
+    assert logged["group_id"] == "preview:bench" and logged["content"] == "Hvad bygger du det på?"
+    assert logged["model"] == "m-x"
     assert logged["turn_index"] == 3
