@@ -104,15 +104,36 @@ interface LocaleProviderProps {
   children: ReactNode;
 }
 
+// `<html lang>` belongs to the DEEPEST provider that claims it. The user's
+// setting claims it at the root and an activity claims it inside the chat; React
+// runs child effects before parent effects, so "last effect wins" would hand it
+// back to the root — wrong. Claims are registered with their depth instead.
+const LangDepthContext = createContext(0);
+const htmlLangClaims = new Map<number, { depth: number; lang: Locale }>();
+let nextClaimId = 0;
+
+function applyHtmlLang() {
+  if (typeof document === "undefined") return;
+  let best: { depth: number; lang: Locale } | null = null;
+  for (const c of htmlLangClaims.values()) if (!best || c.depth >= best.depth) best = c;
+  if (best) document.documentElement.lang = best.lang;
+}
+
 export function LocaleProvider({ locale, syncHtmlLang = false, children }: LocaleProviderProps) {
+  const depth = useContext(LangDepthContext) + 1;
   useEffect(() => {
-    if (!syncHtmlLang || locale === "bilingual" || typeof document === "undefined") return;
-    const el = document.documentElement;
-    const previous = el.lang;
-    el.lang = locale;
+    if (!syncHtmlLang || locale === "bilingual") return;
+    const id = nextClaimId++;
+    htmlLangClaims.set(id, { depth, lang: locale });
+    applyHtmlLang();
     return () => {
-      el.lang = previous;
+      htmlLangClaims.delete(id);
+      applyHtmlLang();
     };
-  }, [locale, syncHtmlLang]);
-  return <LocaleContext.Provider value={locale}>{children}</LocaleContext.Provider>;
+  }, [locale, syncHtmlLang, depth]);
+  return (
+    <LangDepthContext.Provider value={depth}>
+      <LocaleContext.Provider value={locale}>{children}</LocaleContext.Provider>
+    </LangDepthContext.Provider>
+  );
 }

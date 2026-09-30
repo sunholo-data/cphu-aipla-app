@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { BookOpen, ChevronDown, LogOut, Settings } from "lucide-react";
+import { BookOpen, ChevronDown, Languages, LogOut, Settings } from "lucide-react";
+
+import { LanguageSwitch } from "@/components/site/LanguageSwitch";
 
 /** 1.1.108 M4 — copy lives here, never inline in JSX. */
 const copy = {
@@ -10,7 +12,10 @@ const copy = {
   settings: "Settings",
   approaches: "Approaches",
   signOut: "Sign out",
+  language: "Language",
 } as const;
+// locale: en-only until 1.1.108 M2 translates the teacher shell as a whole —
+// translating this menu alone would put Danish inside an English shell.
 
 /**
  * The account menu (1.1.125 M0): where Settings and Approaches went when they
@@ -89,6 +94,13 @@ export function AccountMenu({
               <BookOpen className="h-4 w-4" aria-hidden="true" />
               {copy.approaches}
             </Link>
+          </li>
+          {/* 1.1.108 — the teacher's OWN language, remembered in this browser.
+              Not the students': that is each activity's language setting. */}
+          <li role="none" className="flex items-center gap-2 px-3 py-1.5">
+            <Languages className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            <span className="flex-1 text-muted-foreground">{copy.language}</span>
+            <LanguageSwitch />
           </li>
           <li role="none" className="my-1 border-t border-border" />
           <li role="none">

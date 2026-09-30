@@ -4,7 +4,7 @@
 **Priority:** **P1** — the teacher's first question after a lesson is *"what did the class get?"*, and today the only answer is to read one report per group. JB, 2026-09-29: *"reports for each group is too much to the teachers — in the insights have the concepts discussed in aggregate"*. Needs only teachers and existing sessions, so it is **un-gated**
 **Estimated:** ~6–6.5d phased (M0 structured concepts per session ~1d · M1 class roll-up ~1–1.5d · M2 the overview UI ~2d · M3 the wizard ~1–1.5d · M4 calibration on JB's session ~0.5d)
 **Scope:** Backend: `reports/narrative.py`, `reports/session_summary.py` (cache doc), `analytics/framework_fidelity.py` (read side only), `db/concept_progress.py` (`docs_for_class`), `protocols/insights_routes.py`, `config/models.yaml`. Frontend: `app/teacher/insights/` (new **Lessons** entry), `components/teacher/ClassConceptGraph.tsx`, `components/teacher/TeachingApproachSection.tsx`, `app/teacher/classes/[id]/page.tsx`, `app/teacher/reports/groups/[groupId]/page.tsx`
-**Dependencies:** [1.1.121 class-level-concept-graph-aggregation](class-level-concept-graph-aggregation.md) (**shipped** — the concept distribution this generalises); [1.1.134 concept-map-steering](concept-map-steering-sprint.md) (**shipped** — `mark_concept` evidence, the tutor ticks, not the student); [1.1.107 framework-fit-profile](framework-fit-profile.md) M0+M5 (**shipped** — the per-session fidelity read this rolls up); [1.1.36](live-group-drilldown.md) (the per-group report, which becomes the drill-in). Related: [1.1.92](session-benchmark-tutor-activity.md) (the *researcher's* tutor × activity matrix; this is the *teacher's* one-lesson read), [1.1.99](live-class-work-wall.md) (the **live** view; this is **after** the lesson), [1.1.136](review-work-beside-the-transcript.md) (per-group, researcher). **Un-gated**
+**Dependencies:** [1.1.121 class-level-concept-graph-aggregation](class-level-concept-graph-aggregation.md) (**shipped** — the concept distribution this generalises); [1.1.134 concept-map-steering](concept-map-steering-sprint.md) (**shipped** — `mark_concept` evidence, the tutor ticks, not the student); [1.1.107 framework-fit-profile](framework-fit-profile.md) M0+M5 (**shipped** — the per-session fidelity read this rolls up); [1.1.36](live-group-drilldown.md) (the per-group report, which becomes the drill-in). Related: [1.1.92](session-benchmark-tutor-activity.md) (the *researcher's* tutor × activity matrix; this is the *teacher's* one-lesson read), [1.1.99](live-class-work-wall.md) (the **live** view; this is **after** the lesson), [1.1.136](review-work-beside-the-transcript.md) (per-group, researcher). **Un-gated**. D1 answered 2026-09-30 (top-tier model for batch analysis)
 **Created:** 2026-09-30
 **Source:** [notes-2026-09-29.md](../../../notes-2026-09-29.md) (JB's experienced-teacher session) and M, 2026-09-30: *"we are looking for a class level aggregation of this — and I think we need to re-do the UI to make the concepts easier to surface, and perhaps a wizard to encourage its use in the right order"*
 
@@ -159,8 +159,8 @@ tutor.**
 
 ## Decisions
 
-- **D1 — Which model writes reports and judges approach fit? (M)**
-  Recommendation: a separate `analysis_model` key in `models.yaml`, defaulting to
+- **D1 — Which model writes reports and judges approach fit? ANSWERED, M 2026-09-30: upgrade the model for batch work like this.**
+  Recommendation, now the plan: a separate `analysis_model` key in `models.yaml`, defaulting to
   a **top-tier** model, used by the narrative, M0, M1's summarising call and the
   fidelity judge. The tutor stays on `platform_default`. These run once per
   session, after the fact, so the cost is small next to per-turn tutoring. Check it

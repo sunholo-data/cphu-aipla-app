@@ -180,9 +180,9 @@ export default function ChatPage({
   // a tokenless request, get 401, and see "Skill not found" before the
   // redirect to / kicks in.
   const { skillId, loading: resolving, notFound } = useSlugResolution(path, !loading && !!user);
-  // No activity has been resolved yet, so nothing says which language this is:
-  // both, rather than a guess (1.1.108 rule M4.3).
-  const t = useT("ChatPage", "bilingual");
+  // No activity has been resolved yet: the person's own language (the root
+  // provider — their DA | EN choice, else the site default).
+  const t = useT("ChatPage");
 
   useEffect(() => {
     if (!loading && !user) router.replace("/");

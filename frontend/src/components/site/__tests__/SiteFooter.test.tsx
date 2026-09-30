@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { SiteFooter } from "../SiteFooter";
+import { LocaleProvider } from "@/i18n";
 import { ENGINEERING_CREDIT, KU_ECOSYSTEM } from "@/lib/ecosystem";
 
 describe("SiteFooter", () => {
@@ -16,7 +17,12 @@ describe("SiteFooter", () => {
   });
 
   it("credits the platform engineering with a link to sunholo.com", () => {
-    render(<SiteFooter />);
+    // Asserted in English; the footer follows the person's language (1.1.108).
+    render(
+      <LocaleProvider locale="en">
+        <SiteFooter />
+      </LocaleProvider>,
+    );
     const credit = document.querySelector(
       `a[href="${ENGINEERING_CREDIT.href}"]`,
     );
@@ -64,5 +70,12 @@ describe("SiteFooter", () => {
         `missing footer link: ${href}`,
       ).not.toBeNull();
     }
+  });
+
+  it("speaks one language — Danish by default — and offers the DA | EN switch (1.1.108)", () => {
+    render(<SiteFooter />);
+    expect(screen.getByRole("link", { name: "Lærer-login" })).toBeTruthy();
+    expect(screen.queryByText(/Teacher sign-in/)).toBeNull();
+    expect(screen.getByRole("group", { name: "Sprog" })).toBeTruthy();
   });
 });

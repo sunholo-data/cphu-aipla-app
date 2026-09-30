@@ -170,7 +170,7 @@ describe("/lessons — student lesson picker", () => {
       expect(screen.getByText(/din lærer har ikke tilføjet en aktivitet/i)).toBeInTheDocument();
     });
     // Bilingual — clearer English: it's a setup step, not a blank.
-    expect(screen.getByText(/your teacher hasn't added an activity/i)).toBeInTheDocument();
+    expect(screen.getByText(/din lærer har ikke tilføjet en aktivitet/i)).toBeInTheDocument();
   });
 
   it("renders the error banner when fetch rejects, with retry", async () => {
@@ -185,7 +185,7 @@ describe("/lessons — student lesson picker", () => {
       expect(screen.getByRole("alert")).toHaveTextContent(/boom/);
     });
 
-    await user.click(screen.getByRole("button", { name: /retry/i }));
+    await user.click(screen.getByRole("button", { name: /prøv igen/i }));
     await waitFor(() => {
       expect(screen.getByRole("heading", { name: "After retry" })).toBeInTheDocument();
     });
@@ -252,7 +252,7 @@ describe("class banner on /lessons", () => {
     await waitFor(() => {
       expect(screen.getByText(/hold 9a/i)).toBeInTheDocument();
     });
-    expect(screen.getByText(/klasse \/ class/i)).toBeInTheDocument();
+    expect(screen.getByText(/^Klasse:/)).toBeInTheDocument();
   });
 
   it("omits class banner when className is null", async () => {
@@ -280,7 +280,7 @@ describe("class banner on /lessons", () => {
     await waitFor(() => {
       expect(screen.getByText(/din lærer har ikke tilføjet en aktivitet/i)).toBeInTheDocument();
     });
-    expect(screen.queryByText(/klasse \/ class/i)).toBeNull();
+    expect(screen.queryByText(/^Klasse:/)).toBeNull();
   });
 });
 
@@ -332,11 +332,41 @@ describe("lesson picker language", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^Aktiviteter$/);
   });
 
-  it("stays bilingual when the activities disagree", async () => {
+  it("falls back to the site default when the activities disagree", async () => {
     await joinedAs([
       { activityId: "act-1", title: "Energi", language: "da" },
       { activityId: "act-2", title: "Momentum", language: "en" },
     ]);
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Aktiviteter / Activities");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^Aktiviteter$/);
+  });
+
+  it("lets the person's own choice beat the class language (1.1.108 user locale)", async () => {
+    // In-memory localStorage (Node's global shadows jsdom's in this runner).
+    const store = new Map<string, string>([["aipla.uiLocale", "en"]]);
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (k: string) => store.get(k) ?? null,
+        setItem: (k: string, v: string) => void store.set(k, v),
+        removeItem: (k: string) => void store.delete(k),
+      },
+    });
+    const { UserLocaleProvider } = await import("@/i18n/userLocale");
+    const anonAuth = await import("@/lib/anonymousGroupAuth");
+    vi.mocked(anonAuth.isAnonymousGroupAuthMode).mockReturnValue(true);
+    vi.mocked(fetchWithAuth).mockResolvedValue(
+      jsonResponse({
+        activities: [{ activityId: "act-1", skillId: "s", title: "Energi", language: "da" }],
+        class_name: "Hold 9A",
+      }),
+    );
+    render(
+      <UserLocaleProvider>
+        <LessonsPage />
+      </UserLocaleProvider>,
+    );
+    await waitFor(() => expect(screen.getByRole("heading", { level: 3, name: "Energi" })).toBeInTheDocument());
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^Activities$/);
   });
 });
+

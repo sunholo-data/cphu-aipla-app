@@ -10,6 +10,8 @@
  */
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
+import { LocaleProvider } from "@/i18n";
+import { UserLocaleProvider } from "@/i18n/userLocale";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock the auth-mode helper so each test can switch modes.
@@ -41,8 +43,15 @@ vi.stubGlobal("fetch", fetchMock);
 import { AnonymousGroupAuthProvider } from "@/contexts/AnonymousGroupAuthProvider";
 import { resetEnvironmentCache } from "@/lib/environment";
 
+// 1.1.108 — the page speaks the person's own language. These behaviour tests
+// assert English, so they pin it; the Danish default + the switch have their
+// own test below.
 function wrap(node: ReactNode) {
-  return <AnonymousGroupAuthProvider>{node}</AnonymousGroupAuthProvider>;
+  return (
+    <LocaleProvider locale="en">
+      <AnonymousGroupAuthProvider>{node}</AnonymousGroupAuthProvider>
+    </LocaleProvider>
+  );
 }
 
 beforeEach(() => {
@@ -77,26 +86,38 @@ describe("/group page — mode gating", () => {
   // AIPLA v0.1 (Jutland demo) — Danish stx audience. Danish copy must
   // render alongside the English fallback. See M2 in
   // docs/design/aipla/v0.1.0-jutland/jutland-demo-sprint.md.
-  it("renders Danish copy alongside English on the group form", async () => {
+  it("speaks ONE language — Danish until the person picks English (1.1.108)", async () => {
     isAnonymousGroupAuthModeMock.mockReturnValue(true);
+    // In-memory localStorage: Node's own global shadows jsdom's in this runner
+    // (same shape as _ClassListSheet.test.tsx).
+    const store = new Map<string, string>();
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: {
+        getItem: (k: string) => store.get(k) ?? null,
+        setItem: (k: string, v: string) => void store.set(k, v),
+        removeItem: (k: string) => void store.delete(k),
+      },
+    });
     const Page = await importPage();
-    render(wrap(<Page />));
-    // Danish header
-    expect(screen.getByText(/Tilslut din gruppe/)).toBeInTheDocument();
-    // Danish helper text — gives an "what does this code look like" hint
-    expect(
-      screen.getByText(/Din lærer har givet dig en kort kode/),
-    ).toBeInTheDocument();
-    // Danish on the button (joined with English by ` / `)
-    expect(
-      screen.getByRole("button", { name: /Tilslut.*Join/ }),
-    ).toBeInTheDocument();
-    // Danish footer — copy revised 2026-05-21 to clarify that the code
-    // stays valid 30 days (don't scare the student into thinking they
-    // burn a code by closing the tab).
-    expect(
-      screen.getByText(/skal du bare skrive[\s\S]*koden igen/),
-    ).toBeInTheDocument();
+    render(
+      <UserLocaleProvider>
+        <AnonymousGroupAuthProvider>
+          <Page />
+        </AnonymousGroupAuthProvider>
+      </UserLocaleProvider>,
+    );
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^Tilslut din gruppe$/);
+    expect(screen.getByText(/Din lærer har givet dig en kort kode/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tilslut" })).toBeInTheDocument();
+    expect(screen.getByText(/skal du bare skrive koden igen/)).toBeInTheDocument();
+    expect(screen.queryByText(/Join your group/)).toBeNull();
+
+    // The switch: English, and remembered for next time.
+    fireEvent.click(screen.getByRole("button", { name: "en" }));
+    expect(await screen.findByRole("heading", { level: 1 })).toHaveTextContent(/^Join your group$/);
+    expect(screen.getByRole("button", { name: "Join" })).toBeInTheDocument();
+    expect(store.get("aipla.uiLocale")).toBe("en");
   });
 });
 
@@ -188,7 +209,7 @@ describe("/group page — typed error rendering", () => {
     // for non-empty inputs. Match the AIPLA-localised idle button text
     // ("Tilslut / Join") rather than the inherited anchored /^join$/i.
     expect(
-      screen.getByRole("button", { name: /^Tilslut \/ Join$/ }),
+      screen.getByRole("button", { name: /^Join$/ }),
     ).not.toBeDisabled();
   });
 });

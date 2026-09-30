@@ -26,7 +26,9 @@ import { BookOpen, RefreshCw } from "lucide-react";
 import { SiteFooter } from "@/components/site/SiteFooter";
 
 import { skillHref } from "@/components/navigation/skillHref";
+import { LanguageSwitch } from "@/components/site/LanguageSwitch";
 import { LocaleProvider, localeForActivities, rememberActivityLanguages, useT, type LocaleMode } from "@/i18n";
+import { useUserLocale } from "@/i18n/userLocale";
 import { useAnonymousGroupAuth } from "@/contexts/AnonymousGroupAuthProvider";
 import { fetchWithAuth } from "@/lib/apiClient";
 import { isAnonymousGroupAuthMode } from "@/lib/anonymousGroupAuth";
@@ -105,11 +107,12 @@ function AnonGroupLessonsPage() {
   }
 
   const ready = groupAuth.status === "joined" || groupAuth.status === "expired";
-  // 1.1.108 audit item 2: no single activity is open here, so the picker takes
-  // the class's language only when every activity agrees — and stays bilingual
-  // until the list arrives, when it is mixed, and when it is empty. Never the
-  // browser's language (rule M4.3).
-  const locale: LocaleMode = activities ? localeForActivities(activities.map((a) => a.language)) : "bilingual";
+  // 1.1.108: no single activity is open here. The person's own DA | EN choice
+  // wins if they made one; otherwise the class's language when every activity
+  // agrees; otherwise the site default. Never the browser's (rule M4.3).
+  const user = useUserLocale();
+  const classLocale = activities ? localeForActivities(activities.map((a) => a.language)) : "bilingual";
+  const locale: LocaleMode = user.explicit || classLocale === "bilingual" ? user.locale : classLocale;
   return (
     <LocaleProvider locale={locale} syncHtmlLang>
       <AnonGroupLessonsView
@@ -159,6 +162,7 @@ function AnonGroupLessonsView({
               <span className="text-muted-foreground">{t("joined")}</span>
             )}
             <div className="flex items-center gap-3">
+              <LanguageSwitch />
               <Link
                 href="/guides"
                 className="text-xs font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
@@ -283,12 +287,8 @@ function UniversalLessonsPage({
   }, [groupAuthStatus, refresh]);
 
   // Teacher / LOCAL_MODE view of the skill list: no activity carries a language
-  // here, so it stays bilingual (the pre-1.1.108 behaviour).
-  return (
-    <LocaleProvider locale="bilingual">
-      <UniversalLessonsView className={className} skills={skills} error={error} onRetry={refresh} />
-    </LocaleProvider>
-  );
+  // here, so it follows the person's own setting (the root provider).
+  return <UniversalLessonsView className={className} skills={skills} error={error} onRetry={refresh} />;
 }
 
 function UniversalLessonsView({

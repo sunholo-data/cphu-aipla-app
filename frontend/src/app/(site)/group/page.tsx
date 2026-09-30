@@ -24,12 +24,13 @@ import { useEnvironment } from "@/hooks/useEnvironment";
 import { isAnonymousGroupAuthMode, PREVIEW_CODE_PREFIX, safePreviewNext } from "@/lib/anonymousGroupAuth";
 import { environmentLabel } from "@/lib/environment";
 import { isLocalMode } from "@/lib/localMode";
+import { LanguageSwitch } from "@/components/site/LanguageSwitch";
 import { useT } from "@/i18n";
 
 // 1.1.108 — the join page renders before any class or activity is known, so it
-// speaks BOTH languages (audit item 2; rule M4.3 forbids guessing from the
-// browser). Deliberately not the " / " bilingual mode: the Danish leads and the
-// English sits dimmed beneath it, which reads better than a slash on a form.
+// speaks the PERSON's language: their DA | EN choice, remembered in this
+// browser, else the site default. The switch sits at the top of the form so a
+// student who cannot read the default finds theirs before typing a code.
 const EXAMPLE_CODE = "bright-fox-42";
 
 // LOCAL_MODE convenience: the seeded group code from
@@ -106,8 +107,7 @@ function GroupJoinForm() {
   }, [status, router, nextPath]);
 
   const isJoining = status === "joining";
-  const da = useT("JoinPage", "da");
-  const en = useT("JoinPage", "en");
+  const t = useT("JoinPage");
   const codeTag = (chunks: React.ReactNode) => <code className="rounded bg-muted px-1 py-0.5">{chunks}</code>;
   const teacherLink = (chunks: React.ReactNode) => (
     <Link href="/teacher/sign-in" className="font-medium underline underline-offset-4 hover:text-foreground">
@@ -126,21 +126,20 @@ function GroupJoinForm() {
 
   return (
     <main className="mx-auto flex max-w-md flex-col gap-6 p-8">
+      <div className="flex justify-end">
+        <LanguageSwitch />
+      </div>
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold">
-          {da("title")}
-          <span className="block text-base font-normal text-muted-foreground">{en("title")}</span>
+          {t("title")}
         </h1>
-        <p className="text-sm text-muted-foreground">{da.rich("intro", { example: EXAMPLE_CODE, code: codeTag })}</p>
-        <p className="text-xs text-muted-foreground opacity-70">
-          ({en.rich("intro", { example: EXAMPLE_CODE, code: codeTag })})
-        </p>
+        <p className="text-sm text-muted-foreground">{t.rich("intro", { example: EXAMPLE_CODE, code: codeTag })}</p>
       </header>
 
       <form className="flex flex-col gap-3" onSubmit={handleSubmit} noValidate>
         <label className="flex flex-col gap-1">
           <span className="text-sm font-medium">
-            {da("codeLabel")} <span className="text-xs text-muted-foreground">({en("codeLabel")})</span>
+            {t("codeLabel")}
           </span>
           <input
             type="text"
@@ -183,14 +182,12 @@ function GroupJoinForm() {
           disabled={!code.trim() || isJoining}
           className="rounded bg-primary px-4 py-2 text-primary-foreground disabled:opacity-50"
         >
-          {isJoining ? `${da("joining")} / ${en("joining")}` : `${da("join")} / ${en("join")}`}
+          {isJoining ? t("joining") : t("join")}
         </button>
       </form>
 
       <p className="text-xs text-muted-foreground">
-        {da("comeBack")}
-        <br />
-        <span className="opacity-70">({en("comeBack")})</span>
+        {t("comeBack")}
       </p>
 
       <p className="text-xs text-muted-foreground">
@@ -198,13 +195,12 @@ function GroupJoinForm() {
           href="/guides"
           className="font-medium underline underline-offset-4 hover:text-foreground"
         >
-          {da("howItWorks")} / {en("howItWorks")}
+          {t("howItWorks")}
         </Link>
       </p>
 
       <p className="border-t border-border pt-4 text-xs text-muted-foreground">
-        {da.rich("teacher", { link: teacherLink })}
-        <span className="opacity-70"> / {en.rich("teacher", { link: teacherLink })}</span>
+        {t.rich("teacher", { link: teacherLink })}
       </p>
     </main>
   );
@@ -215,9 +211,8 @@ function ErrorBlock({
 }: {
   error: NonNullable<ReturnType<typeof useAnonymousGroupAuth>["error"]>;
 }) {
-  const da = useT("JoinPage", "da");
-  const en = useT("JoinPage", "en");
-  const body = (t: typeof da): string => {
+  const t = useT("JoinPage");
+  const body = (): string => {
     switch (error.kind) {
       case "rate_limited":
         return t("rateLimited", { seconds: error.retryAfterSeconds });
@@ -233,9 +228,7 @@ function ErrorBlock({
   return (
     <div id="group-error" role="alert" className="flex flex-col gap-1.5">
       <p className="text-sm text-destructive">
-        {body(da)}
-        <br />
-        <span className="opacity-70">({body(en)})</span>
+        {body()}
       </p>
       {error.kind === "unknown_or_revoked" && <WrongSiteHint />}
     </div>
@@ -251,8 +244,7 @@ function ErrorBlock({
  */
 function WrongSiteHint() {
   const info = useEnvironment();
-  const da = useT("JoinPage", "da");
-  const en = useT("JoinPage", "en");
+  const t = useT("JoinPage");
   const [host, setHost] = useState("");
 
   useEffect(() => setHost(window.location.host), []);
@@ -266,9 +258,7 @@ function WrongSiteHint() {
 
   return (
     <p className="rounded border border-border bg-muted px-2 py-1.5 text-xs text-muted-foreground">
-      {da.rich("wrongSite", { where, host, strong })}
-      <br />
-      <span className="opacity-70">({en.rich("wrongSite", { where, host, strong })})</span>
+      {t.rich("wrongSite", { where, host, strong })}
     </p>
   );
 }
