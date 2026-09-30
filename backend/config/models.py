@@ -6,6 +6,7 @@ Updated in sync with ~/.ailang/models.yml when new models release.
 
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
@@ -30,12 +31,19 @@ class ModelsConfig(BaseModel):
     models: list[ModelEntry]
     defaults: dict[str, str]
     platform_default: str
+    # BENCH-1 / 1.1.139 D1: the model for AFTER-THE-FACT analysis (report
+    # narrative, rubric lenses, the fidelity judge). Optional so an older YAML
+    # without the key still loads; ``analysis_model()`` then falls back to
+    # ``smart_model()``.
+    analysis_model: str | None = None
 
     @model_validator(mode="after")
     def validate_references(self) -> ModelsConfig:
         model_ids = {m.id for m in self.models}
         if self.platform_default not in model_ids:
             raise ValueError(f"platform_default {self.platform_default!r} not found in models list")
+        if self.analysis_model is not None and self.analysis_model not in model_ids:
+            raise ValueError(f"analysis_model {self.analysis_model!r} not found in models list")
         for provider, model_id in self.defaults.items():
             if model_id not in model_ids:
                 raise ValueError(f"defaults[{provider!r}] = {model_id!r} not found in models list")
@@ -64,6 +72,7 @@ def load_models_config() -> ModelsConfig:
         models=models,
         defaults=raw["defaults"],
         platform_default=raw["platform_default"],
+        analysis_model=raw.get("analysis_model"),
     )
 
 
@@ -110,6 +119,40 @@ def smart_model() -> str:
     cfg = load_models_config()
     entry = next((m for m in cfg.models if m.provider == "google" and m.tier == "smart"), None)
     return entry.api_name if entry else default_model()
+
+
+def analysis_model() -> str:
+    """API name of the model for after-the-fact analysis (models.yaml ``analysis_model``).
+
+    THE RULE: work that runs after the lesson — the report narrative, the
+    RUBRIC lens defaults, the approach-fidelity judge, the discrimination
+    benchmark — uses this. Anything a student or teacher WAITS ON in a lesson
+    (the tutor turn, live-class summaries, chat titles, extraction) does not;
+    those stay on ``default_model()``.
+
+    Override per deploy with ``ANALYSIS_MODEL``. Unlike ``EXTRACTION_MODEL`` et
+    al., which pass their value straight through, this env var may hold EITHER
+    a registry id (``gemini-3-8-flash``) OR a registered api_name
+    (``gemini-3.8-flash``); both resolve to the api_name. An unregistered value
+    raises ``ValueError`` rather than silently pointing a batch job at a model
+    nobody priced — register it in models.yaml first.
+
+    Not cached, so the env var is read at call time (tests and a redeploy both
+    see the current value).
+    """
+    cfg = load_models_config()
+    override = (os.environ.get("ANALYSIS_MODEL") or "").strip()
+    if override:
+        by_id = next((m for m in cfg.models if m.id == override), None)
+        if by_id is not None:
+            return by_id.api_name
+        if any(m.api_name == override for m in cfg.models):
+            return override
+        raise ValueError(f"ANALYSIS_MODEL={override!r} is neither a model id nor an api_name in models.yaml")
+    if cfg.analysis_model is None:
+        return smart_model()
+    entry = next(m for m in cfg.models if m.id == cfg.analysis_model)
+    return entry.api_name
 
 
 def model_api_names() -> set[str]:
