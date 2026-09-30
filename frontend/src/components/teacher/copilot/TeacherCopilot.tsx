@@ -11,7 +11,9 @@ import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
 
 import { FloatingCopilot } from "./FloatingCopilot";
 import { ProposalCard } from "./ProposalCard";
-import { DEFAULT_LABELS, type TeacherCopilotConfig } from "./types";
+import { type TeacherCopilotConfig } from "./types";
+import { useCopilotLabels } from "./useCopilotLabels";
+import { useT } from "@/i18n";
 
 const STORAGE_PREFIX = "teacherCopilot:";
 
@@ -100,6 +102,7 @@ function CopilotResolver<P>({
   onAskSent?: () => void;
 }) {
   const { skillId, resolveError } = useSkillSlugResolver(config.skillName);
+  const labels = useCopilotLabels(config.labels);
 
   if (resolveError) {
     return (
@@ -111,7 +114,7 @@ function CopilotResolver<P>({
   if (!skillId) {
     return (
       <p data-testid="copilot-loading" className="p-3 text-sm text-muted-foreground">
-        {config.loadingText ?? DEFAULT_LABELS.thinking}
+        {config.loadingText ?? labels.thinking}
       </p>
     );
   }
@@ -133,7 +136,8 @@ function CopilotChat<P>({
   pendingAsk?: string | null;
   onAskSent?: () => void;
 }) {
-  const labels = { ...DEFAULT_LABELS, ...config.labels };
+  const labels = useCopilotLabels(config.labels);
+  const t = useT("TeacherCopilot");
   const { messages: liveMessages, toolCalls, sendMessage, isLoading, error } = useSkillAgent();
   // Prior turns for a resumed thread (empty for a fresh one — a 404 lands as
   // sessionGone, not an error). Prepend before the live turns; ids never clash
@@ -249,7 +253,7 @@ function CopilotChat<P>({
           className="flex items-center gap-1.5 rounded border border-border bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-60"
         >
           <Send className="h-4 w-4" aria-hidden="true" />
-          Send
+          {t("send")}
         </button>
       </form>
     </div>

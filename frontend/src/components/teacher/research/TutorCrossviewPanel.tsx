@@ -6,48 +6,24 @@ import { Microscope, TriangleAlert } from "lucide-react";
 
 import { type CrossviewApproach, type TutorCrossview, fetchTutorCrossview } from "@/lib/teacherApi";
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
+import { useT } from "@/i18n";
 
 /** UI copy, lifted out of JSX (1.1.108 M4) so a translator can reach it. */
-const copy = {
-  title: "Everything that teaches, and how much it is used",
-  blurb:
-    "Every approach in the system — the seven from the literature and everything teachers have written — with who authored it and what it has actually taught.",
-  loading: "Loading…",
-  failed: "Could not read the tutor catalogue. This is a failed read, not an empty one.",
-  colApproach: "Approach",
-  colAuthor: "Author",
-  colStatus: "Status",
-  colAssigned: "Tutors",
-  colTurns: "Turns taught",
-  published: "From the literature",
-  authored: "Written by teachers and researchers",
-  noneAuthored: "Nobody has written a custom approach yet.",
-  usageUnavailable:
-    "Usage could not be read from the chat log, so the turn counts are blank rather than zero — “never used” and “could not read” are different facts.",
-  intentVsUse:
-    "“Tutors” counts how many tutors name an approach; “Turns taught” counts what actually happened. An approach assigned once and never run shows 1 and 0.",
-  variants: (n: number) =>
-    n === 0
-      ? "No tutor variants exist yet. The mechanism is built and unused — which is a different thing from not built."
-      : `${n} tutor variant${n === 1 ? "" : "s"}.`,
-  byTeacher: "teacher",
-  byResearcher: "researcher",
-  none: "—",
-  unused: "0",
-  readThem: (n: number) => `Read the ${n} turn${n === 1 ? "" : "s"} this approach taught`,
-} as const;
+// Copy lives in messages/*/teacher-research.json (TutorCrossviewPanel) — 1.1.108.
+const NONE = "—";
 
 function ApproachTable({ rows, usageAvailable }: { rows: CrossviewApproach[]; usageAvailable: boolean }) {
+  const t = useT("TutorCrossviewPanel");
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[40rem] text-left text-sm">
         <thead className="text-xs text-muted-foreground">
           <tr>
-            <th className="py-1 pr-3 font-medium">{copy.colApproach}</th>
-            <th className="py-1 pr-3 font-medium">{copy.colAuthor}</th>
-            <th className="py-1 pr-3 font-medium">{copy.colStatus}</th>
-            <th className="py-1 pr-3 text-right font-medium">{copy.colAssigned}</th>
-            <th className="py-1 text-right font-medium">{copy.colTurns}</th>
+            <th className="py-1 pr-3 font-medium">{t("colApproach")}</th>
+            <th className="py-1 pr-3 font-medium">{t("colAuthor")}</th>
+            <th className="py-1 pr-3 font-medium">{t("colStatus")}</th>
+            <th className="py-1 pr-3 text-right font-medium">{t("colAssigned")}</th>
+            <th className="py-1 text-right font-medium">{t("colTurns")}</th>
           </tr>
         </thead>
         <tbody>
@@ -60,7 +36,7 @@ function ApproachTable({ rows, usageAvailable }: { rows: CrossviewApproach[]; us
                 ) : null}
               </td>
               <td className="py-1.5 pr-3 text-xs text-muted-foreground">
-                {a.authorRole ? (a.authorRole === "teacher" ? copy.byTeacher : copy.byResearcher) : copy.none}
+                {a.authorRole ? (a.authorRole === "teacher" ? t("byTeacher") : t("byResearcher")) : NONE}
               </td>
               <td className="py-1.5 pr-3 text-xs">{a.status}</td>
               <td className="py-1.5 pr-3 text-right tabular-nums">{a.tutorsAssigned}</td>
@@ -71,11 +47,11 @@ function ApproachTable({ rows, usageAvailable }: { rows: CrossviewApproach[]; us
                   2026-09-11. */}
               <td className="py-1.5 text-right tabular-nums">
                 {!usageAvailable || a.turns === null ? (
-                  copy.none
+                  NONE
                 ) : a.turns > 0 ? (
                   <Link
                     href={`/teacher/insights/conversations?approach=${encodeURIComponent(a.id)}`}
-                    title={copy.readThem(a.turns)}
+                    title={t("readThem", { n: a.turns })}
                     className="text-brand underline-offset-2 hover:underline"
                   >
                     {a.turns}
@@ -110,6 +86,7 @@ function ApproachTable({ rows, usageAvailable }: { rows: CrossviewApproach[]; us
  * as the first is the deploy-status footgun in a research column.
  */
 export function TutorCrossviewPanel() {
+  const t = useT("TutorCrossviewPanel");
   const [data, setData] = useState<TutorCrossview | null>(null);
   const [state, setState] = useState<"loading" | "ok" | "error">("loading");
 
@@ -131,16 +108,16 @@ export function TutorCrossviewPanel() {
     <TeacherCard>
       <h2 className="flex items-center gap-2 text-base font-medium">
         <Microscope className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-        {copy.title}
+        {t("title")}
       </h2>
-      <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{copy.blurb}</p>
+      <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{t("blurb")}</p>
 
       {state === "loading" ? (
-        <p className="mt-3 text-sm text-muted-foreground">{copy.loading}</p>
+        <p className="mt-3 text-sm text-muted-foreground">{t("loading")}</p>
       ) : state === "error" || !data ? (
         <p className="mt-3 flex items-start gap-2 text-sm text-destructive">
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-          {copy.failed}
+          {t("failed")}
         </p>
       ) : (
         <div className="mt-3 space-y-4">
@@ -149,26 +126,26 @@ export function TutorCrossviewPanel() {
               role="status"
               className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
             >
-              {copy.usageUnavailable}
+              {t("usageUnavailable")}
             </p>
           ) : null}
-          <p className="text-xs text-muted-foreground">{copy.intentVsUse}</p>
+          <p className="text-xs text-muted-foreground">{t("intentVsUse")}</p>
 
           <div>
-            <p className="mb-1 text-xs font-medium">{copy.published}</p>
+            <p className="mb-1 text-xs font-medium">{t("published")}</p>
             <ApproachTable rows={data.publishedApproaches} usageAvailable={data.usageAvailable} />
           </div>
 
           <div>
-            <p className="mb-1 text-xs font-medium">{copy.authored}</p>
+            <p className="mb-1 text-xs font-medium">{t("authored")}</p>
             {data.authoredApproaches.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{copy.noneAuthored}</p>
+              <p className="text-sm text-muted-foreground">{t("noneAuthored")}</p>
             ) : (
               <ApproachTable rows={data.authoredApproaches} usageAvailable={data.usageAvailable} />
             )}
           </div>
 
-          <p className="text-xs text-muted-foreground">{copy.variants(data.variantCount)}</p>
+          <p className="text-xs text-muted-foreground">{(data.variantCount === 0 ? t("variantsNone") : t("variants", { n: data.variantCount }))}</p>
         </div>
       )}
     </TeacherCard>

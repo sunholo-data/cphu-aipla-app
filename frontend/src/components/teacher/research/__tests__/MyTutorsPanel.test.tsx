@@ -4,13 +4,24 @@
 // days; zero variants exist on any environment as a result. The first test here
 // is therefore about the thing that was actually missing: can a person open it.
 
-import { render, screen, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { LocaleProvider } from "@/i18n";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as teacherApi from "@/lib/teacherApi";
 import type { TutorCatalogue, TutorPayload } from "@/lib/teacherApi";
 import { MyTutorsPanel } from "@/components/teacher/research/MyTutorsPanel";
+
+// 1.1.108 — teacher screens follow the person's language, Danish by default.
+// These tests assert the English copy, so they render inside an English
+// context; the Danish default has its own assertion in teacherResearchLocale.test.tsx.
+function render(ui: ReactElement, options?: Parameters<typeof rtlRender>[1]) {
+  const wrap = (node: ReactElement) => <LocaleProvider locale="en">{node}</LocaleProvider>;
+  const result = rtlRender(wrap(ui), options);
+  return { ...result, rerender: (next: ReactElement) => result.rerender(wrap(next)) };
+}
 
 function tutor(over: Partial<TutorPayload> = {}): TutorPayload {
   return {

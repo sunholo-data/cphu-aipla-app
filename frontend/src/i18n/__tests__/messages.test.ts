@@ -2,6 +2,23 @@ import { describe, expect, it } from "vitest";
 
 import { localeForActivities, toLocale, translate } from "@/i18n";
 import { MESSAGES, MESSAGE_AREAS } from "@/i18n/messages";
+import { parse, TYPE, type MessageFormatElement } from "@formatjs/icu-messageformat-parser";
+
+/** Every argument name an ICU message uses, including inside branches and tags. */
+function argumentNames(elements: MessageFormatElement[], out = new Set<string>()): Set<string> {
+  for (const el of elements) {
+    if (el.type === TYPE.argument || el.type === TYPE.number || el.type === TYPE.date || el.type === TYPE.time) {
+      out.add(el.value);
+    } else if (el.type === TYPE.plural || el.type === TYPE.select) {
+      out.add(el.value);
+      for (const opt of Object.values(el.options)) argumentNames(opt.value, out);
+    } else if (el.type === TYPE.tag) {
+      out.add(`<${el.value}>`);
+      argumentNames(el.children, out);
+    }
+  }
+  return out;
+}
 
 // 1.1.108 — the catalogue's own invariants. A key in one locale and not the
 // other would render the Danish fallback inside an English activity: exactly
@@ -29,12 +46,10 @@ describe("message catalogue", () => {
   });
 
   it("keeps the same interpolation placeholders across locales", () => {
-    // Argument names only: drop ICU plural/select branch bodies (`one {entry}`),
-    // whose words are translated text, not placeholders.
-    const placeholders = (s: string) =>
-      [...s.replace(/\b(?:zero|one|two|few|many|other|=\d+)\s*\{[^{}]*\}/g, "").matchAll(/\{(\w+)/g)]
-        .map((m) => m[1])
-        .sort();
+    // Argument names only, read with the real ICU parser: plural/select branch
+    // bodies (`one {entry}`, `written {skrevet}`) are translated TEXT, and a
+    // regex cannot tell them from placeholders once selects nest.
+    const placeholders = (msg: string) => [...argumentNames(parse(msg, { ignoreTag: false }))].sort();
     for (const [ns, table] of Object.entries(MESSAGES.da)) {
       for (const [key, da] of Object.entries(table as Record<string, string>)) {
         const en = (MESSAGES.en as Record<string, Record<string, string>>)[ns][key];

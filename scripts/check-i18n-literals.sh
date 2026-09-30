@@ -25,7 +25,7 @@ cd "$(dirname "$0")/../frontend"
 # Directories, plus the individual lib/ and hooks/ files whose text reaches a
 # student (lib/ as a whole also holds teacher template DATA in Danish, which is
 # content, not UI copy — it is M2's to move).
-read -r -a I18N_PATHS <<< "${I18N_PATHS:-src/components/workspace src/components/chat src/components/protocols src/components/doc-browser src/components/budget src/components/site src/app/lessons src/app/chat src/app/(site)/group src/hooks/useImageAttachments.ts src/hooks/useSkillAgent.ts src/lib/resolveChartBinding.ts src/lib/personGuardrail.ts src/lib/relativeTime.ts}"
+read -r -a I18N_PATHS <<< "${I18N_PATHS:-src/components/workspace src/components/chat src/components/protocols src/components/doc-browser src/components/budget src/components/site src/components/teacher src/app/teacher src/app/lessons src/app/chat src/app/(site)/group src/hooks/useImageAttachments.ts src/hooks/useSkillAgent.ts src/lib/resolveChartBinding.ts src/lib/personGuardrail.ts src/lib/relativeTime.ts}"
 
 # Files allowed to hold Danish in code. Each needs a reason. Do not add to this
 # list to silence the check; move the string into messages/ instead.

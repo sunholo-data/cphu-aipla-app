@@ -1,3 +1,4 @@
+import { useT, type Translate } from "@/i18n";
 import type { ActivityPayload } from "@/lib/teacherApi";
 
 /**
@@ -16,13 +17,14 @@ export const SIM_NAMES: Record<string, string> = {
 };
 
 /** The element fields we surface as composition badges, in display order. */
-export const ELEMENT_BADGES: { field: keyof ActivityPayload; label: string }[] = [
-  { field: "checklist", label: "Checklist" },
-  { field: "table", label: "Table" },
-  { field: "chart", label: "Chart" },
-  { field: "calculator", label: "Calculator" },
-  { field: "note", label: "Note" },
-  { field: "solution", label: "Solution" },
+// 1.1.108 M2 — the badge label is a message key (namespace ActivityDisplay).
+export const ELEMENT_BADGES: { field: keyof ActivityPayload & ("checklist" | "table" | "chart" | "calculator" | "note" | "solution") }[] = [
+  { field: "checklist" },
+  { field: "table" },
+  { field: "chart" },
+  { field: "calculator" },
+  { field: "note" },
+  { field: "solution" },
 ];
 
 /**
@@ -31,25 +33,34 @@ export const ELEMENT_BADGES: { field: keyof ActivityPayload; label: string }[] =
  * listing payload (no extra fetch), so a teacher can see at a glance what each
  * activity uses without opening the editor.
  */
-export function composition(a: ActivityPayload): { key: string; label: string; kind: "sim" | "element" | "docs" }[] {
+export function composition(
+  a: ActivityPayload,
+  t: Translate<"ActivityDisplay">,
+): { key: string; label: string; kind: "sim" | "element" | "docs" }[] {
   const out: { key: string; label: string; kind: "sim" | "element" | "docs" }[] = [];
   if (a.artefactId) out.push({ key: "sim", label: SIM_NAMES[a.artefactId] ?? a.artefactId, kind: "sim" });
-  for (const { field, label } of ELEMENT_BADGES) {
+  for (const { field } of ELEMENT_BADGES) {
     const value = a[field];
+    const label = t(field);
     if (Array.isArray(value) && value.length > 0) {
-      out.push({ key: field, label: value.length > 1 ? `${label} ${value.length}` : label, kind: "element" });
+      out.push({
+        key: field,
+        label: value.length > 1 ? t("elementCount", { label, count: value.length }) : label,
+        kind: "element",
+      });
     }
   }
   const docs = (a.document?.length ?? 0) + (a.materials?.length ?? 0);
-  if (docs > 0) out.push({ key: "docs", label: docs > 1 ? `${docs} documents` : "1 document", kind: "docs" });
+  if (docs > 0) out.push({ key: "docs", label: t("documents", { count: docs }), kind: "docs" });
   return out;
 }
 
 /** The composition row: sim artefact + workbench elements + documents. */
 export function CompositionRow({ activity }: { activity: ActivityPayload }) {
-  const parts = composition(activity);
+  const t = useT("ActivityDisplay");
+  const parts = composition(activity, t);
   if (parts.length === 0) {
-    return <p className="text-[11px] italic text-muted-foreground">Chat only — no workbench elements</p>;
+    return <p className="text-[11px] italic text-muted-foreground">{t("chatOnly")}</p>;
   }
   return (
     <div className="flex flex-wrap gap-1">
@@ -72,11 +83,10 @@ export function CompositionRow({ activity }: { activity: ActivityPayload }) {
 /** Visibility vocabulary shared by the read-only badge and the editable control.
  *  Backend value ``published`` reads as "Shared" on teacher surfaces — the
  *  audience is colleagues, via the "Shared activities" catalogue. */
-export const VISIBILITY_LABEL: Record<ActivityPayload["visibility"], string> = {
-  draft: "Draft",
-  private: "Private",
-  published: "Shared",
-};
+/** The visibility word, in the teacher's language (1.1.108 M2). */
+export function visibilityLabel(t: Translate<"ActivityDisplay">, v: ActivityPayload["visibility"]): string {
+  return t(`visibility_${v}`);
+}
 
 export function visibilityColor(v: ActivityPayload["visibility"]): string {
   if (v === "draft")
@@ -89,9 +99,10 @@ export function visibilityColor(v: ActivityPayload["visibility"]): string {
 /** Read-only status pill — all three states are labelled (private is no longer
  *  an invisible blank). Used in the research view and anywhere without a control. */
 export function VisibilityBadge({ visibility }: { visibility: ActivityPayload["visibility"] }) {
+  const t = useT("ActivityDisplay");
   return (
     <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[11px] font-medium ${visibilityColor(visibility)}`}>
-      {VISIBILITY_LABEL[visibility]}
+      {visibilityLabel(t, visibility)}
     </span>
   );
 }

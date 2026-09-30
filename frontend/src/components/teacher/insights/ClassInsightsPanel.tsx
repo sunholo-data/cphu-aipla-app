@@ -31,6 +31,7 @@ import {
   fetchInsightsClassTrend,
   type InsightsSince,
 } from "@/lib/insightsApi";
+import { useT, type Translate } from "@/i18n";
 
 interface ClassInsightsPanelProps {
   classId: string;
@@ -38,33 +39,16 @@ interface ClassInsightsPanelProps {
   since?: InsightsSince;
 }
 
-// Copy lives here rather than inline in JSX — the 1.1.108 rule.
-const copy = {
-  windowLabel: "Time window",
-  windowOption: { "7d": "7 days", "30d": "30 days", all: "All time" } as Record<InsightsSince, string>,
-  windowPhrase: { "7d": "the last 7 days", "30d": "the last 30 days", all: "all time" } as Record<
-    InsightsSince,
-    string
-  >,
-  // Said in words on purpose. An empty grid of zeros reads the same as a
-  // read that failed or a class the caller may not see, and a researcher
-  // cannot tell them apart — the footgun table's "checker that answers when
-  // it could not read", applied to a UI. The error case is the amber alert
-  // above; this is the genuine, verified absence.
-  nothingYet: (w: string) => `No student has sent a message in this class in ${w}.`,
-  nothingYetHint: "Widen the window, or check the class has a join code students have used.",
-};
-
-const KPI_DEFINITIONS: Record<string, string> = {
-  activeGroups: "Groups with at least one message in this window.",
-  totalMessages: "Total chat turns this class produced in this window.",
-  activeActivities: "Activities (skills) with at least one message or sim run.",
-  simRuns: "Workbench sim executions across all groups.",
-  medianTimeOnTaskMin: "Median minutes-per-session across groups.",
-  lastActivity: "Most recent chat turn timestamp.",
-};
+// Copy lives in messages/*/teacher-research.json (ClassInsightsPanel) — 1.1.108.
+//
+// "nothingYet" is said in words on purpose. An empty grid of zeros reads the
+// same as a read that failed or a class the caller may not see, and a
+// researcher cannot tell them apart — the footgun table's "checker that answers
+// when it could not read", applied to a UI. The error case is the amber alert;
+// this is the genuine, verified absence.
 
 export function ClassInsightsPanel({ classId, since: initialSince = "30d" }: ClassInsightsPanelProps) {
+  const t = useT("ClassInsightsPanel");
   const [since, setSince] = useState<InsightsSince>(initialSince);
   const kpis = useInsightsFetch(() => fetchInsightsClassKpis(classId, since), [classId, since]);
   const groups = useInsightsFetch(() => fetchInsightsClassGroups(classId, since), [classId, since]);
@@ -81,19 +65,19 @@ export function ClassInsightsPanel({ classId, since: initialSince = "30d" }: Cla
     >
       <header className="flex flex-wrap items-center justify-between gap-2">
         <h2 id="insights-panel-label" className="text-lg font-semibold">
-          Class insights
+          {t("title")}
         </h2>
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span>{copy.windowLabel}</span>
+          <span>{t("windowLabel")}</span>
           <select
             value={since}
             onChange={(e) => setSince(e.target.value as InsightsSince)}
-            aria-label={copy.windowLabel}
+            aria-label={t("windowLabel")}
             className="rounded border border-border bg-background px-2 py-1 text-xs"
           >
             {(["7d", "30d", "all"] as InsightsSince[]).map((w) => (
               <option key={w} value={w}>
-                {copy.windowOption[w]}
+                {t(`window_${w}`)}
               </option>
             ))}
           </select>
@@ -105,76 +89,76 @@ export function ClassInsightsPanel({ classId, since: initialSince = "30d" }: Cla
           data-testid="insights-nothing-yet"
           className="rounded border border-dashed border-border px-3 py-3 text-sm text-muted-foreground"
         >
-          {copy.nothingYet(copy.windowPhrase[since])}{" "}
-          <span className="text-xs">{copy.nothingYetHint}</span>
+          {t("nothingYet", { window: t(`phrase_${since}`) })}{" "}
+          <span className="text-xs">{t("nothingYetHint")}</span>
         </p>
       ) : null}
 
-      <Section title="At a glance" loading={kpis.isLoading} error={kpis.error}>
+      <Section id="glance" title={t("sectionGlance")} loading={kpis.isLoading} error={kpis.error}>
         {kpis.data ? (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <KpiCard
-              label="Active groups"
+              label={t("kpiActiveGroups")}
               value={kpis.data.kpis.activeGroups}
-              definition={KPI_DEFINITIONS.activeGroups!}
+              definition={t("defActiveGroups")}
               queries={kpiQueries.filter((q) => q.name === "count_messages")}
             />
             <KpiCard
-              label="Total messages"
+              label={t("kpiTotalMessages")}
               value={kpis.data.kpis.totalMessages}
-              definition={KPI_DEFINITIONS.totalMessages!}
+              definition={t("defTotalMessages")}
               queries={kpiQueries.filter((q) => q.name === "count_messages")}
             />
             <KpiCard
-              label="Active activities"
+              label={t("kpiActiveActivities")}
               value={kpis.data.kpis.activeActivities}
-              definition={KPI_DEFINITIONS.activeActivities!}
+              definition={t("defActiveActivities")}
               queries={kpiQueries.filter((q) => q.name === "sim_runs_per_skill" || q.name === "time_on_task")}
             />
             <KpiCard
-              label="Sim runs"
+              label={t("kpiSimRuns")}
               value={kpis.data.kpis.simRuns}
-              definition={KPI_DEFINITIONS.simRuns!}
+              definition={t("defSimRuns")}
               queries={kpiQueries.filter((q) => q.name === "sim_runs_per_skill")}
             />
             <KpiCard
-              label="Median time on task"
+              label={t("kpiMedianTime")}
               value={kpis.data.kpis.medianTimeOnTaskMin}
-              unit="min"
-              definition={KPI_DEFINITIONS.medianTimeOnTaskMin!}
+              unit={t("unitMin")}
+              definition={t("defMedianTime")}
               queries={kpiQueries.filter((q) => q.name === "time_on_task")}
             />
             <KpiCard
-              label="Last activity"
-              value={formatRelative(kpis.data.kpis.lastActivity)}
-              definition={KPI_DEFINITIONS.lastActivity!}
+              label={t("kpiLastActivity")}
+              value={formatRelative(kpis.data.kpis.lastActivity, t)}
+              definition={t("defLastActivity")}
               queries={kpiQueries.filter((q) => q.name === "time_on_task")}
             />
           </div>
         ) : null}
       </Section>
 
-      <Section title="Trend" loading={trend.isLoading} error={trend.error}>
+      <Section id="trend" title={t("sectionTrend")} loading={trend.isLoading} error={trend.error}>
         {trend.data ? <TrendSparkline points={trend.data.perDay} /> : null}
       </Section>
 
-      <Section title="Groups" loading={groups.isLoading} error={groups.error}>
+      <Section id="groups" title={t("sectionGroups")} loading={groups.isLoading} error={groups.error}>
         {groups.data ? (
           <EngagementBar
-            title="Per-group activity"
-            primaryLabel="Messages"
+            title={t("perGroupTitle")}
+            primaryLabel={t("messages")}
             rows={groups.data.groups.map((g) => ({ label: g.groupCode, value: g.messageCount }))}
             hrefFor={(r) => `/teacher/reports/groups/${r.label}`}
           />
         ) : null}
       </Section>
 
-      <Section title="Activities" loading={activities.isLoading} error={activities.error}>
+      <Section id="activities" title={t("sectionActivities")} loading={activities.isLoading} error={activities.error}>
         {activities.data ? (
           <EngagementBar
-            title="Per-activity engagement"
-            primaryLabel="Active groups"
-            secondaryLabel="Sim runs"
+            title={t("perActivityTitle")}
+            primaryLabel={t("activeGroups")}
+            secondaryLabel={t("simRuns")}
             rows={activities.data.activities.map((a) => ({
               label: a.skillId,
               value: a.activeGroups,
@@ -188,43 +172,47 @@ export function ClassInsightsPanel({ classId, since: initialSince = "30d" }: Cla
 }
 
 function Section({
+  id,
   title,
   loading,
   error,
   children,
 }: {
+  /** Stable, untranslated id for test hooks. */
+  id: string;
   title: string;
   loading: boolean;
   error: string | null;
   children: React.ReactNode;
 }) {
+  const t = useT("ClassInsightsPanel");
   if (error) {
     return (
-      <div data-testid={`section-error-${title.toLowerCase()}`} role="alert" className="flex items-start gap-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
+      <div data-testid={`section-error-${id}`} role="alert" className="flex items-start gap-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
         <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         <p>
-          <span className="font-medium">{title} unavailable.</span> {error}
+          <span className="font-medium">{t("unavailable", { section: title })}</span> {error}
         </p>
       </div>
     );
   }
   if (loading) {
     return (
-      <div data-testid={`section-loading-${title.toLowerCase()}`} className="rounded border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-        Loading {title.toLowerCase()}…
+      <div data-testid={`section-loading-${id}`} className="rounded border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
+        {t("loading", { section: title.toLowerCase() })}
       </div>
     );
   }
   return <>{children}</>;
 }
 
-function formatRelative(iso: string | null): string {
-  if (!iso) return "none";
-  const t = Date.parse(iso);
-  if (Number.isNaN(t)) return "—";
-  const diffMin = Math.round((Date.now() - t) / 60_000);
-  if (diffMin < 1) return "just now";
-  if (diffMin < 60) return `${diffMin}m ago`;
-  if (diffMin < 60 * 24) return `${Math.round(diffMin / 60)}h ago`;
-  return `${Math.round(diffMin / 60 / 24)}d ago`;
+function formatRelative(iso: string | null, t: Translate<"ClassInsightsPanel">): string {
+  if (!iso) return t("none");
+  const at = Date.parse(iso);
+  if (Number.isNaN(at)) return "—";
+  const diffMin = Math.round((Date.now() - at) / 60_000);
+  if (diffMin < 1) return t("justNow");
+  if (diffMin < 60) return t("minAgo", { n: diffMin });
+  if (diffMin < 60 * 24) return t("hoursAgo", { n: Math.round(diffMin / 60) });
+  return t("daysAgo", { n: Math.round(diffMin / 60 / 24) });
 }

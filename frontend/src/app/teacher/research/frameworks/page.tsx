@@ -25,6 +25,7 @@ import { TutorCrossviewPanel } from "@/components/teacher/research/TutorCrossvie
 import { TutorCopilot } from "./_TutorCopilot";
 import type { TutorProposal } from "./tutorCopilotProposal";
 import { TutorApproachPanel } from "@/components/teacher/research/TutorApproachPanel";
+import { useT } from "@/i18n";
 
 /** UI copy, lifted out of JSX (1.1.108 M4) so a translator can reach it.
  *
@@ -34,52 +35,7 @@ import { TutorApproachPanel } from "@/components/teacher/research/TutorApproachP
  *  asked to trust that the tutor teaches what the paper says, so the page has to
  *  say plainly what the machine did and what it cannot do.
  */
-const copy = {
-  copilotApproachNote: (label: string) =>
-    `The co-pilot proposed “${label}”. It is not saved — review the constructs and sources, then Save.`,
-  copilotBehaviourNote: (name: string) =>
-    `The co-pilot proposed behaviours for “${name}”. Add them to that construct below, then Save.`,
-  title: "Teaching approaches",
-  subtitle: (n: number) => `${n} published approach${n === 1 ? "" : "es"} · what the tutor is told to do`,
-  tabApproaches: "Approaches",
-  tabAssign: "Who teaches with what",
-  tabTry: "Try them",
-  tabUsage: "Usage",
-  tabYours: "Your approaches",
-  tabTutors: "Tutors",
-  tabFaces: "Faces and voices",
-  // Rail hints — seven theory names look alike in a list; their state is what
-  // tells them apart without opening one.
-  railPlaceholder: "Awaiting content",
-  railEdited: "Edited",
-  railConstructs: (n: number) => `${n} construct${n === 1 ? "" : "s"}`,
-  railLabel: "Which approach",
-  teacherTierNote:
-    "The seven published approaches are drawn from the research literature and are maintained by the research team, so they are not editable here — but you can read every one of them, and build a tutor on any of them. Your own approaches are yours to write and to change.",
-  howItWorksTitle: "How a tutor gets its teaching approach",
-  howItWorks: [
-    "Each published approach is a set of named constructs — the moves the framework is made of. Under each construct sit behaviours: single instructions quoted from the source paper's own coding scheme, and an avoid-list of the moves the paper codes as counter-indicative.",
-    "Fixed code turns those constructs into the text the tutor is given, in one pass, with no AI involved. The behaviours are copied word for word — nothing is paraphrased, summarised or invented — so every line in the prompt can be traced back to a construct, and from there to a cited paper.",
-    "That is what makes this reviewable: you can hold the prompt against the paper and check it. There is no way to hand-edit that text: the only editor changes the constructs, and the prompt is rebuilt from them. Free text belongs to a custom approach, which is rendered without constructs or sources because it has neither — it says it was written, not derived.",
-  ],
-  citationsTitle: "What the citations are for",
-  citations:
-    "Citations record where each construct came from and which person vouched for it. They are for you, not for the tutor — no citation is ever put in the tutor's prompt, and no student is shown one. A tutor that cited papers at a 16-year-old would be citing its own instructions. (Separately, the tutor DOES cite the classroom materials an activity gives it — that is a different mechanism.)",
-  sourcesHeld:
-    "The papers themselves are held in a private literature corpus in this environment — researchers only. The co-pilot searches it to show a passage next to its citation, so a source can be checked rather than trusted. No tutor can reach that corpus, by construction — retrieval would make the prompt differ from turn to turn, and holding it against the paper needs it to be the same text every time. The PDFs are copyrighted working copies and stay out of the repository; the citation on each construct is the durable record.",
-  // Badges
-  badgeUnedited: (n: number) => `Unedited · built from ${n} construct${n === 1 ? "" : "s"}`,
-  badgeWordingEdited: "Wording hand-edited · no longer traceable to sources",
-  badgeApproachEdited: "Approach edited · still traceable to sources",
-  badgePlaceholder: "Awaiting pedagogical content",
-  // Buttons
-  editApproach: "Edit teaching approach",
-  close: "Close",
-  sourcesLabel: "Sources this approach is built from",
-  vouchedBy: (who: string) => `vouched by ${who}`,
-  saving: "Saving…",
-  save: "Save",
-} as const;
+// Copy lives in messages/*/teacher-research.json — 1.1.108.
 
 type Status = "loading" | "ok" | "forbidden" | "error";
 
@@ -115,6 +71,7 @@ type EditorMode = "structure";
  * non-researcher who reaches this URL gets an access-required state.
  */
 export default function ResearchFrameworksPage() {
+  const t = useT("ResearchFrameworksPage");
   const [status, setStatus] = useState<Status>("loading");
   const [frameworks, setFrameworks] = useState<TeachingFrameworkPayload[]>([]);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -170,7 +127,7 @@ export default function ResearchFrameworksPage() {
       replace(await saveFrameworkStructure(fw.id, structure));
       setOpenId(null);
     } catch {
-      setError("Could not save. Your edit is still here — try again.");
+      setError(t("saveFailed"));
     } finally {
       setBusy(false);
     }
@@ -183,7 +140,7 @@ export default function ResearchFrameworksPage() {
       const updated = await revertFrameworkInstruction(fw.id);
       replace(updated);
     } catch {
-      setError("Could not revert. Try again.");
+      setError(t("revertFailed"));
     } finally {
       setBusy(false);
     }
@@ -194,9 +151,9 @@ export default function ResearchFrameworksPage() {
    *  click from being saved as though it did. */
   const onCopilotProposal = (proposal: TutorProposal) => {
     if (proposal.kind === "propose_approach") {
-      setCopilotNote(copy.copilotApproachNote(proposal.label));
+      setCopilotNote(t("copilotApproachNote", { label: proposal.label }));
     } else {
-      setCopilotNote(copy.copilotBehaviourNote(proposal.constructName));
+      setCopilotNote(t("copilotBehaviourNote", { name: proposal.constructName }));
     }
   };
 
@@ -221,7 +178,7 @@ export default function ResearchFrameworksPage() {
             <div className="mt-2 flex flex-wrap gap-2 text-xs">
               {fw.status === "placeholder" ? (
                 <span className="rounded bg-muted px-2 py-0.5 text-muted-foreground">
-                  {copy.badgePlaceholder}
+                  {t("badgePlaceholder")}
                 </span>
               ) : null}
               {/* A placeholder has no constructs, so there is nothing
@@ -234,12 +191,12 @@ export default function ResearchFrameworksPage() {
                   to see which of those happened without opening it. */}
               {!editable ? null : fw.isOverridden ? (
                 <span className="rounded bg-brand/10 px-2 py-0.5 text-brand">
-                  {fw.overrideMode === "text" ? copy.badgeWordingEdited : copy.badgeApproachEdited}
+                  {fw.overrideMode === "text" ? t("badgeWordingEdited") : t("badgeApproachEdited")}
                   {fw.overrideVersion ? ` · v${fw.overrideVersion}` : ""}
                 </span>
               ) : (
                 <span className="rounded bg-muted px-2 py-0.5 text-muted-foreground">
-                  {copy.badgeUnedited(fw.constructs.length)}
+                  {t("badgeUnedited", { n: fw.constructs.length })}
                 </span>
               )}
             </div>
@@ -251,7 +208,7 @@ export default function ResearchFrameworksPage() {
                 onClick={() => (isOpen ? setOpenId(null) : open(fw))}
                 className="rounded border px-3 py-1.5 text-sm hover:bg-muted"
               >
-                {isOpen && mode === "structure" ? copy.close : copy.editApproach}
+                {isOpen && mode === "structure" ? t("close") : t("editApproach")}
               </button>
             </div>
           ) : null}
@@ -290,7 +247,7 @@ export default function ResearchFrameworksPage() {
     <>
       {frameworks.length === 0 ? null : (
         <TeacherTabs
-          ariaLabel={copy.railLabel}
+          ariaLabel={t("railLabel")}
           orientation="vertical"
           active={activeApproach}
           onChange={setApproachId}
@@ -299,10 +256,10 @@ export default function ResearchFrameworksPage() {
             label: fw.label,
             hint:
               fw.status === "placeholder"
-                ? copy.railPlaceholder
+                ? t("railPlaceholder")
                 : fw.isOverridden
-                  ? copy.railEdited
-                  : copy.railConstructs(fw.constructs.length),
+                  ? t("railEdited")
+                  : t("railConstructs", { n: fw.constructs.length }),
             content: approachCard(fw),
           }))}
         />
@@ -313,54 +270,54 @@ export default function ResearchFrameworksPage() {
 
   return (
     <TeacherPage
-      title={copy.title}
-      subtitle={status === "ok" ? copy.subtitle(frameworks.length) : undefined}
+      title={t("title")}
+      subtitle={status === "ok" ? t("subtitle", { n: frameworks.length }) : undefined}
     >
       {status === "loading" ? (
-        <p className="text-sm text-muted-foreground">Loading frameworks&hellip;</p>
+        <p className="text-sm text-muted-foreground">{t("loading")}</p>
             ) : status === "forbidden" ? (
         /* Not a wall for a TEACHER (1.1.110). The published frameworks are
            researcher-maintained, so listing them 403s — but a teacher's own
            approaches are the one thing on this screen they DO own, and showing
            an access-required page would hide a surface built for them. */
         <div className="flex flex-col gap-4">
-          <p className="text-sm text-muted-foreground">{copy.teacherTierNote}</p>
+          <p className="text-sm text-muted-foreground">{t("teacherTierNote")}</p>
           <TeacherTabs
-            ariaLabel={copy.title}
+            ariaLabel={t("title")}
             active={tab === "approaches" ? "try" : tab}
             onChange={setTab}
             tabs={[
               // "Try them" leads for a teacher: the 09-09 ask was the tutor
               // library as teaching training, and that is the thing they came
               // for. Authoring is the second question, not the first.
-              { id: "try", label: copy.tabTry, content: <TutorPreviewPanel /> },
+              { id: "try", label: t("tabTry"), content: <TutorPreviewPanel /> },
               // TUTOR-2 M1 — READING the seven, which a teacher could not do at
               // all before. 1.1.135 requires a teacher building a tutor to pick
               // an approach somebody can read; an invisible one cannot be read.
               // It sits between trying and writing because that is the order of
               // the questions: what do these do, what are they made of, can I
               // write my own.
-              { id: "published", label: copy.tabApproaches, content: <PublishedApproachList /> },
-              { id: "yours", label: copy.tabYours, content: <CustomApproachPanel /> },
+              { id: "published", label: t("tabApproaches"), content: <PublishedApproachList /> },
+              { id: "yours", label: t("tabYours"), content: <CustomApproachPanel /> },
               // TUTOR-2 M2 — where a tutor is MADE. The home
               // TutorVariantDialog's own docstring asked for on 2026-09-11
               // when it was dropped from the class settings page: "a class is
               // where you CHOOSE a tutor; authoring a research instrument is a
               // different job done at a different moment".
-              { id: "tutors", label: copy.tabTutors, content: <MyTutorsPanel /> },
+              { id: "tutors", label: t("tabTutors"), content: <MyTutorsPanel /> },
               // TUTOR-2 M3/M4/M5 — the face and the voice. Beside the tutors
               // because they are the two halves of one answer to "make your
               // own tutor": the approach says how it teaches, the persona says
               // who is teaching.
-              { id: "faces", label: copy.tabFaces, content: <PersonaEditorPanel /> },
+              { id: "faces", label: t("tabFaces"), content: <PersonaEditorPanel /> },
             ]}
           />
         </div>
       ) : status === "error" ? (
         <EmptyState
           icon={ShieldAlert}
-          title="Could not load frameworks"
-          description="Something went wrong reading the framework catalogue. Reload to try again."
+          title={t("errorTitle")}
+          description={t("errorBody")}
         />
       ) : (
         <div className="flex flex-col gap-4">
@@ -370,15 +327,15 @@ export default function ResearchFrameworksPage() {
               every tab relies on, and burying it in one of them would make it
               findable only by someone who already knew. */}
           <details className="rounded border border-border bg-muted/30 px-4 py-3">
-            <summary className="cursor-pointer text-sm font-medium">{copy.howItWorksTitle}</summary>
+            <summary className="cursor-pointer text-sm font-medium">{t("howItWorksTitle")}</summary>
             <div className="mt-3 space-y-3 text-sm text-muted-foreground">
-              {copy.howItWorks.map((para, i) => (
-                <p key={i}>{para}</p>
+              {(["howItWorks1", "howItWorks2", "howItWorks3"] as const).map((key) => (
+                <p key={key}>{t(key)}</p>
               ))}
               <div className="rounded border border-border bg-background px-3 py-2">
-                <p className="text-xs font-medium text-foreground">{copy.citationsTitle}</p>
-                <p className="mt-1 text-xs">{copy.citations}</p>
-                <p className="mt-1 text-xs">{copy.sourcesHeld}</p>
+                <p className="text-xs font-medium text-foreground">{t("citationsTitle")}</p>
+                <p className="mt-1 text-xs">{t("citations")}</p>
+                <p className="mt-1 text-xs">{t("sourcesHeld")}</p>
               </div>
             </div>
           </details>
@@ -393,19 +350,19 @@ export default function ResearchFrameworksPage() {
           ) : null}
 
           <TeacherTabs
-            ariaLabel={copy.title}
+            ariaLabel={t("title")}
             active={tab}
             onChange={setTab}
             tabs={[
               {
                 id: "approaches",
-                label: copy.tabApproaches,
+                label: t("tabApproaches"),
                 count: frameworks.length,
                 content: approachesPanel,
               },
               {
                 id: "assign",
-                label: copy.tabAssign,
+                label: t("tabAssign"),
                 content: (
                   <TutorApproachPanel
                     frameworks={frameworks.map((f) => ({
@@ -419,16 +376,16 @@ export default function ResearchFrameworksPage() {
                   />
                 ),
               },
-              { id: "try", label: copy.tabTry, content: <TutorPreviewPanel /> },
+              { id: "try", label: t("tabTry"), content: <TutorPreviewPanel /> },
               // TUTOR-2 M2 — the SAME authoring panel the teacher tier gets.
               // One surface, graded by role: `canEdit` is computed per row on
               // the server, so a researcher simply sees more rows as theirs to
               // act on rather than meeting a different component.
-              { id: "tutors", label: copy.tabTutors, content: <MyTutorsPanel /> },
-              { id: "faces", label: copy.tabFaces, content: <PersonaEditorPanel /> },
+              { id: "tutors", label: t("tabTutors"), content: <MyTutorsPanel /> },
+              { id: "faces", label: t("tabFaces"), content: <PersonaEditorPanel /> },
               // Researcher-only: a cross-tenancy read of every teacher's work
               // (1.1.91 M4). The teacher tier never renders it.
-              { id: "usage", label: copy.tabUsage, content: <TutorCrossviewPanel /> },
+              { id: "usage", label: t("tabUsage"), content: <TutorCrossviewPanel /> },
             ]}
           />
           {/* The fourth co-pilot mount (1.1.91 M2), on the surface it edits.

@@ -1,7 +1,17 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { LocaleProvider } from "@/i18n";
 import { describe, expect, it, vi } from "vitest";
 
 import { AccountMenu } from "@/components/teacher/ui/AccountMenu";
+
+// 1.1.108 M2 — these tests assert the English copy; a teacher's default
+// language is Danish, so render inside an English locale.
+function render(ui: ReactElement, options?: Parameters<typeof rtlRender>[1]) {
+  const wrap = (node: ReactElement) => <LocaleProvider locale="en">{node}</LocaleProvider>;
+  const r = rtlRender(wrap(ui), options);
+  return { ...r, rerender: (next: ReactElement) => r.rerender(wrap(next)) };
+}
 
 /** 1.1.125 M0 — Settings, Approaches and Sign out behind the account. */
 describe("AccountMenu", () => {

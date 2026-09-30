@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChevronDown, Sparkles, SquarePen, X } from "lucide-react";
 
 import { useCopilotEntry } from "./CopilotEntryContext";
+import { useT } from "@/i18n";
 
 /**
  * Shared floating chat shell — a fixed bottom-right panel so the teacher can
@@ -18,7 +19,7 @@ import { useCopilotEntry } from "./CopilotEntryContext";
 export function FloatingCopilot({
   title,
   onNewChat,
-  minimizeLabel = "Minimize",
+  minimizeLabel,
   onClose,
   align = "right",
   onAsk,
@@ -54,6 +55,7 @@ export function FloatingCopilot({
   // (`closable`, opened from a header button) ignores `minimized` entirely in
   // the class below — the teacher just clicked to open it, so collapsing it to
   // a pill would swallow the click.
+  const t = useT("FloatingCopilot");
   const [minimized, setMinimized] = useState(true);
   const pos = align === "left" ? "bottom-4 left-4" : "bottom-4 right-4";
   const closable = Boolean(onClose);
@@ -100,7 +102,7 @@ export function FloatingCopilot({
               <button
                 type="button"
                 onClick={onNewChat}
-                aria-label="New chat"
+                aria-label={t("newChat")}
                 className="rounded p-1 text-muted-foreground hover:bg-muted"
               >
                 <SquarePen className="h-4 w-4" aria-hidden="true" />
@@ -110,7 +112,7 @@ export function FloatingCopilot({
               <button
                 type="button"
                 onClick={onClose}
-                aria-label="Close"
+                aria-label={t("close")}
                 className="rounded p-1 text-muted-foreground hover:bg-muted"
               >
                 <X className="h-4 w-4" aria-hidden="true" />
@@ -119,7 +121,7 @@ export function FloatingCopilot({
               <button
                 type="button"
                 onClick={() => setMinimized(true)}
-                aria-label={minimizeLabel}
+                aria-label={minimizeLabel ?? t("minimize")}
                 className="rounded p-1 text-muted-foreground hover:bg-muted"
               >
                 <ChevronDown className="h-4 w-4" aria-hidden="true" />

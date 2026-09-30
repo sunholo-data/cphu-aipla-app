@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { listArtefacts, type ArtefactSummary } from "@/lib/teacherApi";
 import { SimThumbnail } from "@/components/teacher/SimThumbnail";
+import { useT } from "@/i18n";
 
 interface SimPickerProps {
   /** Selected artefact id, or null for no simulation. */
@@ -20,6 +21,7 @@ interface SimPickerProps {
  * goal. The same sim can power many activities.
  */
 export function SimPicker({ value, onChange }: SimPickerProps) {
+  const t = useT("SimPicker");
   const [catalogue, setCatalogue] = useState<ArtefactSummary[] | null>(null);
 
   useEffect(() => {
@@ -37,7 +39,7 @@ export function SimPicker({ value, onChange }: SimPickerProps) {
   return (
     <div className="flex flex-col gap-2">
       <span className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
-        <FlaskConical className="h-4 w-4 text-slate-500" /> Simulation (optional)
+        <FlaskConical className="h-4 w-4 text-slate-500" /> {t("title")}
       </span>
 
       {value ? (
@@ -60,17 +62,17 @@ export function SimPicker({ value, onChange }: SimPickerProps) {
           <button
             type="button"
             onClick={() => onChange(null)}
-            aria-label="Remove simulation"
+            aria-label={t("remove")}
             className="shrink-0 rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
       ) : catalogue === null ? (
-        <p className="text-xs text-slate-400">Loading simulations…</p>
+        <p className="text-xs text-slate-400">{t("loading")}</p>
       ) : catalogue.length === 0 ? (
         <p className="rounded border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-400">
-          No simulations available in this environment yet.
+          {t("none")}
         </p>
       ) : (
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -90,7 +92,7 @@ export function SimPicker({ value, onChange }: SimPickerProps) {
                 {a.minViewportPx ? (
                   <span className="mt-0.5 inline-flex w-fit items-center gap-1 rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-900">
                     <TabletSmartphone className="h-3 w-3" aria-hidden="true" />
-                    {a.minViewportPx >= 720 ? "Tablet or laptop" : "Cramped on a phone"}
+                    {a.minViewportPx >= 720 ? t("tablet") : t("cramped")}
                   </span>
                 ) : null}
               </span>
@@ -99,8 +101,7 @@ export function SimPicker({ value, onChange }: SimPickerProps) {
         </div>
       )}
       <p className="text-xs text-slate-400">
-        Host a vetted simulation in this activity — your lesson goal, checklist, and notes wrap it. The
-        same sim can power many activities with different goals.
+        {t("help")}
       </p>
     </div>
   );

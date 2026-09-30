@@ -17,23 +17,12 @@ import { BookOpen, ChevronDown } from "lucide-react";
 
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
 import { fetchApproachCatalogue, type PublishedApproach } from "@/lib/teacherApi";
+import { useT } from "@/i18n";
 
-const copy = {
-  title: "The published approaches",
-  blurb:
-    "Seven teaching approaches drawn from the research literature and maintained by the research team. You can build a tutor on any of them — open one to read what the tutor is actually told.",
-  loading: "Loading approaches…",
-  failed: "The approaches could not be loaded just now.",
-  none: "No published approaches are available.",
-  constructsHeading: "What it is made of",
-  instructionHeading: "What the tutor is told",
-  behaviourCount: (n: number) => `${n} behaviour${n === 1 ? "" : "s"}`,
-  placeholder: "Awaiting content",
-  open: "Read this approach",
-  close: "Close",
-};
+// Copy lives in messages/*/teacher-research.json — 1.1.108.
 
 export function PublishedApproachList() {
+  const t = useT("PublishedApproachList");
   const [rows, setRows] = useState<PublishedApproach[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -50,14 +39,14 @@ export function PublishedApproachList() {
     };
   }, []);
 
-  if (failed) return <p className="text-sm text-muted-foreground">{copy.failed}</p>;
-  if (rows === null) return <p className="text-sm text-muted-foreground">{copy.loading}</p>;
+  if (failed) return <p className="text-sm text-muted-foreground">{t("failed")}</p>;
+  if (rows === null) return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
 
   return (
     <div className="flex flex-col gap-3" data-testid="published-approaches">
-      <p className="text-sm text-muted-foreground">{copy.blurb}</p>
+      <p className="text-sm text-muted-foreground">{t("blurb")}</p>
       {rows.length === 0 ? (
-        <p className="text-sm text-muted-foreground">{copy.none}</p>
+        <p className="text-sm text-muted-foreground">{t("none")}</p>
       ) : (
         rows.map((a) => {
           const isOpen = openId === a.id;
@@ -71,18 +60,18 @@ export function PublishedApproachList() {
                   </h3>
                   {a.summary ? <p className="mt-0.5 text-xs text-muted-foreground">{a.summary}</p> : null}
                   <p className="mt-1 text-[11px] text-muted-foreground">
-                    {a.status === "placeholder" ? copy.placeholder : copy.behaviourCount(
-                      a.constructs.reduce((n, c) => n + c.behaviours.length, 0),
-                    )}
+                    {a.status === "placeholder" ? t("placeholder") : t("behaviourCount", {
+                      n: a.constructs.reduce((n, c) => n + c.behaviours.length, 0),
+                    })}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={() => setOpenId(isOpen ? null : a.id)}
-                  aria-label={`${isOpen ? copy.close : copy.open}: ${a.label}`}
+                  aria-label={t("toggleAria", { action: isOpen ? t("close") : t("open"), label: a.label })}
                   className="flex shrink-0 items-center gap-1 rounded border border-border px-2 py-1 text-xs hover:bg-accent"
                 >
-                  {isOpen ? copy.close : copy.open}
+                  {isOpen ? t("close") : t("open")}
                   <ChevronDown className={`h-3.5 w-3.5 ${isOpen ? "rotate-180" : ""}`} aria-hidden="true" />
                 </button>
               </div>
@@ -91,7 +80,7 @@ export function PublishedApproachList() {
                 <div className="mt-3 flex flex-col gap-3 border-t border-border pt-3">
                   {a.constructs.length > 0 ? (
                     <div>
-                      <h4 className="text-xs font-medium">{copy.constructsHeading}</h4>
+                      <h4 className="text-xs font-medium">{t("constructsHeading")}</h4>
                       <ul className="mt-1 flex flex-col gap-2">
                         {a.constructs.map((c) => (
                           <li key={c.name}>
@@ -108,7 +97,7 @@ export function PublishedApproachList() {
                     </div>
                   ) : null}
                   <div>
-                    <h4 className="text-xs font-medium">{copy.instructionHeading}</h4>
+                    <h4 className="text-xs font-medium">{t("instructionHeading")}</h4>
                     {/* The reviewability principle, shown rather than described:
                         this is the text the tutor receives, verbatim. */}
                     <pre className="mt-1 max-h-72 overflow-auto whitespace-pre-wrap rounded bg-muted p-2 text-[11px] leading-relaxed">

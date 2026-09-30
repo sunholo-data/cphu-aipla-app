@@ -15,14 +15,8 @@
 import { useState } from "react";
 import { UserRound } from "lucide-react";
 import { ConflictError, createStudentPreview } from "@/lib/teacherApi";
+import { useT } from "@/i18n";
 
-const copy = {
-  label: "Try as student",
-  opening: "Opening…",
-  hint: "Opens the student view of the saved activity in a new tab — tutor included, no join code.",
-  failed: "Could not open the student view. Try again in a moment.",
-  popupBlocked: "Your browser blocked the new tab. Allow pop-ups for this site and try again.",
-};
 
 interface TryAsStudentButtonProps {
   activityId: string;
@@ -32,6 +26,7 @@ interface TryAsStudentButtonProps {
 }
 
 export function TryAsStudentButton({ activityId, classId }: TryAsStudentButtonProps) {
+  const t = useT("TryAsStudentButton");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -41,7 +36,7 @@ export function TryAsStudentButton({ activityId, classId }: TryAsStudentButtonPr
     // it; point it at the join link once the server has minted the group.
     const tab = window.open("", "_blank");
     if (!tab) {
-      setError(copy.popupBlocked);
+      setError(t("popupBlocked"));
       return;
     }
     setBusy(true);
@@ -51,7 +46,7 @@ export function TryAsStudentButton({ activityId, classId }: TryAsStudentButtonPr
       tab.location.href = preview.joinUrl;
     } catch (err) {
       tab.close();
-      setError(err instanceof ConflictError && err.message ? err.message : copy.failed);
+      setError(err instanceof ConflictError && err.message ? err.message : t("failed"));
     } finally {
       setBusy(false);
     }
@@ -63,11 +58,11 @@ export function TryAsStudentButton({ activityId, classId }: TryAsStudentButtonPr
         type="button"
         onClick={open}
         disabled={busy || !activityId}
-        title={copy.hint}
+        title={t("hint")}
         className="flex items-center gap-1.5 rounded border border-border bg-background px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:opacity-60"
       >
         <UserRound className="h-4 w-4" aria-hidden="true" />
-        {busy ? copy.opening : copy.label}
+        {busy ? t("opening") : t("label")}
       </button>
       {error ? (
         <p role="alert" className="text-xs text-destructive">

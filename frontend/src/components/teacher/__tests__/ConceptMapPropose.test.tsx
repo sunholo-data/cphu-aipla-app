@@ -55,7 +55,9 @@ function withCopilot(registered: boolean) {
 describe("Foreslå begrebskort", () => {
   it("asks the page co-pilot for a draft when one is mounted", async () => {
     const asked = withCopilot(true);
-    await userEvent.click(screen.getByRole("button", { name: /Add concept map/i }));
+    // 1.1.108 M2 — Danish by default (no locale provider): the teacher UI and the
+    // request it sends both speak the teacher's language.
+    await userEvent.click(screen.getByRole("button", { name: /Tilføj begrebskort/i }));
     await userEvent.click(screen.getByRole("button", { name: /Foreslå begrebskort/i }));
     expect(asked).toHaveLength(1);
     expect(asked[0]).toContain("begrebskort");
@@ -68,7 +70,9 @@ describe("Foreslå begrebskort", () => {
 
   it("offers no button at all when no co-pilot is mounted", async () => {
     withCopilot(false);
-    await userEvent.click(screen.getByRole("button", { name: /Add concept map/i }));
+    // 1.1.108 M2 — Danish by default (no locale provider): the teacher UI and the
+    // request it sends both speak the teacher's language.
+    await userEvent.click(screen.getByRole("button", { name: /Tilføj begrebskort/i }));
     // A control that silently does nothing is worse than no control — the
     // "shipped with the control unmounted" footgun from the other direction.
     expect(screen.queryByRole("button", { name: /Foreslå begrebskort/i })).not.toBeInTheDocument();

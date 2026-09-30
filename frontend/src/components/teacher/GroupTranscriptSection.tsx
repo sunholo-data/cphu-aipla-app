@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { fetchGroupTranscript, type GroupTranscript } from "@/lib/transcriptApi";
 import { TranscriptRows } from "@/components/chat/TranscriptRows";
+import { useT } from "@/i18n";
 
 /**
  * The group's lesson-recording transcript on the teacher report (REC-TRANSCRIPT
@@ -12,12 +13,13 @@ import { TranscriptRows } from "@/components/chat/TranscriptRows";
  * timestamped row per recorded segment (TranscriptRows).
  */
 export function GroupTranscriptSection({ groupId }: { groupId: string }) {
+  const t = useT("GroupTranscriptSection");
   const [data, setData] = useState<GroupTranscript | null | "loading">("loading");
 
   useEffect(() => {
     let cancelled = false;
-    void fetchGroupTranscript(groupId).then((t) => {
-      if (!cancelled) setData(t);
+    void fetchGroupTranscript(groupId).then((tr) => {
+      if (!cancelled) setData(tr);
     });
     return () => {
       cancelled = true;
@@ -29,14 +31,13 @@ export function GroupTranscriptSection({ groupId }: { groupId: string }) {
   return (
     <section aria-labelledby="transcript-label" className="flex flex-col gap-2">
       <h2 id="transcript-label" className="text-base font-semibold">
-        Lesson recording transcript
+        {t("title")}
       </h2>
       <div className="max-h-80 overflow-y-auto rounded-md border border-border p-3 text-sm">
         <TranscriptRows segments={data.segments} />
       </div>
       <p className="text-xs text-muted-foreground">
-        {data.segments.length} segment{data.segments.length === 1 ? "" : "s"} · transcribed from the
-        recorded audio (research record, consent-gated).
+        {t("summary", { n: data.segments.length })}
       </p>
     </section>
   );

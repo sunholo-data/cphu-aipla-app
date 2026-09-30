@@ -29,43 +29,14 @@ import {
   type CustomPersona,
   type VoiceListEntry,
 } from "@/lib/teacherApi";
+import { useT } from "@/i18n";
 
 /** Tiers that ignore a natural-language delivery prompt. Chirp3-HD and WaveNet
  *  reject prompts outright, so offering the field for them would be a control
  *  that silently does nothing — the thing this sprint keeps finding. */
 const PROMPTABLE = /gemini/i;
 
-const copy = {
-  title: "Faces and voices",
-  blurb:
-    "A tutor's face, name and voice. Pick a picture from the set, choose how it sounds, and use it on any tutor you build.",
-  loading: "Loading…",
-  failed: "Could not load the faces just now.",
-  create: "New face",
-  nameLabel: "Name",
-  namePlaceholder: "e.g. Fru Hansen",
-  titleLabel: "Title (optional)",
-  titlePlaceholder: "e.g. Fysiklærer",
-  avatarLabel: "Picture",
-  avatarHelp: "Chosen from the pictures the project provides — more are added over time.",
-  voiceLabel: "Voice",
-  voiceNone: "No voice set (uses the default)",
-  voicePromptLabel: "How it should sound",
-  voicePromptPlaceholder: "e.g. Tal roligt og opmuntrende.",
-  voicePromptOnlyGemini: "Only the Gemini voices follow this. The one you picked ignores it.",
-  save: "Save",
-  cancel: "Cancel",
-  edit: "Edit",
-  remove: "Delete",
-  confirmRemove: (name: string) => `Delete ${name}? Tutors using it fall back to the default face.`,
-  share: "Share with other teachers",
-  unshare: "Make private again",
-  badgeShared: "Shared",
-  badgePrivate: "Only you",
-  privateMeaning: "Private means other teachers cannot see it. The research team can.",
-  none: "No faces of your own yet.",
-  failedSave: "That could not be saved. Try again.",
-};
+// Copy lives in messages/*/teacher-research.json — 1.1.108.
 
 type Draft = {
   id?: string;
@@ -79,6 +50,8 @@ type Draft = {
 const EMPTY: Draft = { name: "", title: "", avatar: "", ttsVoice: "", voicePrompt: "" };
 
 export function PersonaEditorPanel() {
+  const t = useT("PersonaEditorPanel");
+  const tConsent = useT("ResearchConsent");
   const [rows, setRows] = useState<CustomPersona[] | null>(null);
   const [voices, setVoices] = useState<VoiceListEntry[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -120,7 +93,7 @@ export function PersonaEditorPanel() {
       setDraft(null);
       load();
     } catch {
-      setError(copy.failedSave);
+      setError(t("failedSave"));
     } finally {
       setBusy(false);
     }
@@ -132,27 +105,27 @@ export function PersonaEditorPanel() {
       await setCustomPersonaVisibility(p.id, visibilityOf(p) === "shared" ? "private" : "shared");
       load();
     } catch {
-      setError(copy.failedSave);
+      setError(t("failedSave"));
     } finally {
       setBusy(false);
     }
   };
 
   const remove = async (p: CustomPersona) => {
-    if (!window.confirm(copy.confirmRemove(p.name))) return;
+    if (!window.confirm(t("confirmRemove", { name: p.name }))) return;
     setBusy(true);
     try {
       await deleteCustomPersona(p.id);
       load();
     } catch {
-      setError(copy.failedSave);
+      setError(t("failedSave"));
     } finally {
       setBusy(false);
     }
   };
 
-  if (failed) return <p className="text-sm text-muted-foreground">{copy.failed}</p>;
-  if (rows === null) return <p className="text-sm text-muted-foreground">{copy.loading}</p>;
+  if (failed) return <p className="text-sm text-muted-foreground">{t("failed")}</p>;
+  if (rows === null) return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
 
   const promptIgnored = Boolean(draft?.ttsVoice) && !PROMPTABLE.test(draft?.ttsVoice ?? "");
 
@@ -160,8 +133,8 @@ export function PersonaEditorPanel() {
     <TeacherCard>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-medium">{copy.title}</h2>
-          <p className="mt-1 max-w-2xl text-xs text-muted-foreground">{copy.blurb}</p>
+          <h2 className="text-sm font-medium">{t("title")}</h2>
+          <p className="mt-1 max-w-2xl text-xs text-muted-foreground">{t("blurb")}</p>
         </div>
         {!draft ? (
           <button
@@ -170,7 +143,7 @@ export function PersonaEditorPanel() {
             className="flex shrink-0 items-center gap-1.5 rounded border px-3 py-1.5 text-sm hover:bg-muted"
           >
             <Plus className="h-3.5 w-3.5" aria-hidden />
-            {copy.create}
+            {t("create")}
           </button>
         ) : null}
       </div>
@@ -178,30 +151,30 @@ export function PersonaEditorPanel() {
       {draft ? (
         <div className="mt-4 space-y-3 border-t pt-4">
           <label className="block text-sm font-medium" htmlFor="persona-name">
-            {copy.nameLabel}
+            {t("nameLabel")}
           </label>
           <input
             id="persona-name"
             value={draft.name}
             onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-            placeholder={copy.namePlaceholder}
+            placeholder={t("namePlaceholder")}
             className="w-full rounded border bg-background p-2 text-sm"
           />
 
           <label className="block text-sm font-medium" htmlFor="persona-title">
-            {copy.titleLabel}
+            {t("titleLabel")}
           </label>
           <input
             id="persona-title"
             value={draft.title}
             onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-            placeholder={copy.titlePlaceholder}
+            placeholder={t("titlePlaceholder")}
             className="w-full rounded border bg-background p-2 text-sm"
           />
 
           <fieldset>
-            <legend className="text-sm font-medium">{copy.avatarLabel}</legend>
-            <p className="text-xs text-muted-foreground">{copy.avatarHelp}</p>
+            <legend className="text-sm font-medium">{t("avatarLabel")}</legend>
+            <p className="text-xs text-muted-foreground">{t("avatarHelp")}</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {AVATAR_CHOICES.map((a) => (
                 <button
@@ -222,7 +195,7 @@ export function PersonaEditorPanel() {
           </fieldset>
 
           <label className="block text-sm font-medium" htmlFor="persona-voice">
-            {copy.voiceLabel}
+            {t("voiceLabel")}
           </label>
           <select
             id="persona-voice"
@@ -230,7 +203,7 @@ export function PersonaEditorPanel() {
             onChange={(e) => setDraft({ ...draft, ttsVoice: e.target.value })}
             className="w-full rounded border bg-background p-2 text-sm"
           >
-            <option value="">{copy.voiceNone}</option>
+            <option value="">{t("voiceNone")}</option>
             {voices.map((v) => (
               <option key={v.name} value={v.name}>
                 {v.label}
@@ -239,13 +212,13 @@ export function PersonaEditorPanel() {
           </select>
 
           <label className="block text-sm font-medium" htmlFor="persona-voice-prompt">
-            {copy.voicePromptLabel}
+            {t("voicePromptLabel")}
           </label>
           <input
             id="persona-voice-prompt"
             value={draft.voicePrompt}
             onChange={(e) => setDraft({ ...draft, voicePrompt: e.target.value })}
-            placeholder={copy.voicePromptPlaceholder}
+            placeholder={t("voicePromptPlaceholder")}
             className="w-full rounded border bg-background p-2 text-sm"
           />
           {/* A control that silently does nothing is the failure this sprint
@@ -253,7 +226,7 @@ export function PersonaEditorPanel() {
               make the setting vanish when a voice is changed. */}
           {promptIgnored ? (
             <p data-testid="voice-prompt-ignored" className="text-xs text-amber-700">
-              {copy.voicePromptOnlyGemini}
+              {t("voicePromptOnlyGemini")}
             </p>
           ) : null}
 
@@ -266,7 +239,7 @@ export function PersonaEditorPanel() {
               onClick={() => void save()}
               className="rounded border bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
             >
-              {copy.save}
+              {t("save")}
             </button>
             <button
               type="button"
@@ -276,14 +249,14 @@ export function PersonaEditorPanel() {
               }}
               className="rounded border px-3 py-1.5 text-sm hover:bg-muted"
             >
-              {copy.cancel}
+              {t("cancel")}
             </button>
           </div>
         </div>
       ) : null}
 
       <div className="mt-4 flex flex-col gap-2">
-        {rows.length === 0 ? <p className="text-sm text-muted-foreground">{copy.none}</p> : null}
+        {rows.length === 0 ? <p className="text-sm text-muted-foreground">{t("none")}</p> : null}
         {rows.map((p) => (
           <div key={p.id} className="flex items-start justify-between gap-3 rounded border px-3 py-2">
             <div className="flex min-w-0 items-center gap-2">
@@ -304,9 +277,9 @@ export function PersonaEditorPanel() {
                           : "border-border bg-muted"
                       }`}
                     >
-                      {visibilityOf(p) === "shared" ? copy.badgeShared : copy.badgePrivate}
+                      {visibilityOf(p) === "shared" ? t("badgeShared") : t("badgePrivate")}
                     </span>
-                    {visibilityOf(p) === "private" ? copy.privateMeaning : null}
+                    {visibilityOf(p) === "private" ? tConsent("privateMeaning") : null}
                   </p>
                 ) : null}
               </div>
@@ -316,7 +289,7 @@ export function PersonaEditorPanel() {
                 <button
                   type="button"
                   disabled={busy}
-                  aria-label={`${visibilityOf(p) === "shared" ? copy.unshare : copy.share}: ${p.name}`}
+                  aria-label={t("shareAria", { action: visibilityOf(p) === "shared" ? t("unshare") : t("share"), name: p.name })}
                   onClick={() => void toggleShare(p)}
                   className="rounded border p-1.5 hover:bg-muted disabled:opacity-50"
                 >
@@ -328,7 +301,7 @@ export function PersonaEditorPanel() {
                 <button
                   type="button"
                   disabled={busy}
-                  aria-label={`${copy.edit} ${p.name}`}
+                  aria-label={t("editAria", { name: p.name })}
                   onClick={() =>
                     setDraft({
                       id: p.id,
@@ -341,12 +314,12 @@ export function PersonaEditorPanel() {
                   }
                   className="rounded border px-2 py-1 text-xs hover:bg-muted disabled:opacity-50"
                 >
-                  {copy.edit}
+                  {t("edit")}
                 </button>
                 <button
                   type="button"
                   disabled={busy}
-                  aria-label={`${copy.remove} ${p.name}`}
+                  aria-label={t("removeAria", { name: p.name })}
                   onClick={() => void remove(p)}
                   className="rounded border p-1.5 hover:bg-muted disabled:opacity-50"
                 >

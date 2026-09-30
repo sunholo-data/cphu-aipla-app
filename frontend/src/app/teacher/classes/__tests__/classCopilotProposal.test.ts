@@ -1,6 +1,10 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
-import { applyClassProposal, classProposalDescriptor, parseClassProposal } from "../classCopilotProposal";
+import { applyClassProposal, makeClassProposalDescriptor, parseClassProposal } from "../classCopilotProposal";
+import { translate } from "@/i18n";
+
+// 1.1.108 — the descriptor speaks the teacher's language; asserted in English.
+const classProposalDescriptor = makeClassProposalDescriptor(translate("en", "ClassProposal"));
 import type { ClassProposal } from "../classCopilotProposal";
 import type { ToolCallState } from "@/hooks/useSkillAgent";
 

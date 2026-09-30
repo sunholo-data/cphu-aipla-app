@@ -1,4 +1,6 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { LocaleProvider } from "@/i18n";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/firebase", () => ({
@@ -23,6 +25,14 @@ vi.mock("next/navigation", () => ({
 import * as firebase from "@/lib/firebase";
 import TeacherSignInPage from "@/app/teacher/sign-in/page";
 import { BRANDING } from "@/lib/branding";
+
+// 1.1.108 M2 — these tests assert the English copy; a teacher's default
+// language is Danish, so render inside an English locale.
+function render(ui: ReactElement, options?: Parameters<typeof rtlRender>[1]) {
+  const wrap = (node: ReactElement) => <LocaleProvider locale="en">{node}</LocaleProvider>;
+  const r = rtlRender(wrap(ui), options);
+  return { ...r, rerender: (next: ReactElement) => r.rerender(wrap(next)) };
+}
 
 describe("TeacherSignInPage", () => {
   beforeEach(() => {

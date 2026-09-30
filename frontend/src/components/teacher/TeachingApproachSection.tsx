@@ -4,22 +4,8 @@ import Link from "next/link";
 import { BookOpen, Radio } from "lucide-react";
 
 import type { FidelityPayload } from "@/lib/teacherApi";
+import { useT } from "@/i18n";
 
-const copy = {
-  heading: "Teaching approach",
-  intro: (label: string) => `How the tutor used ${label} in this session.`,
-  notAssessable: "Not assessed",
-  drift: "Where it drifted",
-  noDrift: "No departures from the approach stood out.",
-  spoken: "Includes the group's recorded discussion.",
-  readAbout: "Read about this approach",
-  researcherHeading: "Construct detail (research instrument — fidelity, not quality)",
-  construct: "Construct",
-  band: "Band",
-  rationale: "Rationale",
-  evidence: "Turns",
-  overall: "Overall",
-} as const;
 
 /**
  * TeachingApproachSection (1.1.107 M5) — the report's read of how faithfully
@@ -33,6 +19,7 @@ const copy = {
  * a teacher's own tutor must not read as a grade of the teacher.
  */
 export function TeachingApproachSection({ fidelity }: { fidelity: FidelityPayload | null | undefined }) {
+  const t = useT("TeachingApproachSection");
   if (!fidelity) return null;
   const label = fidelity.frameworkLabel ?? fidelity.frameworkId ?? "";
   return (
@@ -42,7 +29,7 @@ export function TeachingApproachSection({ fidelity }: { fidelity: FidelityPayloa
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 id="approach-label" className="text-base font-semibold">
-          {copy.heading}
+          {t("heading")}
           {label ? <span className="ml-2 font-normal text-muted-foreground">— {label}</span> : null}
         </h2>
         {fidelity.frameworkId ? (
@@ -51,22 +38,21 @@ export function TeachingApproachSection({ fidelity }: { fidelity: FidelityPayloa
             className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
           >
             <BookOpen className="h-3.5 w-3.5" aria-hidden />
-            {copy.readAbout}
+            {t("readAbout")}
           </Link>
         ) : null}
       </div>
 
       {fidelity.abstained ? (
         <p className="text-sm text-muted-foreground">
-          {copy.notAssessable}
-          {fidelity.abstainReason ? ` — ${fidelity.abstainReason}.` : "."}
+          {fidelity.abstainReason ? t("abstainReason", { reason: fidelity.abstainReason }) : `${t("notAssessable")}.`}
         </p>
       ) : (
         <>
-          {label ? <p className="text-xs text-muted-foreground">{copy.intro(label)}</p> : null}
+          {label ? <p className="text-xs text-muted-foreground">{t("intro", { label })}</p> : null}
           <p className="text-sm leading-relaxed">{fidelity.summary}</p>
           <div>
-            <h3 className="text-xs font-medium uppercase text-muted-foreground">{copy.drift}</h3>
+            <h3 className="text-xs font-medium uppercase text-muted-foreground">{t("drift")}</h3>
             {fidelity.drift.length > 0 ? (
               <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm">
                 {fidelity.drift.map((d, i) => (
@@ -74,12 +60,12 @@ export function TeachingApproachSection({ fidelity }: { fidelity: FidelityPayloa
                 ))}
               </ul>
             ) : (
-              <p className="mt-1 text-sm text-muted-foreground">{copy.noDrift}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{t("noDrift")}</p>
             )}
           </div>
           {fidelity.spokenIncluded ? (
             <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-              <Radio className="h-3 w-3" aria-hidden /> {copy.spoken}
+              <Radio className="h-3 w-3" aria-hidden /> {t("spoken")}
             </p>
           ) : null}
           {fidelity.constructs ? <ConstructDetail fidelity={fidelity} /> : null}
@@ -90,18 +76,19 @@ export function TeachingApproachSection({ fidelity }: { fidelity: FidelityPayloa
 }
 
 function ConstructDetail({ fidelity }: { fidelity: FidelityPayload }) {
+  const t = useT("TeachingApproachSection");
   const rows = Object.entries(fidelity.constructs ?? {});
   return (
     <details className="mt-1">
-      <summary className="cursor-pointer text-xs text-muted-foreground">{copy.researcherHeading}</summary>
+      <summary className="cursor-pointer text-xs text-muted-foreground">{t("researcherHeading")}</summary>
       <div className="mt-2 overflow-x-auto">
         <table className="w-full text-xs">
           <thead>
             <tr className="text-left text-muted-foreground">
-              <th className="pr-3 font-medium">{copy.construct}</th>
-              <th className="pr-3 font-medium">{copy.band}</th>
-              <th className="pr-3 font-medium">{copy.rationale}</th>
-              <th className="font-medium">{copy.evidence}</th>
+              <th className="pr-3 font-medium">{t("construct")}</th>
+              <th className="pr-3 font-medium">{t("band")}</th>
+              <th className="pr-3 font-medium">{t("rationale")}</th>
+              <th className="font-medium">{t("evidence")}</th>
             </tr>
           </thead>
           <tbody>
@@ -117,14 +104,14 @@ function ConstructDetail({ fidelity }: { fidelity: FidelityPayload }) {
             ))}
             {fidelity.overallBand ? (
               <tr className="border-t border-border">
-                <td className="py-1 pr-3 font-medium">{copy.overall}</td>
+                <td className="py-1 pr-3 font-medium">{t("overall")}</td>
                 <td className="py-1 pr-3">
                   <BandChip band={fidelity.overallBand} />
                 </td>
                 <td className="py-1 pr-3 text-muted-foreground" colSpan={2}>
                   {fidelity.model ?? ""}
                   {fidelity.evidenceSummary
-                    ? ` · ${fidelity.evidenceSummary.tutor ?? 0} tutor / ${fidelity.evidenceSummary.student ?? 0} student turns`
+                    ? ` · ${t("turns", { tutor: fidelity.evidenceSummary.tutor ?? 0, student: fidelity.evidenceSummary.student ?? 0 })}`
                     : ""}
                 </td>
               </tr>

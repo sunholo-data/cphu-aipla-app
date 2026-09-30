@@ -13,6 +13,7 @@ import { useEffect, useState } from "react";
 import { BookOpen, Layers, Search, Tag } from "lucide-react";
 
 import { ActiveChip, ALL, FacetRow } from "@/components/teacher/ui/FacetRow";
+import { useT } from "@/i18n";
 import type { CurriculumFacets } from "@/lib/curriculumApi";
 import { UNLEVELLED, type LevelFilter } from "@/lib/curriculumApi";
 import type { ActivityFilterParams } from "@/lib/teacherApi";
@@ -69,11 +70,12 @@ export function ActivityFilterBar({
   /** Distinguishes the two instances on the page (library vs catalogue). */
   idPrefix?: string;
 }) {
+  const t = useT("ActivityFilterBar");
   const set = (patch: Partial<ActivityFilters>) => onChange({ ...filters, ...patch });
   const toggleTag = (tag: string) =>
-    set({ tags: filters.tags.includes(tag) ? filters.tags.filter((t) => t !== tag) : [...filters.tags, tag] });
+    set({ tags: filters.tags.includes(tag) ? filters.tags.filter((x) => x !== tag) : [...filters.tags, tag] });
 
-  const levelLabel = (v: string) => (v === UNLEVELLED ? "No level" : v);
+  const levelLabel = (v: string) => (v === UNLEVELLED ? t("noLevel") : v);
 
   return (
     <div className="space-y-2">
@@ -87,8 +89,8 @@ export function ActivityFilterBar({
           type="search"
           value={filters.q}
           onChange={(e) => set({ q: e.target.value })}
-          placeholder="Search activities…"
-          aria-label="Search activities"
+          placeholder={t("searchPlaceholder")}
+          aria-label={t("search")}
           className="w-full rounded border border-border bg-background py-1.5 pl-8 pr-2 text-sm"
         />
       </div>
@@ -96,21 +98,21 @@ export function ActivityFilterBar({
       {/* Subject options come from the server, never a hardcoded list — the
           frontend used to keep its own copy of SUBJECTS and it drifted. */}
       <FacetRow
-        label="Subject"
+        label={t("subject")}
         icon={<BookOpen className="h-3 w-3" aria-hidden="true" />}
         options={facets?.subjects ?? []}
         selected={filters.subject}
         onSelect={(v) => set({ subject: v === ALL ? "" : v })}
       />
       <FacetRow
-        label="Level"
+        label={t("level")}
         icon={<Layers className="h-3 w-3" aria-hidden="true" />}
         options={facets?.levels ?? []}
         selected={filters.level}
         onSelect={(v) => set({ level: v === ALL ? "" : (v as LevelFilter) })}
       />
       <FacetRow
-        label="Tags"
+        label={t("tags")}
         icon={<Tag className="h-3 w-3" aria-hidden="true" />}
         options={facets?.tags ?? []}
         selected={filters.tags}
@@ -120,19 +122,19 @@ export function ActivityFilterBar({
 
       {hasActiveFilters(filters) ? (
         <div className="flex flex-wrap items-center gap-1.5 pt-1">
-          <span className="text-xs text-muted-foreground">Filtering by</span>
-          {filters.q.trim() ? <ActiveChip label={`"${filters.q.trim()}"`} onRemove={() => set({ q: "" })} /> : null}
+          <span className="text-xs text-muted-foreground">{t("filteringBy")}</span>
+          {filters.q.trim() ? <ActiveChip label={t("query", { q: filters.q.trim() })} onRemove={() => set({ q: "" })} /> : null}
           {filters.subject ? <ActiveChip label={filters.subject} onRemove={() => set({ subject: "" })} /> : null}
           {filters.level ? <ActiveChip label={levelLabel(filters.level)} onRemove={() => set({ level: "" })} /> : null}
-          {filters.tags.map((t) => (
-            <ActiveChip key={t} label={t} onRemove={() => toggleTag(t)} />
+          {filters.tags.map((tag) => (
+            <ActiveChip key={tag} label={tag} onRemove={() => toggleTag(tag)} />
           ))}
           <button
             type="button"
             onClick={() => onChange(EMPTY_ACTIVITY_FILTERS)}
             className="text-xs text-muted-foreground underline hover:text-foreground"
           >
-            Clear all
+            {t("clearAll")}
           </button>
         </div>
       ) : null}

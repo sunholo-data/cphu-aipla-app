@@ -3,6 +3,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { LocaleProvider } from "@/i18n";
 import { ConceptMapEditor, wouldCreateCycle } from "@/components/teacher/ConceptMapEditor";
 
 import { conceptLayers } from "../ConceptMapGraph";
@@ -82,17 +83,23 @@ describe("wouldCreateCycle", () => {
   });
 });
 
+// 1.1.108 M2 — the editor is teacher chrome and follows the teacher's language
+// (Danish by default); these assertions are English.
+function renderEn(ui: React.ReactElement) {
+  return render(ui, { wrapper: ({ children }) => <LocaleProvider locale="en">{children}</LocaleProvider> });
+}
+
 describe("ConceptMapEditor (teacher list mode)", () => {
   function setup(value: Parameters<typeof ConceptMapEditor>[0]["value"] = { title: "", nodes: [] }) {
     const onChange = vi.fn();
     let key = 100;
-    render(<ConceptMapEditor value={value} onChange={onChange} nextKey={() => key++} />);
+    renderEn(<ConceptMapEditor value={value} onChange={onChange} nextKey={() => key++} />);
     return onChange;
   }
 
   it("starts from the empty state and adds a map", () => {
     const onChange = vi.fn();
-    render(<ConceptMapEditor value={null} onChange={onChange} nextKey={() => 1} />);
+    renderEn(<ConceptMapEditor value={null} onChange={onChange} nextKey={() => 1} />);
     fireEvent.click(screen.getByRole("button", { name: /add concept map/i }));
     expect(onChange).toHaveBeenCalledWith({ title: "", nodes: [] });
   });

@@ -42,6 +42,7 @@ import {
 } from "@/lib/programmeApi";
 import { STAGE_ORDER, copy as stageCopy, describeStage } from "@/lib/onboardingStage";
 import { StageChip } from "@/components/teacher/StageChip";
+import { useT } from "@/i18n";
 
 /** Mirrors the server default (`PROGRAMME_ADMIN_MAX_CAP_USD`). A convenience
  *  for the input's `max`; the server re-checks and names the real bound if this
@@ -53,42 +54,19 @@ type Tab = "register" | "requests" | "roles";
 // Copy for the roles tab lives here rather than inline in JSX — the 1.1.108
 // rule: a translator reaches an object without a code change, and not JSX.
 // The rest of this page predates the rule and is extracted with M2.
-const copy = {
-  // 1.1.124 M0 — the Stage column: where each granted teacher is on the way to
-  // a live lesson, and a sort that puts the stuck-longest first.
-  colStage: "Getting started",
-  sortByStage: "Stuck longest first",
-  sortByGrant: "Newest grant first",
-  stageUnavailable: "—",
-  rolesTab: "Roles",
-  rolesIntro:
-    "A role is a claim on the account (researcher, programme admin, platform admin). It is separate from a spend grant on purpose — a role must never silently become a budget — so a person can hold a role and still be a visitor. This list joins the two.",
-  rolesEmpty: "Nobody on this environment holds a role claim.",
-  colEmail: "Email",
-  colRoles: "Roles",
-  colSpend: "Spend grant",
-  noGrant: "none — visitor (recorded demo only)",
-  grantOnRegister: "on the register",
-  roleLabel: {
-    researcher: "researcher",
-    "programme-admin": "programme admin",
-    admin: "platform admin",
-  } as Record<RoleRow["roles"][number], string>,
-  roleTitle: {
-    researcher: "Cross-class read: research view, cost dashboard",
-    "programme-admin": "May grant spend on the programme's behalf, within bounds",
-    admin: "Platform admin (Firestore rules isAdmin)",
-  } as Record<RoleRow["roles"][number], string>,
+// 1.1.108 M2 — every label is a message in the TeacherProgrammePage namespace.
+const ROLE_KEY: Record<RoleRow["roles"][number], "researcher" | "programmeAdmin" | "admin"> = {
+  researcher: "researcher",
+  "programme-admin": "programmeAdmin",
+  admin: "admin",
 };
 
 function GrantedViaBadge({ via }: { via: string }) {
+  const t = useT("TeacherProgrammePage");
   // Empty means a row written before 1.1.76, when the SA path was the only
   // door. Say so rather than rendering a blank the reader has to interpret.
-  const label = via === "programme-admin" ? "delegated" : "service account";
-  const title =
-    via === "programme-admin"
-      ? "Granted in-app by a programme admin, under the delegated bounds"
-      : "Granted via the service-account path (unbounded)";
+  const label = via === "programme-admin" ? t("viaDelegated") : t("viaServiceAccount");
+  const title = via === "programme-admin" ? t("viaDelegatedTitle") : t("viaServiceAccountTitle");
   return (
     <span
       title={title}
@@ -100,7 +78,12 @@ function GrantedViaBadge({ via }: { via: string }) {
 }
 
 function SpendBadge({ row }: { row: RegisterRow }) {
+  const t = useT("TeacherProgrammePage");
   const state = spendState(row);
+  // formatSpend's English "unreadable" is the lib's diagnostic; say it in the
+  // teacher's language here.
+  const spent =
+    row.spentThisPeriodUsd === null || row.spentThisPeriodUsd === undefined ? t("unreadable") : formatSpend(row);
   // "unreadable" is its own state and must never be dressed as $0.00 — the
   // reassuring answer is exactly what a broken read produces.
   const tone =
@@ -112,13 +95,14 @@ function SpendBadge({ row }: { row: RegisterRow }) {
           ? "text-muted-foreground italic"
           : "text-muted-foreground";
   return (
-    <div className={`text-[11px] ${tone}`} title="Spend so far this period, against the cap">
-      {formatSpend(row)} this period
+    <div className={`text-[11px] ${tone}`} title={t("spendTitle")}>
+      {t("spendThisPeriod", { spent })}
     </div>
   );
 }
 
 function CapEditor({ row, onSaved }: { row: RegisterRow; onSaved: () => void }) {
+  const t = useT("TeacherProgrammePage");
   const [value, setValue] = useState(String(row.monthlyCapUsd));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -158,7 +142,7 @@ function CapEditor({ row, onSaved }: { row: RegisterRow; onSaved: () => void }) 
           step={1}
           value={value}
           disabled={busy}
-          aria-label={`Monthly cap for ${row.email}`}
+          aria-label={t("capAria", { email: row.email })}
           onChange={(e) => setValue(e.target.value)}
           className="w-20 rounded border border-border bg-background px-1.5 py-0.5 text-sm"
         />
@@ -169,7 +153,7 @@ function CapEditor({ row, onSaved }: { row: RegisterRow; onSaved: () => void }) 
             disabled={busy}
             className="rounded border border-border px-1.5 py-0.5 text-[11px] hover:bg-accent disabled:opacity-50"
           >
-            {busy ? "…" : "Save"}
+            {busy ? "…" : t("save")}
           </button>
         ) : null}
       </div>
@@ -183,6 +167,7 @@ function CapEditor({ row, onSaved }: { row: RegisterRow; onSaved: () => void }) 
 }
 
 function RevokeButton({ row, onRevoked }: { row: RegisterRow; onRevoked: () => void }) {
+  const t = useT("TeacherProgrammePage");
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -196,7 +181,7 @@ function RevokeButton({ row, onRevoked }: { row: RegisterRow; onRevoked: () => v
         onClick={() => setConfirming(true)}
         className="rounded border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent"
       >
-        Revoke
+        {t("revoke")}
       </button>
     );
   }
@@ -217,24 +202,25 @@ function RevokeButton({ row, onRevoked }: { row: RegisterRow; onRevoked: () => v
         }}
         className="rounded border border-destructive px-1.5 py-0.5 text-[11px] text-destructive hover:bg-destructive/10 disabled:opacity-50"
       >
-        {busy ? "…" : "Confirm"}
+        {busy ? "…" : t("confirm")}
       </button>
       <button
         type="button"
         onClick={() => setConfirming(false)}
         className="text-[11px] text-muted-foreground hover:underline"
       >
-        Cancel
+        {t("cancel")}
       </button>
     </span>
   );
 }
 
 function RolesTable({ rows }: { rows: RoleRow[] }) {
+  const t = useT("TeacherProgrammePage");
   if (rows.length === 0) {
     return (
       <p className="rounded border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
-        {copy.rolesEmpty}
+        {t("rolesEmpty")}
       </p>
     );
   }
@@ -243,9 +229,9 @@ function RolesTable({ rows }: { rows: RoleRow[] }) {
       <table className="w-full min-w-[36rem] border-collapse text-sm">
         <thead>
           <tr className="border-b border-border text-left text-muted-foreground">
-            <th className="py-2 pr-3 font-medium">{copy.colEmail}</th>
-            <th className="py-2 pr-3 font-medium">{copy.colRoles}</th>
-            <th className="py-2 pr-3 font-medium">{copy.colSpend}</th>
+            <th className="py-2 pr-3 font-medium">{t("colEmail")}</th>
+            <th className="py-2 pr-3 font-medium">{t("colRoles")}</th>
+            <th className="py-2 pr-3 font-medium">{t("colSpend")}</th>
           </tr>
         </thead>
         <tbody>
@@ -257,10 +243,10 @@ function RolesTable({ rows }: { rows: RoleRow[] }) {
                   {row.roles.map((r) => (
                     <span
                       key={r}
-                      title={copy.roleTitle[r]}
+                      title={t(`roleTitle_${ROLE_KEY[r]}`)}
                       className="rounded border border-border px-1.5 py-0.5 text-[11px]"
                     >
-                      {copy.roleLabel[r]}
+                      {t(`role_${ROLE_KEY[r]}`)}
                     </span>
                   ))}
                 </div>
@@ -270,10 +256,14 @@ function RolesTable({ rows }: { rows: RoleRow[] }) {
               <td className="py-2 pr-3">
                 {row.grant ? (
                   <span className="text-muted-foreground">
-                    {row.grant.tier} · {row.grant.monthlyCapUsd < 0 ? "uncapped" : `$${row.grant.monthlyCapUsd.toFixed(2)}/month`} · {copy.grantOnRegister}
+                    {row.grant.tier} ·{" "}
+                    {row.grant.monthlyCapUsd < 0
+                      ? t("uncappedInline")
+                      : t("perMonth", { amount: row.grant.monthlyCapUsd.toFixed(2) })}{" "}
+                    · {t("grantOnRegister")}
                   </span>
                 ) : (
-                  <span className="text-amber-700 dark:text-amber-400">{copy.noGrant}</span>
+                  <span className="text-amber-700 dark:text-amber-400">{t("noGrant")}</span>
                 )}
               </td>
             </tr>
@@ -297,6 +287,7 @@ function RegisterTable({
    *  read failure — the column then shows a dash, never a guessed stage. */
   stages?: Map<string, OnboardingRow>;
 }) {
+  const t = useT("TeacherProgrammePage");
   const [sortByStage, setSortByStage] = useState(false);
   const sorted = useMemo(() => {
     if (!sortByStage || !stages) return rows;
@@ -312,9 +303,7 @@ function RegisterTable({
   if (rows.length === 0) {
     return (
       <p className="rounded border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
-        The register is empty — which means <strong>every account on this environment is a
-        visitor</strong>, including established teachers. That is almost certainly not what you
-        want on a live environment.
+        {t.rich("registerEmpty", { b: (c) => <strong>{c}</strong> })}
       </p>
     );
   }
@@ -328,21 +317,21 @@ function RegisterTable({
             onClick={() => setSortByStage((v) => !v)}
             className="rounded border border-border px-2 py-1 text-xs hover:bg-accent"
           >
-            {sortByStage ? copy.sortByGrant : copy.sortByStage}
+            {sortByStage ? t("sortByGrant") : t("sortByStage")}
           </button>
         </div>
       ) : null}
       <table className="w-full min-w-[52rem] border-collapse text-sm">
         <thead>
           <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
-            <th className="py-2 pr-3 font-medium">Email</th>
-            <th className="py-2 pr-3 font-medium">Tier</th>
-            <th className="py-2 pr-3 font-medium">{copy.colStage}</th>
-            <th className="py-2 pr-3 font-medium">Cap / month</th>
-            <th className="py-2 pr-3 font-medium">Expires</th>
-            <th className="py-2 pr-3 font-medium">Granted by</th>
-            <th className="py-2 pr-3 font-medium">Note</th>
-            {canWrite ? <th className="py-2 pr-3 font-medium">Actions</th> : null}
+            <th className="py-2 pr-3 font-medium">{t("colEmail")}</th>
+            <th className="py-2 pr-3 font-medium">{t("colTier")}</th>
+            <th className="py-2 pr-3 font-medium">{t("colStage")}</th>
+            <th className="py-2 pr-3 font-medium">{t("colCap")}</th>
+            <th className="py-2 pr-3 font-medium">{t("colExpires")}</th>
+            <th className="py-2 pr-3 font-medium">{t("colGrantedBy")}</th>
+            <th className="py-2 pr-3 font-medium">{t("colNote")}</th>
+            {canWrite ? <th className="py-2 pr-3 font-medium">{t("colActions")}</th> : null}
           </tr>
         </thead>
         <tbody>
@@ -352,7 +341,7 @@ function RegisterTable({
                 {row.email}
                 {!row.active ? (
                   <span className="ml-2 rounded border border-destructive px-1.5 py-0.5 text-[11px] text-destructive">
-                    {row.revoked ? "revoked" : "lapsed"}
+                    {row.revoked ? t("revoked") : t("lapsed")}
                   </span>
                 ) : null}
               </td>
@@ -360,7 +349,7 @@ function RegisterTable({
               <td className="py-2 pr-3" data-testid="stage-cell">
                 {(() => {
                   const st = stages?.get(row.email);
-                  if (!st) return <span className="text-muted-foreground">{copy.stageUnavailable}</span>;
+                  if (!st) return <span className="text-muted-foreground">{t("stageUnavailable")}</span>;
                   return (
                     <div className="flex flex-col gap-0.5">
                       <StageChip stage={st.stage} label={describeStage(st)} title={st.since ?? undefined} />
@@ -378,10 +367,10 @@ function RegisterTable({
                   // project ceiling and can starve every other teacher on it.
                   <span
                     role="status"
-                    title="No per-teacher limit. Bounded only by the shared project quota."
+                    title={t("uncappedTitle")}
                     className="rounded border border-destructive bg-destructive/10 px-1.5 py-0.5 text-[11px] font-semibold text-destructive"
                   >
-                    UNCAPPED
+                    {t("uncapped")}
                   </span>
                 ) : canWrite ? (
                   <CapEditor row={row} onSaved={onChanged} />
@@ -392,7 +381,7 @@ function RegisterTable({
                     how this register arrived at "uncapped" once already. */}
                 <SpendBadge row={row} />
               </td>
-              <td className="py-2 pr-3 text-muted-foreground">{row.expiresAt ?? "never"}</td>
+              <td className="py-2 pr-3 text-muted-foreground">{row.expiresAt ?? t("never")}</td>
               <td className="py-2 pr-3 text-muted-foreground">
                 <div>{row.grantedBy || "—"}</div>
                 <GrantedViaBadge via={row.grantedVia} />
@@ -412,10 +401,11 @@ function RegisterTable({
 }
 
 function RequestsTable({ rows }: { rows: AccessRequestRow[] }) {
+  const t = useT("TeacherProgrammePage");
   if (rows.length === 0) {
     return (
       <p className="rounded border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
-        No pending requests.
+        {t("requestsEmpty")}
       </p>
     );
   }
@@ -424,12 +414,12 @@ function RequestsTable({ rows }: { rows: AccessRequestRow[] }) {
       <table className="w-full min-w-[48rem] border-collapse text-sm">
         <thead>
           <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
-            <th className="py-2 pr-3 font-medium">Email</th>
-            <th className="py-2 pr-3 font-medium">Name</th>
-            <th className="py-2 pr-3 font-medium">Institution</th>
-            <th className="py-2 pr-3 font-medium">Message</th>
-            <th className="py-2 pr-3 font-medium">Status</th>
-            <th className="py-2 pr-3 font-medium">Asked</th>
+            <th className="py-2 pr-3 font-medium">{t("colEmail")}</th>
+            <th className="py-2 pr-3 font-medium">{t("colName")}</th>
+            <th className="py-2 pr-3 font-medium">{t("colInstitution")}</th>
+            <th className="py-2 pr-3 font-medium">{t("colMessage")}</th>
+            <th className="py-2 pr-3 font-medium">{t("colStatus")}</th>
+            <th className="py-2 pr-3 font-medium">{t("colAsked")}</th>
           </tr>
         </thead>
         <tbody>
@@ -450,6 +440,7 @@ function RequestsTable({ rows }: { rows: AccessRequestRow[] }) {
 }
 
 export default function TeacherProgrammePage() {
+  const t = useT("TeacherProgrammePage");
   const isResearcher = useIsResearcher();
   const isProgrammeAdmin = useIsProgrammeAdmin();
   const mayRead = isResearcher || isProgrammeAdmin;
@@ -515,39 +506,39 @@ export default function TeacherProgrammePage() {
       breadcrumb={
         <Link href="/teacher/classes" className="flex w-fit items-center gap-1 hover:text-foreground">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Dashboard
+          {t("dashboard")}
         </Link>
       }
-      title="Programme"
+      title={t("title")}
       subtitle={
         isProgrammeAdmin
-          ? "Who may spend on AIPLA, and who has asked to"
-          : "Who may spend on AIPLA, and who has asked to (read-only)"
+          ? t("subtitleAdmin")
+          : t("subtitleReadOnly")
       }
     >
       {!mayRead ? (
         <div role="alert" className="rounded border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
-          This view is available to programme administrators and researchers.
+          {t("noAccess")}
         </div>
       ) : (
         <>
           <div className="flex gap-2 border-b border-border">
-            {(["register", "requests", "roles"] as Tab[]).map((t) => (
+            {(["register", "requests", "roles"] as Tab[]).map((tb) => (
               <button
-                key={t}
+                key={tb}
                 type="button"
-                onClick={() => setTab(t)}
-                aria-current={tab === t ? "page" : undefined}
+                onClick={() => setTab(tb)}
+                aria-current={tab === tb ? "page" : undefined}
                 className={
-                  tab === t
+                  tab === tb
                     ? "border-b-2 border-brand px-3 py-2 text-sm font-medium text-foreground"
                     : "px-3 py-2 text-sm text-muted-foreground hover:text-foreground"
                 }
               >
-                {t === "register" ? "Register" : t === "requests" ? "Requests" : copy.rolesTab}
-                {t === "register" && register ? ` (${register.length})` : null}
-                {t === "roles" && roles ? ` (${roles.length})` : null}
-                {t === "requests" && requests
+                {tb === "register" ? t("tabRegister") : tb === "requests" ? t("tabRequests") : t("rolesTab")}
+                {tb === "register" && register ? ` (${register.length})` : null}
+                {tb === "roles" && roles ? ` (${roles.length})` : null}
+                {tb === "requests" && requests
                   ? ` (${requests.filter((r) => r.status === "pending").length})`
                   : null}
               </button>
@@ -558,11 +549,10 @@ export default function TeacherProgrammePage() {
               does not tell anyone it has something in it. Say so, so a reader
               knows checking it is their job. */}
           <p className="text-xs text-muted-foreground">
-            Nobody is notified when someone asks for access. Check this queue after any round of
-            publicity, or when someone says they asked.
+            {t("nobodyNotified")}
           </p>
 
-          {tab === "roles" ? <p className="text-xs text-muted-foreground">{copy.rolesIntro}</p> : null}
+          {tab === "roles" ? <p className="text-xs text-muted-foreground">{t("rolesIntro")}</p> : null}
 
           {tab === "register" ? <BudgetPanel canWrite={isProgrammeAdmin} /> : null}
 
@@ -575,7 +565,7 @@ export default function TeacherProgrammePage() {
               {error}
             </div>
           ) : loading ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">{t("loading")}</p>
           ) : tab === "register" ? (
             <RegisterTable rows={register ?? []} canWrite={isProgrammeAdmin} onChanged={load} stages={stages} />
           ) : tab === "requests" ? (

@@ -260,8 +260,8 @@ describe("AuthoringCopilot — proposal card", () => {
 
   it("Edit lets the teacher refine the text before applying", async () => {
     const onApply = await renderWithProposal();
-    fireEvent.click(screen.getByRole("button", { name: /rediger/i }));
-    fireEvent.change(screen.getByLabelText(/rediger forslag/i), { target: { value: "Min egen prompt" } });
+    fireEvent.click(screen.getByRole("button", { name: /redig[eé]r/i }));
+    fireEvent.change(screen.getByLabelText(/redig[eé]r forslag/i), { target: { value: "Min egen prompt" } });
     fireEvent.click(screen.getByRole("button", { name: /brug denne/i }));
     expect(onApply).toHaveBeenCalledWith({ kind: "set_lesson_prompt", value: "Min egen prompt" });
   });

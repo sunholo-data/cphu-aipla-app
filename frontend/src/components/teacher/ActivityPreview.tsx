@@ -8,7 +8,7 @@ import { SimThumbnail } from "@/components/teacher/SimThumbnail";
 import { StudentWorkspace } from "@/components/workspace/StudentWorkspace";
 import { type ActivityArtefact } from "@/components/workspace/GenericArtefactFrame";
 import { HumanToolEventsProvider } from "@/hooks/useHumanToolEvents";
-import { LocaleProvider, toLocale } from "@/i18n";
+import { LocaleProvider, toLocale, useT } from "@/i18n";
 import {
   builderToElementDefs,
   hasAnyElement,
@@ -83,6 +83,7 @@ export function ActivityPreview({
     };
   }, [artefactId]);
 
+  const t = useT("ActivityPreview");
   const sim = artefactId ? (catalogue.find((a) => a.id === artefactId) ?? null) : null;
   const showElements = hasAnyElement(defs);
   const hasContent = !!artefactId || showElements || materials.length > 0;
@@ -96,15 +97,15 @@ export function ActivityPreview({
           aria-expanded={open}
           className="flex flex-1 items-center gap-1.5 text-sm font-medium text-slate-700"
         >
-          <Eye className="h-4 w-4 text-slate-500" /> Preview — what students see
+          <Eye className="h-4 w-4 text-slate-500" /> {t("title")}
           <ChevronDown className={`h-4 w-4 transition-transform ${open ? "" : "-rotate-90"}`} />
         </button>
         {hasContent ? (
           <button
             type="button"
             onClick={() => setExpanded(true)}
-            aria-label="Open full-size view"
-            title="Open full-size view"
+            aria-label={t("expand")}
+            title={t("expand")}
             className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
           >
             <Maximize2 className="h-4 w-4" />
@@ -115,11 +116,10 @@ export function ActivityPreview({
         <div className="border-t border-slate-200 bg-slate-50">
           {!hasContent ? (
             <p className="px-4 py-6 text-center text-xs text-slate-400">
-              Tilføj elementer (tjekliste, datatabel, graf, beregner eller note) eller en simulation for
-              at se en forhåndsvisning af elevernes arbejdsområde.
+              {t("empty")}
             </p>
           ) : expanded ? (
-            <p className="px-4 py-6 text-center text-xs text-slate-400">Åbnet i fuld skærm.</p>
+            <p className="px-4 py-6 text-center text-xs text-slate-400">{t("expanded")}</p>
           ) : (
             <PreviewBody artefactId={artefactId} sim={sim} defs={defs} materials={materials} activityId={activityId} language={language} />
           )}
@@ -152,6 +152,9 @@ function PreviewBody({
   activityId?: string;
   language?: string;
 }) {
+  // Read BEFORE the provider below: this note is the TEACHER's chrome, so it
+  // follows the teacher's own language, not the activity's.
+  const t = useT("ActivityPreview");
   // No `syncHtmlLang`: the page around the preview is the teacher's, not the
   // student's — only the embedded workspace switches language.
   return (
@@ -161,9 +164,10 @@ function PreviewBody({
         <div className="flex items-start gap-2.5 border-b border-slate-200 px-4 py-3 text-xs text-slate-500">
           <SimThumbnail id={sim?.id ?? artefactId} displayName={sim?.displayName ?? artefactId} thumbnail={sim?.thumbnail} />
           <span>
-            <span className="font-medium text-slate-700">{sim?.displayName ?? artefactId}</span>{" "}
-            simulation attached. The live simulation appears here once the sandbox service is configured
-            for this environment.
+            {t.rich("simAttached", {
+              name: sim?.displayName ?? artefactId,
+              b: (chunks) => <span className="font-medium text-slate-700">{chunks}</span>,
+            })}
           </span>
         </div>
       ) : null}
@@ -216,6 +220,7 @@ function PreviewModal({
   onOpenChange: (open: boolean) => void;
   children: ReactNode;
 }) {
+  const t = useT("ActivityPreview");
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>
@@ -226,10 +231,10 @@ function PreviewModal({
         >
           <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2.5">
             <Dialog.Title className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
-              <Eye className="h-4 w-4 text-slate-500" /> Preview — what students see
+              <Eye className="h-4 w-4 text-slate-500" /> {t("title")}
             </Dialog.Title>
             <Dialog.Close
-              aria-label="Close"
+              aria-label={t("close")}
               className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
             >
               <X className="h-4 w-4" />

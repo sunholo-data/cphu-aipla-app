@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen, waitFor, within, type RenderOptions } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const browseCurriculum = vi.fn();
@@ -49,6 +49,16 @@ vi.mock("@/hooks/useIsResearcher", () => ({ useIsResearcher: () => researcherRef
 import { CurriculumApiError } from "@/lib/curriculumApi";
 import { MaterialsSection } from "../MaterialsSection";
 import type { MaterialRef } from "@/lib/teacherApi";
+
+import { LocaleProvider } from "@/i18n";
+
+// 1.1.108 M2 — these tests assert the English copy; the teacher UI defaults to
+// Danish, so render inside an English locale (the teacher chose EN).
+function EnglishUI({ children }: { children: React.ReactNode }) {
+  return <LocaleProvider locale="en">{children}</LocaleProvider>;
+}
+const render = (ui: React.ReactElement, options?: Omit<RenderOptions, "wrapper">) =>
+  rtlRender(ui, { wrapper: EnglishUI, ...options });
 
 function makeDoc(overrides: Partial<Record<string, unknown>> = {}) {
   return {

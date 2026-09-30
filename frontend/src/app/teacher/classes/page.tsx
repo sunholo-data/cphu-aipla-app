@@ -52,41 +52,15 @@ import { CrossClassTable } from "@/components/teacher/insights/CrossClassTable";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
 import { ManageClassCopilot } from "./_ManageClassCopilot";
 import { GettingStartedCard } from "./_GettingStartedCard";
-import { SetUpForTeacherDialog, setUpForTeacherCopy } from "./_SetUpForTeacherDialog";
+import { SetUpForTeacherDialog } from "./_SetUpForTeacherDialog";
 import { StageChip } from "@/components/teacher/StageChip";
 import { classStage } from "@/lib/onboardingStage";
 // 1.1.108: teacher surfaces are English until M2 extracts them; pinned so the
 // relative time does not turn Danish inside an English sentence.
 import { formatRelativeTime } from "@/lib/relativeTime";
 import { TutorFace } from "@/components/teacher/research/TutorFace";
+import { useLocaleMode, useT, type MessageKey } from "@/i18n";
 
-// Copy for the activity column and the filters lives here rather than inline
-// in JSX — the 1.1.108 rule. The rest of this page predates it.
-const copy = {
-  colActivity: "Activity",
-  // 1.1.91 — the column shows the class's TUTOR. "Persona" is the legacy API
-  // field behind it and is not a word a teacher should meet.
-  colTutor: "Tutor",
-  tutorInherited: "default",
-  tutorDefault: "Default tutor",
-  noActivity: "No messages yet",
-  turns: (n: number) => `${n} turn${n === 1 ? "" : "s"}`,
-  groupsSpoke: (n: number) => `${n} group${n === 1 ? "" : "s"} active`,
-  searchLabel: "Search classes",
-  searchPlaceholder: "Class, teacher or activity…",
-  filterLabel: "Filter by activity",
-  filterAll: "All classes",
-  filterActive7d: "Active in the last 7 days",
-  filterQuiet: "No messages yet",
-  noMatch: "No classes match.",
-  windowLabel: "Time window",
-  window: { "7d": "the last 7 days", "30d": "the last 30 days", all: "all time" } as Record<InsightsSince, string>,
-  windowOption: { "7d": "7 days", "30d": "30 days", all: "All time" } as Record<InsightsSince, string>,
-  acrossOwn: "Across your classes",
-  acrossAll: "Across all teachers' classes",
-  noEngagement: (w: string) => `No engagement recorded in ${w}.`,
-  messagesIn: (w: string) => `Messages (${w})`,
-};
 
 type ActivityFilter = "all" | "active7d" | "quiet";
 
@@ -108,6 +82,12 @@ function byLatestActivity(
 }
 
 export default function TeacherClassesPage() {
+  const t = useT("ClassesPage");
+  const tSetUp = useT("SetUpForTeacherDialog");
+  const localeMode = useLocaleMode();
+  const timeLocale = localeMode === "bilingual" ? "da" : localeMode;
+  const windowLabel = (w: InsightsSince) => t(`window_${w}` as MessageKey<"ClassesPage">);
+  const windowOption = (w: InsightsSince) => t(`windowOption_${w}` as MessageKey<"ClassesPage">);
   const [classes, setClasses] = useState<ClassPayload[] | null>(null);
   const [recentSessions, setRecentSessions] = useState<SessionRow[]>([]);
   const [catalogue, setCatalogue] = useState<SkillSummary[]>([]);
@@ -211,10 +191,10 @@ export default function TeacherClassesPage() {
       setRecentSessions(merged);
     } catch (err) {
       setLoadError(
-        err instanceof Error ? err.message : "failed to load classes",
+        err instanceof Error ? err.message : t("loadFailedGeneric"),
       );
     }
-  }, [researchView]);
+  }, [researchView, t]);
 
   useEffect(() => {
     void refresh();
@@ -243,7 +223,7 @@ export default function TeacherClassesPage() {
       .then((cat) => {
         setTutorById(
           new Map(
-            [...cat.tutors, ...(cat.skillBoundTutors ?? [])].map((t) => [t.id, t]),
+            [...cat.tutors, ...(cat.skillBoundTutors ?? [])].map((tu) => [tu.id, tu]),
           ),
         );
       })
@@ -368,12 +348,12 @@ export default function TeacherClassesPage() {
       const id = explicit ?? defaultPersonaId;
       const p = id ? personaById.get(id) : undefined;
       return {
-        name: p?.name || copy.tutorDefault,
+        name: p?.name || t("tutorDefault"),
         inherited: !explicit,
         avatar: p?.avatar || "",
       };
     },
-    [tutorById, personaById, defaultPersonaId],
+    [tutorById, personaById, defaultPersonaId, t],
   );
 
   // Teacher-level engagement totals — summed across the per-class summaries
@@ -408,13 +388,13 @@ export default function TeacherClassesPage() {
         await refresh();
       } catch (err) {
         setActionError(
-          err instanceof Error ? err.message : `failed to delete ${cls.name}`,
+          err instanceof Error ? err.message : t("deleteFailed", { name: cls.name }),
         );
       } finally {
         setDeletingId(null);
       }
     },
-    [refresh],
+    [refresh, t],
   );
 
   // Sorted by latest activity, then narrowed by the search box and the
@@ -428,8 +408,8 @@ export default function TeacherClassesPage() {
       const act = activity[cls.classId];
       if (activityFilter === "quiet" && act && act.turns > 0) return false;
       if (activityFilter === "active7d") {
-        const t = act?.lastMessageAt ? new Date(act.lastMessageAt).getTime() : NaN;
-        if (!(now - t <= SEVEN_DAYS_MS)) return false;
+        const at = act?.lastMessageAt ? new Date(act.lastMessageAt).getTime() : NaN;
+        if (!(now - at <= SEVEN_DAYS_MS)) return false;
       }
       if (!q) return true;
       const hay = [
@@ -451,19 +431,17 @@ export default function TeacherClassesPage() {
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-semibold sm:text-2xl">
-            {researchView ? "Research view" : "My classes"}
+            {researchView ? t("researchView") : t("myClasses")}
           </h1>
           <p className="text-sm text-muted-foreground">
-            {researchView
-              ? "All classes across every teacher. Pick one to drill into its sessions."
-              : "Classes you own. Pick one to manage groups and configure activities."}
+            {researchView ? t("researchIntro") : t("ownIntro")}
           </p>
         </div>
         <div className="flex items-center gap-2">
           {isResearcher ? (
             <div
               role="group"
-              aria-label="Class scope"
+              aria-label={t("scopeLabel")}
               className="flex items-center rounded border border-border text-sm font-medium"
             >
               <button
@@ -472,7 +450,7 @@ export default function TeacherClassesPage() {
                 onClick={() => setResearchView(false)}
                 className={`rounded-l px-3 py-1.5 ${!researchView ? "bg-accent" : "hover:bg-accent"}`}
               >
-                My classes
+                {t("myClasses")}
               </button>
               <button
                 type="button"
@@ -480,7 +458,7 @@ export default function TeacherClassesPage() {
                 onClick={() => setResearchView(true)}
                 className={`rounded-r px-3 py-1.5 ${researchView ? "bg-accent" : "hover:bg-accent"}`}
               >
-                Research view
+                {t("researchView")}
               </button>
             </div>
           ) : null}
@@ -491,7 +469,7 @@ export default function TeacherClassesPage() {
               className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent"
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
-              {setUpForTeacherCopy.button}
+              {tSetUp("button")}
             </button>
           ) : (
             <button
@@ -500,7 +478,7 @@ export default function TeacherClassesPage() {
               className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent"
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
-              New class
+              {t("newClass")}
             </button>
           )}
         </div>
@@ -533,7 +511,7 @@ export default function TeacherClassesPage() {
           role="alert"
           className="rounded border border-destructive bg-destructive/10 px-3 py-2 text-sm text-destructive"
         >
-          Couldn&rsquo;t load classes: {loadError}
+          {t("loadFailed", { error: loadError })}
         </p>
       ) : null}
 
@@ -548,17 +526,17 @@ export default function TeacherClassesPage() {
 
       <section aria-labelledby="classes-table-label">
         <h2 id="classes-table-label" className="sr-only">
-          Classes
+          {t("classesHeading")}
         </h2>
         {classes === null || visibleClasses === null ? (
-          <p className="text-sm text-muted-foreground">Loading classes&hellip;</p>
+          <p className="text-sm text-muted-foreground">{t("loading")}</p>
         ) : classes.length === 0 ? (
           <EmptyState onCreateClick={() => setShowNewClassForm(true)} />
         ) : (
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center gap-2">
               <label className="relative flex-1 min-w-[12rem]">
-                <span className="sr-only">{copy.searchLabel}</span>
+                <span className="sr-only">{t("searchLabel")}</span>
                 <Search
                   className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
                   aria-hidden="true"
@@ -567,35 +545,35 @@ export default function TeacherClassesPage() {
                   type="search"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder={copy.searchPlaceholder}
-                  aria-label={copy.searchLabel}
+                  placeholder={t("searchPlaceholder")}
+                  aria-label={t("searchLabel")}
                   className="w-full rounded border border-border bg-background py-1.5 pl-8 pr-2 text-sm"
                 />
               </label>
               <select
                 value={activityFilter}
                 onChange={(e) => setActivityFilter(e.target.value as ActivityFilter)}
-                aria-label={copy.filterLabel}
+                aria-label={t("filterLabel")}
                 className="rounded border border-border bg-background px-2 py-1.5 text-sm"
               >
-                <option value="all">{copy.filterAll}</option>
-                <option value="active7d">{copy.filterActive7d}</option>
-                <option value="quiet">{copy.filterQuiet}</option>
+                <option value="all">{t("filterAll")}</option>
+                <option value="active7d">{t("filterActive7d")}</option>
+                <option value="quiet">{t("filterQuiet")}</option>
               </select>
             </div>
             {visibleClasses.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{copy.noMatch}</p>
+              <p className="text-sm text-muted-foreground">{t("noMatch")}</p>
             ) : (
           <div className="overflow-x-auto rounded-lg border border-border">
             <table className="w-full min-w-[760px] text-sm">
               <thead>
                 <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                  <th className="px-3 py-2 font-medium">Class</th>
-                  <th className="px-3 py-2 font-medium">{copy.colActivity}</th>
-                  <th className="px-3 py-2 font-medium">Groups</th>
-                  <th className="px-3 py-2 font-medium">Activities</th>
-                  <th className="px-3 py-2 font-medium">{copy.colTutor}</th>
-                  <th className="px-3 py-2 text-right font-medium">Actions</th>
+                  <th className="px-3 py-2 font-medium">{t("colClass")}</th>
+                  <th className="px-3 py-2 font-medium">{t("colActivity")}</th>
+                  <th className="px-3 py-2 font-medium">{t("colGroups")}</th>
+                  <th className="px-3 py-2 font-medium">{t("colActivities")}</th>
+                  <th className="px-3 py-2 font-medium">{t("colTutor")}</th>
+                  <th className="px-3 py-2 text-right font-medium">{t("colActions")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -634,7 +612,7 @@ export default function TeacherClassesPage() {
 
       <section aria-labelledby="insights-label" className="flex flex-col gap-3">
         <h2 id="insights-label" className="sr-only">
-          Insights and spend
+          {t("insightsHeading")}
         </h2>
         {!showInsights ? (
           <button
@@ -643,9 +621,9 @@ export default function TeacherClassesPage() {
             className="flex items-center gap-2 self-start rounded border border-dashed border-border px-4 py-3 text-sm font-medium text-muted-foreground hover:bg-muted/50"
           >
             <BarChart3 className="h-4 w-4" aria-hidden="true" />
-            Show insights &amp; spend
+            {t("showInsights")}
             <span className="text-xs font-normal text-muted-foreground/70">
-              — engagement + model cost across your classes (loads analytics)
+              {t("showInsightsHint")}
             </span>
           </button>
         ) : insightsLoading && !insightsCompare ? (
@@ -654,7 +632,7 @@ export default function TeacherClassesPage() {
             className="flex items-center gap-2 self-start rounded border border-border px-4 py-3 text-sm text-muted-foreground"
           >
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            Loading insights &amp; spend&hellip;
+            {t("loadingInsights")}
           </p>
         ) : (
           <div
@@ -662,18 +640,18 @@ export default function TeacherClassesPage() {
             className="flex flex-col gap-4 rounded-lg border border-border p-4"
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-base font-semibold">Insights &amp; spend</h3>
+              <h3 className="text-base font-semibold">{t("insightsTitle")}</h3>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>{researchView ? copy.acrossAll : copy.acrossOwn}</span>
+                <span>{researchView ? t("acrossAll") : t("acrossOwn")}</span>
                 <select
                   value={insightsSince}
                   onChange={(e) => setInsightsSince(e.target.value as InsightsSince)}
-                  aria-label={copy.windowLabel}
+                  aria-label={t("windowLabel")}
                   className="rounded border border-border bg-background px-2 py-1 text-xs"
                 >
                   {(["7d", "30d", "all"] as InsightsSince[]).map((w) => (
                     <option key={w} value={w}>
-                      {copy.windowOption[w]}
+                      {windowOption(w)}
                     </option>
                   ))}
                 </select>
@@ -681,15 +659,15 @@ export default function TeacherClassesPage() {
             </div>
             <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <SummaryStat
-                label="Active groups"
+                label={t("activeGroups")}
                 value={String(insightsTotals.activeGroups)}
               />
               <SummaryStat
-                label={copy.messagesIn(copy.windowOption[insightsSince].toLowerCase())}
+                label={t("messagesIn", { window: windowOption(insightsSince).toLowerCase() })}
                 value={String(insightsTotals.totalMessages)}
               />
               <SummaryStat
-                label="Spend (this month)"
+                label={t("spendThisMonth")}
                 value={
                   spendLoading
                     ? "…"
@@ -699,20 +677,20 @@ export default function TeacherClassesPage() {
                 }
               />
               <SummaryStat
-                label="Last activity"
+                label={t("lastActivity")}
                 value={
                   insightsTotals.lastActivity
-                    ? formatRelativeTime(insightsTotals.lastActivity, Date.now(), "en")
-                    : "none"
+                    ? formatRelativeTime(insightsTotals.lastActivity, Date.now(), timeLocale)
+                    : t("none")
                 }
               />
             </dl>
             {insightsCompare && insightsCompare.rows.length > 0 ? (
               <details open data-testid="cross-class-compare-section">
                 <summary className="cursor-pointer text-sm font-medium text-foreground">
-                  Per class
+                  {t("perClass")}
                   <span className="ml-2 text-xs font-normal text-muted-foreground">
-                    — engagement + spend; sortable; {copy.window[insightsSince]}
+                    {t("perClassHint", { window: windowLabel(insightsSince) })}
                   </span>
                 </summary>
                 <div className="mt-3">
@@ -724,7 +702,7 @@ export default function TeacherClassesPage() {
               </details>
             ) : (
               <p className="text-sm text-muted-foreground">
-                {copy.noEngagement(copy.window[insightsSince])}
+                {t("noEngagement", { window: windowLabel(insightsSince) })}
               </p>
             )}
           </div>
@@ -734,13 +712,13 @@ export default function TeacherClassesPage() {
       <section aria-labelledby="recent-activity-label" className="flex flex-col gap-3">
         <header>
           <h2 id="recent-activity-label" className="text-lg font-semibold">
-            Recent activity
+            {t("recentActivity")}
           </h2>
         </header>
 
         {recentSessions.length === 0 ? (
           <p className="rounded border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
-            No student sessions yet. Sessions appear here once students join a group and start chatting.
+            {t("noSessions")}
           </p>
         ) : (
           <ul className="divide-y divide-border rounded border border-border">
@@ -762,12 +740,12 @@ export default function TeacherClassesPage() {
                         {label}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {row.turnCount} turn{row.turnCount === 1 ? "" : "s"} · {formatRelativeTime(row.lastMessageAt, Date.now(), "en")}
+                        {t("turns", { n: row.turnCount })} · {formatRelativeTime(row.lastMessageAt, Date.now(), timeLocale)}
                       </span>
                     </div>
                     <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground">
                       <FileText className="h-3.5 w-3.5" aria-hidden="true" />
-                      View
+                      {t("view")}
                     </span>
                   </Link>
                 </li>
@@ -782,7 +760,7 @@ export default function TeacherClassesPage() {
                       {label}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {row.turnCount} turn{row.turnCount === 1 ? "" : "s"} · {formatRelativeTime(row.lastMessageAt, Date.now(), "en")}
+                      {t("turns", { n: row.turnCount })} · {formatRelativeTime(row.lastMessageAt, Date.now(), timeLocale)}
                     </span>
                   </div>
                 </li>
@@ -825,6 +803,9 @@ function ClassRow({
   deleting?: boolean;
   onDelete: () => void;
 }) {
+  const t = useT("ClassesPage");
+  const localeMode = useLocaleMode();
+  const timeLocale = localeMode === "bilingual" ? "da" : localeMode;
   return (
     <tr className="align-top hover:bg-muted/30">
       <td className="px-3 py-3">
@@ -840,7 +821,7 @@ function ClassRow({
             data-testid="class-owner"
             title={cls.ownerLabel ?? cls.ownerUid}
           >
-            Owner: {cls.ownerLabel ?? cls.ownerUid}
+            {t("owner", { owner: cls.ownerLabel ?? cls.ownerUid })}
           </div>
         ) : null}
         {/* 1.1.124 M0 — where this class is on the way to a live lesson,
@@ -859,16 +840,16 @@ function ClassRow({
         {activity === undefined ? (
           <span className="text-muted-foreground/60">—</span>
         ) : activity.turns === 0 ? (
-          <span className="text-muted-foreground/60">{copy.noActivity}</span>
+          <span className="text-muted-foreground/60">{t("noActivity")}</span>
         ) : (
           <div className="flex flex-col gap-0.5 whitespace-nowrap">
             <span className="inline-flex items-center gap-1 text-foreground">
               <MessageSquare className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-              {copy.turns(activity.turns)} · {copy.groupsSpoke(activity.activeGroups)}
+              {t("turns", { n: activity.turns })} · {t("groupsSpoke", { n: activity.activeGroups })}
             </span>
             {activity.lastMessageAt ? (
               <span className="text-xs" title={activity.lastMessageAt}>
-                {formatRelativeTime(activity.lastMessageAt, Date.now(), "en")}
+                {formatRelativeTime(activity.lastMessageAt, Date.now(), timeLocale)}
               </span>
             ) : null}
           </div>
@@ -882,7 +863,7 @@ function ClassRow({
       </td>
       <td className="max-w-[20rem] px-3 py-3 text-muted-foreground">
         {activities.length === 0 ? (
-          <span className="text-muted-foreground/60">None yet</span>
+          <span className="text-muted-foreground/60">{t("noneYet")}</span>
         ) : (
           <ul className="space-y-0.5">
             {activities.slice(0, 3).map((a) => (
@@ -894,7 +875,7 @@ function ClassRow({
                 <Link
                   href={`/teacher/activities/${encodeURIComponent(a.activityId)}?title=${encodeURIComponent(a.title)}`}
                   className="truncate hover:text-foreground hover:underline"
-                  title={`Edit ${a.title}`}
+                  title={t("editActivity", { title: a.title })}
                 >
                   {a.title}
                 </Link>
@@ -902,7 +883,7 @@ function ClassRow({
             ))}
             {activities.length > 3 ? (
               <li className="pl-[1.375rem] text-xs text-muted-foreground/70">
-                +{activities.length - 3} more
+                {t("more", { n: activities.length - 3 })}
               </li>
             ) : null}
           </ul>
@@ -913,7 +894,7 @@ function ClassRow({
           <TutorFace name={tutor.name} avatar={tutor.avatar} size="sm" />
           {tutor.name}
           {tutor.inherited ? (
-            <span className="text-muted-foreground/60">· {copy.tutorInherited}</span>
+            <span className="text-muted-foreground/60">· {t("tutorInherited")}</span>
           ) : null}
         </span>
       </td>
@@ -924,7 +905,7 @@ function ClassRow({
             className="flex items-center gap-1 rounded bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:opacity-90"
           >
             <Settings className="h-3.5 w-3.5" aria-hidden="true" />
-            Manage
+            {t("manage")}
           </Link>
           {/* No class-level "Report" button: a class has many groups and reports are
               per-group. The arbitrary-first-group link was misleading (1.1.36 feedback).
@@ -934,7 +915,7 @@ function ClassRow({
               type="button"
               onClick={onDelete}
               disabled={deleting}
-              aria-label={`Delete ${cls.name}`}
+              aria-label={t("deleteAria", { name: cls.name })}
               className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
             >
               {deleting ? (
@@ -942,7 +923,7 @@ function ClassRow({
               ) : (
                 <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
               )}
-              Delete
+              {t("delete")}
             </button>
           ) : null}
         </div>
@@ -962,6 +943,7 @@ function DeleteClassDialog({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const t = useT("ClassesPage");
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !busy) onCancel();
@@ -983,13 +965,10 @@ function DeleteClassDialog({
         className="w-full max-w-md rounded-lg border border-border bg-background p-5 shadow-xl"
       >
         <h2 id="delete-class-title" className="text-lg font-semibold">
-          Delete &ldquo;{cls.name}&rdquo;?
+          {t("deleteTitle", { name: cls.name })}
         </h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          This revokes the class and its {cls.groupCodes.length} group code
-          {cls.groupCodes.length === 1 ? "" : "s"} — students can no longer
-          join, and its assigned activities &amp; session reports become
-          inaccessible. This can&rsquo;t be undone here.
+          {t("deleteBody", { n: cls.groupCodes.length })}
         </p>
         <div className="mt-5 flex justify-end gap-2">
           <button
@@ -998,7 +977,7 @@ function DeleteClassDialog({
             disabled={busy}
             className="rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent disabled:opacity-50"
           >
-            Cancel
+            {t("cancel")}
           </button>
           <button
             type="button"
@@ -1011,7 +990,7 @@ function DeleteClassDialog({
             ) : (
               <Trash2 className="h-4 w-4" aria-hidden="true" />
             )}
-            Delete class
+            {t("deleteClass")}
           </button>
         </div>
       </div>
@@ -1020,11 +999,12 @@ function DeleteClassDialog({
 }
 
 function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
+  const t = useT("ClassesPage");
   return (
     <div className="col-span-full flex flex-col items-start gap-2 rounded border border-dashed border-border p-6">
-      <p className="text-sm font-medium">No classes yet.</p>
+      <p className="text-sm font-medium">{t("emptyTitle")}</p>
       <p className="text-sm text-muted-foreground">
-        Create your first class, then make group codes for students to join.
+        {t("emptyBody")}
       </p>
       <button
         type="button"
@@ -1032,7 +1012,7 @@ function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
         className="mt-2 flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90"
       >
         <Plus className="h-4 w-4" aria-hidden="true" />
-        Create class
+        {t("createClass")}
       </button>
     </div>
   );
@@ -1045,6 +1025,7 @@ function NewClassForm({
   onCreated: () => void;
   onCancel: () => void;
 }) {
+  const t = useT("ClassesPage");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -1074,7 +1055,7 @@ function NewClassForm({
       }
       onCreated();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "failed to create class");
+      setError(err instanceof Error ? err.message : t("createFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -1084,10 +1065,10 @@ function NewClassForm({
     <form
       onSubmit={handleSubmit}
       className="flex flex-col gap-3 rounded border border-border bg-background p-4"
-      aria-label="Create class"
+      aria-label={t("createClass")}
     >
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">Class name</span>
+        <span className="font-medium">{t("className")}</span>
         <input
           type="text"
           value={name}
@@ -1096,11 +1077,11 @@ function NewClassForm({
           minLength={1}
           maxLength={200}
           className="rounded border border-border bg-background px-2 py-1 text-sm"
-          placeholder="e.g. Physik 9A vår 2026"
+          placeholder={t("classNamePlaceholder")}
         />
       </label>
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium">Description (optional)</span>
+        <span className="font-medium">{t("descriptionOptional")}</span>
         <textarea
           value={description}
           onChange={(e) => setDescription(e.target.value)}
@@ -1120,14 +1101,14 @@ function NewClassForm({
           onClick={onCancel}
           className="rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent"
         >
-          Cancel
+          {t("cancel")}
         </button>
         <button
           type="submit"
           disabled={submitting || name.trim().length === 0}
           className="rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
         >
-          {submitting ? "Creating…" : "Create"}
+          {submitting ? t("creating") : t("create")}
         </button>
       </div>
     </form>

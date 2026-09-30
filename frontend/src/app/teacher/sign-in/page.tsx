@@ -9,9 +9,11 @@ import {
   signInWithGoogleRedirect,
 } from "@/lib/firebase";
 import { BRANDING } from "@/lib/branding";
+import { useT, type Translate } from "@/i18n";
 
 export default function TeacherSignInPage() {
   const router = useRouter();
+  const t = useT("TeacherSignInPage");
   const [mode, setMode] = useState<"choose" | "email">("choose");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -34,11 +36,7 @@ export default function TeacherSignInPage() {
         // The commonest cause is not a broken popup: it is a school with no
         // Google identity at all, where Google sign-in can never succeed. Say
         // so, and name the door that does work.
-        setError(
-          "Could not sign in with Google. If your school does not use Google accounts, " +
-            "use “Sign in with email” below instead — you may need a password set up first. " +
-            `(${describeRawError(err)})`,
-        );
+        setError(t("googleFailed", { detail: describeRawError(err, t) }));
         setBusy(false);
       }
     }
@@ -57,17 +55,9 @@ export default function TeacherSignInPage() {
     setNotice(null);
     try {
       await sendPasswordReset(email);
-      setNotice(
-        `If ${email} has an account, a password-reset link is on its way — ` +
-          "it comes from a firebaseapp.com address, so check your spam folder. " +
-          "If nothing arrives within a few minutes, your account may not be set up yet: " +
-          "contact one of the people below and they can create it for you.",
-      );
+      setNotice(t("resetSent", { email }));
     } catch (err) {
-      setError(
-        `Could not send the reset email (${describeRawError(err)}). ` +
-          "Try again in a minute, or contact one of the people below.",
-      );
+      setError(t("resetFailed", { detail: describeRawError(err, t) }));
     }
     setBusy(false);
   }
@@ -81,7 +71,7 @@ export default function TeacherSignInPage() {
       await signInWithEmail(email, password);
       router.replace("/teacher/classes");
     } catch (err) {
-      setError(describeSignInError(err));
+      setError(describeSignInError(err, t));
       setBusy(false);
     }
   }
@@ -95,10 +85,8 @@ export default function TeacherSignInPage() {
         className="h-16 w-16"
       />
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-semibold">{BRANDING.appName} Teacher</h1>
-        <p className="text-sm text-muted-foreground">
-          Sign in to access your dashboard.
-        </p>
+        <h1 className="text-2xl font-semibold">{t("brand", { app: BRANDING.appName })}</h1>
+        <p className="text-sm text-muted-foreground">{t("intro")}</p>
       </div>
 
       {mode === "choose" ? (
@@ -109,7 +97,7 @@ export default function TeacherSignInPage() {
             disabled={busy}
             className="flex w-full items-center justify-center gap-2 rounded border border-border bg-background px-4 py-2.5 text-sm font-medium shadow-sm hover:bg-accent disabled:opacity-60"
           >
-            {busy ? "Signing in…" : <><GoogleMark /> Sign in with Google</>}
+            {busy ? t("signingIn") : <><GoogleMark /> {t("withGoogle")}</>}
           </button>
           <button
             type="button"
@@ -117,13 +105,13 @@ export default function TeacherSignInPage() {
             disabled={busy}
             className="flex w-full items-center justify-center gap-2 rounded border border-border bg-background px-4 py-2.5 text-sm font-medium shadow-sm hover:bg-accent disabled:opacity-60"
           >
-            Sign in with email
+            {t("withEmail")}
           </button>
         </div>
       ) : (
         <form className="flex w-full flex-col gap-3 text-left" onSubmit={(ev) => void handleEmail(ev)}>
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-muted-foreground">Email</span>
+            <span className="text-xs font-medium text-muted-foreground">{t("email")}</span>
             <input
               type="email"
               autoFocus
@@ -132,11 +120,11 @@ export default function TeacherSignInPage() {
               onChange={(e) => setEmail(e.target.value)}
               disabled={busy}
               className="rounded border px-3 py-2 text-sm"
-              placeholder="teacher@example.com"
+              placeholder={t("emailPlaceholder")}
             />
           </label>
           <label className="flex flex-col gap-1">
-            <span className="text-xs font-medium text-muted-foreground">Password</span>
+            <span className="text-xs font-medium text-muted-foreground">{t("password")}</span>
             <input
               type="password"
               required
@@ -151,7 +139,7 @@ export default function TeacherSignInPage() {
             disabled={busy || !email || !password}
             className="rounded bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-60"
           >
-            {busy ? "Signing in…" : "Sign in"}
+            {busy ? t("signingIn") : t("signIn")}
           </button>
           {/* Needs only the email, so it stays enabled while the password box is
               empty — which is exactly the state someone who forgot it is in. */}
@@ -161,7 +149,7 @@ export default function TeacherSignInPage() {
             disabled={busy || !email}
             className="text-xs text-muted-foreground underline disabled:opacity-60"
           >
-            Forgot your password?
+            {t("forgot")}
           </button>
           <button
             type="button"
@@ -169,7 +157,7 @@ export default function TeacherSignInPage() {
             disabled={busy}
             className="text-xs text-muted-foreground underline"
           >
-            Back
+            {t("back")}
           </button>
         </form>
       )}
@@ -199,11 +187,13 @@ export default function TeacherSignInPage() {
  * ten-second diagnosis into a conversation. Shown in parentheses after the
  * human-readable half, never instead of it.
  */
-function describeRawError(err: unknown): string {
+type SignInT = Translate<"TeacherSignInPage">;
+
+function describeRawError(err: unknown, t: SignInT): string {
   const code = (err as { code?: string })?.code;
   if (typeof code === "string" && code) return code;
   if (err instanceof Error && err.message) return err.message;
-  return "unknown error";
+  return t("unknownError");
 }
 
 /**
@@ -212,30 +202,19 @@ function describeRawError(err: unknown): string {
  * password", which reads as "I typed it wrong" when the truth is "nobody has
  * created your login".
  */
-function describeSignInError(err: unknown): string {
-  const raw = describeRawError(err);
-  if (/invalid-credential|wrong-password|user-not-found|INVALID_LOGIN/i.test(raw)) {
-    return (
-      "That email and password did not work. If you have not set a password yet, " +
-      "use “Forgot your password?” below to set one. If no email arrives, your login " +
-      `may not exist yet — contact one of the people below. (${raw})`
-    );
+function describeSignInError(err: unknown, t: SignInT): string {
+  const detail = describeRawError(err, t);
+  if (/invalid-credential|wrong-password|user-not-found|INVALID_LOGIN/i.test(detail)) {
+    return t("badCredentials", { detail });
   }
-  if (/too-many-requests/i.test(raw)) {
-    return `Too many attempts. Wait a few minutes before trying again. (${raw})`;
-  }
-  if (/operation-not-allowed|OPERATION_NOT_ALLOWED|PASSWORD_LOGIN_DISABLED/i.test(raw)) {
+  if (/too-many-requests/i.test(detail)) return t("tooMany", { detail });
+  if (/operation-not-allowed|OPERATION_NOT_ALLOWED|PASSWORD_LOGIN_DISABLED/i.test(detail)) {
     // Was "ask your administrator to enable it in the Firebase Console" — a
     // sentence written for a developer and shown to a physics teacher.
-    return (
-      "Email sign-in is not available on this site. Please use “Sign in with Google”, " +
-      `or contact one of the people below. (${raw})`
-    );
+    return t("emailDisabled", { detail });
   }
-  if (/network-request-failed/i.test(raw)) {
-    return `Could not reach the sign-in service — check your internet connection. (${raw})`;
-  }
-  return `Sign-in failed. Please contact one of the people below. (${raw})`;
+  if (/network-request-failed/i.test(detail)) return t("network", { detail });
+  return t("failed", { detail });
 }
 
 /**
@@ -244,13 +223,12 @@ function describeSignInError(err: unknown): string {
  * they are already stuck on, before anything goes wrong.
  */
 function SignInHelp() {
+  const t = useT("TeacherSignInPage");
   return (
     <div className="w-full border-t border-border pt-4 text-left">
-      <p className="text-xs font-medium">Trouble signing in?</p>
+      <p className="text-xs font-medium">{t("helpTitle")}</p>
       <p className="mt-1 text-xs text-muted-foreground">
-        First time here? Try <strong>Sign in with Google</strong> first. If your school does
-        not use Google accounts, use <strong>Sign in with email</strong> — you may need a
-        password set up for you first. These people can help:
+        {t.rich("helpBody", { b: (c) => <strong>{c}</strong> })}
       </p>
       <ul className="mt-2 space-y-1">
         {BRANDING.pilotSupport.contacts.map((c) => (

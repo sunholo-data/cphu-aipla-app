@@ -1,4 +1,5 @@
-import { type Stage, copy, stageTone } from "@/lib/onboardingStage";
+import { useT } from "@/i18n";
+import { type Stage, stageTone } from "@/lib/onboardingStage";
 
 const TONE: Record<ReturnType<typeof stageTone>, string> = {
   muted: "border-border bg-muted/40 text-muted-foreground",
@@ -9,6 +10,7 @@ const TONE: Record<ReturnType<typeof stageTone>, string> = {
 /** The onboarding-stage pill (1.1.124). `label` overrides the plain stage
  *  name — the Programme column passes "Demo only — 9 days". */
 export function StageChip({ stage, label, title }: { stage: Stage; label?: string; title?: string }) {
+  const t = useT("StageChip");
   return (
     <span
       data-testid="stage-chip"
@@ -16,7 +18,7 @@ export function StageChip({ stage, label, title }: { stage: Stage; label?: strin
       title={title}
       className={`inline-flex items-center whitespace-nowrap rounded border px-1.5 py-0.5 text-[11px] font-medium ${TONE[stageTone(stage)]}`}
     >
-      {label ?? copy.label[stage]}
+      {label ?? t(stage)}
     </span>
   );
 }

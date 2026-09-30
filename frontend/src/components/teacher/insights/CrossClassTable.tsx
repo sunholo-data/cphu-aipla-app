@@ -20,6 +20,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 
 import type { InsightsCompareRow } from "@/lib/insightsApi";
 import { formatEur } from "@/lib/costApi";
+import { useT, type Translate } from "@/i18n";
 
 type SortKey =
   | "name"
@@ -41,32 +42,43 @@ interface CrossClassTableProps {
   spendByClassId?: Map<string, number>;
 }
 
+type ColumnLabel =
+  | "colName"
+  | "colOwner"
+  | "colGroups"
+  | "colMessages"
+  | "colDelta"
+  | "colSimRuns"
+  | "colLastActivity"
+  | "colSpend";
+
 interface ColumnDef {
   key: SortKey;
-  label: string;
+  /** Message key in the CrossClassTable namespace (1.1.108). */
+  label: ColumnLabel;
   numeric: boolean;
   /** Optional override of the rendered cell — falls back to `String(row[key])`. */
-  render?: (row: InsightsCompareRow) => React.ReactNode;
+  render?: (row: InsightsCompareRow, t: Translate<"CrossClassTable">) => React.ReactNode;
   /** Optional override of the sort value (e.g. timestamps as Date.parse). */
   sortValue?: (row: InsightsCompareRow) => string | number;
 }
 
 const COLUMNS: ColumnDef[] = [
-  { key: "name", label: "Class", numeric: false },
-  { key: "activeGroups", label: "Groups", numeric: true },
-  { key: "messages", label: "Messages 7d", numeric: true },
+  { key: "name", label: "colName", numeric: false },
+  { key: "activeGroups", label: "colGroups", numeric: true },
+  { key: "messages", label: "colMessages", numeric: true },
   {
     key: "messagesDelta",
-    label: "Δ vs prior",
+    label: "colDelta",
     numeric: true,
     render: (r) => formatDelta(r.messagesDelta),
   },
-  { key: "simRuns", label: "Sim runs", numeric: true },
+  { key: "simRuns", label: "colSimRuns", numeric: true },
   {
     key: "lastActivity",
-    label: "Last activity",
+    label: "colLastActivity",
     numeric: false,
-    render: (r) => formatRelative(r.lastActivity),
+    render: (r, t) => formatRelative(r.lastActivity, t),
     sortValue: (r) => (r.lastActivity ? Date.parse(r.lastActivity) : 0),
   },
 ];
@@ -76,6 +88,7 @@ export function CrossClassTable({
   defaultSort = "messages",
   spendByClassId,
 }: CrossClassTableProps) {
+  const t = useT("CrossClassTable");
   const [sortKey, setSortKey] = useState<SortKey>(defaultSort);
   const [direction, setDirection] = useState<Direction>("desc");
 
@@ -97,7 +110,7 @@ export function CrossClassTable({
           COLUMNS[0],
           {
             key: "owner",
-            label: "Owner",
+            label: "colOwner",
             numeric: false,
             render: (r) => r.ownerLabel ?? r.ownerUid ?? "—",
             sortValue: (r) => r.ownerLabel ?? r.ownerUid ?? "",
@@ -110,7 +123,7 @@ export function CrossClassTable({
       ...base,
       {
         key: "spend",
-        label: "Spend",
+        label: "colSpend",
         numeric: true,
         render: (r) => formatEur(spendByClassId.get(r.classId) ?? 0),
         sortValue: (r) => spendByClassId.get(r.classId) ?? 0,
@@ -147,7 +160,7 @@ export function CrossClassTable({
   if (rows.length === 0) {
     return (
       <div className="rounded border border-dashed border-border bg-muted/30 p-4 text-sm text-muted-foreground" data-testid="cross-class-empty">
-        No classes to compare yet. Create a class on the dashboard first.
+        {t("empty")}
       </div>
     );
   }
@@ -166,10 +179,10 @@ export function CrossClassTable({
                 <button
                   type="button"
                   onClick={() => onSort(col.key)}
-                  aria-label={`Sort by ${col.label}`}
+                  aria-label={t("sortBy", { label: t(col.label) })}
                   className="inline-flex items-center gap-1 text-xs uppercase tracking-wide hover:text-foreground"
                 >
-                  {col.label}
+                  {t(col.label)}
                   <SortIndicator active={sortKey === col.key} direction={direction} />
                 </button>
               </th>
@@ -189,7 +202,7 @@ export function CrossClassTable({
                       {row.name}
                     </Link>
                   ) : col.render ? (
-                    col.render(row)
+                    col.render(row, t)
                   ) : (
                     String(row[col.key as keyof InsightsCompareRow])
                   )}
@@ -219,13 +232,13 @@ function formatDelta(delta: number): React.ReactNode {
   return <span className={colour}>{`${sign}${delta}`}</span>;
 }
 
-function formatRelative(iso: string | null): React.ReactNode {
+function formatRelative(iso: string | null, t: Translate<"CrossClassTable">): React.ReactNode {
   if (!iso) return <span className="text-muted-foreground">—</span>;
-  const t = Date.parse(iso);
-  if (Number.isNaN(t)) return <span className="text-muted-foreground">—</span>;
-  const diffMin = Math.round((Date.now() - t) / 60_000);
-  if (diffMin < 1) return "just now";
-  if (diffMin < 60) return `${diffMin} min ago`;
-  if (diffMin < 60 * 24) return `${Math.round(diffMin / 60)} h ago`;
-  return `${Math.round(diffMin / 60 / 24)} d ago`;
+  const at = Date.parse(iso);
+  if (Number.isNaN(at)) return <span className="text-muted-foreground">—</span>;
+  const diffMin = Math.round((Date.now() - at) / 60_000);
+  if (diffMin < 1) return t("justNow");
+  if (diffMin < 60) return t("minAgo", { n: diffMin });
+  if (diffMin < 60 * 24) return t("hoursAgo", { n: Math.round(diffMin / 60) });
+  return t("daysAgo", { n: Math.round(diffMin / 60 / 24) });
 }

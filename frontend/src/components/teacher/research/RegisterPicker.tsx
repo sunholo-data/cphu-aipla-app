@@ -1,31 +1,17 @@
 "use client";
 
 import type { FrameworkRegister } from "@/lib/teacherApi";
+import { useT } from "@/i18n";
 
 /** UI copy, lifted out of JSX (1.1.108 M4) so a translator can reach it. */
-const copy = {
-  label: "Voice",
-  help: "How this approach is delivered. Optional, and most approaches leave it unset — an approach that says nothing about voice cannot contradict its own moves.",
-  none: "Not set",
-  noneHelp: "The tutor's own voice, unchanged.",
-  concise: "Concise",
-  conciseHelp: "One or two sentences, no follow-up question.",
-  rigorous: "Rigorous",
-  rigorousHelp: "Exam-level expectations; does not lower the bar.",
-  warm: "Warm",
-  warmHelp: "Encouraging, hints before asking.",
-  // ⚠️ The warning that is the whole reason this control moved here.
-  clash:
-    "This voice tells the tutor not to end with a question, while the moves above are mostly questions. Check the preview below — the voice is appended last, so it has the final word.",
-  clashWarm:
-    "This voice offers a hint before asking, while the moves above elicit first. Check the preview below — the voice is appended last, so it has the final word.",
-} as const;
+// UI copy lives in messages/*/teacher-research.json (RegisterPicker) — 1.1.108 M4.
+// ⚠️ `clash` / `clashWarm` are the warning that is the whole reason this control moved here.
 
-const OPTIONS: { id: FrameworkRegister | ""; label: string; help: string }[] = [
-  { id: "", label: copy.none, help: copy.noneHelp },
-  { id: "concise", label: copy.concise, help: copy.conciseHelp },
-  { id: "rigorous", label: copy.rigorous, help: copy.rigorousHelp },
-  { id: "warm", label: copy.warm, help: copy.warmHelp },
+const OPTIONS: { id: FrameworkRegister | ""; label: "none" | "concise" | "rigorous" | "warm"; help: "noneHelp" | "conciseHelp" | "rigorousHelp" | "warmHelp" }[] = [
+  { id: "", label: "none", help: "noneHelp" },
+  { id: "concise", label: "concise", help: "conciseHelp" },
+  { id: "rigorous", label: "rigorous", help: "rigorousHelp" },
+  { id: "warm", label: "warm", help: "warmHelp" },
 ];
 
 /**
@@ -52,14 +38,15 @@ export function RegisterPicker({
   askMoveCount?: number;
   onChange: (next: FrameworkRegister | null) => void;
 }) {
+  const t = useT("RegisterPicker");
   const elicitHeavy = (askMoveCount ?? 0) > 0;
   const warning =
-    elicitHeavy && value === "concise" ? copy.clash : elicitHeavy && value === "warm" ? copy.clashWarm : null;
+    elicitHeavy && value === "concise" ? t("clash") : elicitHeavy && value === "warm" ? t("clashWarm") : null;
 
   return (
     <div className="space-y-1.5">
-      <p className="text-xs font-medium">{copy.label}</p>
-      <p className="text-[11px] text-muted-foreground">{copy.help}</p>
+      <p className="text-xs font-medium">{t("label")}</p>
+      <p className="text-[11px] text-muted-foreground">{t("help")}</p>
       <div className="flex flex-wrap gap-1.5">
         {OPTIONS.map((o) => {
           const selected = (value ?? "") === o.id;
@@ -68,7 +55,7 @@ export function RegisterPicker({
               key={o.id || "none"}
               type="button"
               aria-pressed={selected}
-              title={o.help}
+              title={t(o.help)}
               onClick={() => onChange(o.id === "" ? null : o.id)}
               className={
                 selected
@@ -76,7 +63,7 @@ export function RegisterPicker({
                   : "rounded border border-border px-2 py-1 text-xs hover:bg-accent"
               }
             >
-              {o.label}
+              {t(o.label)}
             </button>
           );
         })}

@@ -2,6 +2,8 @@
 
 import { Plus, Table as TableIcon, X } from "lucide-react";
 
+import { useT, type Translate } from "@/i18n";
+
 /** One column being authored.
  *
  *  `key` is a stable client id for React. `id` is the PERSISTED `TableColumn.id`
@@ -51,8 +53,8 @@ export const MAX_TABLES = 5;
 /** A human label for one table, for aria-labels and the chart picker. Falls back
  *  to its position, because an untitled table still has to be distinguishable —
  *  "Data table" three times over is the state this feature exists to leave. */
-export function tableLabel(table: TableEditorValue, index: number): string {
-  return table.title.trim() || `Table ${index + 1}`;
+export function tableLabel(table: TableEditorValue, index: number, t: Translate<"TableEditor">): string {
+  return table.title.trim() || t("fallbackLabel", { n: index + 1 });
 }
 
 function newColumn(nextKey: () => number): TableEditorColumn {
@@ -79,12 +81,13 @@ function newTable(nextKey: () => number): TableEditorValue {
  * and preserves `id` for loaded ones, so nothing an author does renames anything.
  */
 export function TableEditor({ value, onChange, nextKey }: TableEditorProps) {
+  const t = useT("TableEditor");
   const tables = value ?? [];
   const atCap = tables.length >= MAX_TABLES;
 
   const updateTable = (key: number, patch: Partial<TableEditorValue>) =>
-    onChange(tables.map((t) => (t.key === key ? { ...t, ...patch } : t)));
-  const removeTable = (key: number) => onChange(tables.filter((t) => t.key !== key));
+    onChange(tables.map((tb) => (tb.key === key ? { ...tb, ...patch } : tb)));
+  const removeTable = (key: number) => onChange(tables.filter((tb) => tb.key !== key));
   const addTable = () => onChange([...tables, newTable(nextKey)]);
 
   return (
@@ -92,7 +95,7 @@ export function TableEditor({ value, onChange, nextKey }: TableEditorProps) {
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
           <TableIcon className="h-4 w-4 text-slate-500" />
-          Data tables{" "}
+          {t("title")}{" "}
           {tables.length > 0 && (
             <span className="text-xs text-slate-500">
               ({tables.length}/{MAX_TABLES})
@@ -105,28 +108,27 @@ export function TableEditor({ value, onChange, nextKey }: TableEditorProps) {
           disabled={atCap}
           // The cap is stated, not just enforced: a disabled button with no
           // reason reads as a bug rather than a limit.
-          title={atCap ? `Maximum ${MAX_TABLES} tables per activity` : undefined}
+          title={atCap ? t("maxTables", { max: MAX_TABLES }) : undefined}
           className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40"
         >
-          <Plus className="h-3.5 w-3.5" /> Add data table
+          <Plus className="h-3.5 w-3.5" /> {t("add")}
         </button>
       </div>
 
       {tables.length === 0 ? (
         <p className="text-xs text-slate-500">
-          A grid the student fills in (e.g. trial · time · velocity). Entered values are shared with the
-          tutor so the student can ask about their own measurements.
+          {t("help")}
         </p>
       ) : (
         <>
           {atCap && (
             <p className="text-xs text-slate-500">
-              Maximum {MAX_TABLES} tables per activity.
+              {t("maxTablesSentence", { max: MAX_TABLES })}
             </p>
           )}
           <ul className="flex flex-col gap-3">
             {tables.map((table, tIdx) => {
-              const label = tableLabel(table, tIdx);
+              const label = tableLabel(table, tIdx, t);
               const setColumn = (colKey: number, patch: Partial<TableEditorColumn>) =>
                 updateTable(table.key, {
                   columns: table.columns.map((c) => (c.key === colKey ? { ...c, ...patch } : c)),
@@ -145,21 +147,21 @@ export function TableEditor({ value, onChange, nextKey }: TableEditorProps) {
                     <button
                       type="button"
                       onClick={() => removeTable(table.key)}
-                      aria-label={`Remove ${label}`}
+                      aria-label={t("removeAria", { label })}
                       className="rounded px-2 py-1 text-xs font-medium text-slate-400 hover:bg-red-50 hover:text-red-600"
                     >
-                      Remove table
+                      {t("remove")}
                     </button>
                   </div>
 
                   <label className="flex flex-col gap-1">
-                    <span className="text-xs font-medium text-slate-600">Title (optional)</span>
+                    <span className="text-xs font-medium text-slate-600">{t("titleLabel")}</span>
                     <input
                       type="text"
-                      aria-label={`${label} title`}
+                      aria-label={t("titleAria", { label })}
                       value={table.title}
                       onChange={(e) => updateTable(table.key, { title: e.target.value })}
-                      placeholder="e.g. Målinger"
+                      placeholder={t("titlePlaceholder")}
                       maxLength={120}
                       className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
                     />
@@ -167,25 +169,25 @@ export function TableEditor({ value, onChange, nextKey }: TableEditorProps) {
 
                   <div className="flex flex-col gap-2">
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium text-slate-600">Columns</span>
+                      <span className="text-xs font-medium text-slate-600">{t("columns")}</span>
                       <button
                         type="button"
                         onClick={addColumn}
                         disabled={table.columns.length >= MAX_COLUMNS}
-                        aria-label={`Add column to ${label}`}
+                        aria-label={t("addColumnAria", { label })}
                         title={
                           table.columns.length >= MAX_COLUMNS
-                            ? `Maximum ${MAX_COLUMNS} columns per table`
+                            ? t("maxColumns", { max: MAX_COLUMNS })
                             : undefined
                         }
                         className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40"
                       >
-                        <Plus className="h-3.5 w-3.5" /> Add column
+                        <Plus className="h-3.5 w-3.5" /> {t("addColumn")}
                       </button>
                     </div>
                     {table.columns.length === 0 ? (
                       <p className="rounded border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-400">
-                        Add at least one column — a table with no columns won&apos;t be saved.
+                        {t("noColumns")}
                       </p>
                     ) : (
                       <ul className="flex flex-col gap-2">
@@ -193,37 +195,37 @@ export function TableEditor({ value, onChange, nextKey }: TableEditorProps) {
                           <li key={col.key} className="flex items-center gap-2">
                             <input
                               type="text"
-                              aria-label={`${label} column ${idx + 1} label`}
+                              aria-label={t("columnLabelAria", { label, n: idx + 1 })}
                               value={col.label}
                               onChange={(e) => setColumn(col.key, { label: e.target.value })}
-                              placeholder="Label (e.g. Tid)"
+                              placeholder={t("columnLabelPlaceholder")}
                               maxLength={80}
                               className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
                             />
                             <input
                               type="text"
-                              aria-label={`${label} column ${idx + 1} unit`}
+                              aria-label={t("columnUnitAria", { label, n: idx + 1 })}
                               value={col.unit}
                               onChange={(e) => setColumn(col.key, { unit: e.target.value })}
-                              placeholder="Unit"
+                              placeholder={t("unit")}
                               maxLength={24}
                               className="w-20 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
                             />
                             <select
-                              aria-label={`${label} column ${idx + 1} type`}
+                              aria-label={t("columnTypeAria", { label, n: idx + 1 })}
                               value={col.kind}
                               onChange={(e) =>
                                 setColumn(col.key, { kind: e.target.value as "number" | "text" })
                               }
                               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
                             >
-                              <option value="number">Number</option>
-                              <option value="text">Text</option>
+                              <option value="number">{t("number")}</option>
+                              <option value="text">{t("text")}</option>
                             </select>
                             <button
                               type="button"
                               onClick={() => removeColumn(col.key)}
-                              aria-label={`Remove ${label} column ${idx + 1}`}
+                              aria-label={t("removeColumnAria", { label, n: idx + 1 })}
                               className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
                             >
                               <X className="h-4 w-4" />
@@ -236,11 +238,11 @@ export function TableEditor({ value, onChange, nextKey }: TableEditorProps) {
 
                   <label className="flex flex-col gap-1">
                     <span className="text-xs font-medium text-slate-600">
-                      Empty rows for the student to fill
+                      {t("rows")}
                     </span>
                     <input
                       type="number"
-                      aria-label={`${label} row count`}
+                      aria-label={t("rowsAria", { label })}
                       min={1}
                       max={MAX_ROWS}
                       value={table.rows}

@@ -1,10 +1,16 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as teacherApi from "@/lib/teacherApi";
 import type { TutorPayload } from "@/lib/teacherApi";
 import { TutorVariantDialog } from "@/components/teacher/TutorVariantDialog";
+import { LocaleProvider } from "@/i18n";
+
+// 1.1.108 M2 — these tests assert the English copy; the dialog follows the
+// teacher's language (Danish by default), so render inside English.
+const render = (ui: ReactElement) => rtlRender(ui, { wrapper: ({ children }) => <LocaleProvider locale="en">{children}</LocaleProvider> });
 
 const parent: TutorPayload = {
   id: "sofie",
@@ -37,7 +43,7 @@ describe("TutorVariantDialog (1.1.91 M5)", () => {
     // A placeholder would give a tutor that claims an approach and teaches none.
     expect(screen.queryByRole("option", { name: /Predict, observe, explain/ })).not.toBeInTheDocument();
     expect(screen.getByRole("option", { name: /Question-and-use cycle/ })).toBeInTheDocument();
-    expect(screen.getByText(/1 more frameworks are in the library/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 more framework is in the library/i)).toBeInTheDocument();
   });
 
   it("says plainly that the parent is not changed", () => {

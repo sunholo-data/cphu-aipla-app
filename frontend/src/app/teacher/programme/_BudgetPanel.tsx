@@ -7,6 +7,7 @@ import {
   fetchProgrammeBudget,
   setProgrammeBudget,
 } from "@/lib/programmeApi";
+import { useT } from "@/i18n";
 
 /**
  * Programme-wide DAILY budget (PROGADMIN-1 M3 — 1.1.76).
@@ -20,6 +21,7 @@ import {
  * register, same reasoning.
  */
 export function BudgetPanel({ canWrite }: { canWrite: boolean }) {
+  const t = useT("ProgrammeBudgetPanel");
   const [payload, setPayload] = useState<ProgrammeBudgetPayload | null>(null);
   const [value, setValue] = useState("");
   const [action, setAction] = useState<"warn" | "block">("warn");
@@ -53,35 +55,32 @@ export function BudgetPanel({ canWrite }: { canWrite: boolean }) {
   if (!payload) return null;
 
   const spent =
-    payload.spentTodayUsd === null ? "unreadable" : `$${payload.spentTodayUsd.toFixed(2)}`;
+    payload.spentTodayUsd === null ? t("unreadable") : `$${payload.spentTodayUsd.toFixed(2)}`;
 
   return (
     <section className="space-y-3 rounded border border-border p-4">
       <div>
-        <h2 className="text-sm font-semibold">Programme daily budget</h2>
-        <p className="text-xs text-muted-foreground">
-          Across every teacher. Sits under the project&rsquo;s hard quota and above the
-          per-teacher monthly caps — it is the only thing that can see a bad day across all
-          classes at once.
-        </p>
+        <h2 className="text-sm font-semibold">{t("title")}</h2>
+        <p className="text-xs text-muted-foreground">{t("intro")}</p>
       </div>
 
       <p className="text-sm">
-        Spent today: <strong>{spent}</strong>
-        {payload.dailyBudgetUsd !== null ? ` of $${payload.dailyBudgetUsd.toFixed(2)}` : " — no budget set"}
+        {t.rich("spentToday", { spent, b: (c) => <strong>{c}</strong> })}
+        {payload.dailyBudgetUsd !== null
+          ? t("ofBudget", { budget: payload.dailyBudgetUsd.toFixed(2) })
+          : t("noBudgetSet")}
       </p>
 
       {payload.dailyBudgetUsd === null ? (
         <p className="text-xs text-muted-foreground">
-          No budget is set. The per-teacher caps and the project quota still apply; this knob
-          adds a programme-wide daily ceiling on top of them.
+          {t("noBudget")}
         </p>
       ) : null}
 
       {canWrite ? (
         <div className="flex flex-wrap items-end gap-3">
           <label className="flex flex-col gap-1 text-xs">
-            <span className="font-medium">Daily budget (USD)</span>
+            <span className="font-medium">{t("dailyBudget")}</span>
             <input
               type="number"
               min={1}
@@ -89,25 +88,25 @@ export function BudgetPanel({ canWrite }: { canWrite: boolean }) {
               step={1}
               value={value}
               disabled={busy}
-              aria-label="Programme daily budget in USD"
+              aria-label={t("dailyBudgetAria")}
               onChange={(e) => setValue(e.target.value)}
               className="w-28 rounded border border-border bg-background px-2 py-1 text-sm"
             />
-            <span className="text-[11px] text-muted-foreground">Up to ${payload.ceilingUsd}.</span>
+            <span className="text-[11px] text-muted-foreground">{t("upTo", { max: payload.ceilingUsd })}</span>
           </label>
           <label className="flex flex-col gap-1 text-xs">
-            <span className="font-medium">When reached</span>
+            <span className="font-medium">{t("whenReached")}</span>
             <select
               value={action}
               disabled={busy}
-              aria-label="Action when the budget is reached"
+              aria-label={t("whenReachedAria")}
               onChange={(e) => setAction(e.target.value as "warn" | "block")}
               className="rounded border border-border bg-background px-2 py-1 text-sm"
             >
               {/* warn first, and the default: a programme-wide block is a very
                   large blast radius for a knob still being calibrated. */}
-              <option value="warn">Warn only</option>
-              <option value="block">Block new turns</option>
+              <option value="warn">{t("warn")}</option>
+              <option value="block">{t("block")}</option>
             </select>
           </label>
           <button
@@ -116,7 +115,7 @@ export function BudgetPanel({ canWrite }: { canWrite: boolean }) {
             onClick={() => save(Number(value))}
             className="rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
-            {busy ? "Saving…" : "Save budget"}
+            {busy ? t("saving") : t("save")}
           </button>
           {payload.dailyBudgetUsd !== null ? (
             <button
@@ -125,7 +124,7 @@ export function BudgetPanel({ canWrite }: { canWrite: boolean }) {
               onClick={() => save(null)}
               className="rounded border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent disabled:opacity-50"
             >
-              Remove budget
+              {t("remove")}
             </button>
           ) : null}
         </div>

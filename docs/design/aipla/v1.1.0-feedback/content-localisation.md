@@ -455,7 +455,51 @@ switch at all.
 - The chat's read-aloud voice (1.1.7x M4) resolves from the same value, so the
   Danish-voice-reads-English-numbers bug closes with it.
 
-### M2 — Teacher surface extraction (~2–3d, gated)
+### M2 — Teacher surface extraction — DONE 2026-09-30
+
+**Ran early and ungated, on M's instruction** ("lets translate up the teacher
+screens as well"). The gate (a month of the guard holding on student surfaces;
+AD present) was about convention risk; the convention had by then held across
+~50 student components and the user-locale switch existed, so the teacher
+screens could follow the person's language rather than a per-teacher server
+pref.
+
+**Scale was ~10× the estimate.** "~104 literals" counted Danish letters; the
+real surface was ~90 files and **~1,500 keys** (shell/settings/programme 259 ·
+classes 324 · activities + builder + editors 454 · research/insights/reports
+467), done as four parallel lanes each owning its files and one message area
+(`teacher-{shell,classes,activities,research}.json`). ~1,300 of those Danish
+values are first drafts — the native read is now the larger half of the work.
+
+Decisions taken in the pass:
+- **Teachers read Danish by default**, English by the DA | EN switch in the
+  account menu (the per-browser user locale, not `teacher_prefs.locale`).
+- **Research screens translate chrome only.** Framework theory, citations,
+  source passages, persona/tutor names and transcripts are data and stay as
+  written (the Non-goals already excluded theory).
+- **The builder's language field is now labelled "Students' language"**, so a
+  teacher does not mistake it for their own setting.
+- **Consent statements are single shared keys** and flagged for the native
+  read: `ResearchConsent.privateMeaning` ("…The research team can." — the
+  Danish must keep that half explicit) and `ClassVoiceSettingsPanel.recordingOn`
+  / `recordingOff`.
+- Module-level label constants that had no locale became functions of `t`
+  (`visibilityLabel`, `makeClassProposalDescriptor`, element-kind labels in
+  `lib/activityElements.ts`); the teacher-side `formatRelativeTime(…, "en")`
+  pins now follow the context locale; the History tab's browser-locale dates
+  were a rule-M4.3 breach and now follow it too.
+
+Still English, outside the teacher directories: `lib/safeFormula` validation
+errors, `lib/onboardingStage` descriptions, `lib/tutorDisplay` interaction-style
+labels, `lib/programmeApi.formatSpend`. The guard now covers
+`components/teacher` + `app/teacher`; these `lib/` files are the next widening.
+
+Reviewer vocabulary to rule on (lane choices): Programme → *Programmet*,
+Insights → *Indsigt*, visitor → *gæst*, cap → *loft*, spend grant →
+*forbrugstilladelse*, Approaches → *Tilgange*, "AIPLA Teacher" → *AIPLA Lærer*,
+"Live" kept as *Live*.
+
+#### M2 as originally planned (superseded)
 
 Same recipe as M0 over `components/teacher` + `app/teacher` (~104 literals)
 and the co-pilot shell's per-surface overrides, which become message keys
@@ -531,7 +575,7 @@ existing activity config write path, which is teacher-authenticated.
 - [x] M0a: student surfaces render from `messages/`, guard green in CI (62 → 0) — 2026-09-28
 - [ ] M0b: native read signed off (list under "M0a — as built")
 - [x] M1: `language: en` activity → English student UI, sims receive `locale` — 2026-09-28. Read-aloud voice already followed `activity.language` (1.1.63 M4). ⚠️ Not yet verified on a deployed env in a browser
-- [ ] M2: teacher surfaces render from `messages/`
+- [x] M2: teacher surfaces render from `messages/` — 2026-09-30, ~1,500 keys, guard widened to `components/teacher` + `app/teacher`
 - [ ] M3: decision recorded (yes/no/some); if yes, owners named per page
 
 ## Open Questions

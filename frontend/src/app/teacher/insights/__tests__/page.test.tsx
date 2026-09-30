@@ -6,11 +6,22 @@
  * - Switching the since dropdown refetches.
  */
 
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { LocaleProvider } from "@/i18n";
 import { describe, expect, it, vi, beforeEach } from "vitest";
 
 import TeacherInsightsPage from "@/app/teacher/insights/page";
 import type { InsightsComparePayload } from "@/lib/insightsApi";
+
+// 1.1.108 — teacher screens follow the person's language, Danish by default.
+// These tests assert the English copy, so they render inside an English
+// context; the Danish default has its own assertion in teacherResearchLocale.test.tsx.
+function render(ui: ReactElement, options?: Parameters<typeof rtlRender>[1]) {
+  const wrap = (node: ReactElement) => <LocaleProvider locale="en">{node}</LocaleProvider>;
+  const result = rtlRender(wrap(ui), options);
+  return { ...result, rerender: (next: ReactElement) => result.rerender(wrap(next)) };
+}
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace: vi.fn() }),

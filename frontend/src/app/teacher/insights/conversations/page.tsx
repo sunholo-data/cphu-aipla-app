@@ -21,56 +21,17 @@ import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
 import { InsightsTabs } from "@/components/teacher/insights/InsightsTabs";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 import { ChatLogTranscript } from "@/components/teacher/research/ChatLogTranscript";
+import { useT, type Translate } from "@/i18n";
 
 /** UI copy, lifted out of JSX (1.1.108 M4) so a translator can reach it. */
-const copy = {
-  title: "Conversations by teaching approach",
-  subtitleFor: (sessions: number, turns: number) =>
-    `${sessions} conversations · ${turns} turns recorded`,
-  unattributedNote: (turns: number) =>
-    `A further ${turns} turn${turns === 1 ? "" : "s"} belong to no conversation — they carry no session id, so there is no transcript to open. Counted here so the totals still add up against the raw data.`,
-  excludedNote: (sessions: number, turns: number) =>
-    `Not shown: ${sessions} teacher co-pilot or tutor-preview session${sessions === 1 ? "" : "s"} (${turns} turns). Real turns, but nobody was taught in them — they are excluded so the tabs above are only student conversations.`,
-  loading: "Loading conversations…",
-  forbiddenTitle: "Researcher access required",
-  forbiddenBody:
-    "These are student conversations across every class and every teacher. Ask a platform admin for the researcher role.",
-  unreadableTitle: "Could not read the conversation store",
-  unreadableBody:
-    "This is a failed read, not an empty result — the tabs below would otherwise look like a finding. Try again, or check that the chat-log dataset is reachable.",
-  unassignedTab: "Not recorded",
-  unassignedNote:
-    "These conversations ran before the tutor was recorded on each turn (2026-09-11), or under a tutor with no teaching approach set. NULL here means “not recorded”, never “no framework” — the values are deliberately not backfilled, because a class's tutor changes and guessing would file old conversations under approaches they never ran under.",
-  emptyTabTitle: "No conversations under this approach yet",
-  emptyTabBody:
-    "Assign this approach to a tutor, then run a lesson. Turns are stamped at the time they happen, so this fills from the next conversation onward.",
-  exportCsv: "Export CSV",
-  exportJsonl: "Export JSONL",
-  exporting: "Preparing…",
-  exportFailed: "Export failed. Try again.",
-  colConversation: "Conversation",
-  colTutor: "Tutor",
-  colClass: "Class",
-  colActivity: "Activity",
-  colStyle: "Style",
-  colTurns: "Turns",
-  colLast: "Last activity",
-  turnsFor: (readable: number, total: number) =>
-    readable === total ? `${total}` : `${readable} of ${total}`,
-  sourceTutor: "set by tutor",
-  sourceFields: "set by class/activity",
-  none: "—",
-  transcriptFor: (id: string) => `Transcript · ${id.slice(0, 8)}`,
-  noSession: "(no session id)",
-  close: "Close",
-  openTranscript: "Read",
-} as const;
+// Copy lives in messages/{da,en}/teacher-research.json (ResearchLogsPage) — 1.1.108.
+const NONE = "—";
 
 type Status = "loading" | "ok" | "forbidden" | "unreadable" | "error";
 
 /** A tab's label: the framework's human name where we know it, else its id. */
-function tabLabel(id: string, names: Map<string, string>): string {
-  if (id === UNASSIGNED_FRAMEWORK) return copy.unassignedTab;
+function tabLabel(id: string, names: Map<string, string>, t: Translate<"ResearchLogsPage">): string {
+  if (id === UNASSIGNED_FRAMEWORK) return t("unassignedTab");
   return names.get(id) ?? id;
 }
 
@@ -109,6 +70,7 @@ export default function ResearchLogsPage() {
 }
 
 function ResearchLogsPageInner() {
+  const t = useT("ResearchLogsPage");
   const [status, setStatus] = useState<Status>("loading");
   const [tabs, setTabs] = useState<ChatLogTab[]>([]);
   const [excluded, setExcluded] = useState<{ sessions: number; turns: number } | null>(null);
@@ -141,7 +103,7 @@ function ResearchLogsPageInner() {
         if (cancelled) return;
         const catalogue = new Map<string, string>();
         for (const fw of frameworks) catalogue.set(fw.id, fw.label ?? fw.id);
-        const present = new Set(tabsBody.tabs.map((t) => t.framework_id));
+        const present = new Set(tabsBody.tabs.map((tab) => tab.framework_id));
         const zeroes: ChatLogTab[] = [...catalogue.keys()]
           .filter((id) => !present.has(id))
           .map((id) => ({
@@ -160,14 +122,14 @@ function ResearchLogsPageInner() {
         const ex = tabsBody.excluded;
         if (ex) {
           const s = (ex.teacher_sessions ?? 0) + (ex.preview_sessions ?? 0);
-          const t = (ex.teacher_turns ?? 0) + (ex.preview_turns ?? 0);
-          setExcluded(s || t ? { sessions: s, turns: t } : null);
+          const n = (ex.teacher_turns ?? 0) + (ex.preview_turns ?? 0);
+          setExcluded(s || n ? { sessions: s, turns: n } : null);
           setUnattributed(ex.unattributed_turns ?? 0);
         }
         // Honour ?approach= only if that tab actually exists, so a stale link
         // lands on something real instead of an empty page.
         setActive((cur) => {
-          if (cur && all.some((t) => t.framework_id === cur)) return cur;
+          if (cur && all.some((tab) => tab.framework_id === cur)) return cur;
           return all[0]?.framework_id ?? null;
         });
         setStatus("ok");
@@ -232,50 +194,50 @@ function ResearchLogsPageInner() {
         a.remove();
         URL.revokeObjectURL(url);
       } catch {
-        setExportError(copy.exportFailed);
+        setExportError(t("exportFailed"));
       } finally {
         setExporting(false);
       }
     },
-    [filter, active],
+    [filter, active, t],
   );
 
   const totals = useMemo(
-    () => tabs.reduce((acc, t) => ({ sessions: acc.sessions + t.sessions, turns: acc.turns + t.turns }), { sessions: 0, turns: 0 }),
+    () => tabs.reduce((acc, tab) => ({ sessions: acc.sessions + tab.sessions, turns: acc.turns + tab.turns }), { sessions: 0, turns: 0 }),
     [tabs],
   );
 
   if (status === "loading") {
     return (
-      <TeacherPage title={copy.title}>
+      <TeacherPage title={t("title")}>
         <InsightsTabs />
-        <p className="text-sm text-muted-foreground">{copy.loading}</p>
+        <p className="text-sm text-muted-foreground">{t("loading")}</p>
       </TeacherPage>
     );
   }
 
   if (status === "forbidden") {
     return (
-      <TeacherPage title={copy.title}>
+      <TeacherPage title={t("title")}>
         <InsightsTabs />
-        <EmptyState icon={ShieldAlert} title={copy.forbiddenTitle} description={copy.forbiddenBody} />
+        <EmptyState icon={ShieldAlert} title={t("forbiddenTitle")} description={t("forbiddenBody")} />
       </TeacherPage>
     );
   }
 
   if (status === "unreadable" || status === "error") {
     return (
-      <TeacherPage title={copy.title}>
+      <TeacherPage title={t("title")}>
         <InsightsTabs />
-        <EmptyState icon={TriangleAlert} title={copy.unreadableTitle} description={copy.unreadableBody} />
+        <EmptyState icon={TriangleAlert} title={t("unreadableTitle")} description={t("unreadableBody")} />
       </TeacherPage>
     );
   }
 
   return (
     <TeacherPage
-      title={copy.title}
-      subtitle={copy.subtitleFor(totals.sessions, totals.turns)}
+      title={t("title")}
+      subtitle={t("subtitleFor", { sessions: totals.sessions, turns: totals.turns })}
       actions={
         <div className="flex items-center gap-2">
           <button
@@ -285,7 +247,7 @@ function ResearchLogsPageInner() {
             className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
           >
             <Download className="h-3.5 w-3.5" aria-hidden="true" />
-            {exporting ? copy.exporting : copy.exportCsv}
+            {exporting ? t("exporting") : t("exportCsv")}
           </button>
           <button
             type="button"
@@ -294,7 +256,7 @@ function ResearchLogsPageInner() {
             className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
           >
             <Download className="h-3.5 w-3.5" aria-hidden="true" />
-            {exporting ? copy.exporting : copy.exportJsonl}
+            {exporting ? t("exporting") : t("exportJsonl")}
           </button>
         </div>
       }
@@ -306,14 +268,14 @@ function ResearchLogsPageInner() {
           no content. */}
       {excluded ? (
         <p className="text-xs text-muted-foreground">
-          {copy.excludedNote(excluded.sessions, excluded.turns)}
+          {t("excludedNote", { sessions: excluded.sessions, turns: excluded.turns })}
         </p>
       ) : null}
       {unattributed > 0 ? (
-        <p className="text-xs text-muted-foreground">{copy.unattributedNote(unattributed)}</p>
+        <p className="text-xs text-muted-foreground">{t("unattributedNote", { turns: unattributed })}</p>
       ) : null}
 
-      <div role="tablist" aria-label={copy.title} className="flex flex-wrap gap-1 border-b border-border">
+      <div role="tablist" aria-label={t("title")} className="flex flex-wrap gap-1 border-b border-border">
         {tabs.map((tab) => {
           const selected = tab.framework_id === active;
           return (
@@ -329,7 +291,7 @@ function ResearchLogsPageInner() {
                   : "-mb-px rounded-t border border-transparent px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
               }
             >
-              {tabLabel(tab.framework_id, names)}
+              {tabLabel(tab.framework_id, names, t)}
               <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-[11px] tabular-nums">{tab.sessions}</span>
             </button>
           );
@@ -338,29 +300,29 @@ function ResearchLogsPageInner() {
 
       {active === UNASSIGNED_FRAMEWORK ? (
         <p className="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200">
-          {copy.unassignedNote}
+          {t("unassignedNote")}
         </p>
       ) : null}
 
       <TeacherCard>
         {sessionsStatus === "loading" ? (
-          <p className="text-sm text-muted-foreground">{copy.loading}</p>
+          <p className="text-sm text-muted-foreground">{t("loading")}</p>
         ) : sessionsStatus === "error" ? (
-          <EmptyState icon={TriangleAlert} title={copy.unreadableTitle} description={copy.unreadableBody} />
+          <EmptyState icon={TriangleAlert} title={t("unreadableTitle")} description={t("unreadableBody")} />
         ) : sessions.length === 0 ? (
-          <EmptyState icon={MessagesSquare} title={copy.emptyTabTitle} description={copy.emptyTabBody} />
+          <EmptyState icon={MessagesSquare} title={t("emptyTabTitle")} description={t("emptyTabBody")} />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[52rem] text-left text-sm">
               <thead className="text-xs text-muted-foreground">
                 <tr>
-                  <th className="py-1 pr-3 font-medium">{copy.colConversation}</th>
-                  <th className="py-1 pr-3 font-medium">{copy.colTutor}</th>
-                  <th className="py-1 pr-3 font-medium">{copy.colClass}</th>
-                  <th className="py-1 pr-3 font-medium">{copy.colActivity}</th>
-                  <th className="py-1 pr-3 font-medium">{copy.colStyle}</th>
-                  <th className="py-1 pr-3 text-right font-medium">{copy.colTurns}</th>
-                  <th className="py-1 pr-3 font-medium">{copy.colLast}</th>
+                  <th className="py-1 pr-3 font-medium">{t("colConversation")}</th>
+                  <th className="py-1 pr-3 font-medium">{t("colTutor")}</th>
+                  <th className="py-1 pr-3 font-medium">{t("colClass")}</th>
+                  <th className="py-1 pr-3 font-medium">{t("colActivity")}</th>
+                  <th className="py-1 pr-3 font-medium">{t("colStyle")}</th>
+                  <th className="py-1 pr-3 text-right font-medium">{t("colTurns")}</th>
+                  <th className="py-1 pr-3 font-medium">{t("colLast")}</th>
                   <th className="py-1 font-medium" />
                 </tr>
               </thead>
@@ -374,24 +336,24 @@ function ResearchLogsPageInner() {
                         query layer no longer returns these, but a table cell
                         must not be able to crash a page whatever it is handed. */}
                     <td className="py-1.5 pr-3 font-mono text-xs">
-                      {s.session_id ? s.session_id.slice(0, 8) : copy.noSession}
+                      {s.session_id ? s.session_id.slice(0, 8) : t("noSession")}
                     </td>
                     <td className="py-1.5 pr-3">
-                      {s.tutor_id ?? copy.none}
+                      {s.tutor_id ?? NONE}
                       {s.teaching_source ? (
                         <span className="ml-1 text-[11px] text-muted-foreground">
-                          ({s.teaching_source === "tutor" ? copy.sourceTutor : copy.sourceFields})
+                          ({s.teaching_source === "tutor" ? t("sourceTutor") : t("sourceFields")})
                         </span>
                       ) : null}
                     </td>
-                    <td className="py-1.5 pr-3 font-mono text-xs">{s.class_id?.slice(0, 10) ?? copy.none}</td>
-                    <td className="py-1.5 pr-3 font-mono text-xs">{s.activity_id?.slice(0, 14) ?? copy.none}</td>
-                    <td className="py-1.5 pr-3">{s.interaction_style ?? copy.none}</td>
+                    <td className="py-1.5 pr-3 font-mono text-xs">{s.class_id?.slice(0, 10) ?? NONE}</td>
+                    <td className="py-1.5 pr-3 font-mono text-xs">{s.activity_id?.slice(0, 14) ?? NONE}</td>
+                    <td className="py-1.5 pr-3">{s.interaction_style ?? NONE}</td>
                     <td className="py-1.5 pr-3 text-right tabular-nums">
-                      {copy.turnsFor(s.readable_turns, s.turns)}
+                      {(s.readable_turns === s.turns ? String(s.turns) : t("turnsOf", { readable: s.readable_turns, total: s.turns }))}
                     </td>
                     <td className="py-1.5 pr-3 text-xs text-muted-foreground">
-                      {s.last_at ? s.last_at.slice(0, 16).replace("T", " ") : copy.none}
+                      {s.last_at ? s.last_at.slice(0, 16).replace("T", " ") : NONE}
                     </td>
                     <td className="py-1.5">
                       <button
@@ -401,7 +363,7 @@ function ResearchLogsPageInner() {
                         onClick={() => s.session_id && openTranscript(s.session_id)}
                         className="rounded border border-border px-2 py-0.5 text-xs font-medium hover:bg-accent"
                       >
-                        {copy.openTranscript}
+                        {t("openTranscript")}
                       </button>
                     </td>
                   </tr>
@@ -415,13 +377,13 @@ function ResearchLogsPageInner() {
       {openSession ? (
         <TeacherCard>
           <div className="mb-3 flex items-center justify-between gap-3">
-            <h2 className="text-sm font-semibold">{copy.transcriptFor(openSession)}</h2>
+            <h2 className="text-sm font-semibold">{t("transcriptFor", { id: openSession.slice(0, 8) })}</h2>
             <button
               type="button"
               onClick={() => setOpenSession(null)}
               className="rounded border border-border px-2 py-0.5 text-xs font-medium hover:bg-accent"
             >
-              {copy.close}
+              {t("close")}
             </button>
           </div>
           <ChatLogTranscript

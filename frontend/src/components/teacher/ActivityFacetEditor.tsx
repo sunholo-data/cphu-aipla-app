@@ -16,6 +16,7 @@ import { useState } from "react";
 import { Loader2, Plus, X } from "lucide-react";
 
 import { InheritedChip } from "@/components/teacher/ui/FacetRow";
+import { useT } from "@/i18n";
 import { UNLEVELLED } from "@/lib/curriculumApi";
 import type { CurriculumFacets } from "@/lib/curriculumApi";
 import { patchActivityFacets, type ActivityPayload, type StxLevel } from "@/lib/teacherApi";
@@ -32,6 +33,7 @@ export function ActivityFacetEditor({
   facets: CurriculumFacets | null;
   onUpdated: (updated: ActivityPayload) => void;
 }) {
+  const t = useT("ActivityFacetEditor");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [newTag, setNewTag] = useState("");
@@ -47,7 +49,7 @@ export function ActivityFacetEditor({
       onUpdated(await patchActivityFacets(activity.activityId, patch));
     } catch {
       // Honest failure — no optimistic state that pretends the write landed.
-      setError("Could not save. Try again.");
+      setError(t("saveFailed"));
     } finally {
       setBusy(false);
     }
@@ -64,9 +66,9 @@ export function ActivityFacetEditor({
     <div className="space-y-2 rounded border border-border/60 bg-muted/20 p-2 text-xs">
       <div className="flex flex-wrap items-center gap-2">
         <label className="flex items-center gap-1">
-          <span className="text-muted-foreground">Subject</span>
+          <span className="text-muted-foreground">{t("subject")}</span>
           <select
-            aria-label="Subject"
+            aria-label={t("subject")}
             disabled={busy}
             value={activity.subject ?? ""}
             onChange={(e) =>
@@ -84,7 +86,7 @@ export function ActivityFacetEditor({
         </label>
 
         <span className="flex items-center gap-1">
-          <span className="text-muted-foreground">Level</span>
+          <span className="text-muted-foreground">{t("level")}</span>
           {LEVELS.map((lv) => {
             const on = activity.level === lv;
             return (
@@ -103,22 +105,22 @@ export function ActivityFacetEditor({
             );
           })}
         </span>
-        {busy ? <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" aria-label="Saving" /> : null}
+        {busy ? <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" aria-label={t("saving")} /> : null}
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
-        <span className="text-muted-foreground">Tags</span>
-        {(activity.tags ?? []).map((t) => (
+        <span className="text-muted-foreground">{t("tags")}</span>
+        {(activity.tags ?? []).map((tag) => (
           <span
-            key={t}
+            key={tag}
             className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-muted-foreground"
           >
-            {t}
+            {tag}
             <button
               type="button"
               disabled={busy}
-              aria-label={`Remove tag ${t}`}
-              onClick={() => void apply({ removeTags: [t] })}
+              aria-label={t("removeTag", { tag })}
+              onClick={() => void apply({ removeTags: [tag] })}
               className="hover:text-foreground"
             >
               <X className="h-3 w-3" aria-hidden="true" />
@@ -128,25 +130,25 @@ export function ActivityFacetEditor({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            const t = newTag.trim();
-            if (!t) return;
+            const tag = newTag.trim();
+            if (!tag) return;
             setNewTag("");
-            void apply({ addTags: [t] });
+            void apply({ addTags: [tag] });
           }}
           className="inline-flex items-center gap-1"
         >
           <input
             value={newTag}
             onChange={(e) => setNewTag(e.target.value)}
-            placeholder="add tag"
+            placeholder={t("addTagPlaceholder")}
             // Distinct from the submit button's label: two controls with the
             // same accessible name is ambiguous for a screen reader (and was
             // ambiguous for the test that caught it).
-            aria-label="New tag"
+            aria-label={t("newTag")}
             disabled={busy}
             className="w-24 rounded border border-border bg-background px-1.5 py-0.5"
           />
-          <button type="submit" disabled={busy || !newTag.trim()} aria-label="Add tag" className="text-muted-foreground hover:text-foreground disabled:opacity-40">
+          <button type="submit" disabled={busy || !newTag.trim()} aria-label={t("addTag")} className="text-muted-foreground hover:text-foreground disabled:opacity-40">
             <Plus className="h-3 w-3" aria-hidden="true" />
           </button>
         </form>
@@ -154,15 +156,15 @@ export function ActivityFacetEditor({
 
       {inheritedSubjects.length || inheritedLevels.length || inheritedTags.length ? (
         <div className="flex flex-wrap items-center gap-1.5 border-t border-border/50 pt-2">
-          <span className="text-muted-foreground">From its materials</span>
+          <span className="text-muted-foreground">{t("fromMaterials")}</span>
           {inheritedSubjects.map((s) => (
             <InheritedChip key={`s-${s}`} label={s} />
           ))}
           {inheritedLevels.map((lv) => (
-            <InheritedChip key={`l-${lv}`} label={lv === UNLEVELLED ? "No level" : lv} />
+            <InheritedChip key={`l-${lv}`} label={lv === UNLEVELLED ? t("noLevel") : lv} />
           ))}
-          {inheritedTags.map((t) => (
-            <InheritedChip key={`t-${t}`} label={t} />
+          {inheritedTags.map((tag) => (
+            <InheritedChip key={`t-${tag}`} label={tag} />
           ))}
         </div>
       ) : null}

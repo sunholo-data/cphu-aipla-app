@@ -27,21 +27,8 @@ import { Loader2 } from "lucide-react";
 
 import { patchClass } from "@/lib/teacherApi";
 import { useToast } from "@/hooks/useToast";
+import { useT } from "@/i18n";
 
-// 1.1.108 M4 — user-facing text is data, not code, so a translator can reach it
-// without a code change.
-const copy = {
-  nameLabel: "Class name",
-  namePlaceholder: "e.g. Fysik C Energi",
-  nameHint: "What you and your students call this class. Changing it keeps every join code working.",
-  descriptionLabel: "Description",
-  descriptionPlaceholder: "Optional — a note to yourself about this class",
-  save: "Save",
-  saving: "Saving…",
-  saved: "Class updated",
-  emptyName: "A class needs a name.",
-  failed: "Could not save",
-} as const;
 
 const MAX_NAME = 200;
 const MAX_DESCRIPTION = 2000;
@@ -59,6 +46,7 @@ export function ClassDetailsPanel({
   initialDescription,
   onSaved,
 }: Props) {
+  const t = useT("ClassDetailsPanel");
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription ?? "");
   const [saving, setSaving] = useState(false);
@@ -74,7 +62,7 @@ export function ClassDetailsPanel({
 
   async function save() {
     if (!trimmed) {
-      setError(copy.emptyName);
+      setError(t("emptyName"));
       return;
     }
     setSaving(true);
@@ -86,10 +74,10 @@ export function ClassDetailsPanel({
         // which is not what an emptied box means.
         description: description.trim(),
       });
-      showToast(copy.saved, 2000);
+      showToast(t("saved"), 2000);
       onSaved();
     } catch (err) {
-      setError(err instanceof Error ? err.message : copy.failed);
+      setError(err instanceof Error ? err.message : t("failed"));
     } finally {
       setSaving(false);
     }
@@ -99,33 +87,33 @@ export function ClassDetailsPanel({
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-1.5">
         <label htmlFor="class-name" className="text-sm font-medium">
-          {copy.nameLabel}
+          {t("nameLabel")}
         </label>
         <input
           id="class-name"
           type="text"
           value={name}
           maxLength={MAX_NAME}
-          placeholder={copy.namePlaceholder}
+          placeholder={t("namePlaceholder")}
           onChange={(e) => {
             setName(e.target.value);
             setError(null);
           }}
           className="w-full max-w-md rounded border border-border bg-background px-3 py-2 text-sm"
         />
-        <p className="text-xs text-muted-foreground">{copy.nameHint}</p>
+        <p className="text-xs text-muted-foreground">{t("nameHint")}</p>
       </div>
 
       <div className="flex flex-col gap-1.5">
         <label htmlFor="class-description" className="text-sm font-medium">
-          {copy.descriptionLabel}
+          {t("descriptionLabel")}
         </label>
         <textarea
           id="class-description"
           value={description}
           rows={2}
           maxLength={MAX_DESCRIPTION}
-          placeholder={copy.descriptionPlaceholder}
+          placeholder={t("descriptionPlaceholder")}
           onChange={(e) => setDescription(e.target.value)}
           className="w-full max-w-md rounded border border-border bg-background px-3 py-2 text-sm"
         />
@@ -145,7 +133,7 @@ export function ClassDetailsPanel({
           className="inline-flex items-center gap-1.5 rounded bg-brand px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
-          {saving ? copy.saving : copy.save}
+          {saving ? t("saving") : t("save")}
         </button>
       </div>
       {toast}

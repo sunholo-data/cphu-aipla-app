@@ -3,8 +3,12 @@ import { describe, expect, it } from "vitest";
 import type { ToolCallState } from "@/hooks/useSkillAgent";
 import {
   parseTutorProposal,
-  tutorProposalDescriptor,
+  tutorProposalDescriptorFor,
 } from "@/app/teacher/research/frameworks/tutorCopilotProposal";
+import { translate } from "@/i18n";
+
+// Asserted in English; the card follows the person's language (1.1.108).
+const EN_DESCRIPTOR = tutorProposalDescriptorFor(translate("en", "TutorProposal"));
 
 function tc(result: unknown): ToolCallState {
   return { status: "success", resultContent: JSON.stringify(result) } as ToolCallState;
@@ -90,7 +94,7 @@ describe("tutor co-pilot proposals (1.1.91 M2)", () => {
 
   it("titles a proposal by what it actually contains", () => {
     expect(
-      tutorProposalDescriptor.title({
+      EN_DESCRIPTOR.title({
         kind: "propose_approach",
         label: "SDT",
         summary: "",
@@ -100,7 +104,7 @@ describe("tutor co-pilot proposals (1.1.91 M2)", () => {
     ).toBe("New approach: SDT — 1 construct");
 
     expect(
-      tutorProposalDescriptor.title({
+      EN_DESCRIPTOR.title({
         kind: "propose_behaviours",
         constructName: "elicit",
         behaviours: ["a", "b"],
@@ -117,15 +121,15 @@ describe("tutor co-pilot proposals (1.1.91 M2)", () => {
       constructNames: ["autonomy"],
       needsVouching: "",
     };
-    expect(tutorProposalDescriptor.editableText?.(approach)).toBe("draft");
-    expect(tutorProposalDescriptor.withEditedText?.(approach, "reworded")).toMatchObject({
+    expect(EN_DESCRIPTOR.editableText?.(approach)).toBe("draft");
+    expect(EN_DESCRIPTOR.withEditedText?.(approach, "reworded")).toMatchObject({
       summary: "reworded",
     });
 
     // Behaviours are structured; they are edited in the structure editor after
     // Apply rather than as one free-text blob here.
     expect(
-      tutorProposalDescriptor.editableText?.({
+      EN_DESCRIPTOR.editableText?.({
         kind: "propose_behaviours",
         constructName: "elicit",
         behaviours: ["a"],

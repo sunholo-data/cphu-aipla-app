@@ -5,11 +5,13 @@ import { useEffect, type ReactNode } from "react";
 
 import { useAnonymousGroupAuth } from "@/contexts/AnonymousGroupAuthProvider";
 import { isAnonymousGroupAuthMode } from "@/lib/anonymousGroupAuth";
+import { useT } from "@/i18n";
 
 export function TeacherGroupGate({ children }: { children: ReactNode }) {
   const router = useRouter();
   const inAnonMode = isAnonymousGroupAuthMode();
   const groupAuth = useAnonymousGroupAuth();
+  const t = useT("TeacherGroupGate");
 
   useEffect(() => {
     if (!inAnonMode) return;
@@ -21,7 +23,7 @@ export function TeacherGroupGate({ children }: { children: ReactNode }) {
   if (inAnonMode && groupAuth.status === "idle") {
     return (
       <p className="px-4 py-8 text-sm text-muted-foreground">
-        Henter teacher session… / Loading teacher session…
+        {t("loading")}
       </p>
     );
   }

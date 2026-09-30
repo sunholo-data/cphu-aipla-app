@@ -26,74 +26,12 @@ import { Download, Upload } from "lucide-react";
 
 import { parseCsv, slugify } from "@/lib/download";
 import { XlsxUnsupportedError, downloadXlsx, readXlsxRows } from "@/lib/xlsx";
+import { translate, useLocaleMode, useT } from "@/i18n";
 
 export type ClassListLocale = "da" | "en";
 
-/** Teacher copy (1.1.108 M4: copy object, not inline JSX). Teacher surfaces are
- *  English until i18n M2 reaches them, so the page passes `en`; the Danish is
- *  here so that switch is a prop, not a rewrite. */
-export const classListCopy = {
-  en: {
-    title: "Class list",
-    description:
-      "Write who is in each group next to its code, and download it as an Excel file. The names never leave this browser.",
-    colCode: "Code",
-    colLink: "Join link",
-    colNames: "Names (only on this device)",
-    colNote: "Note",
-    namesLabel: (code: string) => `Names for ${code}`,
-    noteLabel: (code: string) => `Note for ${code}`,
-    namesPlaceholder: "e.g. Anna, Bo, Carl",
-    keptLocally:
-      "This list is kept only in this browser on this device. AIPLA never receives the names, so another browser or computer will not have them. Download it as Excel to keep a copy, and import that file to bring it back.",
-    storageUnavailable:
-      "This browser is not letting AIPLA save anything here (a private window, or site data is blocked). Names you type will be lost when you leave the page, so download the Excel file before you do.",
-    noCodes: "No live group codes yet. Create a group first, and it will appear here.",
-    download: "Download as Excel",
-    importButton: "Import from Excel/CSV",
-    importHelp:
-      "Choose a class list you downloaded before. It is read in this browser and matched on the Code column; nothing is uploaded.",
-    importDone: (matched: number, skipped: number) =>
-      `Imported names for ${matched} code${matched === 1 ? "" : "s"}` +
-      (skipped ? `; ${skipped} row${skipped === 1 ? "" : "s"} skipped (code not live in this class).` : "."),
-    importNoMatch: "No rows matched a live code in this class. Is this the right class's file?",
-    importNeedsCsv:
-      "This browser cannot read that Excel file. In Excel, choose File → Save as → CSV, and import the CSV instead.",
-    importFailed: "Could not read that file. Try saving it as CSV and importing that.",
-    sheetTitle: "Class list",
-    sheetName: "Class list",
-  },
-  da: {
-    title: "Klasseliste",
-    description:
-      "Skriv hvem der er i hver gruppe ud for koden, og download listen som Excel-fil. Navnene forlader aldrig denne browser.",
-    colCode: "Kode",
-    colLink: "Link til at deltage",
-    colNames: "Navne (kun på denne enhed)",
-    colNote: "Note",
-    namesLabel: (code: string) => `Navne for ${code}`,
-    noteLabel: (code: string) => `Note for ${code}`,
-    namesPlaceholder: "fx Anna, Bo, Carl",
-    keptLocally:
-      "Listen gemmes kun i denne browser på denne enhed. AIPLA modtager aldrig navnene, så en anden browser eller computer har dem ikke. Download den som Excel for at have en kopi, og importér filen for at få den tilbage.",
-    storageUnavailable:
-      "Denne browser lader ikke AIPLA gemme noget her (et privat vindue, eller webstedsdata er blokeret). Navne, du skriver, forsvinder, når du forlader siden, så download Excel-filen inden.",
-    noCodes: "Ingen aktive gruppekoder endnu. Opret en gruppe først, så dukker den op her.",
-    download: "Download som Excel",
-    importButton: "Importér fra Excel/CSV",
-    importHelp:
-      "Vælg en klasseliste, du har downloadet før. Den læses i denne browser og matches på kolonnen Kode; intet bliver uploadet.",
-    importDone: (matched: number, skipped: number) =>
-      `Navne importeret for ${matched} kode${matched === 1 ? "" : "r"}` +
-      (skipped ? `; ${skipped} række${skipped === 1 ? "" : "r"} sprunget over (koden er ikke aktiv i klassen).` : "."),
-    importNoMatch: "Ingen rækker matchede en aktiv kode i denne klasse. Er det den rigtige klasses fil?",
-    importNeedsCsv:
-      "Denne browser kan ikke læse den Excel-fil. Vælg Filer → Gem som → CSV i Excel, og importér CSV-filen i stedet.",
-    importFailed: "Filen kunne ikke læses. Prøv at gemme den som CSV og importere den.",
-    sheetTitle: "Klasseliste",
-    sheetName: "Klasseliste",
-  },
-} as const;
+// Copy lives in messages/{da,en}/teacher-classes.json (namespace ClassListSheet,
+// 1.1.108 M2). The sheet follows the teacher's own language; `locale` pins it.
 
 // ── storage ──────────────────────────────────────────────────────────────────
 
@@ -171,11 +109,11 @@ export function buildClassListRows(opts: {
   origin: string;
   locale: ClassListLocale;
 }): string[][] {
-  const c = classListCopy[opts.locale];
+  const t = translate(opts.locale, "ClassListSheet");
   return [
-    [`${c.sheetTitle}: ${opts.className} (${opts.date})`],
+    [t("sheetHeading", { title: t("sheetTitle"), className: opts.className, date: opts.date })],
     [],
-    [c.colCode, c.colLink, c.colNames, c.colNote],
+    [t("colCode"), t("colLink"), t("colNames"), t("colNote")],
     ...opts.codes.map((code) => [
       code,
       joinLinkFor(opts.origin, code),
@@ -272,11 +210,14 @@ export interface ClassListSheetProps {
   codes: ReadonlyArray<string>;
   /** `window.location.origin` as the page read it; the link carries the env. */
   joinOrigin: string;
+  /** Pins the sheet's language; defaults to the teacher's own (1.1.108 M2). */
   locale?: ClassListLocale;
 }
 
-export function ClassListSheet({ classId, className, codes, joinOrigin, locale = "en" }: ClassListSheetProps) {
-  const c = classListCopy[locale];
+export function ClassListSheet({ classId, className, codes, joinOrigin, locale: pinned }: ClassListSheetProps) {
+  const mode = useLocaleMode();
+  const locale: ClassListLocale = pinned ?? (mode === "bilingual" ? "da" : mode);
+  const t = useT("ClassListSheet", locale);
   const [entries, setEntries] = useState<ClassListEntries>({});
   const [storageOk, setStorageOk] = useState<boolean | null>(null);
   const [importMsg, setImportMsg] = useState<{ tone: "ok" | "warn"; text: string } | null>(null);
@@ -312,8 +253,8 @@ export function ClassListSheet({ classId, className, codes, joinOrigin, locale =
     const date = new Date().toISOString().slice(0, 10);
     const rows = buildClassListRows({ className, date, codes, entries, origin: joinOrigin, locale });
     const stem = slugify(className) || "class";
-    downloadXlsx(`${slugify(c.sheetTitle)}-${stem}-${date}.xlsx`, rows, {
-      sheetName: c.sheetName,
+    downloadXlsx(`${slugify(t("sheetTitle"))}-${stem}-${date}.xlsx`, rows, {
+      sheetName: t("sheetName"),
       columnWidths: [20, 48, 40, 30],
     });
   }
@@ -325,14 +266,19 @@ export function ClassListSheet({ classId, className, codes, joinOrigin, locale =
       const grid = await readClassListFile(file);
       const result = mergeImportedRows(grid, codes, entries);
       if (result.matched === 0) {
-        setImportMsg({ tone: "warn", text: c.importNoMatch });
+        setImportMsg({ tone: "warn", text: t("importNoMatch") });
         return;
       }
       setEntries(result.entries);
       persist(result.entries);
-      setImportMsg({ tone: "ok", text: c.importDone(result.matched, result.skipped) });
+      setImportMsg({
+        tone: "ok",
+        text: result.skipped
+          ? t("importDoneSkipped", { matched: result.matched, skipped: result.skipped })
+          : t("importDone", { matched: result.matched }),
+      });
     } catch (err) {
-      setImportMsg({ tone: "warn", text: err instanceof XlsxUnsupportedError ? c.importNeedsCsv : c.importFailed });
+      setImportMsg({ tone: "warn", text: err instanceof XlsxUnsupportedError ? t("importNeedsCsv") : t("importFailed") });
     } finally {
       if (fileRef.current) fileRef.current.value = "";
     }
@@ -342,21 +288,21 @@ export function ClassListSheet({ classId, className, codes, joinOrigin, locale =
     <div className="flex flex-col gap-3" data-testid="class-list-sheet">
       {storageOk === false ? (
         <p role="alert" className="rounded border border-amber-400 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">
-          {c.storageUnavailable}
+          {t("storageUnavailable")}
         </p>
       ) : null}
 
       {codes.length === 0 ? (
-        <p className="rounded border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">{c.noCodes}</p>
+        <p className="rounded border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">{t("noCodes")}</p>
       ) : (
         <div className="overflow-x-auto rounded border border-border">
           <table className="w-full min-w-[40rem] text-sm">
             <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
               <tr>
-                <th scope="col" className="px-3 py-2 font-medium">{c.colCode}</th>
-                <th scope="col" className="px-3 py-2 font-medium">{c.colLink}</th>
-                <th scope="col" className="px-3 py-2 font-medium">{c.colNames}</th>
-                <th scope="col" className="px-3 py-2 font-medium">{c.colNote}</th>
+                <th scope="col" className="px-3 py-2 font-medium">{t("colCode")}</th>
+                <th scope="col" className="px-3 py-2 font-medium">{t("colLink")}</th>
+                <th scope="col" className="px-3 py-2 font-medium">{t("colNames")}</th>
+                <th scope="col" className="px-3 py-2 font-medium">{t("colNote")}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
@@ -377,8 +323,8 @@ export function ClassListSheet({ classId, className, codes, joinOrigin, locale =
                         type="text"
                         value={entries[code]?.names ?? ""}
                         onChange={(e) => update(code, "names", e.target.value)}
-                        aria-label={c.namesLabel(code)}
-                        placeholder={c.namesPlaceholder}
+                        aria-label={t("namesLabel", { code })}
+                        placeholder={t("namesPlaceholder")}
                         autoComplete="off"
                         className="w-full rounded border border-border bg-background px-2 py-1 text-sm"
                       />
@@ -388,7 +334,7 @@ export function ClassListSheet({ classId, className, codes, joinOrigin, locale =
                         type="text"
                         value={entries[code]?.note ?? ""}
                         onChange={(e) => update(code, "note", e.target.value)}
-                        aria-label={c.noteLabel(code)}
+                        aria-label={t("noteLabel", { code })}
                         autoComplete="off"
                         className="w-full rounded border border-border bg-background px-2 py-1 text-sm"
                       />
@@ -401,7 +347,7 @@ export function ClassListSheet({ classId, className, codes, joinOrigin, locale =
         </div>
       )}
 
-      <p className="text-xs text-muted-foreground">{c.keptLocally}</p>
+      <p className="text-xs text-muted-foreground">{t("keptLocally")}</p>
 
       <div className="flex flex-wrap items-center gap-2">
         <button
@@ -411,7 +357,7 @@ export function ClassListSheet({ classId, className, codes, joinOrigin, locale =
           className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent disabled:opacity-50"
         >
           <Download className="h-4 w-4" aria-hidden="true" />
-          {c.download}
+          {t("download")}
         </button>
         <button
           type="button"
@@ -421,7 +367,7 @@ export function ClassListSheet({ classId, className, codes, joinOrigin, locale =
           className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent disabled:opacity-50"
         >
           <Upload className="h-4 w-4" aria-hidden="true" />
-          {c.importButton}
+          {t("importButton")}
         </button>
         <input
           ref={fileRef}
@@ -432,7 +378,7 @@ export function ClassListSheet({ classId, className, codes, joinOrigin, locale =
           onChange={(e) => void handleImport(e.target.files?.[0])}
         />
       </div>
-      <p id={importHelpId} className="text-xs text-muted-foreground">{c.importHelp}</p>
+      <p id={importHelpId} className="text-xs text-muted-foreground">{t("importHelp")}</p>
       {importMsg ? (
         <p
           role="status"

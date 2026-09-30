@@ -14,53 +14,10 @@ import {
 } from "@/lib/teacherApi";
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
 import { RegisterPicker } from "@/components/teacher/research/RegisterPicker";
+import { useT } from "@/i18n";
 
 /** UI copy, lifted out of JSX (1.1.108 M4) so a translator can reach it. */
-const copy = {
-  title: "Your own teaching approaches",
-  blurb:
-    "An approach you write yourself, in your own words. Unlike the seven above it is not drawn from a published paper and does not claim to be — it carries no constructs and no citations. The tutor is told exactly what you write here.",
-  none: "No custom approaches yet.",
-  create: "New approach",
-  // TUTOR-2 M0/M1 — the share control. "Shared" is the word the activities
-  // library already uses for the same idea, so a teacher meets one vocabulary.
-  share: "Share with other teachers",
-  unshare: "Make private again",
-  badgeShared: "Shared",
-  badgePrivate: "Only you",
-  // ⚠️ Said plainly, because "private" is otherwise a promise the research
-  // design does not keep. A teacher who reads it as "nobody sees this" and
-  // finds out later loses trust, not a bug report.
-  privateMeaning: "Private means other teachers cannot see it. The research team can.",
-  nameLabel: "Name",
-  namePlaceholder: "e.g. Warm coach",
-  summaryLabel: "One-line summary",
-  summaryPlaceholder: "Shown to teachers choosing this approach",
-  instructionLabel: "What the tutor is told",
-  instructionPlaceholder:
-    "Write the instructions in full, as if briefing a teaching assistant. e.g. Be encouraging. Ask what the student thinks before explaining anything.",
-  save: "Save",
-  saving: "Saving…",
-  cancel: "Cancel",
-  edit: "Edit",
-  remove: "Delete",
-  confirmRemove: (label: string) => `Delete “${label}”? Any class using it loses its approach.`,
-  byYou: "yours",
-  byOther: (role: string) => `written by a ${role}`,
-  readOnly: "You can read this approach but not change it — it belongs to someone else.",
-  failed: "Could not save. Your text is still here — try again.",
-  loadFailed: "Could not load custom approaches.",
-  // ⚠️ Deletion is not reference-checked server-side; say so rather than imply
-  // a safety that is not there.
-  // 1.1.91 M4's gate, met where the work is written. The design: "Teachers
-  // should be told this is visible — it is their professional work, and the
-  // trust-card principle applies to teachers as much as to students." Someone
-  // having said so once in a meeting is not the same as the surface saying so.
-  researchersCanSee:
-    "Researchers on the project can see the approaches you write here, including your name against them, and how much they are used. They cannot change them. This is the same read they have of class data.",
-  deleteWarning:
-    "Nothing checks whether a class is still using an approach before it is deleted. A class that loses its approach keeps teaching, without one.",
-} as const;
+// Copy lives in messages/*/teacher-research.json — 1.1.108.
 
 interface Draft {
   id: string | null;
@@ -84,6 +41,8 @@ const EMPTY: Draft = { id: null, label: "", summary: "", instructionText: "", re
  * `canEdit` arrives per row from the server and is never re-derived here.
  */
 export function CustomApproachPanel() {
+  const t = useT("CustomApproachPanel");
+  const tConsent = useT("ResearchConsent");
   const [rows, setRows] = useState<CustomApproach[] | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
@@ -92,8 +51,8 @@ export function CustomApproachPanel() {
   const load = useCallback(() => {
     listCustomApproaches()
       .then(setRows)
-      .catch(() => setError(copy.loadFailed));
-  }, []);
+      .catch(() => setError(t("loadFailed")));
+  }, [t]);
 
   useEffect(load, [load]);
 
@@ -113,14 +72,14 @@ export function CustomApproachPanel() {
       setDraft(null);
       load();
     } catch {
-      setError(copy.failed);
+      setError(t("failed"));
     } finally {
       setBusy(false);
     }
   };
 
   const remove = async (row: CustomApproach) => {
-    if (!window.confirm(`${copy.confirmRemove(row.label)}\n\n${copy.deleteWarning}`)) return;
+    if (!window.confirm(`${t("confirmRemove", { label: row.label })}\n\n${t("deleteWarning")}`)) return;
     setBusy(true);
     try {
       await deleteCustomApproach(row.id);
@@ -149,10 +108,10 @@ export function CustomApproachPanel() {
     <TeacherCard>
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-base font-medium">{copy.title}</h2>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{copy.blurb}</p>
+          <h2 className="text-base font-medium">{t("title")}</h2>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{t("blurb")}</p>
           <p className="mt-2 max-w-2xl rounded border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-            {copy.researchersCanSee}
+            {t("researchersCanSee")}
           </p>
         </div>
         {!draft ? (
@@ -162,7 +121,7 @@ export function CustomApproachPanel() {
             className="flex shrink-0 items-center gap-1.5 rounded border px-3 py-1.5 text-sm hover:bg-muted"
           >
             <Plus className="h-3.5 w-3.5" aria-hidden />
-            {copy.create}
+            {t("create")}
           </button>
         ) : null}
       </div>
@@ -170,35 +129,35 @@ export function CustomApproachPanel() {
       {draft ? (
         <div className="mt-4 space-y-3 border-t pt-4">
           <label className="block text-sm font-medium" htmlFor="custom-label">
-            {copy.nameLabel}
+            {t("nameLabel")}
           </label>
           <input
             id="custom-label"
             value={draft.label}
             onChange={(e) => setDraft({ ...draft, label: e.target.value })}
-            placeholder={copy.namePlaceholder}
+            placeholder={t("namePlaceholder")}
             className="w-full rounded border bg-background p-2 text-sm"
           />
 
           <label className="block text-sm font-medium" htmlFor="custom-summary">
-            {copy.summaryLabel}
+            {t("summaryLabel")}
           </label>
           <input
             id="custom-summary"
             value={draft.summary}
             onChange={(e) => setDraft({ ...draft, summary: e.target.value })}
-            placeholder={copy.summaryPlaceholder}
+            placeholder={t("summaryPlaceholder")}
             className="w-full rounded border bg-background p-2 text-sm"
           />
 
           <label className="block text-sm font-medium" htmlFor="custom-instruction">
-            {copy.instructionLabel}
+            {t("instructionLabel")}
           </label>
           <textarea
             id="custom-instruction"
             value={draft.instructionText}
             onChange={(e) => setDraft({ ...draft, instructionText: e.target.value })}
-            placeholder={copy.instructionPlaceholder}
+            placeholder={t("instructionPlaceholder")}
             rows={10}
             className="w-full rounded border bg-background p-3 font-mono text-xs"
           />
@@ -217,7 +176,7 @@ export function CustomApproachPanel() {
               onClick={() => void save()}
               className="rounded bg-brand px-3 py-1.5 text-sm text-white disabled:opacity-50"
             >
-              {busy ? copy.saving : copy.save}
+              {busy ? t("saving") : t("save")}
             </button>
             <button
               type="button"
@@ -227,7 +186,7 @@ export function CustomApproachPanel() {
               }}
               className="rounded border px-3 py-1.5 text-sm hover:bg-muted"
             >
-              {copy.cancel}
+              {t("cancel")}
             </button>
           </div>
         </div>
@@ -235,7 +194,7 @@ export function CustomApproachPanel() {
 
       <div className="mt-4 space-y-2">
         {rows === null ? null : rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{copy.none}</p>
+          <p className="text-sm text-muted-foreground">{t("none")}</p>
         ) : (
           rows.map((row) => (
             <div key={row.id} className="flex items-start justify-between gap-3 rounded border px-3 py-2">
@@ -243,11 +202,17 @@ export function CustomApproachPanel() {
                 <p className="text-sm font-medium">
                   {row.label}
                   <span className="ml-2 text-xs font-normal text-muted-foreground">
-                    {row.canEdit && row.authorRole ? copy.byYou : copy.byOther(row.authorRole ?? "colleague")}
+                    {row.canEdit && row.authorRole ? t("byYou") : t(
+                          row.authorRole === "teacher"
+                            ? "byOther_teacher"
+                            : row.authorRole === "researcher"
+                              ? "byOther_researcher"
+                              : "byOther_colleague",
+                        )}
                   </span>
                 </p>
                 {row.summary ? <p className="text-xs text-muted-foreground">{row.summary}</p> : null}
-                {!row.canEdit ? <p className="mt-1 text-xs text-muted-foreground">{copy.readOnly}</p> : null}
+                {!row.canEdit ? <p className="mt-1 text-xs text-muted-foreground">{t("readOnly")}</p> : null}
                 {row.canEdit ? (
                   <p className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
                     <span
@@ -258,9 +223,9 @@ export function CustomApproachPanel() {
                           : "border-border bg-muted"
                       }`}
                     >
-                      {(row.visibility ?? "shared") === "shared" ? copy.badgeShared : copy.badgePrivate}
+                      {(row.visibility ?? "shared") === "shared" ? t("badgeShared") : t("badgePrivate")}
                     </span>
-                    {(row.visibility ?? "shared") === "private" ? copy.privateMeaning : null}
+                    {(row.visibility ?? "shared") === "private" ? tConsent("privateMeaning") : null}
                   </p>
                 ) : null}
               </div>
@@ -268,7 +233,7 @@ export function CustomApproachPanel() {
                 <div className="flex shrink-0 items-center gap-1">
                   <button
                     type="button"
-                    aria-label={`${(row.visibility ?? "shared") === "shared" ? copy.unshare : copy.share}: ${row.label}`}
+                    aria-label={t("shareAria", { action: (row.visibility ?? "shared") === "shared" ? t("unshare") : t("share"), label: row.label })}
                     onClick={() => void toggleShare(row)}
                     className="rounded border p-1.5 hover:bg-muted"
                   >
@@ -279,7 +244,7 @@ export function CustomApproachPanel() {
                   </button>
                   <button
                     type="button"
-                    aria-label={`${copy.edit} ${row.label}`}
+                    aria-label={t("editAria", { label: row.label })}
                     onClick={() =>
                       setDraft({
                         id: row.id,
@@ -295,7 +260,7 @@ export function CustomApproachPanel() {
                   </button>
                   <button
                     type="button"
-                    aria-label={`${copy.remove} ${row.label}`}
+                    aria-label={t("removeAria", { label: row.label })}
                     onClick={() => void remove(row)}
                     className="rounded border p-1.5 hover:bg-muted"
                   >

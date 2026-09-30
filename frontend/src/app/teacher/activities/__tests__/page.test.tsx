@@ -1,10 +1,20 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen, waitFor, type RenderOptions } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as teacherApi from "@/lib/teacherApi";
 import type { ActivityPayload, ClassPayload } from "@/lib/teacherApi";
 import TeacherActivitiesPage from "@/app/teacher/activities/page";
 import * as researcherHook from "@/hooks/useIsResearcher";
+
+import { LocaleProvider } from "@/i18n";
+
+// 1.1.108 M2 — these tests assert the English copy; the teacher UI defaults to
+// Danish, so render inside an English locale (the teacher chose EN).
+function EnglishUI({ children }: { children: React.ReactNode }) {
+  return <LocaleProvider locale="en">{children}</LocaleProvider>;
+}
+const render = (ui: React.ReactElement, options?: Omit<RenderOptions, "wrapper">) =>
+  rtlRender(ui, { wrapper: EnglishUI, ...options });
 
 // The cross-teacher researcher scan is a scope toggle on this page (1.1.125
 // M1) — visible to researchers only; a plain teacher sees their own library.

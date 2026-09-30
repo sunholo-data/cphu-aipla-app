@@ -1,4 +1,6 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
+import { LocaleProvider } from "@/i18n";
 import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
 
 // The test runner's bundled localStorage is unreliable here; back it with a
@@ -16,6 +18,14 @@ const fakeStorage: Storage = {
 import { TeacherCopilot } from "../TeacherCopilot";
 import type { ProposalDescriptor } from "../types";
 import type { ToolCallState, UseSkillAgentReturn } from "@/hooks/useSkillAgent";
+
+// 1.1.108 M2 — these tests assert the English copy; a teacher's default
+// language is Danish, so render inside an English locale.
+function render(ui: ReactElement, options?: Parameters<typeof rtlRender>[1]) {
+  const wrap = (node: ReactElement) => <LocaleProvider locale="en">{node}</LocaleProvider>;
+  const r = rtlRender(wrap(ui), options);
+  return { ...r, rerender: (next: ReactElement) => r.rerender(wrap(next)) };
+}
 
 vi.mock("@/providers/AGUIProvider", () => ({
   AGUIProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,

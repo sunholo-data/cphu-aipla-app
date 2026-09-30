@@ -20,16 +20,18 @@ import { useCallback, useEffect, useState } from "react";
 import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
 import { SettingsSection } from "@/components/teacher/ui";
 import { ackClassSignal, listClassLive, type LiveClass } from "@/lib/teacherApi";
+import { useT, type MessageKey, type Translate } from "@/i18n";
 
-function relTime(iso: string): string {
+function relTime(iso: string, t: Translate<"LiveClassView">): string {
   if (!iso) return "";
   const secs = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
-  if (secs < 60) return `${secs}s ago`;
+  if (secs < 60) return t("secondsAgo", { n: secs });
   const mins = Math.round(secs / 60);
-  return mins < 60 ? `${mins} min ago` : `${Math.round(mins / 60)}h ago`;
+  return mins < 60 ? t("minutesAgo", { n: mins }) : t("hoursAgo", { n: Math.round(mins / 60) });
 }
 
 export function LiveClassView({ classId, pollMs = 10_000 }: { classId: string; pollMs?: number }) {
+  const t = useT("LiveClassView");
   const [data, setData] = useState<LiveClass | null>(null);
   const [error, setError] = useState(false);
   const [acking, setAcking] = useState<string | null>(null);
@@ -61,14 +63,14 @@ export function LiveClassView({ classId, pollMs = 10_000 }: { classId: string; p
 
   if (data === null) {
     return (
-      <SettingsSection title="Live">
+      <SettingsSection title={t("title")}>
         {error ? (
           <p role="alert" className="rounded border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
-            Could not load live status. Retrying…
+            {t("loadFailed")}
           </p>
         ) : (
           <p data-testid="live-loading" className="flex items-center gap-2 px-3 py-4 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Loading live status…
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> {t("loading")}
           </p>
         )}
       </SettingsSection>
@@ -78,7 +80,7 @@ export function LiveClassView({ classId, pollMs = 10_000 }: { classId: string; p
   const { calls, groups, summary } = data;
 
   return (
-    <SettingsSection title="Live">
+    <SettingsSection title={t("title")}>
       <div data-testid="live-class-view" className="flex flex-col gap-4">
         {/* Calls (raised hands) */}
         {calls.length > 0 && (
@@ -94,7 +96,7 @@ export function LiveClassView({ classId, pollMs = 10_000 }: { classId: string; p
                     {c.groupId}
                   </Link>
                   {c.activityTitle && <span className="text-amber-700">· {c.activityTitle}</span>}
-                  <span className="text-xs text-amber-600">{relTime(c.raisedHandAt)}</span>
+                  <span className="text-xs text-amber-600">{relTime(c.raisedHandAt, t)}</span>
                 </span>
                 <button
                   type="button"
@@ -102,7 +104,7 @@ export function LiveClassView({ classId, pollMs = 10_000 }: { classId: string; p
                   disabled={acking === c.groupId}
                   className="rounded border border-amber-400 px-2 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50"
                 >
-                  {acking === c.groupId ? "…" : "Acknowledge"}
+                  {acking === c.groupId ? "…" : t("acknowledge")}
                 </button>
               </li>
             ))}
@@ -116,7 +118,7 @@ export function LiveClassView({ classId, pollMs = 10_000 }: { classId: string; p
               <ChatMarkdown content={summary.text} navigateToBlock={() => {}} />
             </div>
             <p className="mt-1 text-xs text-muted-foreground">
-              AI · {summary.framework} · updated {relTime(summary.generatedAt)}
+              {t("summaryMeta", { framework: summary.framework, when: relTime(summary.generatedAt, t) })}
             </p>
           </div>
         )}
@@ -124,7 +126,7 @@ export function LiveClassView({ classId, pollMs = 10_000 }: { classId: string; p
         {/* Deterministic per-group signals */}
         {groups.length === 0 ? (
           <p className="rounded border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
-            No groups online yet.
+            {t("noGroups")}
           </p>
         ) : (
           <ul className="divide-y divide-border rounded border border-border">
@@ -140,14 +142,18 @@ export function LiveClassView({ classId, pollMs = 10_000 }: { classId: string; p
                       className={`h-2 w-2 rounded-full ${g.status === "active" ? "bg-green-500" : "bg-gray-300"}`}
                     />
                     <code className="rounded bg-muted px-1.5 py-0.5 font-mono">{g.groupId}</code>
-                    <span className="text-muted-foreground">{g.status}</span>
+                    <span className="text-muted-foreground">
+                      {g.status === "active" || g.status === "idle"
+                        ? t(`status_${g.status}` as MessageKey<"LiveClassView">)
+                        : g.status}
+                    </span>
                     {g.activityTitle && <span className="text-muted-foreground">· {g.activityTitle}</span>}
                   </span>
                   <span className="flex items-center gap-3 text-xs text-muted-foreground">
-                    <span>{g.turns} turns</span>
+                    <span>{t("turns", { n: g.turns })}</span>
                     {g.stuck && (
                       <span className="flex items-center gap-1 text-amber-700">
-                        <TriangleAlert className="h-3.5 w-3.5" aria-hidden /> stuck
+                        <TriangleAlert className="h-3.5 w-3.5" aria-hidden /> {t("stuck")}
                       </span>
                     )}
                   </span>

@@ -8,6 +8,7 @@ import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 
 import { DefaultsCard } from "./_DefaultsCard";
 import { LensConfigPanel } from "./_LensConfigPanel";
+import { useT } from "@/i18n";
 
 /**
  * Settings index — the nav destination for teacher account + class-wide
@@ -20,21 +21,22 @@ import { LensConfigPanel } from "./_LensConfigPanel";
  * for plain teachers).
  */
 export default function TeacherSettingsPage() {
+  const t = useT("TeacherSettingsPage");
   return (
-    <TeacherPage title="Settings">
+    <TeacherPage title={t("title")}>
       <div className="flex flex-col gap-6">
         <DefaultsCard />
         <LensConfigPanel />
         <EmptyState
           icon={SettingsIcon}
-          title="Everything else lives where it applies"
-          description="Per-class settings (the tutor, voice and read-aloud language) are on each class page; per-activity settings (language, elements, materials) are in the activity builder. The defaults above are only a starting point for those — they never override them."
+          title={t("elsewhereTitle")}
+          description={t("elsewhereBody")}
           action={
             <Link
               href="/teacher/classes"
               className="inline-flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent"
             >
-              Go to classes
+              {t("goToClasses")}
               <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           }

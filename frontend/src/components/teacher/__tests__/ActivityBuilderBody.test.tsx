@@ -1,9 +1,19 @@
-import { act, render, renderHook, screen, within } from "@testing-library/react";
+import { act, render as rtlRender, renderHook, screen, within, type RenderOptions } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
 import { ActivityBuilderBody } from "@/components/teacher/ActivityBuilderBody";
 import { useActivityBuilder, type ActivityBuilder } from "@/hooks/useActivityBuilder";
+
+import { LocaleProvider } from "@/i18n";
+
+// 1.1.108 M2 — these tests assert the English copy; the teacher UI defaults to
+// Danish, so render inside an English locale (the teacher chose EN).
+function EnglishUI({ children }: { children: React.ReactNode }) {
+  return <LocaleProvider locale="en">{children}</LocaleProvider>;
+}
+const render = (ui: React.ReactElement, options?: Omit<RenderOptions, "wrapper">) =>
+  rtlRender(ui, { wrapper: EnglishUI, ...options });
 
 // Characterization tests for the shared activity-builder workspace (1.1.40 M1).
 // The body renders title/language/checklist controls inline and delegates each
@@ -168,7 +178,8 @@ describe("ActivityBuilderBody — setup section", () => {
   it("renders the title input, language select, and footer", () => {
     setup();
     expect(screen.getByLabelText("Activity name")).toBeInTheDocument();
-    expect(screen.getByLabelText("Language")).toBeInTheDocument();
+    // 1.1.108 — the field is the STUDENTS' language, and says so.
+    expect(screen.getByLabelText(/students' language/i)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Create activity" })).toBeInTheDocument();
   });
 
@@ -183,7 +194,7 @@ describe("ActivityBuilderBody — setup section", () => {
   it("the language select reflects the builder language and updates on change", async () => {
     const user = userEvent.setup();
     setup();
-    const select = screen.getByLabelText("Language") as HTMLSelectElement;
+    const select = screen.getByLabelText(/students' language/i) as HTMLSelectElement;
     expect(select.value).toBe("da");
     await user.selectOptions(select, "en");
     expect(select.value).toBe("en");

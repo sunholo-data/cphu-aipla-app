@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 
 import { ConceptMapGraph, type ConceptGroupSpread } from "@/components/workspace/ConceptMapGraph";
 import { fetchWithTeacherAuth } from "@/lib/apiClient";
+import { useT, type MessageKey } from "@/i18n";
 
 type Status = "not_yet" | "partial" | "demonstrated";
 
@@ -39,24 +40,11 @@ interface Rollup {
   edges: { from: string; to: string }[];
 }
 
-const STATUS_COPY: Record<string, string> = {
-  demonstrated: "forstået",
-  partial: "på vej",
-  not_yet: "ikke vist endnu",
-};
-
-const FLAG_COPY: Record<string, string> = {
-  provenance: "AI'ens løbende og dens tjek er uenige",
-  regressed: "er gået tilbage siden sidst",
-};
-
-const OVERRIDE_CHOICES: { status: Status; label: string }[] = [
-  { status: "demonstrated", label: "forstået" },
-  { status: "partial", label: "på vej" },
-  { status: "not_yet", label: "ikke vist endnu" },
-];
+const OVERRIDE_CHOICES: Status[] = ["demonstrated", "partial", "not_yet"];
 
 export function ClassConceptGraph({ classId }: { classId: string }) {
+  const t = useT("ClassConceptGraph");
+  const statusLabel = (s: string) => t(`status_${s}` as MessageKey<"ClassConceptGraph">);
   const [rollup, setRollup] = useState<Rollup | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [selected, setSelected] = useState<string | null>(null);
@@ -104,15 +92,14 @@ export function ClassConceptGraph({ classId }: { classId: string }) {
     }
   }
 
-  if (state === "loading") return <p className="text-sm text-muted-foreground">Indlæser begrebskort…</p>;
+  if (state === "loading") return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
   if (state === "error" || !rollup) {
-    return <p className="text-sm text-muted-foreground">Begrebskortet kunne ikke hentes lige nu.</p>;
+    return <p className="text-sm text-muted-foreground">{t("failed")}</p>;
   }
   if (rollup.concepts.length === 0) {
     return (
       <p className="text-sm text-muted-foreground" data-testid="class-concept-empty">
-        Ingen begreber er krydset af endnu. De dukker op her, efterhånden som grupperne arbejder med
-        aktiviteter, der har et begrebskort.
+        {t("empty")}
       </p>
     );
   }
@@ -137,8 +124,7 @@ export function ClassConceptGraph({ classId }: { classId: string }) {
   return (
     <div className="flex flex-col gap-3" data-testid="class-concept-graph">
       <p className="text-xs text-muted-foreground">
-        Hver kasse er et begreb, klassens aktiviteter har kortlagt. Bjælken viser, hvordan grupperne
-        fordeler sig — ikke et gennemsnit. Klik på et begreb for at se hvem.
+        {t("intro")}
       </p>
 
       <div className="overflow-x-auto rounded-md border border-border bg-background p-2">
@@ -152,17 +138,17 @@ export function ClassConceptGraph({ classId }: { classId: string }) {
       </div>
 
       <ul className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-        <Legend className="bg-emerald-500" label="forstået" />
-        <Legend className="bg-amber-400" label="på vej" />
-        <Legend className="bg-slate-400" label="ikke vist endnu" />
-        <Legend className="bg-slate-200" label="har ikke mødt begrebet" />
+        <Legend className="bg-emerald-500" label={statusLabel("demonstrated")} />
+        <Legend className="bg-amber-400" label={statusLabel("partial")} />
+        <Legend className="bg-slate-400" label={statusLabel("not_yet")} />
+        <Legend className="bg-slate-200" label={t("notSeen")} />
       </ul>
 
       {chosen ? (
         <div className="rounded-md border border-border p-3 text-sm" data-testid="class-concept-detail">
           <h3 className="font-medium">{chosen.concept}</h3>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Kortlagt i {chosen.activityIds.length} aktivitet{chosen.activityIds.length === 1 ? "" : "er"}.
+            {t("mappedIn", { n: chosen.activityIds.length })}
           </p>
           <ul className="mt-2 flex flex-col gap-2">
             {rollup.classGroups.map((group) => {
@@ -172,7 +158,7 @@ export function ClassConceptGraph({ classId }: { classId: string }) {
                   <span className="flex items-center gap-2">
                     <span className="font-mono text-xs">{group}</span>
                     <span className="text-xs text-muted-foreground">
-                      {chosen.byGroup[group] ? STATUS_COPY[chosen.byGroup[group]] : "har ikke mødt begrebet"}
+                      {chosen.byGroup[group] ? statusLabel(chosen.byGroup[group]) : t("notSeen")}
                     </span>
                     {flags.map((f) => (
                       <span
@@ -180,21 +166,21 @@ export function ClassConceptGraph({ classId }: { classId: string }) {
                         data-testid={`flag-${group}-${f.kind}`}
                         className="rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[11px] text-amber-900"
                       >
-                        {FLAG_COPY[f.kind]}
+                        {t(`flag_${f.kind}` as MessageKey<"ClassConceptGraph">)}
                       </span>
                     ))}
                   </span>
                   <span className="flex gap-1">
                     {OVERRIDE_CHOICES.map((choice) => (
                       <button
-                        key={choice.status}
+                        key={choice}
                         type="button"
                         disabled={saving !== null}
-                        aria-label={`Sæt ${chosen.concept} til ${choice.label} for ${group}`}
-                        onClick={() => void override(chosen.concept, group, choice.status)}
+                        aria-label={t("setAria", { concept: chosen.concept, status: statusLabel(choice), group })}
+                        onClick={() => void override(chosen.concept, group, choice)}
                         className="rounded border border-border px-1.5 py-0.5 text-[11px] hover:bg-accent disabled:opacity-50"
                       >
-                        {choice.label}
+                        {statusLabel(choice)}
                       </button>
                     ))}
                   </span>
@@ -203,8 +189,7 @@ export function ClassConceptGraph({ classId }: { classId: string }) {
             })}
           </ul>
           <p className="mt-2 text-[11px] text-muted-foreground">
-            Din vurdering vejer tungere end AI&apos;ens og bliver ikke overskrevet af den. Tutoren får at
-            vide, at begrebet er afgjort, og skal ikke teste det igen.
+            {t("overrideNote")}
           </p>
         </div>
       ) : null}

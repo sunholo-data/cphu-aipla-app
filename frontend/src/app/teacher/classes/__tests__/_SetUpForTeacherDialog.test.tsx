@@ -1,9 +1,19 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import * as teacherApi from "@/lib/teacherApi";
 import * as programmeApi from "@/lib/programmeApi";
 import { SetUpForTeacherDialog } from "@/app/teacher/classes/_SetUpForTeacherDialog";
+import { LocaleProvider } from "@/i18n";
+
+// 1.1.108 M2 — these tests assert the English copy; the teacher UI defaults to
+// Danish (the teacher's own DA | EN choice), so render inside an English locale.
+function EnglishLocale({ children }: { children: React.ReactNode }) {
+  return <LocaleProvider locale="en">{children}</LocaleProvider>;
+}
+const render = ((ui: React.ReactElement, options?: Parameters<typeof rtlRender>[1]) =>
+  rtlRender(ui, { wrapper: EnglishLocale, ...options })) as typeof rtlRender;
+
 
 afterEach(() => vi.restoreAllMocks());
 
@@ -43,7 +53,7 @@ describe("SetUpForTeacherDialog", () => {
     await waitFor(() =>
       expect(create).toHaveBeenCalledWith({ ownerUid: "u-bob", name: "Bob's first", templateClassId: "tpl" }),
     );
-    expect(await screen.findByRole("status")).toHaveTextContent("2 activities copied, join code soft-otter-44");
+    expect(await screen.findByRole("status")).toHaveTextContent("2 activities copied, group code soft-otter-44");
     expect(onCreated).toHaveBeenCalled();
   });
 
@@ -63,6 +73,6 @@ describe("SetUpForTeacherDialog", () => {
     fireEvent.change(teacherSelect, { target: { value: "u-v" } });
     fireEvent.change(screen.getByRole("textbox", { name: /class name/i }), { target: { value: "V" } });
     fireEvent.click(screen.getByRole("button", { name: /set up class/i }));
-    expect(await screen.findByRole("status")).toHaveTextContent(/no join code, the teacher is not on the spend register/);
+    expect(await screen.findByRole("status")).toHaveTextContent(/no group code, the teacher is not on the spend register/);
   });
 });

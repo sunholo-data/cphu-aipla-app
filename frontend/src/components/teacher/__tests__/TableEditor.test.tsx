@@ -1,7 +1,17 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen, type RenderOptions } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { MAX_TABLES, TableEditor, type TableEditorValue } from "../TableEditor";
+
+import { LocaleProvider } from "@/i18n";
+
+// 1.1.108 M2 — these tests assert the English copy; the teacher UI defaults to
+// Danish, so render inside an English locale (the teacher chose EN).
+function EnglishUI({ children }: { children: React.ReactNode }) {
+  return <LocaleProvider locale="en">{children}</LocaleProvider>;
+}
+const render = (ui: React.ReactElement, options?: Omit<RenderOptions, "wrapper">) =>
+  rtlRender(ui, { wrapper: EnglishUI, ...options });
 
 const VALUE: TableEditorValue = {
   key: 1,

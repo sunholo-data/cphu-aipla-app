@@ -8,12 +8,14 @@ import { BarChart3, BookOpen, ClipboardList, Library, PanelLeftClose, PanelLeftO
 import { cn } from "@/lib/utils";
 import { useIsProgrammeAdmin } from "@/hooks/useIsProgrammeAdmin";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
+import { useT, type MessageKey } from "@/i18n";
 
 const COLLAPSE_KEY = "teacher-nav-collapsed";
 
 interface Destination {
   href: string;
-  label: string;
+  /** Message key in the TeacherNav namespace (1.1.108). */
+  label: MessageKey<"TeacherNav">;
   icon: ComponentType<{ className?: string; "aria-hidden"?: boolean | "true" | "false" }>;
   /** Path prefixes that mark this destination active. */
   match: string[];
@@ -30,29 +32,29 @@ interface Destination {
  * the only way to reach it was to open an activity builder.
  */
 const DESTINATIONS: Destination[] = [
-  { href: "/teacher/classes", label: "Classes", icon: Users, match: ["/teacher/classes"] },
+  { href: "/teacher/classes", label: "classes", icon: Users, match: ["/teacher/classes"] },
   {
     href: "/teacher/activities",
-    label: "Activities",
+    label: "activities",
     icon: ClipboardList,
     match: ["/teacher/activities"],
   },
   {
     href: "/teacher/materials",
-    label: "Materials",
+    label: "materials",
     icon: Library,
     match: ["/teacher/materials"],
   },
   {
     href: "/teacher/insights",
-    label: "Insights",
+    label: "insights",
     icon: BarChart3,
     match: ["/teacher/insights", "/teacher/reports"],
   },
   // Settings left the nav in 1.1.125 M0 — it is a defaults card and a signpost,
   // reached from the account menu. Approaches went with it (both entries: the
   // account menu and the class page's Tutor setting; JB/AR prune one).
-  { href: "/guides", label: "Guides", icon: BookOpen, match: ["/guides"] },
+  { href: "/guides", label: "guides", icon: BookOpen, match: ["/guides"] },
 ];
 
 /**
@@ -67,7 +69,7 @@ const DESTINATIONS: Destination[] = [
  */
 const PROGRAMME_DESTINATION: Destination = {
   href: "/teacher/programme",
-  label: "Programme",
+  label: "programme",
   icon: ShieldCheck,
   match: ["/teacher/programme"],
 };
@@ -85,6 +87,7 @@ function isActive(pathname: string, match: string[]): boolean {
  */
 export function TeacherNav() {
   const pathname = usePathname() ?? "";
+  const t = useT("TeacherNav");
   // A researcher is a teacher with two extra switches (the All-scope toggles
   // on Classes and Activities) and Insights tabs — plus ONE extra destination,
   // Programme. The parallel /teacher/research/* tree that used to add three
@@ -122,7 +125,7 @@ export function TeacherNav() {
     <>
       {/* Desktop: left rail */}
       <nav
-        aria-label="Teacher sections"
+        aria-label={t("sections")}
         className={cn(
           "hidden shrink-0 md:flex md:flex-col md:gap-1 md:border-r md:border-border md:py-4",
           collapsed ? "md:w-14 md:items-center md:pr-2" : "md:w-52 md:pr-3",
@@ -131,9 +134,9 @@ export function TeacherNav() {
         <button
           type="button"
           onClick={toggleCollapsed}
-          aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+          aria-label={collapsed ? t("expand") : t("collapse")}
           aria-expanded={!collapsed}
-          title={collapsed ? "Expand navigation" : "Collapse navigation"}
+          title={collapsed ? t("expand") : t("collapse")}
           className={cn(
             "mb-1 flex items-center rounded py-2 text-muted-foreground hover:bg-accent hover:text-foreground",
             collapsed ? "justify-center px-0" : "gap-2 px-3",
@@ -144,7 +147,7 @@ export function TeacherNav() {
           ) : (
             <PanelLeftClose className="h-4 w-4" aria-hidden="true" />
           )}
-          {!collapsed ? <span className="text-xs font-medium">Collapse</span> : null}
+          {!collapsed ? <span className="text-xs font-medium">{t("collapseShort")}</span> : null}
         </button>
         {destinations.map((d) => {
           const active = isActive(pathname, d.match);
@@ -154,7 +157,7 @@ export function TeacherNav() {
               key={d.href}
               href={d.href}
               aria-current={active ? "page" : undefined}
-              title={collapsed ? d.label : undefined}
+              title={collapsed ? t(d.label) : undefined}
               className={cn(
                 "flex items-center rounded text-sm font-medium",
                 collapsed ? "justify-center px-0 py-2" : "gap-2 px-3 py-2",
@@ -164,7 +167,7 @@ export function TeacherNav() {
               )}
             >
               <Icon className="h-4 w-4" aria-hidden="true" />
-              {!collapsed ? d.label : null}
+              {!collapsed ? t(d.label) : null}
             </Link>
           );
         })}
@@ -172,7 +175,7 @@ export function TeacherNav() {
 
       {/* Mobile: bottom bar */}
       <nav
-        aria-label="Teacher sections"
+        aria-label={t("sections")}
         className="fixed inset-x-0 bottom-0 z-20 flex items-stretch border-t border-border bg-background md:hidden"
       >
         {destinations.map((d) => {
@@ -189,7 +192,7 @@ export function TeacherNav() {
               )}
             >
               <Icon className="h-5 w-5" aria-hidden="true" />
-              {d.label}
+              {t(d.label)}
             </Link>
           );
         })}

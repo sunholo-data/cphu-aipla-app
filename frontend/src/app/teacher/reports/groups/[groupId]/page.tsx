@@ -18,13 +18,13 @@ import { ChatLogTranscript, timelineFromSummary } from "@/components/teacher/res
 import { GroupTranscriptSection } from "@/components/teacher/GroupTranscriptSection";
 import { TeachingApproachSection } from "@/components/teacher/TeachingApproachSection";
 import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
+import { useT, type Translate } from "@/i18n";
 
 const TRANSCRIPT_OPEN_KEY = "aipla.report.transcriptOpen";
 
 /** UI copy for the 1.1.136 timeline additions (1.1.108 M4: copy object, not JSX). */
-const copy = {
-  workCount: (n: number) => ` · ${n} workbench event${n === 1 ? "" : "s"}`,
-} as const;
+// Copy lives in messages/{da,en}/teacher-research.json (TeacherGroupReportPage) — 1.1.108.
+type T = Translate<"TeacherGroupReportPage">;
 
 // Mirrors backend analytics/live_class.py LIVE_WINDOW_S: a latest session quiet
 // longer than this is historical, not "live" — the report shows "last active …"
@@ -32,12 +32,12 @@ const copy = {
 const LIVE_WINDOW_S = 5400;
 
 /** "…/2026-06-29T12:00:00Z" → "3 min ago" for the AI-summary freshness line. */
-function relAgo(iso: string | null | undefined): string {
+function relAgo(iso: string | null | undefined, t: T): string {
   if (!iso) return "";
   const secs = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 1000));
-  if (secs < 60) return "just now";
+  if (secs < 60) return t("justNow");
   const mins = Math.round(secs / 60);
-  return mins < 60 ? `${mins} min ago` : `${Math.round(mins / 60)}h ago`;
+  return mins < 60 ? t("minAgo", { n: mins }) : t("hoursAgo", { n: Math.round(mins / 60) });
 }
 
 /** The shape the report UI renders — derived from the live session summary.
@@ -53,7 +53,6 @@ type ReportDisplay = {
   durationMinutes: number;
   messageCount: number;
   simRunCount: number;
-  highlights: string[];
   conversation: ReportTurn[];
 };
 
@@ -66,11 +65,11 @@ type ReportState =
 /** "946" -> "15h 46m"; under an hour stays "Nm". The report's time is the span
  *  from the group's first to last activity (across sessions), so a raw "946 min"
  *  reads badly — 1.1.36 feedback. */
-function formatGroupTime(minutes: number): string {
-  if (minutes < 60) return `${minutes}m`;
+function formatGroupTime(minutes: number, t: T): string {
+  if (minutes < 60) return t("duration_m", { m: minutes });
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+  return m === 0 ? t("duration_h", { h }) : t("duration_hm", { h, m });
 }
 
 function toDisplay(state: ReportState): ReportDisplay | null {
@@ -85,10 +84,6 @@ function toDisplay(state: ReportState): ReportDisplay | null {
     durationMinutes: Math.round(d.durationSeconds / 60),
     messageCount: d.messageCount,
     simRunCount: d.simRunCount,
-    highlights: [
-      `${d.messageCount} messages exchanged`,
-      `${d.simRunCount} workbench interactions`,
-    ],
     conversation: d.conversation.map((t) => ({
       timestamp: t.timestamp.slice(11, 16),
       role: t.role,
@@ -98,6 +93,7 @@ function toDisplay(state: ReportState): ReportDisplay | null {
 }
 
 export default function TeacherGroupReportPage() {
+  const t = useT("TeacherGroupReportPage");
   const params = useParams();
   const searchParams = useSearchParams();
   const groupId =
@@ -195,7 +191,7 @@ export default function TeacherGroupReportPage() {
   if (state.kind === "loading") {
     return (
       <div className="flex min-h-[40vh] items-center justify-center text-sm text-muted-foreground">
-        Loading report…
+        {t("loading")}
       </div>
     );
   }
@@ -203,11 +199,9 @@ export default function TeacherGroupReportPage() {
   if (state.kind === "empty") {
     return (
       <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
-        <p className="font-medium text-foreground">No sessions yet</p>
-        <p>
-          Group <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{groupId}</code> has not completed a session.
-        </p>
-        <p>Students need to join and chat before a report appears here.</p>
+        <p className="font-medium text-foreground">{t("emptyTitle")}</p>
+        <p>{t.rich("emptyGroup", { group: groupId, code: (chunks) => <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{chunks}</code> })}</p>
+        <p>{t("emptyHint")}</p>
       </div>
     );
   }
@@ -215,11 +209,8 @@ export default function TeacherGroupReportPage() {
   if (state.kind === "error") {
     return (
       <div className="flex min-h-[40vh] flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
-        <p className="font-medium text-foreground">Couldn&apos;t load this report</p>
-        <p>
-          Something went wrong fetching the session for group{" "}
-          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{groupId}</code>. Refresh to try again.
-        </p>
+        <p className="font-medium text-foreground">{t("errorTitle")}</p>
+        <p>{t.rich("errorBody", { group: groupId, code: (chunks) => <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{chunks}</code> })}</p>
       </div>
     );
   }
@@ -247,13 +238,13 @@ export default function TeacherGroupReportPage() {
           className="flex items-center gap-1 hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Dashboard
+          {t("dashboard")}
         </Link>
         {report.classId ? (
           <>
             <span aria-hidden="true">/</span>
             <Link href={`/teacher/classes/${report.classId}`} className="hover:text-foreground hover:underline">
-              {report.className || "Class"}
+              {report.className || t("classFallback")}
             </Link>
           </>
         ) : null}
@@ -262,28 +253,31 @@ export default function TeacherGroupReportPage() {
           {groupId}
         </code>
         <span aria-hidden="true">/</span>
-        <span className="text-foreground">Session history</span>
+        <span className="text-foreground">{t("sessionHistory")}</span>
       </nav>
 
       <header className="flex flex-col gap-1">
         <h1 className="flex items-center gap-2 text-xl font-semibold sm:text-2xl">
-          {sessionId ? "Session" : "Latest session"}
+          {sessionId ? t("session") : t("latestSession")}
           {liveActive ? (
             <span className="flex items-center gap-1 text-xs font-normal text-green-600">
-              <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" aria-hidden /> live
+              <span className="h-2 w-2 animate-pulse rounded-full bg-green-500" aria-hidden /> {t("live")}
             </span>
           ) : (
             !sessionId &&
             lastActivityIso && (
               <span className="text-xs font-normal text-muted-foreground">
-                last active {relAgo(lastActivityIso)}
+                {t("lastActive", { ago: relAgo(lastActivityIso, t) })}
               </span>
             )
           )}
         </h1>
         <p className="text-sm text-muted-foreground">
-          Activity: <strong>{report.activityName}</strong> · Session:{" "}
-          {report.startedAtLabel}
+          {t.rich("activityLine", {
+            activity: report.activityName,
+            started: report.startedAtLabel,
+            b: (chunks) => <strong>{chunks}</strong>,
+          })}
         </p>
       </header>
 
@@ -293,10 +287,10 @@ export default function TeacherGroupReportPage() {
       >
         <div className="flex items-center justify-between gap-2">
           <h2 id="narrative-label" className="text-base font-semibold">
-            Summary
+            {t("summary")}
           </h2>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            {narrative && inputs?.generatedAt && <span>updated {relAgo(inputs.generatedAt)}</span>}
+            {narrative && inputs?.generatedAt && <span>{t("updated", { ago: relAgo(inputs.generatedAt, t) })}</span>}
             <button
               type="button"
               onClick={() => void load({ refresh: true })}
@@ -304,7 +298,7 @@ export default function TeacherGroupReportPage() {
               className="flex items-center gap-1 rounded border px-2 py-1 hover:bg-muted disabled:opacity-50"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} aria-hidden />
-              {refreshing ? "Refreshing…" : "Refresh"}
+              {refreshing ? t("refreshing") : t("refresh")}
             </button>
           </div>
         </div>
@@ -316,24 +310,23 @@ export default function TeacherGroupReportPage() {
         ) : (
           <p className="text-sm text-muted-foreground">
             {report.conversation.length === 0 && !(inputs && inputs.audioMinutes > 0)
-              ? "No conversation yet — a summary appears once the group has chatted."
-              : `Generating a summary from ${report.messageCount} chat turns${
-                  inputs && inputs.audioMinutes > 0
-                    ? ` + ${inputs.audioMinutes} min of recorded discussion`
-                    : ""
-                }… read the chat and recording below while it generates.`}
+              ? t("noConversation")
+              : t("generating", {
+                  turns: report.messageCount,
+                  audio: inputs && inputs.audioMinutes > 0 ? String(inputs.audioMinutes) : "none",
+                })}
           </p>
         )}
         {/* 1.1.36 A5 — "what's included": names the sources so the wait is transparent. */}
         {inputs ? (
           <p className="text-xs text-muted-foreground">
-            Based on {inputs.chatTurns} chat turns
+            {t("basedOn", { turns: inputs.chatTurns })}
             {inputs.audioMinutes > 0
-              ? ` · ${inputs.audioMinutes} min recorded discussion (${inputs.audioSegments} clips)`
+              ? t("basedOnAudio", { minutes: inputs.audioMinutes, clips: inputs.audioSegments })
               : ""}
-            {inputs.simEvents > 0 ? ` · ${inputs.simEvents} sim interactions` : ""}
+            {inputs.simEvents > 0 ? t("basedOnSim", { n: inputs.simEvents }) : ""}
             {` · ${inputs.model}`}
-            {inputs.generatedAt ? ` · generated ${inputs.generatedAt.slice(11, 16)}` : ""}
+            {inputs.generatedAt ? t("generatedAt", { time: inputs.generatedAt.slice(11, 16) }) : ""}
           </p>
         ) : null}
       </section>
@@ -346,24 +339,24 @@ export default function TeacherGroupReportPage() {
         className="flex flex-col gap-2 rounded border border-border bg-background p-4"
       >
         <h2 id="summary-label" className="text-base font-semibold">
-          At a glance
+          {t("atAGlance")}
         </h2>
         <dl className="flex flex-wrap gap-x-6 gap-y-1 text-sm">
           <div>
-            <dt className="text-xs uppercase text-muted-foreground">Group time</dt>
+            <dt className="text-xs uppercase text-muted-foreground">{t("groupTime")}</dt>
             <dd
               className="font-medium"
-              title="Total span from the group's first to last activity, across all their sessions — not just the latest chat."
+              title={t("groupTimeTitle")}
             >
-              {formatGroupTime(report.durationMinutes)}
+              {formatGroupTime(report.durationMinutes, t)}
             </dd>
           </div>
           <div>
-            <dt className="text-xs uppercase text-muted-foreground">Messages</dt>
+            <dt className="text-xs uppercase text-muted-foreground">{t("messages")}</dt>
             <dd className="font-medium">{report.messageCount}</dd>
           </div>
           <div>
-            <dt className="text-xs uppercase text-muted-foreground">Sim runs</dt>
+            <dt className="text-xs uppercase text-muted-foreground">{t("simRuns")}</dt>
             <dd className="font-medium">{report.simRunCount}</dd>
           </div>
         </dl>
@@ -371,10 +364,13 @@ export default function TeacherGroupReportPage() {
 
       <section aria-labelledby="highlights-label" className="flex flex-col gap-2">
         <h2 id="highlights-label" className="text-base font-semibold">
-          What the group did
+          {t("whatTheyDid")}
         </h2>
         <ul className="flex flex-col gap-1 text-sm">
-          {report.highlights.map((h) => (
+          {[
+            t("highlightMessages", { n: report.messageCount }),
+            t("highlightWork", { n: report.simRunCount }),
+          ].map((h) => (
             <li key={h} className="flex items-start gap-2">
               <span
                 aria-hidden="true"
@@ -389,10 +385,8 @@ export default function TeacherGroupReportPage() {
       {/* 1.1.36 feedback — group the chat + recording transcripts as one
           "Source material" (provenance) block so they read together. */}
       <div className="flex flex-col gap-0.5">
-        <h2 className="text-base font-semibold">Source material</h2>
-        <p className="text-xs text-muted-foreground">
-          The chat and the recorded discussion this summary is drawn from — open either to read the provenance.
-        </p>
+        <h2 className="text-base font-semibold">{t("sourceMaterial")}</h2>
+        <p className="text-xs text-muted-foreground">{t("sourceMaterialHint")}</p>
       </div>
 
       <section aria-labelledby="log-label" className="flex flex-col gap-2">
@@ -410,13 +404,12 @@ export default function TeacherGroupReportPage() {
               aria-hidden="true"
             />
             <span id="log-label">
-              {transcriptOpen ? "Hide full transcript" : "View full transcript"}
+              {transcriptOpen ? t("hideTranscript") : t("viewTranscript")}
             </span>
             <span className="text-xs font-normal text-muted-foreground">
-              ({report.conversation.length} message
-              {report.conversation.length === 1 ? "" : "s"}
+              ({t("messageCount", { n: report.conversation.length })}
               {live && (live.workbenchEvents?.length ?? 0) > 0
-                ? copy.workCount(live.workbenchEvents?.length ?? 0)
+                ? t("workCount", { n: live.workbenchEvents?.length ?? 0 })
                 : ""}
               )
             </span>

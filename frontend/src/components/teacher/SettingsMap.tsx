@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { ClipboardList, UserRound, Users } from "lucide-react";
+import { useT } from "@/i18n";
 
 /**
  * "Where settings live" explainer (1.1.32 Phase A, design item 5).
@@ -32,24 +33,6 @@ import { ClipboardList, UserRound, Users } from "lucide-react";
  */
 type SettingsNoun = "class" | "tutor" | "activity";
 
-const copy = {
-  heading: "Where settings live",
-  class: {
-    label: "Class",
-    question: "who takes part",
-    detail: "students, group codes and what they can use",
-  },
-  tutor: {
-    label: "Tutor",
-    question: "who teaches",
-    detail: "name, voice, tone and teaching approach — one choice, made on the class",
-  },
-  activity: {
-    label: "Activity",
-    question: "what students do",
-    detail: "teaching goal, optional simulation and cited materials — what you author here",
-  },
-};
 
 export function SettingsMap({
   highlight,
@@ -58,6 +41,7 @@ export function SettingsMap({
   highlight?: SettingsNoun;
   classId?: string;
 }) {
+  const t = useT("SettingsMap");
   const classHref = classId
     ? `/teacher/classes/${encodeURIComponent(classId)}`
     : "/teacher/classes";
@@ -72,20 +56,26 @@ export function SettingsMap({
   }[] = [
     {
       key: "class",
-      ...copy.class,
+      label: t("classLabel"),
+      question: t("classQuestion"),
+      detail: t("classDetail"),
       Icon: Users, // matches the "Classes" sidebar destination
       href: classHref,
     },
     {
       key: "tutor",
-      ...copy.tutor,
+      label: t("tutorLabel"),
+      question: t("tutorQuestion"),
+      detail: t("tutorDetail"),
       Icon: UserRound,
       // The tutor has no sidebar home — it lives in the class's settings.
       href: classId ? `${classHref}#class-settings` : "/teacher/classes",
     },
     {
       key: "activity",
-      ...copy.activity,
+      label: t("activityLabel"),
+      question: t("activityQuestion"),
+      detail: t("activityDetail"),
       Icon: ClipboardList, // matches the "Activities" sidebar destination
       href: "/teacher/activities",
     },
@@ -94,9 +84,9 @@ export function SettingsMap({
   return (
     <aside
       className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600"
-      aria-label="Where each setting lives"
+      aria-label={t("ariaLabel")}
     >
-      <p className="mb-2 font-medium text-slate-700">{copy.heading}</p>
+      <p className="mb-2 font-medium text-slate-700">{t("heading")}</p>
       <ul className="flex flex-col gap-1.5">
         {nouns.map(({ key, label, question, detail, Icon, href }) => {
           const active = key === highlight;

@@ -1,8 +1,11 @@
 "use client";
 
-import { TeacherCopilot } from "@/components/teacher/copilot";
+import { useMemo } from "react";
 
-import { applyClassProposal, classProposalDescriptor, parseClassProposal } from "./classCopilotProposal";
+import { TeacherCopilot } from "@/components/teacher/copilot";
+import { useT } from "@/i18n";
+
+import { applyClassProposal, makeClassProposalDescriptor, parseClassProposal } from "./classCopilotProposal";
 
 /**
  * The class-management co-pilot — the shared floating co-pilot configured for
@@ -12,14 +15,17 @@ import { applyClassProposal, classProposalDescriptor, parseClassProposal } from 
  * answer in chat.
  */
 export function ManageClassCopilot({ onChanged }: { onChanged?: () => void }) {
+  const t = useT("ManageClassCopilot");
+  const tProposal = useT("ClassProposal");
+  const descriptor = useMemo(() => makeClassProposalDescriptor(tProposal), [tProposal]);
   return (
     <TeacherCopilot
       skillName="manage-class"
-      title="Class co-pilot"
-      placeholder="Create a class, make group codes, or ask how a class is doing…"
-      emptyText="Tell me what you'd like to do — create a class, make group codes for students to join, or check how a class is doing. I propose changes you Apply, and they appear in your list."
+      title={t("title")}
+      placeholder={t("placeholder")}
+      emptyText={t("empty")}
       parseProposal={parseClassProposal}
-      proposalDescriptor={classProposalDescriptor}
+      proposalDescriptor={descriptor}
       // The created class / new group codes appear in the list (onChanged refetch),
       // so the card removes itself on Apply rather than leaving a lingering badge.
       dismissOnApply

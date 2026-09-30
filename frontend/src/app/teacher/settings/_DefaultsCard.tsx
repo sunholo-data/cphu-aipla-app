@@ -11,25 +11,27 @@ import { SlidersHorizontal } from "lucide-react";
 
 import { useTeacherPrefs } from "@/hooks/useTeacherPrefs";
 import { fetchPersonaCatalogue, type PersonaPayload } from "@/lib/teacherApi";
+import { useT, type MessageKey } from "@/i18n";
 
 /** Flags currently in runtime-opt-in state ('beta'). Build-time values bake
  *  into the bundle, so this list is computed once at module load. Empty on
  *  dev (flags are '1' = on for everyone) — the card shows a designed empty
  *  state rather than hiding, so teachers learn where betas will appear. */
-export const BETA_FLAGS: { key: string; label: string; buildValue: string | undefined }[] = [
+export const BETA_FLAGS: { key: string; label: MessageKey<"DefaultsCard">; buildValue: string | undefined }[] = [
   {
     key: "authoringCopilot",
-    label: "Aktivitets-medbygger (AI co-pilot i aktivitetsbyggeren)",
+    label: "flagAuthoringCopilot" as const,
     buildValue: process.env.NEXT_PUBLIC_AUTHORING_COPILOT,
   },
   {
     key: "conceptMap",
-    label: "Begrebskort (levende begrebskort med tjekspørgsmål)",
+    label: "flagConceptMap" as const,
     buildValue: process.env.NEXT_PUBLIC_CONCEPT_MAP,
   },
 ].filter((f) => f.buildValue === "beta");
 
 export function DefaultsCard() {
+  const t = useT("DefaultsCard");
   const { prefs, loaded, save } = useTeacherPrefs();
   const [personas, setPersonas] = useState<PersonaPayload[]>([]);
   const [note, setNote] = useState<string | null>(null);
@@ -50,53 +52,50 @@ export function DefaultsCard() {
 
   const put = async (updates: Parameters<typeof save>[0], message: string) => {
     setNote(null);
-    setNote((await save(updates)) ? message : "Save failed — try again.");
+    setNote((await save(updates)) ? message : t("saveFailed"));
   };
 
   return (
     <section data-testid="defaults-card" className="flex flex-col gap-3 rounded-lg border border-slate-200 p-4">
       <div>
         <h2 className="flex items-center gap-1.5 text-sm font-semibold text-slate-800">
-          <SlidersHorizontal className="h-4 w-4 text-slate-500" /> Defaults
+          <SlidersHorizontal className="h-4 w-4 text-slate-500" /> {t("title")}
         </h2>
-        <p className="mt-1 text-xs text-slate-500">
-          Account-wide starting points for new activities and classes. They only seed the form —
-          you can always change each activity or class individually.
-        </p>
+        <p className="mt-1 text-xs text-slate-500">{t("intro")}</p>
       </div>
 
       {!loaded ? (
-        <p className="text-sm text-slate-400">Loading…</p>
+        <p className="text-sm text-slate-400">{t("loading")}</p>
       ) : (
         <>
           <label className="flex items-center gap-2 text-sm text-slate-700">
-            <span className="w-44 shrink-0 text-xs font-medium text-slate-600">New-activity language</span>
+            <span className="w-44 shrink-0 text-xs font-medium text-slate-600">{t("languageLabel")}</span>
             <select
-              aria-label="Default activity language"
+              aria-label={t("languageAria")}
               value={prefs.defaultLanguage ?? ""}
               onChange={(e) =>
                 void put(
                   { defaultLanguage: (e.target.value || null) as "da" | "en" | null },
-                  "Language default saved.",
+                  t("languageSaved"),
                 )
               }
               className="rounded border border-slate-300 px-2 py-1.5 text-sm"
             >
-              <option value="">No default (Dansk)</option>
+              <option value="">{t("noDefaultDanish")}</option>
               <option value="da">Dansk</option>
               <option value="en">English</option>
             </select>
           </label>
 
           <label className="flex items-center gap-2 text-sm text-slate-700">
-            <span className="w-44 shrink-0 text-xs font-medium text-slate-600">Tutor for new classes</span>
+            <span className="w-44 shrink-0 text-xs font-medium text-slate-600">{t("tutorLabel")}</span>
             <select
-              aria-label="Default tutor for new classes"
+              aria-label={t("tutorAria")}
               value={prefs.defaultPersonaId ?? ""}
-              onChange={(e) => void put({ defaultPersonaId: e.target.value || null }, "Default tutor saved.")}
+              onChange={(e) => void put({ defaultPersonaId: e.target.value || null }, t("tutorSaved"))}
               className="rounded border border-slate-300 px-2 py-1.5 text-sm"
             >
-              <option value="">No default</option>
+              <option value="">{t("noDefault")}</option>
               {personas.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
@@ -110,26 +109,26 @@ export function DefaultsCard() {
               which is the point of a default. Per-activity removal still wins:
               this only seeds a NEW activity. */}
           <label className="flex items-center gap-2 text-sm text-slate-700">
-            <span className="w-44 shrink-0 text-xs font-medium text-slate-600">Concept map</span>
+            <span className="w-44 shrink-0 text-xs font-medium text-slate-600">{t("conceptMapLabel")}</span>
             <input
               type="checkbox"
-              aria-label="Start new activities with a concept map"
+              aria-label={t("conceptMapAria")}
               checked={prefs.defaultConceptMap !== false}
               onChange={(e) =>
                 void put(
                   { defaultConceptMap: e.target.checked ? null : false },
-                  e.target.checked ? "New activities will start with a concept map." : "Concept-map default off.",
+                  e.target.checked ? t("conceptMapOn") : t("conceptMapOff"),
                 )
               }
             />
-            <span className="text-xs text-slate-500">Start new activities with a concept-map section</span>
+            <span className="text-xs text-slate-500">{t("conceptMapHint")}</span>
           </label>
 
           <div className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-slate-600">Beta features</span>
+            <span className="text-xs font-medium text-slate-600">{t("betaTitle")}</span>
             {BETA_FLAGS.length === 0 ? (
               <p className="text-xs text-slate-400" data-testid="beta-empty">
-                No beta features are open for opt-in right now — new ones will appear here first.
+                {t("betaEmpty")}
               </p>
             ) : (
               BETA_FLAGS.map((f) => (
@@ -140,11 +139,11 @@ export function DefaultsCard() {
                     onChange={(e) =>
                       void put(
                         { features: { ...(prefs.features ?? {}), [f.key]: e.target.checked } },
-                        e.target.checked ? "Beta enabled." : "Beta disabled.",
+                        e.target.checked ? t("betaOn") : t("betaOff"),
                       )
                     }
                   />
-                  {f.label}
+                  {t(f.label)}
                 </label>
               ))
             )}

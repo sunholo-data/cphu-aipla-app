@@ -5,16 +5,13 @@ import { TeacherCopilot } from "@/components/teacher/copilot";
 import {
   type TutorProposal,
   parseTutorProposal,
-  tutorProposalDescriptor,
+  tutorProposalDescriptorFor,
 } from "./tutorCopilotProposal";
+import { useT } from "@/i18n";
+import { useMemo } from "react";
 
 /** UI copy, lifted out of JSX (1.1.108 M4) so a translator can reach it. */
-const copy = {
-  title: "Tutor co-pilot",
-  placeholder: "Describe a pedagogy, or ask what a tutor is actually told…",
-  empty:
-    "I help you author a teaching approach. Describe a pedagogy and I'll propose its constructs; ask what a tutor is told and I'll show the real generated prompt; ask me to critique an approach and I'll say where it doesn't do what it claims. I can search the papers we hold — but I cannot write a citation, so sources are yours to vouch for.",
-} as const;
+// Copy lives in messages/*/teacher-research.json — 1.1.108.
 
 /**
  * The tutor co-pilot (1.1.91 M2) — the fourth mount on the shared shell.
@@ -40,15 +37,18 @@ export function TutorCopilot({
   /** Hand an applied proposal to the page, which opens the editor on it. */
   onProposal: (proposal: TutorProposal) => void;
 }) {
+  const t = useT("TutorCopilot");
+  const tProposal = useT("TutorProposal");
+  const descriptor = useMemo(() => tutorProposalDescriptorFor(tProposal), [tProposal]);
   return (
     <TeacherCopilot<TutorProposal>
       skillName="tutor-authoring-assistant"
-      title={copy.title}
-      placeholder={copy.placeholder}
-      emptyText={copy.empty}
+      title={t("title")}
+      placeholder={t("placeholder")}
+      emptyText={t("empty")}
       testId="tutor-copilot"
       parseProposal={parseTutorProposal}
-      proposalDescriptor={tutorProposalDescriptor}
+      proposalDescriptor={descriptor}
       // The effect is visible immediately — the editor opens on the proposal —
       // so the card removes itself rather than leaving a badge behind.
       dismissOnApply

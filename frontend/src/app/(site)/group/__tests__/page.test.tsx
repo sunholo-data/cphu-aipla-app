@@ -279,7 +279,8 @@ describe("/group page — environment mix-up mitigations", () => {
     expect(
       await screen.findByText(/codes only work on the site they were created on/i),
     ).toBeInTheDocument();
-    expect(screen.getByText(/you are on TEST/i)).toBeInTheDocument();
+    // The site name is emphasised (<strong>), so match the hint as a whole.
+    expect(screen.getByText((_, el) => el?.tagName === "P" && /you are on TEST/i.test(el.textContent ?? ""))).toBeInTheDocument();
   });
 
   it("omits the site hint when the backend cannot say where we are", async () => {

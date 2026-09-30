@@ -12,6 +12,7 @@ import {
 } from "@/lib/teacherApi";
 import { INTERACTION_STYLE_LABEL } from "@/lib/tutorDisplay";
 import { TutorFace } from "@/components/teacher/research/TutorFace";
+import { useT } from "@/i18n";
 
 /**
  * Read-only display of the tutor an activity inherits (1.1.32, Q4 =
@@ -30,15 +31,8 @@ import { TutorFace } from "@/components/teacher/research/TutorFace";
  * ⚠️ Teacher-facing copy says **tutor**, never "persona" (1.1.91) — `persona`
  * is the legacy API field this still reads, and nothing more.
  */
-const copy = {
-  label: "Tutor",
-  teachesWith: "Teaches with:",
-  loading: "Finding this class's tutor…",
-  unset: "Default tutor — this class hasn't chosen one yet",
-  footnote: "Chosen once for the whole class — name, picture, voice, tone and teaching approach.",
-  change: "Change in class settings",
-};
 export function InheritedTutor({ classId }: { classId: string }) {
+  const t = useT("InheritedTutor");
   const [tutor, setTutor] = useState<PersonaPayload | null>(null);
   // 1.1.91 — when the class has a TUTOR, its teaching approach is part of the
   // identity the activity inherits. Showing only the name here while a
@@ -61,7 +55,7 @@ export function InheritedTutor({ classId }: { classId: string }) {
         if (!alive) return;
         const chosen = cls.tutorId
           ? ([...(tutorCat?.tutors ?? []), ...(tutorCat?.skillBoundTutors ?? [])].find(
-              (t) => t.id === cls.tutorId,
+              (tu) => tu.id === cls.tutorId,
             ) ?? null)
           : null;
         setApproach(chosen?.frameworkName ?? null);
@@ -89,7 +83,7 @@ export function InheritedTutor({ classId }: { classId: string }) {
 
   return (
     <div className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium text-slate-700">{copy.label}</span>
+      <span className="text-sm font-medium text-slate-700">{t("label")}</span>
       <div className="flex items-center gap-3 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
         {state === "resolved" && tutor ? (
           <>
@@ -99,12 +93,12 @@ export function InheritedTutor({ classId }: { classId: string }) {
                 {tutor.name}
               </p>
               {approach ? (
-                <p className="truncate text-xs text-slate-500">{copy.teachesWith} {approach}</p>
+                <p className="truncate text-xs text-slate-500">{t("teachesWith")} {approach}</p>
               ) : null}
               <p className="truncate text-xs text-slate-500">
                 {tutor.title ? `${tutor.title} · ` : ""}
-                {INTERACTION_STYLE_LABEL[tutor.interactionStyle]} tone
-                {tutor.voice?.ttsVoice ? ` · ${tutor.voice.ttsVoice} voice` : ""}
+                {t("tone", { style: INTERACTION_STYLE_LABEL[tutor.interactionStyle] })}
+                {tutor.voice?.ttsVoice ? ` · ${t("voice", { voice: tutor.voice.ttsVoice })}` : ""}
               </p>
             </div>
           </>
@@ -117,19 +111,19 @@ export function InheritedTutor({ classId }: { classId: string }) {
               <UserRound className="h-4 w-4" />
             </span>
             <p className="text-sm text-slate-600">
-              {state === "loading" ? copy.loading : copy.unset}
+              {state === "loading" ? t("loading") : t("unset")}
             </p>
           </>
         )}
       </div>
       <p className="flex flex-wrap items-center gap-1 text-xs text-slate-500">
         <Settings2 className="h-3 w-3 shrink-0" aria-hidden />
-        {copy.footnote}
+        {t("footnote")}
         <Link
           href={settingsLink}
           className="font-medium text-indigo-600 hover:underline"
         >
-          {copy.change}
+          {t("change")}
         </Link>
       </p>
     </div>

@@ -47,28 +47,18 @@ import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 import { handleExportSessions } from "./_exportHelpers";
 import { ClassAnalyticsCopilot } from "./_ClassAnalyticsCopilot";
 import { LiveClassView } from "./_LiveClassView";
-import { ClassListSheet, classListCopy } from "./_ClassListSheet";
-// 1.1.108: teacher surfaces are English until M2 extracts them; pinned so the
-// relative time does not turn Danish inside an English sentence.
+import { ClassListSheet } from "./_ClassListSheet";
 import { formatRelativeTime } from "@/lib/relativeTime";
+import { useLocaleMode, useT } from "@/i18n";
 import { useTeacherAuth } from "@/hooks/useTeacherAuth";
 
-/** New UI copy lives here, not inline in JSX (1.1.108 M4). The rest of this
- *  file predates that rule; converting it wholesale would collide with the i18n
- *  work in flight, so new strings start the pattern rather than finish it. */
-const copy = {
-  revoke: "Revoke",
-  revokeTitle:
-    "Stop this code working. Students using it are signed out at their next message, and the code can never be reissued.",
-  revokeWarning: "Signs students out now. Cannot be undone.",
-  revokeConfirm: "Revoke code",
-  revoking: "Revoking…",
-  cancel: "Cancel",
-  revokeDone: (code: string) => `${code} revoked — it no longer works. The group's work is kept.`,
-  revokeFailed: "Could not revoke the code",
-};
 
 export default function TeacherClassDetailPage() {
+  // 1.1.108 M2 — the teacher's own language (their DA | EN choice).
+  const t = useT("ClassDetailPage");
+  const tList = useT("ClassListSheet");
+  const localeMode = useLocaleMode();
+  const timeLocale = localeMode === "bilingual" ? "da" : localeMode;
   const params = useParams();
   const id = typeof params?.id === "string" ? params.id : "";
 
@@ -112,12 +102,12 @@ export default function TeacherClassDetailPage() {
         setLoadStatus("not-found");
       } else {
         setLoadError(
-          err instanceof Error ? err.message : "failed to load class",
+          err instanceof Error ? err.message : t("loadFailedGeneric"),
         );
         setLoadStatus("error");
       }
     }
-  }, [id]);
+  }, [id, t]);
 
   useEffect(() => {
     if (id) void refresh();
@@ -207,7 +197,7 @@ export default function TeacherClassDetailPage() {
 
   if (loadStatus === "loading") {
     return (
-      <p className="text-sm text-muted-foreground">Loading class&hellip;</p>
+      <p className="text-sm text-muted-foreground">{t("loading")}</p>
     );
   }
 
@@ -217,7 +207,7 @@ export default function TeacherClassDetailPage() {
         role="alert"
         className="rounded border border-destructive bg-destructive/10 px-3 py-2 text-sm text-destructive"
       >
-        Couldn&rsquo;t load class: {loadError ?? "unknown error"}
+        {t("loadFailed", { error: loadError ?? t("unknownError") })}
       </p>
     );
   }
@@ -229,7 +219,7 @@ export default function TeacherClassDetailPage() {
       await handleExportSessions(cls, skillNameById, format);
     } catch (err) {
       showToast(
-        err instanceof Error ? `Export failed: ${err.message}` : "Export failed",
+        err instanceof Error ? t("exportFailedDetail", { error: err.message }) : t("exportFailed"),
         5000,
       );
     } finally {
@@ -243,13 +233,13 @@ export default function TeacherClassDetailPage() {
       const result = await mintGroupCodes(cls!.classId, 1);
       const code = result.codes[0] ?? "";
       void navigator.clipboard?.writeText(code).catch(() => {});
-      showToast(`Group code ${code} created — copied to clipboard`, 4000);
+      showToast(t("codeCreated", { code }), 4000);
       await refresh();
     } catch (err) {
       showToast(
         err instanceof Error
-          ? `Could not create the group code: ${err.message}`
-          : "Could not create the group code",
+          ? t("codeCreateFailedDetail", { error: err.message })
+          : t("codeCreateFailed"),
         5000,
       );
     } finally {
@@ -259,7 +249,7 @@ export default function TeacherClassDetailPage() {
 
   function handleCopyCode(code: string) {
     void navigator.clipboard?.writeText(code).catch(() => {});
-    showToast(`Copied ${code}`, 2500);
+    showToast(t("copied", { code }), 2500);
   }
 
   // A bare code doesn't say WHICH AIPLA it belongs to, and the three
@@ -269,7 +259,7 @@ export default function TeacherClassDetailPage() {
   function handleCopyJoinLink(code: string) {
     const link = `${window.location.origin}/group?code=${encodeURIComponent(code)}`;
     void navigator.clipboard?.writeText(link).catch(() => {});
-    showToast(`Copied join link for ${code}`, 2500);
+    showToast(t("linkCopied", { code }), 2500);
   }
 
   async function handleResetSession(code: string) {
@@ -277,10 +267,10 @@ export default function TeacherClassDetailPage() {
     try {
       await resetGroupSession(cls!.classId, code);
       setConfirmResetCode(null);
-      showToast(`Session reset for ${code} — next join starts fresh`, 4000);
+      showToast(t("resetDone", { code }), 4000);
     } catch (err) {
       showToast(
-        err instanceof Error ? `Reset failed: ${err.message}` : "Reset failed",
+        err instanceof Error ? t("resetFailedDetail", { error: err.message }) : t("resetFailed"),
         5000,
       );
     } finally {
@@ -306,10 +296,10 @@ export default function TeacherClassDetailPage() {
     try {
       await revokeGroupCode(cls!.classId, code);
       setConfirmRevokeCode(null);
-      showToast(copy.revokeDone(code), 5000);
+      showToast(t("revokeDone", { code }), 5000);
       await refresh();
     } catch (err) {
-      showToast(err instanceof Error ? `${copy.revokeFailed}: ${err.message}` : copy.revokeFailed, 5000);
+      showToast(err instanceof Error ? t("revokeFailedDetail", { error: err.message }) : t("revokeFailed"), 5000);
     } finally {
       setRevoking(false);
     }
@@ -322,10 +312,10 @@ export default function TeacherClassDetailPage() {
       setShowPicker(false);
       await refresh();
       const title = libraryActivities.find((a) => a.activityId === activityId)?.title ?? activityId;
-      showToast(`Added "${title}"`, 3000);
+      showToast(t("added", { title }), 3000);
     } catch (err) {
       showToast(
-        err instanceof Error ? `Add failed: ${err.message}` : "Add failed",
+        err instanceof Error ? t("addFailedDetail", { error: err.message }) : t("addFailed"),
         5000,
       );
     } finally {
@@ -339,10 +329,10 @@ export default function TeacherClassDetailPage() {
       await patchClassActivities(cls!.classId, { remove: [activityId] });
       await refresh();
       const title = libraryActivities.find((a) => a.activityId === activityId)?.title ?? activityId;
-      showToast(`Removed "${title}"`, 3000);
+      showToast(t("removed", { title }), 3000);
     } catch (err) {
       showToast(
-        err instanceof Error ? `Remove failed: ${err.message}` : "Remove failed",
+        err instanceof Error ? t("removeFailedDetail", { error: err.message }) : t("removeFailed"),
         5000,
       );
     } finally {
@@ -358,34 +348,22 @@ export default function TeacherClassDetailPage() {
           className="flex w-fit items-center gap-1 hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Dashboard
+          {t("breadcrumb")}
         </Link>
       }
       title={cls.name}
-      subtitle={
-        <>
-          {cls.groupCodes.length} group
-          {cls.groupCodes.length === 1 ? "" : "s"} · {(cls.activityIds ?? []).length}{" "}
-          {(cls.activityIds ?? []).length === 1 ? "activity" : "activities"} assigned
-        </>
-      }
+      subtitle={t("subtitle", { groups: cls.groupCodes.length, activities: (cls.activityIds ?? []).length })}
     >
       <ActingForOwnerBanner resource={cls} kind="class" />
       <SettingsMap highlight="class" classId={cls.classId} />
       <LiveClassView classId={cls.classId} />
       <SettingsSection
-        title="Groups"
-        description={
-          <>
-            Students join at{" "}
-            <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">
-              {joinOrigin || "…"}/group
-            </code>
-            . Codes work <strong>only</strong> on this address — a code from
-            another AIPLA site will be rejected. &ldquo;Copy join link&rdquo;
-            hands out the address and the code together.
-          </>
-        }
+        title={t("groups")}
+        description={t.rich("groupsDescription", {
+          origin: joinOrigin || "…",
+          code: (chunks) => <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">{chunks}</code>,
+          b: (chunks) => <strong>{chunks}</strong>,
+        })}
         action={
           <button
             type="button"
@@ -394,14 +372,13 @@ export default function TeacherClassDetailPage() {
             className="flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
           >
             <Plus className="h-4 w-4" aria-hidden="true" />
-            {minting ? "Creating…" : "New group"}
+            {minting ? t("creating") : t("newGroup")}
           </button>
         }
       >
         {cls.groupCodes.length === 0 ? (
           <p className="rounded border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
-            No group codes yet. Create one with &ldquo;New group&rdquo; — students
-            join the chat by entering the code.
+            {t("noCodes")}
           </p>
         ) : (
           <ul className="divide-y divide-border rounded border border-border">
@@ -418,42 +395,42 @@ export default function TeacherClassDetailPage() {
                     </code>
                     {latest ? (
                       <span className="text-xs text-muted-foreground">
-                        Last active {formatRelativeTime(latest.lastMessageAt, Date.now(), "en")} · {latest.turnCount} turn{latest.turnCount === 1 ? "" : "s"}
+                        {t("lastActive", { when: formatRelativeTime(latest.lastMessageAt, Date.now(), timeLocale), n: latest.turnCount })}
                         {latest.title ? ` · ${latest.title}` : ""}
                       </span>
                     ) : (
-                      <span className="text-xs text-muted-foreground">No activity yet</span>
+                      <span className="text-xs text-muted-foreground">{t("noActivity")}</span>
                     )}
                   </div>
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
                       onClick={() => handleCopyJoinLink(code)}
-                      title={`${joinOrigin}/group?code=${code} — the address and the code together, so students can't land on the wrong AIPLA site`}
+                      title={t("copyJoinLinkTitle", { link: `${joinOrigin}/group?code=${code}` })}
                       className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
                     >
                       <LinkIcon className="h-3.5 w-3.5" aria-hidden="true" />
-                      Copy join link
+                      {t("copyJoinLink")}
                     </button>
                     <button
                       type="button"
                       onClick={() => handleCopyCode(code)}
-                      title="Just the code — the student must already be on the right site"
+                      title={t("copyCodeTitle")}
                       className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
                     >
                       <Copy className="h-3.5 w-3.5" aria-hidden="true" />
-                      Copy code
+                      {t("copyCode")}
                     </button>
                     {confirmResetCode === code ? (
                       <>
-                        <span className="text-xs text-muted-foreground">Reset session?</span>
+                        <span className="text-xs text-muted-foreground">{t("resetConfirmQ")}</span>
                         <button
                           type="button"
                           onClick={() => void handleResetSession(code)}
                           disabled={resetting}
                           className="rounded border border-destructive px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
                         >
-                          {resetting ? "Resetting…" : "Confirm"}
+                          {resetting ? t("resetting") : t("confirm")}
                         </button>
                         <button
                           type="button"
@@ -461,18 +438,18 @@ export default function TeacherClassDetailPage() {
                           disabled={resetting}
                           className="rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
                         >
-                          Cancel
+                          {t("cancel")}
                         </button>
                       </>
                     ) : (
                       <button
                         type="button"
                         onClick={() => setConfirmResetCode(code)}
-                        title="Archive the current session — the next student join will start a new conversation"
+                        title={t("resetTitle")}
                         className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-accent"
                       >
                         <Settings className="h-3.5 w-3.5" aria-hidden="true" />
-                        Reset session
+                        {t("resetSession")}
                       </button>
                     )}
                     {confirmRevokeCode === code ? (
@@ -480,14 +457,14 @@ export default function TeacherClassDetailPage() {
                         {/* Two-step, and the consequence is stated rather than
                             implied: this signs students out mid-lesson and the
                             code can never be reissued. */}
-                        <span className="text-xs text-destructive">{copy.revokeWarning}</span>
+                        <span className="text-xs text-destructive">{t("revokeWarning")}</span>
                         <button
                           type="button"
                           onClick={() => void handleRevokeCode(code)}
                           disabled={revoking}
                           className="rounded border border-destructive px-2 py-1 text-xs font-medium text-destructive hover:bg-destructive/10 disabled:opacity-50"
                         >
-                          {revoking ? copy.revoking : copy.revokeConfirm}
+                          {revoking ? t("revoking") : t("revokeConfirm")}
                         </button>
                         <button
                           type="button"
@@ -495,28 +472,28 @@ export default function TeacherClassDetailPage() {
                           disabled={revoking}
                           className="rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent disabled:opacity-50"
                         >
-                          {copy.cancel}
+                          {t("cancel")}
                         </button>
                       </>
                     ) : (
                       <button
                         type="button"
                         onClick={() => setConfirmRevokeCode(code)}
-                        aria-label={`${copy.revoke} ${code}`}
-                        title={copy.revokeTitle}
+                        aria-label={t("revokeAria", { code })}
+                        title={t("revokeTitle")}
                         className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                       >
                         <Ban className="h-3.5 w-3.5" aria-hidden="true" />
-                        {copy.revoke}
+                        {t("revoke")}
                       </button>
                     )}
                     <Link
                       href={`/teacher/reports/groups/${code}`}
                       className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
-                      aria-label={`View session report for ${code}`}
+                      aria-label={t("reportAria", { code })}
                     >
                       <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                      Report
+                      {t("report")}
                     </Link>
                   </div>
                 </li>
@@ -531,8 +508,8 @@ export default function TeacherClassDetailPage() {
           renders nothing, so no code appears twice on the page. */}
       <SettingsSection
         id="class-list"
-        title={classListCopy.en.title}
-        description={classListCopy.en.description}
+        title={tList("title")}
+        description={tList("description")}
         collapsible
         defaultOpen={false}
       >
@@ -541,21 +518,20 @@ export default function TeacherClassDetailPage() {
           className={cls.name}
           codes={cls.groupCodes}
           joinOrigin={joinOrigin}
-          locale="en"
         />
       </SettingsSection>
 
       <SettingsSection
         id="class-settings"
-        title="Class settings"
-        description="The name, the tutor, its voice, and what students can do — for this class."
+        title={t("classSettings")}
+        description={t("classSettingsDescription")}
       >
         <div className="flex flex-col gap-6">
           {/* 1.1.112 — renaming lives here because this is where a teacher looks
               for it. The endpoint and the API client both already existed; only
               the control was missing. */}
           <div>
-            <h3 className="mb-2 text-sm font-medium">Name</h3>
+            <h3 className="mb-2 text-sm font-medium">{t("name")}</h3>
             <ClassDetailsPanel
               classId={cls.classId}
               initialName={cls.name}
@@ -579,7 +555,7 @@ export default function TeacherClassDetailPage() {
               `persona` at resolution time. */}
           <div>
             <div className="mb-2 flex items-center justify-between gap-2">
-              <h3 className="text-sm font-medium">Tutor</h3>
+              <h3 className="text-sm font-medium">{t("tutor")}</h3>
               {/* 1.1.125 M0 — Approaches left the nav; this is where a teacher
                   meets one (the tutor's teaching approach), so it is linked
                   from here. Decision 1 in the design doc picks between this
@@ -588,7 +564,7 @@ export default function TeacherClassDetailPage() {
                 href="/teacher/research/frameworks"
                 className="text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
               >
-                Teaching approaches
+                {t("teachingApproaches")}
               </Link>
             </div>
             <TutorPicker
@@ -609,16 +585,16 @@ export default function TeacherClassDetailPage() {
       </SettingsSection>
 
       <SettingsSection
-        title="Activities assigned to this class"
+        title={t("assignedTitle")}
         action={
           <div className="flex items-center gap-2">
             <Link
               href={`/teacher/activities/new?classId=${encodeURIComponent(cls.classId)}`}
-              title="Create a new chat-only concept activity from scratch"
+              title={t("newActivityTitle")}
               className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted"
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
-              New activity
+              {t("newActivity")}
             </Link>
             <button
               type="button"
@@ -626,13 +602,13 @@ export default function TeacherClassDetailPage() {
               disabled={addableActivities.length === 0}
               title={
                 addableActivities.length === 0
-                  ? "All your activities are already assigned to this class"
-                  : "Assign one of your activities to this class"
+                  ? t("allAssigned")
+                  : t("assignTitle")
               }
               className="flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
             >
               <Plus className="h-4 w-4" aria-hidden="true" />
-              Add activity
+              {t("addActivity")}
             </button>
           </div>
         }
@@ -648,10 +624,7 @@ export default function TeacherClassDetailPage() {
 
         {assignedActivities.length === 0 ? (
           <p className="rounded border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
-            No activities assigned yet. Click &ldquo;New activity&rdquo; to create
-            one from scratch, or &ldquo;Add activity&rdquo; to assign one from your
-            library. Students who join via this class&rsquo;s group codes will only
-            see activities listed here.
+            {t("noAssigned")}
           </p>
         ) : (
           <ul className="divide-y divide-border rounded border border-border">
@@ -680,21 +653,21 @@ export default function TeacherClassDetailPage() {
                   <div className="flex items-center gap-1">
                     <Link
                       href={editHref}
-                      title={`Edit ${displayTitle}`}
+                      title={t("editTitle", { title: displayTitle })}
                       className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-accent hover:text-foreground"
                     >
                       <Settings className="h-3.5 w-3.5" aria-hidden="true" />
-                      Edit
+                      {t("edit")}
                     </Link>
                     <button
                       type="button"
                       onClick={() => handleRemoveActivity(activity.activityId)}
                       disabled={busyActivity === activity.activityId}
-                      aria-label={`Remove ${displayTitle}`}
+                      aria-label={t("removeAria", { title: displayTitle })}
                       className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
                     >
                       <X className="h-3.5 w-3.5" aria-hidden="true" />
-                      Remove
+                      {t("remove")}
                     </button>
                   </div>
                 </li>
@@ -705,8 +678,8 @@ export default function TeacherClassDetailPage() {
       </SettingsSection>
 
       <SettingsSection
-        title="Spend"
-        description="Model cost for this class. Estimated from token usage at current provider rates."
+        title={t("spend")}
+        description={t("spendDescription")}
         collapsible
         defaultOpen={false}
       >
@@ -722,41 +695,41 @@ export default function TeacherClassDetailPage() {
           className="flex items-center gap-2 self-start rounded border border-dashed border-border px-4 py-3 text-sm font-medium text-muted-foreground hover:bg-muted/50"
         >
           <BarChart3 className="h-4 w-4" aria-hidden="true" />
-          Show class insights
-          <span className="text-xs font-normal text-muted-foreground/70">— loads analytics (a few seconds)</span>
+          {t("showInsights")}
+          <span className="text-xs font-normal text-muted-foreground/70">{t("showInsightsHint")}</span>
         </button>
       )}
 
       <SettingsSection
-        title="Recent activity"
+        title={t("recentActivity")}
         action={
           <div className="flex items-center gap-1.5">
             <button
               type="button"
               onClick={() => runExport("csv")}
               disabled={recentSessions.length === 0 || exporting !== null}
-              title="Export all sessions in this class with full transcripts as CSV"
+              title={t("exportCsvTitle")}
               className="flex items-center gap-1.5 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Download className="h-3.5 w-3.5" aria-hidden="true" />
-              {exporting === "csv" ? "Exporting…" : "CSV"}
+              {exporting === "csv" ? t("exporting") : "CSV"}
             </button>
             <button
               type="button"
               onClick={() => runExport("json")}
               disabled={recentSessions.length === 0 || exporting !== null}
-              title="Export all sessions in this class with full transcripts as JSON"
+              title={t("exportJsonTitle")}
               className="flex items-center gap-1.5 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Download className="h-3.5 w-3.5" aria-hidden="true" />
-              {exporting === "json" ? "Exporting…" : "JSON"}
+              {exporting === "json" ? t("exporting") : "JSON"}
             </button>
           </div>
         }
       >
         {recentSessions.length === 0 ? (
           <p className="rounded border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
-            No student sessions yet. Sessions appear here once students join a group and start chatting.
+            {t("noSessions")}
           </p>
         ) : (
           <ul className="divide-y divide-border rounded border border-border">
@@ -776,12 +749,12 @@ export default function TeacherClassDetailPage() {
                         {row.title ?? skillNameById.get(row.skillId) ?? row.skillId}
                       </span>
                       <span className="text-xs text-muted-foreground">
-                        {row.turnCount} turn{row.turnCount === 1 ? "" : "s"} · {formatRelativeTime(row.lastMessageAt, Date.now(), "en")}
+                        {t("turns", { n: row.turnCount })} · {formatRelativeTime(row.lastMessageAt, Date.now(), timeLocale)}
                       </span>
                     </div>
                     <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground">
                       <FileText className="h-3.5 w-3.5" aria-hidden="true" />
-                      View
+                      {t("view")}
                     </span>
                   </Link>
                 </li>
@@ -796,7 +769,7 @@ export default function TeacherClassDetailPage() {
                       {row.title ?? skillNameById.get(row.skillId) ?? row.skillId}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {row.turnCount} turn{row.turnCount === 1 ? "" : "s"} · {formatRelativeTime(row.lastMessageAt, Date.now(), "en")}
+                      {t("turns", { n: row.turnCount })} · {formatRelativeTime(row.lastMessageAt, Date.now(), timeLocale)}
                     </span>
                   </div>
                 </li>
@@ -810,8 +783,8 @@ export default function TeacherClassDetailPage() {
           default: it is the longitudinal view, not the thing a teacher opens
           this page to do, and it costs a query. */}
       <SettingsSection
-        title="Begrebskort for klassen"
-        description="Begreber fra klassens aktiviteter, og hvordan grupperne fordeler sig på dem."
+        title={t("conceptMapTitle")}
+        description={t("conceptMapDescription")}
         collapsible
         defaultOpen={false}
       >
@@ -822,8 +795,8 @@ export default function TeacherClassDetailPage() {
           at M4: a class average has no pairings in it. Suggestions for who
           could talk to whom, never a standing. */}
       <SettingsSection
-        title="Grupper der kan hjælpe hinanden"
-        description="Forslag til hvem der kunne tale sammen, ud fra hvad grupperne har vist."
+        title={t("pairingsTitle")}
+        description={t("pairingsDescription")}
         collapsible
         defaultOpen={false}
       >
@@ -865,26 +838,26 @@ function ActivityPicker({
   onCancel: () => void;
   busyId: string | null;
 }) {
+  const t = useT("ClassDetailPage");
   return (
     <div
       role="region"
-      aria-label="Pick an activity to assign"
+      aria-label={t("pickerLabel")}
       className="flex flex-col gap-2 rounded border border-border bg-background p-3"
     >
       <header className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold">Your activities</h3>
+        <h3 className="text-sm font-semibold">{t("yourActivities")}</h3>
         <button
           type="button"
           onClick={onCancel}
           className="text-xs text-muted-foreground hover:text-foreground"
         >
-          Cancel
+          {t("cancel")}
         </button>
       </header>
       {options.length === 0 ? (
         <p className="text-sm text-muted-foreground">
-          Every activity in your library is already assigned to this class. Create a
-          new one with &ldquo;New activity&rdquo;.
+          {t("pickerAllAssigned")}
         </p>
       ) : (
         <ul className="flex flex-col gap-1">
@@ -910,7 +883,7 @@ function ActivityPicker({
                     </span>
                   </span>
                   <span className="text-xs text-muted-foreground">
-                    {busyId === activity.activityId ? "Adding…" : "Add"}
+                    {busyId === activity.activityId ? t("adding") : t("add")}
                   </span>
                 </button>
               </li>

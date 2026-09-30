@@ -13,6 +13,7 @@
 import Link from "next/link";
 
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "./_chartsBundle";
+import { useT } from "@/i18n";
 
 export interface EngagementBarRow {
   /** Display label on the Y-axis (group code or activity name). */
@@ -42,19 +43,20 @@ interface EngagementBarProps {
 }
 
 export function EngagementBar({ rows, title, primaryLabel, secondaryLabel, hrefFor }: EngagementBarProps) {
+  const t = useT("EngagementBar");
   if (rows.length === 0) {
     return (
       <div
         data-testid="engagement-bar-empty"
         className="rounded border border-dashed border-border bg-muted/30 p-3 text-xs text-muted-foreground"
       >
-        No {title.toLowerCase()} data in this window.
+        {t("empty", { title: title.toLowerCase() })}
       </div>
     );
   }
 
   const total = rows.reduce((acc, r) => acc + r.value, 0);
-  const ariaSummary = `${title}: ${rows.length} ${rows.length === 1 ? "row" : "rows"}, total ${primaryLabel.toLowerCase()} ${total}`;
+  const ariaSummary = t("aria", { title, rows: rows.length, primary: primaryLabel.toLowerCase(), total });
 
   return (
     <figure className="flex flex-col gap-2">
@@ -82,11 +84,11 @@ export function EngagementBar({ rows, title, primaryLabel, secondaryLabel, hrefF
       </div>
 
       <details className="text-xs text-muted-foreground">
-        <summary className="cursor-pointer select-none">Show data</summary>
+        <summary className="cursor-pointer select-none">{t("showData")}</summary>
         <table className="mt-2 w-full text-left text-xs">
           <thead>
             <tr className="border-b border-border">
-              <th className="py-1">Label</th>
+              <th className="py-1">{t("label")}</th>
               <th className="py-1 text-right">{primaryLabel}</th>
               {secondaryLabel ? <th className="py-1 text-right">{secondaryLabel}</th> : null}
             </tr>

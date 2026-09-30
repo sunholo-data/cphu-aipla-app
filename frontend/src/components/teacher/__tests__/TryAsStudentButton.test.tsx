@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render as rtlRender, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const createStudentPreview = vi.fn();
@@ -9,6 +9,16 @@ vi.mock("@/lib/teacherApi", async (importOriginal) => {
 
 import { ConflictError } from "@/lib/teacherApi";
 import { TryAsStudentButton } from "../TryAsStudentButton";
+import { LocaleProvider } from "@/i18n";
+
+// 1.1.108 M2 — these tests assert the English copy; the teacher UI defaults to
+// Danish (the teacher's own DA | EN choice), so render inside an English locale.
+function EnglishLocale({ children }: { children: React.ReactNode }) {
+  return <LocaleProvider locale="en">{children}</LocaleProvider>;
+}
+const render = ((ui: React.ReactElement, options?: Parameters<typeof rtlRender>[1]) =>
+  rtlRender(ui, { wrapper: EnglishLocale, ...options })) as typeof rtlRender;
+
 
 // 1.1.133
 describe("TryAsStudentButton", () => {

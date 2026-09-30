@@ -10,6 +10,7 @@
 "use client";
 
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "./_chartsBundle";
+import { useT } from "@/i18n";
 
 export interface TrendPoint {
   day: string;
@@ -21,21 +22,23 @@ interface TrendSparklineProps {
   title?: string;
 }
 
-export function TrendSparkline({ points, title = "Messages per day" }: TrendSparklineProps) {
+export function TrendSparkline({ points, title: titleProp }: TrendSparklineProps) {
+  const t = useT("TrendSparkline");
+  const title = titleProp ?? t("title");
   if (points.length === 0) {
     return (
       <div
         data-testid="trend-empty"
         className="rounded border border-dashed border-border bg-muted/30 p-3 text-xs text-muted-foreground"
       >
-        No trend data in this window.
+        {t("empty")}
       </div>
     );
   }
 
   const total = points.reduce((acc, p) => acc + p.count, 0);
   const peak = Math.max(...points.map((p) => p.count));
-  const ariaSummary = `${title}: ${points.length} days, total ${total}, peak ${peak}`;
+  const ariaSummary = t("aria", { title, days: points.length, total, peak });
 
   return (
     <figure className="flex flex-col gap-2">
@@ -61,12 +64,12 @@ export function TrendSparkline({ points, title = "Messages per day" }: TrendSpar
       </div>
 
       <details className="text-xs text-muted-foreground">
-        <summary className="cursor-pointer select-none">Show data</summary>
+        <summary className="cursor-pointer select-none">{t("showData")}</summary>
         <table className="mt-2 w-full text-left text-xs">
           <thead>
             <tr className="border-b border-border">
-              <th className="py-1">Day</th>
-              <th className="py-1 text-right">Messages</th>
+              <th className="py-1">{t("day")}</th>
+              <th className="py-1 text-right">{t("messages")}</th>
             </tr>
           </thead>
           <tbody>

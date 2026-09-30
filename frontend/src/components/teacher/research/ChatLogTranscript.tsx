@@ -16,37 +16,10 @@ import {
 } from "lucide-react";
 
 import type { ChatLogTimelineItem, ChatLogTurn, ChatLogWorkEvent } from "@/lib/teacherApi";
+import { DEFAULT_LOCALE, translate, useT, type Translate } from "@/i18n";
 
 /** UI copy, lifted out of JSX (1.1.108 M4) so a translator can reach it. */
-const copy = {
-  loading: "Loading transcript…",
-  failed: "Could not read this transcript.",
-  empty: "No turns recorded for this conversation.",
-  synthetic: "System opened the conversation",
-  student: "Student",
-  tutor: "Tutor",
-  unknownRole: "Unattributed",
-  workUnreadable:
-    "The workbench log could not be read, so this shows the conversation only — it does NOT mean the group did no work.",
-  times: (n: number) => `×${n}`,
-  showState: "Show what they had",
-  hideState: "Hide",
-  stateTitle: "State at this point",
-  untitledTable: "Table",
-  untitledText: "Text",
-  noResult: "no result yet",
-  // Fallback labels for rows logged before 1.1.136 (2026-09-29), which carry
-  // no label of their own. Derived from the element, never guessed further.
-  fallback: {
-    table: "Data table updated",
-    writing: "Writing updated",
-    calculator: "Calculator used",
-    progress: "Checklist updated",
-    chart: "Chart updated",
-    documents: (tool: string) => `Document: ${tool}`,
-    other: (server: string, field: string) => (field ? `${server} · ${field}` : server),
-  },
-} as const;
+// Copy lives in messages/*/teacher-research.json — 1.1.108.
 
 /** Consecutive events from one element closer than this fold into one card. */
 export const BURST_WINDOW_MS = 30_000;
@@ -58,10 +31,10 @@ export interface ChatLogTranscriptProps {
   workStatus?: "ok" | "unreadable";
 }
 
-function roleLabel(turn: ChatLogTurn): string {
-  if (turn.role === "student") return copy.student;
-  if (turn.role === "tutor") return copy.tutor;
-  return copy.unknownRole;
+function roleLabel(turn: ChatLogTurn, t: Translate<"ChatLogTranscript">): string {
+  if (turn.role === "student") return t("student");
+  if (turn.role === "tutor") return t("tutor");
+  return t("unknownRole");
 }
 
 const ICONS: Record<string, LucideIcon> = {
@@ -74,7 +47,12 @@ const ICONS: Record<string, LucideIcon> = {
 
 /** The card text for a work event: its own label, else one derived from the
  *  element (rows before 1.1.136 M0 carry none). */
-export function workLabel(ev: ChatLogWorkEvent): string {
+/** `t` defaults to the site default locale so non-component callers still get
+ *  a translated fallback; components pass their own. */
+export function workLabel(
+  ev: ChatLogWorkEvent,
+  t: Translate<"ChatLogTranscript"> = translate(DEFAULT_LOCALE, "ChatLogTranscript"),
+): string {
   if (ev.label && ev.label.trim()) return ev.label.trim();
   const server = ev.server ?? "";
   switch (server) {
@@ -83,11 +61,12 @@ export function workLabel(ev: ChatLogWorkEvent): string {
     case "calculator":
     case "progress":
     case "chart":
-      return copy.fallback[server];
+      return t(`fallback_${server}`);
     case "documents":
-      return copy.fallback.documents(ev.tool ?? "");
+      return t("fallback_documents", { tool: ev.tool ?? "" });
     default:
-      return copy.fallback.other(server || "?", ev.field ?? "");
+      // A sim's own server name + field: identifiers, not prose.
+      return ev.field ? `${server || "?"} · ${ev.field}` : server || "?";
   }
 }
 
@@ -210,6 +189,7 @@ export function parseWorkValue(value: string | null): Parsed | null {
 }
 
 function StateView({ value }: { value: string | null }) {
+  const t = useT("ChatLogTranscript");
   const parsed = parseWorkValue(value);
   if (!parsed) return null;
   switch (parsed.shape) {
@@ -218,7 +198,7 @@ function StateView({ value }: { value: string | null }) {
         <div className="flex flex-col gap-2">
           {parsed.tables.map((tbl, ti) => (
             <div key={ti} className="overflow-x-auto">
-              <p className="mb-1 text-[11px] font-medium text-muted-foreground">{tbl.title || copy.untitledTable}</p>
+              <p className="mb-1 text-[11px] font-medium text-muted-foreground">{tbl.title || t("untitledTable")}</p>
               <table className="border-collapse text-xs">
                 <thead>
                   <tr>
@@ -251,7 +231,7 @@ function StateView({ value }: { value: string | null }) {
         <div className="flex flex-col gap-2">
           {parsed.docs.map((d, di) => (
             <div key={di}>
-              <p className="mb-1 text-[11px] font-medium text-muted-foreground">{d.title || copy.untitledText}</p>
+              <p className="mb-1 text-[11px] font-medium text-muted-foreground">{d.title || t("untitledText")}</p>
               <p className="whitespace-pre-wrap text-xs text-foreground">{d.text}</p>
             </div>
           ))}
@@ -266,7 +246,7 @@ function StateView({ value }: { value: string | null }) {
               {": "}
               {(c.inputs ?? []).map((i) => `${i.label} = ${i.value || "—"}${i.unit ? ` ${i.unit}` : ""}`).join(", ")}
               {" → "}
-              <span className="tabular-nums">{c.result ?? copy.noResult}</span>
+              <span className="tabular-nums">{c.result ?? t("noResult")}</span>
             </li>
           ))}
         </ul>
@@ -287,6 +267,7 @@ function StateView({ value }: { value: string | null }) {
 }
 
 function WorkCard({ burst }: { burst: WorkBurst }) {
+  const t = useT("ChatLogTranscript");
   const [open, setOpen] = useState(false);
   const last = burst.events[burst.events.length - 1];
   const Icon = ICONS[last.server ?? ""] ?? SlidersHorizontal;
@@ -296,9 +277,9 @@ function WorkCard({ burst }: { burst: WorkBurst }) {
     <li className="rounded border border-dashed border-border bg-muted/20 px-3 py-1.5 text-xs">
       <div className="flex items-center gap-2">
         <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-        <span className="font-medium text-foreground">{workLabel(last)}</span>
+        <span className="font-medium text-foreground">{workLabel(last, t)}</span>
         {burst.events.length > 1 ? (
-          <span className="rounded bg-muted px-1 text-[10px] text-muted-foreground">{copy.times(burst.events.length)}</span>
+          <span className="rounded bg-muted px-1 text-[10px] text-muted-foreground">{t("times", { n: burst.events.length })}</span>
         ) : null}
         {time ? <span className="text-muted-foreground opacity-70">{time}</span> : null}
         {hasState ? (
@@ -309,12 +290,12 @@ function WorkCard({ burst }: { burst: WorkBurst }) {
             className="ml-auto flex items-center gap-1 rounded px-1 text-[11px] text-muted-foreground hover:bg-accent hover:text-foreground"
           >
             <ChevronRight className={`h-3 w-3 transition-transform ${open ? "rotate-90" : ""}`} aria-hidden="true" />
-            {open ? copy.hideState : copy.showState}
+            {open ? t("hideState") : t("showState")}
           </button>
         ) : null}
       </div>
       {open ? (
-        <div className="mt-2 rounded border border-border bg-background p-2" aria-label={copy.stateTitle}>
+        <div className="mt-2 rounded border border-border bg-background p-2" aria-label={t("stateTitle")}>
           <StateView value={last.value} />
         </div>
       ) : null}
@@ -340,14 +321,15 @@ function WorkCard({ burst }: { burst: WorkBurst }) {
  * it is.
  */
 export function ChatLogTranscript({ items, status, workStatus = "ok" }: ChatLogTranscriptProps) {
+  const t = useT("ChatLogTranscript");
   if (status === "loading") {
-    return <p className="text-sm text-muted-foreground">{copy.loading}</p>;
+    return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
   }
   if (status === "error") {
-    return <p className="text-sm text-destructive">{copy.failed}</p>;
+    return <p className="text-sm text-destructive">{t("failed")}</p>;
   }
   if (!items || items.length === 0) {
-    return <p className="text-sm text-muted-foreground">{copy.empty}</p>;
+    return <p className="text-sm text-muted-foreground">{t("empty")}</p>;
   }
 
   const rows = collapseWork(items);
@@ -355,7 +337,7 @@ export function ChatLogTranscript({ items, status, workStatus = "ok" }: ChatLogT
     <div className="flex flex-col gap-3">
       {workStatus === "unreadable" ? (
         <p role="status" className="rounded border border-border bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground">
-          {copy.workUnreadable}
+          {t("workUnreadable")}
         </p>
       ) : null}
       <ol className="flex flex-col gap-3">
@@ -372,7 +354,7 @@ export function ChatLogTranscript({ items, status, workStatus = "ok" }: ChatLogT
                 className="flex items-center gap-2 rounded border border-dashed border-border bg-muted/40 px-3 py-1.5 text-xs text-muted-foreground"
               >
                 <Settings2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span>{copy.synthetic}</span>
+                <span>{t("synthetic")}</span>
                 <code className="ml-auto font-mono text-[11px] opacity-70">{turn.content}</code>
               </li>
             );
@@ -390,7 +372,7 @@ export function ChatLogTranscript({ items, status, workStatus = "ok" }: ChatLogT
             >
               <div className="mb-1 flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
                 <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                <span>{roleLabel(turn)}</span>
+                <span>{roleLabel(turn, t)}</span>
                 {turn.turn_index !== null && turn.turn_index !== undefined ? (
                   <span className="opacity-60">#{turn.turn_index}</span>
                 ) : null}

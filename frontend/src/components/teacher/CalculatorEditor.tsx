@@ -3,16 +3,20 @@
 import { Calculator as CalcIcon, HelpCircle, Plus, X } from "lucide-react";
 import { useRef } from "react";
 
+import { useT } from "@/i18n";
 import { validateFormula } from "@/lib/safeFormula";
+
+const code = (chunks: React.ReactNode) => <code>{chunks}</code>;
 
 /** A hover/focus help bubble explaining how to author a calculator. Self-
  *  contained (no Radix provider): CSS reveals it on hover or keyboard focus. */
 function FormulaHelp() {
+  const t = useT("CalculatorEditor");
   return (
     <span className="group relative inline-flex">
       <button
         type="button"
-        aria-label="How the calculator works"
+        aria-label={t("helpAria")}
         className="text-slate-400 hover:text-slate-600 focus:text-slate-600 focus:outline-none"
       >
         <HelpCircle className="h-4 w-4" />
@@ -21,22 +25,12 @@ function FormulaHelp() {
         role="tooltip"
         className="pointer-events-none absolute left-1/2 top-6 z-20 hidden w-72 -translate-x-1/2 flex-col gap-1 rounded-md border border-slate-200 bg-white p-3 text-left text-xs leading-relaxed text-slate-600 shadow-lg group-hover:flex group-focus-within:flex"
       >
-        <span className="font-semibold text-slate-700">How the calculator works</span>
-        <span>
-          • Name each variable with a short letter or word (e.g. <code>m</code>, <code>c</code>) — that&apos;s
-          what you use in the formula.
-        </span>
-        <span>
-          • In the formula, write the right-hand side. Both <code>E = m * c^2</code> and <code>m * c^2</code>{" "}
-          work — the result is shown for you.
-        </span>
-        <span>
-          • Put <code>*</code> between variables: <code>m * c</code>, not <code>mc</code>.
-        </span>
-        <span>
-          • Allowed: <code>+ - * / ^ ( )</code> and sqrt, sin, cos, tan, ln, log, abs, exp.
-        </span>
-        <span>• The student computes the result on their device, and what they get is shared with the tutor.</span>
+        <span className="font-semibold text-slate-700">{t("helpTitle")}</span>
+        <span>{t.rich("help1", { code })}</span>
+        <span>{t.rich("help2", { code })}</span>
+        <span>{t.rich("help3", { code })}</span>
+        <span>{t.rich("help4", { code })}</span>
+        <span>{t("help5")}</span>
       </span>
     </span>
   );
@@ -72,6 +66,7 @@ const MAX_INPUTS = 8;
  * execute — Axiom 9). Single calculator for v1.1; `null` means none.
  */
 export function CalculatorEditor({ value, onChange }: CalculatorEditorProps) {
+  const t = useT("CalculatorEditor");
   const nextKey = useRef(1);
 
   if (!value) {
@@ -79,7 +74,7 @@ export function CalculatorEditor({ value, onChange }: CalculatorEditorProps) {
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <span className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
-            Calculator (optional) <FormulaHelp />
+            {t("optional")} <FormulaHelp />
           </span>
           <button
             type="button"
@@ -92,13 +87,11 @@ export function CalculatorEditor({ value, onChange }: CalculatorEditorProps) {
             }
             className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
           >
-            <Plus className="h-3.5 w-3.5" /> Add calculator
+            <Plus className="h-3.5 w-3.5" /> {t("add")}
           </button>
         </div>
         <p className="text-xs text-slate-500">
-          A formula the student computes — name the variables (e.g. <code>m</code>, <code>c</code>) and
-          write the formula (e.g. <code>E = m * c^2</code>). The result is calculated on the
-          student&apos;s device.
+          {t.rich("intro", { code })}
         </p>
       </div>
     );
@@ -118,24 +111,24 @@ export function CalculatorEditor({ value, onChange }: CalculatorEditorProps) {
     <div className="flex flex-col gap-3 rounded-lg border border-slate-200 p-3">
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
-          <CalcIcon className="h-4 w-4 text-slate-500" /> Calculator <FormulaHelp />
+          <CalcIcon className="h-4 w-4 text-slate-500" /> {t("title")} <FormulaHelp />
         </span>
         <button
           type="button"
           onClick={() => onChange(null)}
           className="rounded px-2 py-1 text-xs font-medium text-slate-400 hover:bg-red-50 hover:text-red-600"
         >
-          Remove calculator
+          {t("remove")}
         </button>
       </div>
 
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-slate-600">Title (optional)</span>
+        <span className="text-xs font-medium text-slate-600">{t("titleLabel")}</span>
         <input
           type="text"
           value={value.title}
           onChange={(e) => onChange({ ...value, title: e.target.value })}
-          placeholder="e.g. Beregn fart"
+          placeholder={t("titlePlaceholder")}
           maxLength={120}
           className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
         />
@@ -143,14 +136,14 @@ export function CalculatorEditor({ value, onChange }: CalculatorEditorProps) {
 
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-medium text-slate-600">Variables</span>
+          <span className="text-xs font-medium text-slate-600">{t("variables")}</span>
           <button
             type="button"
             onClick={addInput}
             disabled={value.inputs.length >= MAX_INPUTS}
             className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50 disabled:opacity-40"
           >
-            <Plus className="h-3.5 w-3.5" /> Add variable
+            <Plus className="h-3.5 w-3.5" /> {t("addVariable")}
           </button>
         </div>
         <ul className="flex flex-col gap-2">
@@ -160,7 +153,7 @@ export function CalculatorEditor({ value, onChange }: CalculatorEditorProps) {
               <li key={inp.key} className="flex items-center gap-2">
                 <input
                   type="text"
-                  aria-label={`Variable ${idx + 1} name`}
+                  aria-label={t("nameAria", { n: idx + 1 })}
                   value={inp.id}
                   onChange={(e) => setInput(inp.key, { id: e.target.value })}
                   placeholder="var"
@@ -169,26 +162,26 @@ export function CalculatorEditor({ value, onChange }: CalculatorEditorProps) {
                 />
                 <input
                   type="text"
-                  aria-label={`Variable ${idx + 1} label`}
+                  aria-label={t("labelAria", { n: idx + 1 })}
                   value={inp.label}
                   onChange={(e) => setInput(inp.key, { label: e.target.value })}
-                  placeholder="Label (e.g. Strækning)"
+                  placeholder={t("labelPlaceholder")}
                   maxLength={80}
                   className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
                 />
                 <input
                   type="text"
-                  aria-label={`Variable ${idx + 1} unit`}
+                  aria-label={t("unitAria", { n: idx + 1 })}
                   value={inp.unit}
                   onChange={(e) => setInput(inp.key, { unit: e.target.value })}
-                  placeholder="Unit"
+                  placeholder={t("unit")}
                   maxLength={24}
                   className="w-16 rounded-md border border-slate-300 px-2 py-1.5 text-sm"
                 />
                 <button
                   type="button"
                   onClick={() => removeInput(inp.key)}
-                  aria-label={`Remove variable ${idx + 1}`}
+                  aria-label={t("removeAria", { n: idx + 1 })}
                   className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
                 >
                   <X className="h-4 w-4" />
@@ -198,19 +191,18 @@ export function CalculatorEditor({ value, onChange }: CalculatorEditorProps) {
           })}
         </ul>
         <p className="text-xs text-slate-400">
-          Variable names must start with a letter and contain no spaces — they&apos;re what you use in the
-          formula.
+          {t("nameRule")}
         </p>
       </div>
 
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-slate-600">Formula</span>
+        <span className="text-xs font-medium text-slate-600">{t("formula")}</span>
         <input
           type="text"
-          aria-label="Formula"
+          aria-label={t("formula")}
           value={value.formula}
           onChange={(e) => onChange({ ...value, formula: e.target.value })}
-          placeholder="e.g. E = m * c^2"
+          placeholder={t("formulaPlaceholder")}
           maxLength={200}
           className="rounded-md border border-slate-300 px-3 py-1.5 font-mono text-sm"
         />
@@ -219,12 +211,10 @@ export function CalculatorEditor({ value, onChange }: CalculatorEditorProps) {
             {formulaCheck.error}
           </span>
         ) : formulaCheck?.ok ? (
-          <span className="text-xs text-green-600">Formula looks good.</span>
+          <span className="text-xs text-green-600">{t("formulaOk")}</span>
         ) : (
           <span className="text-xs text-slate-400">
-            Write the right-hand side (the <code>E =</code> is optional). Put <code>*</code> between
-            variables — <code>m * c</code>, not <code>mc</code>. Functions: sqrt, sin, cos, tan, ln, log,
-            abs, exp.
+            {t.rich("formulaHint", { code })}
           </span>
         )}
       </label>

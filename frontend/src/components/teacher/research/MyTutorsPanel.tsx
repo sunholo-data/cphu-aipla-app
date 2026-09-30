@@ -32,43 +32,13 @@ import {
   type TutorCatalogue,
   type TutorPayload,
 } from "@/lib/teacherApi";
+import { useT } from "@/i18n";
 
-const copy = {
-  title: "Tutors",
-  blurb:
-    "A tutor is a face, a voice and a teaching approach. Build one on any published approach or on one of your own — or take an existing tutor and change just its approach, which keeps everything else the same.",
-  loading: "Loading tutors…",
-  failed: "The tutors could not be loaded just now.",
-  yours: "Yours",
-  others: "Available to you",
-  newTutor: "New tutor",
-  variantOf: (name: string) => `Make a variant of ${name}`,
-  nameLabel: "Name",
-  namePlaceholder: "e.g. Sofie, but Socratic",
-  approachLabel: "Teaching approach",
-  approachHelp: "A tutor has to say how it teaches. Pick a published approach or one of your own.",
-  approachRequired: "Choose a teaching approach.",
-  faceLabel: "Face and voice",
-  faceHelp: "Who the student sees and hears. Make one under Faces and voices.",
-  faceNone: "The default face",
-  approachNone: "Choose an approach…",
-  save: "Create tutor",
-  cancel: "Cancel",
-  share: "Share with other teachers",
-  unshare: "Make private again",
-  badgeShared: "Shared",
-  badgePrivate: "Only you",
-  // ⚠️ Said plainly: "private" is otherwise a promise the research design does
-  // not keep. Same line as the approaches panel, deliberately identical.
-  privateMeaning: "Private means other teachers cannot see it. The research team can.",
-  remove: "Delete",
-  confirmRemove: (name: string) => `Delete ${name}? Any class using it falls back to the default tutor.`,
-  teaches: (name: string | null) => (name ? `Teaches with ${name}` : "No teaching approach set"),
-  variantBadge: "variant",
-  failedSave: "That could not be saved. Try again.",
-};
+// Copy lives in messages/*/teacher-research.json — 1.1.108.
 
 export function MyTutorsPanel() {
+  const t = useT("MyTutorsPanel");
+  const tConsent = useT("ResearchConsent");
   const [catalogue, setCatalogue] = useState<TutorCatalogue | null>(null);
   const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -93,31 +63,31 @@ export function MyTutorsPanel() {
       .catch(() => setPersonas([]));
   }, []);
 
-  const visibilityOf = (t: TutorPayload) => t.visibility ?? "shared";
+  const visibilityOf = (tutor: TutorPayload) => tutor.visibility ?? "shared";
 
-  const toggleShare = async (t: TutorPayload) => {
+  const toggleShare = async (tutor: TutorPayload) => {
     setBusy(true);
     setError(null);
     try {
-      await setTutorVisibility(t.id, visibilityOf(t) === "shared" ? "private" : "shared");
+      await setTutorVisibility(tutor.id, visibilityOf(tutor) === "shared" ? "private" : "shared");
       // Re-read rather than patch: the server decides, and a list that guessed
       // would be a second copy of the rule canEdit exists to keep in one place.
       load();
     } catch {
-      setError(copy.failedSave);
+      setError(t("failedSave"));
     } finally {
       setBusy(false);
     }
   };
 
-  const remove = async (t: TutorPayload) => {
-    if (!window.confirm(copy.confirmRemove(t.displayName))) return;
+  const remove = async (tutor: TutorPayload) => {
+    if (!window.confirm(t("confirmRemove", { name: tutor.displayName }))) return;
     setBusy(true);
     try {
-      await deleteTutor(t.id);
+      await deleteTutor(tutor.id);
       load();
     } catch {
-      setError(copy.failedSave);
+      setError(t("failedSave"));
     } finally {
       setBusy(false);
     }
@@ -126,7 +96,7 @@ export function MyTutorsPanel() {
   const create = async () => {
     if (!draft) return;
     if (!draft.frameworkId) {
-      setError(copy.approachRequired);
+      setError(t("approachRequired"));
       return;
     }
     setBusy(true);
@@ -148,43 +118,43 @@ export function MyTutorsPanel() {
       setDraft(null);
       load();
     } catch {
-      setError(copy.failedSave);
+      setError(t("failedSave"));
     } finally {
       setBusy(false);
     }
   };
 
-  if (failed) return <p className="text-sm text-muted-foreground">{copy.failed}</p>;
-  if (catalogue === null) return <p className="text-sm text-muted-foreground">{copy.loading}</p>;
+  if (failed) return <p className="text-sm text-muted-foreground">{t("failed")}</p>;
+  if (catalogue === null) return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
 
-  const mine = catalogue.tutors.filter((t) => t.canEdit);
-  const others = catalogue.tutors.filter((t) => !t.canEdit);
+  const mine = catalogue.tutors.filter((tutor) => tutor.canEdit);
+  const others = catalogue.tutors.filter((tutor) => !tutor.canEdit);
 
-  const row = (t: TutorPayload) => (
-    <div key={t.id} className="flex items-start justify-between gap-3 rounded border px-3 py-2">
+  const row = (tutor: TutorPayload) => (
+    <div key={tutor.id} className="flex items-start justify-between gap-3 rounded border px-3 py-2">
       <div className="min-w-0">
         <p className="flex items-center gap-1.5 text-sm font-medium">
-          {t.displayName}
-          {t.isVariant ? (
+          {tutor.displayName}
+          {tutor.isVariant ? (
             <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] font-normal text-muted-foreground">
-              {copy.variantBadge}
+              {t("variantBadge")}
             </span>
           ) : null}
         </p>
-        <p className="text-xs text-muted-foreground">{copy.teaches(t.frameworkName)}</p>
-        {t.canEdit ? (
+        <p className="text-xs text-muted-foreground">{(tutor.frameworkName ? t("teaches", { name: tutor.frameworkName }) : t("teachesNone"))}</p>
+        {tutor.canEdit ? (
           <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
             <span
-              data-testid={`tutor-visibility-${t.id}`}
+              data-testid={`tutor-visibility-${tutor.id}`}
               className={`rounded border px-1.5 py-0.5 ${
-                visibilityOf(t) === "shared"
+                visibilityOf(tutor) === "shared"
                   ? "border-emerald-300 bg-emerald-50 text-emerald-800"
                   : "border-border bg-muted"
               }`}
             >
-              {visibilityOf(t) === "shared" ? copy.badgeShared : copy.badgePrivate}
+              {visibilityOf(tutor) === "shared" ? t("badgeShared") : t("badgePrivate")}
             </span>
-            {visibilityOf(t) === "private" ? copy.privateMeaning : null}
+            {visibilityOf(tutor) === "private" ? tConsent("privateMeaning") : null}
           </p>
         ) : null}
       </div>
@@ -192,31 +162,31 @@ export function MyTutorsPanel() {
         <button
           type="button"
           disabled={busy}
-          aria-label={copy.variantOf(t.displayName)}
-          onClick={() => setVariantParent(t)}
+          aria-label={t("variantOf", { name: tutor.displayName })}
+          onClick={() => setVariantParent(tutor)}
           className="rounded border p-1.5 hover:bg-muted disabled:opacity-50"
         >
           <GitBranch className="h-3.5 w-3.5" aria-hidden />
         </button>
-        {t.canEdit ? (
+        {tutor.canEdit ? (
           <>
             <button
               type="button"
               disabled={busy}
-              aria-label={`${visibilityOf(t) === "shared" ? copy.unshare : copy.share}: ${t.displayName}`}
-              onClick={() => void toggleShare(t)}
+              aria-label={t("shareAria", { action: visibilityOf(tutor) === "shared" ? t("unshare") : t("share"), name: tutor.displayName })}
+              onClick={() => void toggleShare(tutor)}
               className="rounded border p-1.5 hover:bg-muted disabled:opacity-50"
             >
               <Share2
-                className={`h-3.5 w-3.5 ${visibilityOf(t) === "shared" ? "text-emerald-700" : ""}`}
+                className={`h-3.5 w-3.5 ${visibilityOf(tutor) === "shared" ? "text-emerald-700" : ""}`}
                 aria-hidden
               />
             </button>
             <button
               type="button"
               disabled={busy}
-              aria-label={`${copy.remove} ${t.displayName}`}
-              onClick={() => void remove(t)}
+              aria-label={t("removeAria", { name: tutor.displayName })}
+              onClick={() => void remove(tutor)}
               className="rounded border p-1.5 hover:bg-muted disabled:opacity-50"
             >
               <Trash2 className="h-3.5 w-3.5" aria-hidden />
@@ -231,8 +201,8 @@ export function MyTutorsPanel() {
     <TeacherCard>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <h2 className="text-sm font-medium">{copy.title}</h2>
-          <p className="mt-1 max-w-2xl text-xs text-muted-foreground">{copy.blurb}</p>
+          <h2 className="text-sm font-medium">{t("title")}</h2>
+          <p className="mt-1 max-w-2xl text-xs text-muted-foreground">{t("blurb")}</p>
         </div>
         {!draft ? (
           <button
@@ -241,7 +211,7 @@ export function MyTutorsPanel() {
             className="flex shrink-0 items-center gap-1.5 rounded border px-3 py-1.5 text-sm hover:bg-muted"
           >
             <Plus className="h-3.5 w-3.5" aria-hidden />
-            {copy.newTutor}
+            {t("newTutor")}
           </button>
         ) : null}
       </div>
@@ -249,27 +219,27 @@ export function MyTutorsPanel() {
       {draft ? (
         <div className="mt-4 space-y-3 border-t pt-4">
           <label className="block text-sm font-medium" htmlFor="tutor-name">
-            {copy.nameLabel}
+            {t("nameLabel")}
           </label>
           <input
             id="tutor-name"
             value={draft.displayName}
             onChange={(e) => setDraft({ ...draft, displayName: e.target.value })}
-            placeholder={copy.namePlaceholder}
+            placeholder={t("namePlaceholder")}
             className="w-full rounded border bg-background p-2 text-sm"
           />
 
           <label className="block text-sm font-medium" htmlFor="tutor-approach">
-            {copy.approachLabel}
+            {t("approachLabel")}
           </label>
-          <p className="text-xs text-muted-foreground">{copy.approachHelp}</p>
+          <p className="text-xs text-muted-foreground">{t("approachHelp")}</p>
           <select
             id="tutor-approach"
             value={draft.frameworkId}
             onChange={(e) => setDraft({ ...draft, frameworkId: e.target.value })}
             className="w-full rounded border bg-background p-2 text-sm"
           >
-            <option value="">{copy.approachNone}</option>
+            <option value="">{t("approachNone")}</option>
             {catalogue.frameworks.map((f) => (
               <option key={f.id} value={f.id}>
                 {f.name}
@@ -278,16 +248,16 @@ export function MyTutorsPanel() {
           </select>
 
           <label className="block text-sm font-medium" htmlFor="tutor-persona">
-            {copy.faceLabel}
+            {t("faceLabel")}
           </label>
-          <p className="text-xs text-muted-foreground">{copy.faceHelp}</p>
+          <p className="text-xs text-muted-foreground">{t("faceHelp")}</p>
           <select
             id="tutor-persona"
             value={draft.personaId}
             onChange={(e) => setDraft({ ...draft, personaId: e.target.value })}
             className="w-full rounded border bg-background p-2 text-sm"
           >
-            <option value="">{copy.faceNone}</option>
+            <option value="">{t("faceNone")}</option>
             {personas.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.name}
@@ -304,7 +274,7 @@ export function MyTutorsPanel() {
               onClick={() => void create()}
               className="rounded border bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
             >
-              {copy.save}
+              {t("save")}
             </button>
             <button
               type="button"
@@ -314,7 +284,7 @@ export function MyTutorsPanel() {
               }}
               className="rounded border px-3 py-1.5 text-sm hover:bg-muted"
             >
-              {copy.cancel}
+              {t("cancel")}
             </button>
           </div>
         </div>
@@ -338,13 +308,13 @@ export function MyTutorsPanel() {
 
       {mine.length > 0 ? (
         <div className="mt-4">
-          <h3 className="text-xs font-medium text-muted-foreground">{copy.yours}</h3>
+          <h3 className="text-xs font-medium text-muted-foreground">{t("yours")}</h3>
           <div className="mt-1 flex flex-col gap-2">{mine.map(row)}</div>
         </div>
       ) : null}
 
       <div className="mt-4">
-        <h3 className="text-xs font-medium text-muted-foreground">{copy.others}</h3>
+        <h3 className="text-xs font-medium text-muted-foreground">{t("others")}</h3>
         <div className="mt-1 flex flex-col gap-2">{others.map(row)}</div>
       </div>
     </TeacherCard>

@@ -20,7 +20,7 @@
  * file; this migration folds it back onto the shared shell so co-pilot changes
  * happen in one place (design: activity-copilot-shared-shell-migration.md).
  * Surface-specific bits live here: the `Proposal` union, `parseProposal`, the
- * Danish strings, and the per-kind proposal previews (the `descriptor`).
+ * strings (in the teacher's own language — 1.1.108 M2), and the per-kind proposal previews (the `descriptor`).
  *
  * Dark-flagged: renders null unless `NEXT_PUBLIC_AUTHORING_COPILOT === "1"`.
  * Browser-verify gate: the live SSE tool-result shapes + the Apply round-trips.
@@ -33,6 +33,7 @@ import type { ReactNode } from "react";
 import { TeacherCopilot } from "@/components/teacher/copilot";
 import type { CopilotLabels, ProposalDescriptor, TeacherCopilotConfig } from "@/components/teacher/copilot";
 import { useTeacherFeature } from "@/hooks/useTeacherFeature";
+import { useT, type Translate } from "@/i18n";
 import type { ToolCallState } from "@/hooks/useSkillAgent";
 import type { SavePayload } from "@/hooks/useActivityBuilder";
 
@@ -185,7 +186,7 @@ export function parseProposal(tc: ToolCallState): Proposal | null {
     case "add_element": {
       const ek = p.element_kind;
       const spec = (p.spec ?? {}) as Record<string, unknown>;
-      const label = typeof p.label === "string" ? p.label : "Element";
+      const label = typeof p.label === "string" ? p.label : "";
       if (ek === "checklist" && Array.isArray(spec.items) && spec.items.every((s) => typeof s === "string")) {
         return { kind: "add_element", elementKind: "checklist", items: spec.items as string[], label };
       }
@@ -268,7 +269,7 @@ export function parseProposal(tc: ToolCallState): Proposal | null {
         subject,
         level,
         tags,
-        label: typeof p.label === "string" ? p.label : "arkivering",
+        label: typeof p.label === "string" ? p.label : "",
       };
     }
     case "propose_concept_map": {
@@ -278,7 +279,7 @@ export function parseProposal(tc: ToolCallState): Proposal | null {
         kind: "propose_concept_map",
         diff: p.diff as ConceptMapDiff,
         resultNodes: (result.nodes as { id: string; label: string }[]).map((n) => ({ id: n.id, label: n.label })),
-        label: typeof p.label === "string" ? p.label : "begrebskort",
+        label: typeof p.label === "string" ? p.label : "",
       };
     }
     default:
@@ -288,6 +289,7 @@ export function parseProposal(tc: ToolCallState): Proposal | null {
 
 /** Card body preview for an add_element proposal, per element kind. */
 function AddElementBody({ proposal }: { proposal: Extract<Proposal, { kind: "add_element" }> }) {
+  const t = useT("AuthoringCopilot");
   switch (proposal.elementKind) {
     case "checklist":
       return (
@@ -310,7 +312,7 @@ function AddElementBody({ proposal }: { proposal: Extract<Proposal, { kind: "add
           {proposal.title ? <p className="font-medium">{proposal.title}</p> : null}
           <p className="whitespace-pre-wrap text-sm">{proposal.prompt}</p>
           {proposal.minWords > 0 ? (
-            <p className="text-xs text-slate-500">Mål: {proposal.minWords} ord</p>
+            <p className="text-xs text-slate-500">{t("wordTarget", { n: proposal.minWords })}</p>
           ) : null}
         </div>
       );
@@ -324,13 +326,15 @@ function AddElementBody({ proposal }: { proposal: Extract<Proposal, { kind: "add
     case "table":
       return (
         <p className="text-sm" data-testid="proposal-table">
-          {proposal.columns.map((c) => c.label).join(", ")} · {proposal.rows} rækker
+          {t("tableRows", { columns: proposal.columns.map((c) => c.label).join(", "), rows: proposal.rows })}
         </p>
       );
     case "chart":
       return (
         <p className="text-sm" data-testid="proposal-chart">
-          {proposal.chartKind}
+          {proposal.chartKind === "scatter" || proposal.chartKind === "line" || proposal.chartKind === "bar"
+            ? t(`chart_${proposal.chartKind}`)
+            : proposal.chartKind}
         </p>
       );
     case "calculator":
@@ -345,23 +349,25 @@ function AddElementBody({ proposal }: { proposal: Extract<Proposal, { kind: "add
 /** How the shared `ProposalCard` renders + edits an authoring proposal. The
  *  lesson prompt is editable inline before Apply; elements + sims preview their
  *  shape (testids the suite asserts) and are Apply/Dismiss only. */
-const authoringProposalDescriptor: ProposalDescriptor<Proposal> = {
+// Built per render with the teacher's translator (1.1.108 M2): the card titles
+// speak the teacher's own language, whatever language the activity is in.
+const authoringProposalDescriptor = (t: Translate<"AuthoringCopilot">): ProposalDescriptor<Proposal> => ({
   title: (p) => {
     switch (p.kind) {
       case "set_lesson_prompt":
-        return "Forslag til lærer-prompt";
+        return t("titleLessonPrompt");
       case "add_element":
-        return `Forslag: ${p.label}`;
+        return t("titleElement", { label: p.label || t("elementFallback") });
       case "set_artefact":
-        return "Forslag: brug en simulation";
+        return t("titleSim");
       case "set_activity_facets":
-        return "Forslag: arkivering (emne · niveau · tags)";
+        return t("titleFacets");
       case "attach_material":
         return p.materialKind === "context"
-          ? `Forslag: opgavemateriale (altid i konteksten) — ${p.label}`
-          : `Forslag: materiale — ${p.label}`;
+          ? t("titleContextMaterial", { label: p.label })
+          : t("titleMaterial", { label: p.label });
       case "propose_concept_map":
-        return `Forslag: begrebskort — ${p.label}`;
+        return t("titleConceptMap", { label: p.label || t("conceptMapFallback") });
     }
   },
   editableText: (p) => (p.kind === "set_lesson_prompt" ? p.value : null),
@@ -380,34 +386,33 @@ const authoringProposalDescriptor: ProposalDescriptor<Proposal> = {
         <p className="text-sm" data-testid="proposal-material">
           {p.label}
           {p.origin ? ` · ${p.origin}` : ""}
-          {p.materialKind === "context"
-            ? " · tutoren får hele teksten i hver tur"
-            : " · tutoren kan slå den op"}
+          {p.materialKind === "context" ? t("materialContext") : t("materialReference")}
         </p>
       );
     }
     if (p.kind === "propose_concept_map") return <ConceptMapDiffBody proposal={p} />;
     return null; // set_lesson_prompt renders via editableText, not body
   },
-};
+});
 
 /** Card body for a concept-map DIFF — what changes, in the teacher's terms
  *  (labels, not slugs). */
 function ConceptMapDiffBody({ proposal }: { proposal: Extract<Proposal, { kind: "propose_concept_map" }> }) {
+  const t = useT("AuthoringCopilot");
   const { diff, resultNodes } = proposal;
   const labelOf = (id: string) => resultNodes.find((n) => n.id === id)?.label ?? id;
   const rows: { key: string; text: string }[] = [];
   for (const n of diff.addNodes ?? []) {
-    const q = n.checkQuestions?.length ? ` (${n.checkQuestions.length} tjekspørgsmål)` : "";
+    const q = n.checkQuestions?.length ? t("diffQuestions", { n: n.checkQuestions.length }) : "";
     rows.push({ key: `+n-${n.id}`, text: `+ ${n.label}${q}` });
   }
   for (const e of diff.addEdges ?? []) {
-    rows.push({ key: `+e-${e.from}-${e.to}`, text: `→ ${labelOf(e.from)} før ${labelOf(e.to)}` });
+    rows.push({ key: `+e-${e.from}-${e.to}`, text: t("diffEdge", { from: labelOf(e.from), to: labelOf(e.to) }) });
   }
   for (const id of diff.removeNodes ?? []) rows.push({ key: `-n-${id}`, text: `− ${labelOf(id)}` });
   for (const r of diff.relabel ?? []) rows.push({ key: `~n-${r.id}`, text: `✎ ${r.id} → ${r.label}` });
   for (const sq of diff.setCheckQuestions ?? []) {
-    rows.push({ key: `?n-${sq.nodeId}`, text: `? ${labelOf(sq.nodeId)}: ${sq.questions.length} tjekspørgsmål` });
+    rows.push({ key: `?n-${sq.nodeId}`, text: t("diffSetQuestions", { label: labelOf(sq.nodeId), n: sq.questions.length }) });
   }
   return (
     <ul className="space-y-0.5 text-sm" data-testid="proposal-concept-map">
@@ -418,18 +423,9 @@ function ConceptMapDiffBody({ proposal }: { proposal: Extract<Proposal, { kind: 
   );
 }
 
-/** Danish labels for the card + chat — the authoring co-pilot is a fixed-locale
- *  surface (the shell defaults to English). */
-const DANISH_LABELS: Partial<CopilotLabels> = {
-  apply: "Anvend",
-  useEdited: "Brug denne",
-  edit: "Rediger",
-  dismiss: "Afvis",
-  applied: "Anvendt ✓ — du kan stadig rette det i feltet.",
-  thinking: "Tænker…",
-  editAriaLabel: "Rediger forslag",
-};
-
+/** The shell's labels come from its own messages (TeacherCopilot namespace) in
+ *  the teacher's language; this co-pilot overrides only the applied badge, which
+ *  says where the applied suggestion landed. */
 /** Hide the `[activity_id=…] ` prefix and the `[[activity_draft]]…[[/activity_draft]]`
  *  context block from the rendered user bubble — both are for the agent's eyes,
  *  not the teacher's. The draft block is stripped by its closing tag rather than
@@ -450,7 +446,7 @@ function stripActivityPrefix(content: string): string {
  * Public entry. Dark-flagged → renders nothing when disabled (degradation).
  * A thin config over the shared `<TeacherCopilot>` shell: the shell owns the
  * floating panel, slug→UUID resolve, teacher-auth transport, cards, and resume;
- * this supplies the authoring skill, the Danish strings, the `activity_id`
+ * this supplies the authoring skill, its strings (teacher's language), the `activity_id`
  * scope prefix, the proposal parser + descriptor, and the Apply router.
  */
 export function AuthoringCopilot({ activityId, draft, onApplyProposal }: AuthoringCopilotProps) {
@@ -459,18 +455,19 @@ export function AuthoringCopilot({ activityId, draft, onApplyProposal }: Authori
   // NEXT_PUBLIC_* at build; tests mutate process.env at runtime). The hook
   // runs before any early return (hook-order rule).
   const enabled = useTeacherFeature("authoringCopilot", process.env.NEXT_PUBLIC_AUTHORING_COPILOT);
+  const t = useT("AuthoringCopilot");
   if (!enabled) return null;
+  const labels: Partial<CopilotLabels> = { applied: t("applied") };
 
   const config: TeacherCopilotConfig<Proposal> = {
     skillName: SKILL_NAME,
-    title: "Medbygger",
+    title: t("title"),
     testId: "authoring-copilot",
-    placeholder: "Fx: energibevarelse for en B-klasse…",
-    inputAriaLabel: "Beskriv hvad du vil undervise i",
-    emptyText:
-      "Fortæl hvad du vil undervise i — jeg foreslår en lærer-prompt og elementer, du kan rette og anvende. Du kan stadig bladre i siden mens jeg arbejder.",
-    loadingText: "Indlæser medbygger…",
-    minimizeLabel: "Skjul medbygger",
+    placeholder: t("placeholder"),
+    inputAriaLabel: t("inputAria"),
+    emptyText: t("empty"),
+    loadingText: t("loading"),
+    minimizeLabel: t("minimize"),
     // activity_id rides the message prefix (the analytics-chat contract) when
     // editing an existing activity; on /new (no id yet) it's a draft — omit it.
     // The draft context block rides alongside it (COPILOT: the co-pilot used to
@@ -484,12 +481,12 @@ export function AuthoringCopilot({ activityId, draft, onApplyProposal }: Authori
     // co-pilot conversation is its own thread).
     persistKey: `activity-authoring:${activityId}`,
     parseProposal,
-    proposalDescriptor: authoringProposalDescriptor,
+    proposalDescriptor: authoringProposalDescriptor(t),
     // Keep the "Anvendt ✓" badge (default, dismissOnApply omitted): the effect
     // lands in a builder field the teacher can still edit, so the badge reminds
     // them it was applied — unlike the class co-pilot whose effect shows in a list.
     onApplyProposal,
-    labels: DANISH_LABELS,
+    labels,
   };
 
   return <TeacherCopilot<Proposal> {...config} />;

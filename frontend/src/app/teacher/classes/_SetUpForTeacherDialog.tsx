@@ -6,28 +6,9 @@ import { UserPlus, X } from "lucide-react";
 import { type ClassPayload, createClassForTeacher, listClasses } from "@/lib/teacherApi";
 import { type OnboardingRow, fetchOnboarding } from "@/lib/programmeApi";
 import { describeStage } from "@/lib/onboardingStage";
+import { useT } from "@/i18n";
 
 /** 1.1.108 M4 — copy lives here, never inline in JSX. */
-const copy = {
-  button: "Set up a class for a teacher…",
-  title: "Set up a class for a teacher",
-  intro:
-    "The class will belong to the teacher. Activities from your template are copied into their library, and a join code is minted if they may spend. Their checklist then opens at “share the join link”.",
-  teacher: "Teacher",
-  teacherPlaceholder: "Choose a granted teacher who has signed in",
-  noTeachers: "Nobody on the register has signed in yet — a class needs an account to belong to.",
-  name: "Class name",
-  namePlaceholder: "e.g. Fysik 1.g — efterår",
-  template: "Copy activities from",
-  noTemplate: "None — an empty class",
-  submit: "Set up class",
-  submitting: "Setting up…",
-  cancel: "Cancel",
-  done: (name: string, code: string | null, n: number) =>
-    code
-      ? `${name} is ready: ${n} ${n === 1 ? "activity" : "activities"} copied, join code ${code}.`
-      : `${name} is ready with ${n} ${n === 1 ? "activity" : "activities"} — no join code, the teacher is not on the spend register.`,
-} as const;
 
 /**
  * The researcher's shortcut (1.1.124 M2): take a teacher from *demo only* to
@@ -37,6 +18,7 @@ const copy = {
  * simplest "starter kit" there is, no new concept needed.
  */
 export function SetUpForTeacherDialog({ onCreated, onCancel }: { onCreated: () => void; onCancel: () => void }) {
+  const t = useT("SetUpForTeacherDialog");
   const [teachers, setTeachers] = useState<OnboardingRow[] | null>(null);
   const [templates, setTemplates] = useState<ClassPayload[]>([]);
   const [ownerUid, setOwnerUid] = useState("");
@@ -77,7 +59,9 @@ export function SetUpForTeacherDialog({ onCreated, onCancel }: { onCreated: () =
         name: name.trim(),
         templateClassId: templateId || null,
       });
-      setResult(copy.done(created.name, created.codes[0] ?? null, created.copiedActivityIds.length));
+      const code = created.codes[0] ?? null;
+      const n = created.copiedActivityIds.length;
+      setResult(code ? t("doneWithCode", { name: created.name, code, n }) : t("doneNoCode", { name: created.name, n }));
       onCreated();
     } catch (e) {
       setError(e instanceof Error ? e.message : "failed to set up the class");
@@ -92,13 +76,13 @@ export function SetUpForTeacherDialog({ onCreated, onCancel }: { onCreated: () =
         <div className="mb-2 flex items-start justify-between gap-2">
           <h2 id="setup-for-teacher-label" className="flex items-center gap-2 text-base font-semibold">
             <UserPlus className="h-4 w-4" aria-hidden="true" />
-            {copy.title}
+            {t("title")}
           </h2>
-          <button type="button" onClick={onCancel} aria-label={copy.cancel} className="rounded p-1 hover:bg-accent">
+          <button type="button" onClick={onCancel} aria-label={t("cancel")} className="rounded p-1 hover:bg-accent">
             <X className="h-4 w-4" aria-hidden="true" />
           </button>
         </div>
-        <p className="mb-3 text-xs text-muted-foreground">{copy.intro}</p>
+        <p className="mb-3 text-xs text-muted-foreground">{t("intro")}</p>
 
         {result ? (
           <p role="status" className="mb-3 rounded border border-emerald-200 bg-emerald-50 p-2 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
@@ -107,9 +91,9 @@ export function SetUpForTeacherDialog({ onCreated, onCancel }: { onCreated: () =
         ) : null}
 
         <label className="mb-2 block text-sm">
-          <span className="mb-1 block font-medium">{copy.teacher}</span>
+          <span className="mb-1 block font-medium">{t("teacher")}</span>
           {teachers && teachers.length === 0 ? (
-            <span className="text-xs text-muted-foreground">{copy.noTeachers}</span>
+            <span className="text-xs text-muted-foreground">{t("noTeachers")}</span>
           ) : (
             <select
               required
@@ -117,7 +101,7 @@ export function SetUpForTeacherDialog({ onCreated, onCancel }: { onCreated: () =
               onChange={(e) => setOwnerUid(e.target.value)}
               className="w-full rounded border border-border bg-background px-2 py-1.5 text-sm"
             >
-              <option value="">{copy.teacherPlaceholder}</option>
+              <option value="">{t("teacherPlaceholder")}</option>
               {(teachers ?? []).map((t) => (
                 <option key={t.uid!} value={t.uid!}>
                   {t.email} — {describeStage(t)}
@@ -128,20 +112,20 @@ export function SetUpForTeacherDialog({ onCreated, onCancel }: { onCreated: () =
         </label>
 
         <label className="mb-2 block text-sm">
-          <span className="mb-1 block font-medium">{copy.name}</span>
+          <span className="mb-1 block font-medium">{t("name")}</span>
           <input
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder={copy.namePlaceholder}
+            placeholder={t("namePlaceholder")}
             className="w-full rounded border border-border bg-background px-2 py-1.5 text-sm"
           />
         </label>
 
         <label className="mb-3 block text-sm">
-          <span className="mb-1 block font-medium">{copy.template}</span>
+          <span className="mb-1 block font-medium">{t("template")}</span>
           <select value={templateId} onChange={(e) => setTemplateId(e.target.value)} className="w-full rounded border border-border bg-background px-2 py-1.5 text-sm">
-            <option value="">{copy.noTemplate}</option>
+            <option value="">{t("noTemplate")}</option>
             {templates.map((c) => (
               <option key={c.classId} value={c.classId}>
                 {c.name} ({(c.activityIds ?? []).length})
@@ -158,11 +142,11 @@ export function SetUpForTeacherDialog({ onCreated, onCancel }: { onCreated: () =
 
         <div className="flex justify-end gap-2">
           <button type="button" onClick={onCancel} className="rounded border border-border px-3 py-1.5 text-sm hover:bg-accent">
-            {result ? "Close" : copy.cancel}
+            {result ? t("close") : t("cancel")}
           </button>
           {result ? null : (
             <button type="submit" disabled={busy || !ownerUid || !name.trim()} className="rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60">
-              {busy ? copy.submitting : copy.submit}
+              {busy ? t("submitting") : t("submit")}
             </button>
           )}
         </div>
@@ -170,5 +154,3 @@ export function SetUpForTeacherDialog({ onCreated, onCancel }: { onCreated: () =
     </div>
   );
 }
-
-export const setUpForTeacherCopy = copy;

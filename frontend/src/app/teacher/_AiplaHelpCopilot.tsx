@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { TeacherCopilot } from "@/components/teacher/copilot";
 import { type StagePayload } from "@/lib/onboardingStage";
 import { fetchTeacherStage } from "@/lib/teacherApi";
+import { useT } from "@/i18n";
 
 // 1.1.124 M3 — the teacher's onboarding stage rides along as hidden context, so
 // "how do I start?" is answered with the NEXT step rather than the whole guide.
@@ -45,6 +46,7 @@ const FEEDBACK_MAILTO =
  * the conversation resumes on reopen (thread id persisted).
  */
 export function AiplaHelpCopilot({ onClose }: { onClose: () => void }) {
+  const t = useT("AiplaHelpCopilot");
   const [stage, setStage] = useState<StagePayload | null>(null);
   useEffect(() => {
     let cancelled = false;
@@ -64,13 +66,13 @@ export function AiplaHelpCopilot({ onClose }: { onClose: () => void }) {
       skillName="aipla-help"
       scopePrefix={stageBlock(stage)}
       stripPrefix={stripStagePrefix}
-      title="AIPLA Hjælp"
+      title={t("title")}
       persistKey="aipla-help"
       align="left"
       onClose={onClose}
-      placeholder="Spørg om hvordan du bruger AIPLA…"
-      emptyText="Spørg mig om hvordan du bruger AIPLA — opret en klasse, byg en aktivitet, tilføj materialer, brug medbyggeren, eller (for forskere) forskervisningerne. Jeg svarer på dansk eller engelsk. De fulde vejledninger ligger under Guides."
-      helpLink={{ href: FEEDBACK_MAILTO, label: "Report a bug / send feedback" }}
+      placeholder={t("placeholder")}
+      emptyText={t("emptyText")}
+      helpLink={{ href: FEEDBACK_MAILTO, label: t("reportBug") }}
     />
   );
 }

@@ -1,6 +1,7 @@
 import type { ProposalDescriptor } from "@/components/teacher/copilot";
 import type { ToolCallState } from "@/hooks/useSkillAgent";
 import { createClass, mintGroupCodes } from "@/lib/teacherApi";
+import type { Translate } from "@/i18n";
 
 /**
  * A manage-class co-pilot proposal. The backend write tools (`create_class`,
@@ -53,14 +54,18 @@ export function parseClassProposal(tc: ToolCallState): ClassProposal | null {
  *  name and the parser keys on the kind, so renaming them is a breaking change,
  *  not a copy fix. Teacher-visible words and wire identifiers are allowed to
  *  differ — see docs/design/aipla/v1.1.0-feedback/content-localisation.md. */
-export const classProposalDescriptor: ProposalDescriptor<ClassProposal> = {
-  title: (p) =>
-    p.kind === "create_class"
-      ? `New class${p.description ? ` · ${p.description}` : ""}`
-      : `Create ${p.count} group code${p.count === 1 ? "" : "s"} for ${p.className}`,
-  editableText: (p) => (p.kind === "create_class" ? p.name : null),
-  withEditedText: (p, text) => (p.kind === "create_class" ? { ...p, name: text } : p),
-};
+export function makeClassProposalDescriptor(t: Translate<"ClassProposal">): ProposalDescriptor<ClassProposal> {
+  return {
+    title: (p) =>
+      p.kind === "create_class"
+        ? p.description
+          ? t("newClassWithDescription", { description: p.description })
+          : t("newClass")
+        : t("createCodes", { n: p.count, className: p.className }),
+    editableText: (p) => (p.kind === "create_class" ? p.name : null),
+    withEditedText: (p, text) => (p.kind === "create_class" ? { ...p, name: text } : p),
+  };
+}
 
 /** Commit a class proposal via the same REST endpoints the dashboard uses. The
  *  caller refetches the class list afterwards so the effect is visible. */

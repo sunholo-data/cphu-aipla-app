@@ -1,5 +1,6 @@
 import type { ProposalDescriptor } from "@/components/teacher/copilot";
 import type { ToolCallState } from "@/hooks/useSkillAgent";
+import { DEFAULT_LOCALE, translate, type Translate } from "@/i18n";
 
 /**
  * A tutor co-pilot proposal (1.1.91 M2).
@@ -69,25 +70,23 @@ export function parseTutorProposal(tc: ToolCallState): TutorProposal | null {
   return null;
 }
 
-/** UI copy, lifted out of JSX (1.1.108 M4) so a translator can reach it. */
-const copy = {
-  approachTitle: (label: string, n: number) =>
-    `New approach: ${label} — ${n} construct${n === 1 ? "" : "s"}`,
-  behavioursTitle: (name: string, n: number) =>
-    `${n} behaviour${n === 1 ? "" : "s"} for “${name}”`,
-  constructs: "Constructs",
-  avoid: "Avoid",
-  noSource: "No source attached",
-} as const;
-
-export const tutorProposalDescriptor: ProposalDescriptor<TutorProposal> = {
-  title: (p) =>
-    p.kind === "propose_approach"
-      ? copy.approachTitle(p.label, p.constructNames.length)
-      : copy.behavioursTitle(p.constructName, p.behaviours.length),
+/** The card’s copy lives in messages/{da,en}/teacher-research.json (TutorProposal) —
+ *  1.1.108. The descriptor is built per translator so the card follows the
+ *  person's language; `tutorProposalDescriptor` is the site-default one. */
+export function tutorProposalDescriptorFor(t: Translate<"TutorProposal">): ProposalDescriptor<TutorProposal> {
+  return {
+    title: (p) =>
+      p.kind === "propose_approach"
+        ? t("approachTitle", { label: p.label, n: p.constructNames.length })
+        : t("behavioursTitle", { name: p.constructName, n: p.behaviours.length }),
   // The approach's SUMMARY is the free-text a researcher most often wants to
   // reword before applying. Behaviour lists are structured, so they are edited
   // in the structure editor after Apply rather than as one blob here.
-  editableText: (p) => (p.kind === "propose_approach" ? p.summary : null),
-  withEditedText: (p, text) => (p.kind === "propose_approach" ? { ...p, summary: text } : p),
-};
+    editableText: (p) => (p.kind === "propose_approach" ? p.summary : null),
+    withEditedText: (p, text) => (p.kind === "propose_approach" ? { ...p, summary: text } : p),
+  };
+}
+
+export const tutorProposalDescriptor: ProposalDescriptor<TutorProposal> = tutorProposalDescriptorFor(
+  translate(DEFAULT_LOCALE, "TutorProposal"),
+);

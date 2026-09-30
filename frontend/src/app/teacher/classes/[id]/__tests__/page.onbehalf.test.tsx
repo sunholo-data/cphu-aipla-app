@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor } from "@testing-library/react";
 import { type MockedFunction, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as teacherApi from "@/lib/teacherApi";
@@ -21,6 +21,16 @@ vi.mock("@/hooks/useTeacherAuth", () => ({
 }));
 
 import TeacherClassDetailPage from "@/app/teacher/classes/[id]/page";
+import { LocaleProvider } from "@/i18n";
+
+// 1.1.108 M2 — these tests assert the English copy; the teacher UI defaults to
+// Danish (the teacher's own DA | EN choice), so render inside an English locale.
+function EnglishLocale({ children }: { children: React.ReactNode }) {
+  return <LocaleProvider locale="en">{children}</LocaleProvider>;
+}
+const render = ((ui: React.ReactElement, options?: Parameters<typeof rtlRender>[1]) =>
+  rtlRender(ui, { wrapper: EnglishLocale, ...options })) as typeof rtlRender;
+
 
 function bobsClass(overrides: Partial<ClassPayload> = {}): ClassPayload {
   return {

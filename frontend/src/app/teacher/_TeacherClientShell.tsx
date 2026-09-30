@@ -19,6 +19,7 @@ import { useIsResearcher } from "@/hooks/useIsResearcher";
 import { useTeacherBootstrap } from "@/hooks/useTeacherBootstrap";
 import { useTeacherFeature } from "@/hooks/useTeacherFeature";
 import { AiplaHelpCopilot } from "./_AiplaHelpCopilot";
+import { useT } from "@/i18n";
 
 /**
  * Client shell for /teacher/* routes.
@@ -29,6 +30,7 @@ import { AiplaHelpCopilot } from "./_AiplaHelpCopilot";
  */
 export function TeacherClientShell({ children }: { children: ReactNode }) {
   const { user, loading } = useTeacherAuth();
+  const t = useT("TeacherClientShell");
   const isResearcher = useIsResearcher();
   const pathname = usePathname() ?? "";
   // First sign-in (incl. the first after a clean-slate wipe): seed the teacher's
@@ -53,7 +55,7 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
   if (loading) {
     return (
       <main className="flex min-h-screen items-center justify-center">
-        <p className="text-sm text-muted-foreground">Loading…</p>
+        <p className="text-sm text-muted-foreground">{t("loading")}</p>
       </main>
     );
   }
@@ -66,7 +68,7 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
   const account = user as
     | { displayName?: string | null; email?: string | null; photoURL?: string | null }
     | null;
-  const displayName = account?.displayName ?? "Teacher";
+  const displayName = account?.displayName ?? t("teacherFallback");
   const photoURL = account?.photoURL ?? null;
   // The EMAIL leads, because it is the only part of the identity that is unique
   // per account. Two accounts belonging to the same person share a display name
@@ -94,7 +96,7 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
           <Link
             href="/teacher/classes"
             className="flex items-center gap-2 text-sm font-semibold hover:opacity-80"
-            aria-label={`${BRANDING.appName} Teacher — home`}
+            aria-label={t("homeLabel", { app: BRANDING.appName })}
           >
             {/* Same AIPLA mark the student chat header uses (SkillsBar). */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -103,7 +105,7 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
               alt={BRANDING.appName}
               className="h-7 w-7"
             />
-            <span>{BRANDING.appName} Teacher</span>
+            <span>{t("brand", { app: BRANDING.appName })}</span>
           </Link>
 
           <div className="flex items-center gap-3">
@@ -113,7 +115,7 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
             {isLocalMode() ? (
               <div
                 role="status"
-                aria-label="Local mode banner"
+                aria-label={t("localMode")}
                 className="hidden rounded border border-dashed border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-medium text-amber-900 sm:block dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
               >
                 LOCAL_MODE
@@ -122,12 +124,12 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
             {isResearcher ? (
               <div
                 role="status"
-                aria-label="Researcher role active"
-                title="Researcher role — cross-class read access across every teacher"
+                aria-label={t("researcherActive")}
+                title={t("researcherTitle")}
                 className="flex items-center gap-1 rounded border border-indigo-300 bg-indigo-50 px-2 py-1 text-[11px] font-medium text-indigo-900 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"
               >
                 <FlaskConical className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Researcher</span>
+                <span>{t("researcher")}</span>
               </div>
             ) : null}
             {/* 1.1.125 M0 — Settings, Approaches and Sign out live behind the
