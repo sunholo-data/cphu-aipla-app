@@ -47,7 +47,9 @@ const REPO_ROOT = resolve(SCRIPT_DIR, "../../../..");
 // The proactive gate's vocabulary, mirrored from
 // frontend/src/lib/proactiveEventCheck.ts. Kept here so the script can say
 // "this kind will never wake the tutor" without importing TypeScript.
+// Order matters: completion is checked first, as in the TypeScript.
 const PROACTIVE_TOKENS = {
+  completion: ["complete", "completed", "finished", "solved", "submitted", "mission_complete", "answered_all"],
   sim_run: ["play", "run", "simulate", "afspil"],
   step_advance: ["step", "next", "advance", "placed", "calibrated"],
   measurement_commit: ["measure", "record", "commit", "show_value", "reading", "fit", "spectrum"],
@@ -60,7 +62,7 @@ function proactiveCategory(kind) {
   const suffix = String(kind).split(".").slice(-1)[0]?.toLowerCase() ?? "";
   if (!suffix) return null;
   for (const [category, keywords] of Object.entries(PROACTIVE_TOKENS)) {
-    if (keywords.includes(suffix)) return category;
+    if (keywords.includes(suffix) || keywords.includes(suffix.replace(/-/g, "_"))) return category;
     const tokens = suffix.split(/[-_]/).filter(Boolean);
     if (tokens.some((t) => keywords.includes(t))) return category;
   }

@@ -32,6 +32,7 @@ describe("MEANINGFUL_EVENT_KINDS", () => {
     // (FE kind not in BE set) or pay for round-trips that always 200
     // skipped (BE kind not in FE set).
     expect([...MEANINGFUL_EVENT_KINDS].sort()).toEqual([
+      "completion",
       "measurement_commit",
       "sim_run",
       "step_advance",
@@ -51,6 +52,41 @@ describe("isMeaningfulEventKind", () => {
     expect(isMeaningfulEventKind("reset")).toBe(false);
     expect(isMeaningfulEventKind("")).toBe(false);
     expect(isMeaningfulEventKind("SIM_RUN")).toBe(false); // case-sensitive
+  });
+});
+
+describe("mapArtefactKindToMeaningful — completion (1.1.140 M0)", () => {
+  // A finished mission / question set. Before this category a sim emitting
+  // `<id>.complete` was inert: no sim could make the tutor acknowledge it.
+  it.each([
+    "sol-jord-maane.complete",
+    "sol-jord-maane.completed",
+    "sol-jord-maane.finished",
+    "sol-jord-maane.solved",
+    "sol-jord-maane.submitted",
+    "sol-jord-maane.mission_complete",
+    "sol-jord-maane.mission-complete",
+    "sol-jord-maane.answered_all",
+    "sol-jord-maane.answered-all",
+    "question-set.quiz-submitted",
+  ])("maps %s to completion", (kind) => {
+    expect(mapArtefactKindToMeaningful(kind)).toBe("completion");
+  });
+
+  it("accepts the generic kind directly", () => {
+    expect(isMeaningfulEventKind("completion")).toBe(true);
+    expect(mapArtefactKindToMeaningful("completion")).toBe("completion");
+  });
+
+  it("wins over a step/commit token in the same kind", () => {
+    expect(mapArtefactKindToMeaningful("x.step-complete")).toBe("completion");
+    expect(mapArtefactKindToMeaningful("x.commit-finished")).toBe("completion");
+  });
+
+  it("does not over-match: `answered` alone or `all` alone stay inert", () => {
+    expect(mapArtefactKindToMeaningful("x.answered")).toBeNull();
+    expect(mapArtefactKindToMeaningful("x.all")).toBeNull();
+    expect(mapArtefactKindToMeaningful("x.mission-start")).toBeNull();
   });
 });
 

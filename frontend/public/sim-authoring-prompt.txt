@@ -223,10 +223,27 @@ these words trigger the tutor to speak on its own:
   a run started     -> run, play, simulate, afspil
   progress a step   -> step, next, advance, placed, calibrated
   a measurement     -> reading, measure, record, commit, show_value, fit, spectrum
+  something finished -> complete, completed, finished, solved, submitted,
+                        mission_complete, answered_all
 Any other verb is inert. Use `open`, `stop`, `pause`, `reset`, `state-change`
 for housekeeping — those are correctly inert. Note `open` is reserved for "the
 sim loaded"; if your domain uses the word for something else (opening a switch,
 opening a valve) pick a different verb for that action.
+
+If the sim has missions, a question set, or anything else a student can FINISH,
+say so when they do — otherwise the tutor never learns it and cannot
+acknowledge it. One emit, at the moment of finishing, with the result in
+`state` (it goes out as "<id>.complete"):
+
+  // mission / question set finished
+  emit("complete", {
+    label: "Fuldførte mission 3: 4 af 5 rigtige",   // current language, real numbers
+    state: { mission: 3, score: 4, of: 5, answers: [...], tier: 2, maxTier: 3 },
+  });
+
+Put the student's level in `tier` with the top level beside it (`maxTier`):
+the tutor asks no further question once the top tier is reached, and it can
+only see that if the state says so.
 
 `label` and the verb are INDEPENDENT. The label decides whether the student sees
 a card saying this reached the tutor; the verb decides whether the tutor may
@@ -309,6 +326,13 @@ Say so in the header comment.
 - Single column by default; add columns only inside @media (min-width: 720px).
 - No min-width property above 600px anywhere. It must fit 390px with no
   horizontal scrolling.
+- Control panels are COLLAPSIBLE: each panel of controls has a header button
+  (aria-expanded) that folds it away. Below 900px of width they start
+  COLLAPSED (check window.innerWidth at load), because on a laptop the
+  iframe shares the screen with the chat and the controls otherwise bury the
+  apparatus. When expanded, a panel pushes content down; it NEVER overlays
+  the visualisation (no position: absolute/fixed panels over the canvas).
+  The visualisation itself is never collapsible.
 - Canvas: give it an explicit height in CSS — `aspect-ratio: 3 / 2` or a fixed
   `height` — then size the BACKING STORE in JS from getBoundingClientRect()
   times devicePixelRatio and redraw on resize. `width:100%; height:auto` alone
@@ -387,3 +411,10 @@ BEFORE YOU ANSWER — check your own output
 12. On first contact a student can tell what to do. No control is disabled
     without something on screen saying what enables it, and no panel is a blank
     void — an empty measurement table says "no readings yet", not nothing.
+13. If a student can finish something (a mission, a question set), finishing
+    it emits a verb from the "something finished" list, with the result and
+    the student's `tier` / `maxTier` in `state`. If nothing can be finished,
+    no completion verb is emitted.
+14. Every control panel folds away from a header button with aria-expanded,
+    starts folded below 900px wide, and when open never overlays the
+    visualisation.

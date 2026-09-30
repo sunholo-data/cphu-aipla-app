@@ -62,6 +62,7 @@ splits it on `-` and `_`, and matches **any** token against:
 
 | Category | Tokens |
 |---|---|
+| `completion` (checked first, 1.1.140) | `complete` `completed` `finished` `solved` `submitted` `mission_complete` `answered_all` |
 | `sim_run` | `play` `run` `simulate` `afspil` |
 | `step_advance` | `step` `next` `advance` `placed` `calibrated` |
 | `measurement_commit` | `measure` `record` `commit` `show_value` `reading` `fit` `spectrum` |

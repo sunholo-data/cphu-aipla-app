@@ -29,6 +29,10 @@ export const MEANINGFUL_EVENT_KINDS = [
   "sim_run",
   "step_advance",
   "measurement_commit",
+  // 1.1.140 M0 — the student FINISHED something: a mission, a question set.
+  // Without it a sim's `<id>.complete` was inert and no sim could make the
+  // tutor acknowledge a finished mission (29 Sep meeting, JB's sim).
+  "completion",
 ] as const;
 export type MeaningfulEventKind = (typeof MEANINGFUL_EVENT_KINDS)[number];
 
@@ -70,6 +74,20 @@ const MEASUREMENT_COMMIT_TOKENS = [
   "fit", // led-planck.fit (curve fit on measured data)
   "spectrum", // led-planck.spectrum (recorded spectrum)
 ];
+/** 1.1.140 M0 — a finished mission / question set. Checked FIRST: a
+ *  completion word is the strongest signal in a kind, so `quiz-submitted` or a
+ *  hypothetical `step-complete` reads as "finished", not as a step or a commit.
+ *  `mission_complete` and `answered_all` are whole-suffix keywords (and match
+ *  with a hyphen too, see `suffixMatchesAny`). */
+const COMPLETION_TOKENS = [
+  "complete",
+  "completed",
+  "finished",
+  "solved",
+  "submitted",
+  "mission_complete",
+  "answered_all",
+];
 
 function tokensFromSuffix(suffix: string): string[] {
   // Split on hyphen AND underscore so multi-word artefact kinds match
@@ -81,6 +99,8 @@ function suffixMatchesAny(suffix: string, keywords: readonly string[]): boolean 
   // Whole-suffix match first (covers `show_value` style underscore
   // keywords). Then per-token match.
   if (keywords.includes(suffix)) return true;
+  // `answered-all` must match the `answered_all` keyword as well.
+  if (keywords.includes(suffix.replace(/-/g, "_"))) return true;
   const tokens = tokensFromSuffix(suffix);
   return tokens.some((t) => keywords.includes(t));
 }
@@ -104,6 +124,10 @@ function suffixMatchesAny(suffix: string, keywords: readonly string[]): boolean 
  *    `reading` / `fit` / `spectrum` → measurement_commit;
  *    `state-change` / `led-polarity-error` → null.
  *
+ *  - Any sim: `complete` / `completed` / `finished` / `solved` /
+ *    `submitted` / `mission-complete` / `answered-all` → completion
+ *    (1.1.140 M0; checked before the other categories).
+ *
  *  Adding a new sim: name your meaningful kinds following the
  *  convention vocabulary (`*.play`, `*.run`, `*.step`, `*.next`,
  *  `*.measure`, `*.reading`, `*.fit`, etc.) and the mapper picks
@@ -118,6 +142,7 @@ export function mapArtefactKindToMeaningful(
   if (isMeaningfulEventKind(kind)) return kind;
   const suffix = kind.split(".").slice(-1)[0]?.toLowerCase() ?? "";
   if (!suffix) return null;
+  if (suffixMatchesAny(suffix, COMPLETION_TOKENS)) return "completion";
   if (suffixMatchesAny(suffix, SIM_RUN_TOKENS)) return "sim_run";
   if (suffixMatchesAny(suffix, STEP_ADVANCE_TOKENS)) return "step_advance";
   if (suffixMatchesAny(suffix, MEASUREMENT_COMMIT_TOKENS)) return "measurement_commit";

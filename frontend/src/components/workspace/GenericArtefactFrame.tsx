@@ -15,6 +15,9 @@ import { StaticArtefactFrame, type McpAppHostContext, type StaticArtefactFrameHa
 // don't buffer simply ignore it.
 const CHAT_FLUSH_NOTIFICATION = "ui/notifications/chat-flush";
 
+// MCP Apps spec: host → view, a PARTIAL HostContext the view merges.
+const HOST_CONTEXT_CHANGED_NOTIFICATION = "ui/notifications/host-context-changed";
+
 // Upper bound the chat page waits for a flush to commit before sending the
 // message anyway. A buffering artefact emits its pending state-change within a
 // postMessage round-trip (a few ms), so we resolve as soon as the resulting
@@ -111,6 +114,17 @@ export function GenericArtefactFrame({
     }),
     [localeMode],
   );
+  // The sim reads `locale` once, at the ui/initialize handshake. A later change
+  // (a student switching DA/EN mid-session) reaches a RUNNING sim through the
+  // MCP-Apps `host-context-changed` notification — partial, merged by the view —
+  // never through a remount, which would throw away the sim's state. A sim that
+  // does not listen simply picks the new locale up on its next load.
+  const sentLocaleRef = useRef(hostContext.locale);
+  useEffect(() => {
+    if (sentLocaleRef.current === hostContext.locale) return;
+    sentLocaleRef.current = hostContext.locale;
+    frameRef.current?.sendNotification(HOST_CONTEXT_CHANGED_NOTIFICATION, { locale: hostContext.locale });
+  }, [hostContext.locale]);
   const pushSnapshot = useSimSnapshotPush<Record<string, unknown>>(sessionId ?? null, artefact.id);
   // Trust-card dispatcher. No-op fallback when rendered outside a
   // HumanToolEventsProvider (the builder preview), so this stays safe there.

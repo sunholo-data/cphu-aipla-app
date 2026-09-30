@@ -13,7 +13,7 @@ from __future__ import annotations
 import pytest
 
 from adk.proactive_greet import inject_opening_guidance
-from adk.proactive_reactive import inject_reactive_guidance
+from adk.proactive_reactive import REACTIVE_EVENT_KINDS, inject_reactive_guidance
 
 BASE = "You are a friendly Socratic tutor for projectile motion."
 
@@ -99,6 +99,70 @@ def test_composes_cleanly_with_phase_a_opening_guidance():
     assert out.index("OPENING GUIDANCE") < out.index("REACTIVE GUIDANCE")
     assert "Greet warmly." in out
     assert "React briefly." in out
+
+
+# ---------------------------------------------------------------------------
+# 1.1.140 M0 — completion is a proactive kind
+# ---------------------------------------------------------------------------
+
+
+def _block() -> str:
+    return inject_reactive_guidance(BASE, proactive_event_reactive=True, reactive_template="React briefly.")
+
+
+def test_completion_is_a_reactive_kind():
+    assert "completion" in REACTIVE_EVENT_KINDS
+    assert {"sim_run", "step_advance", "measurement_commit"} <= REACTIVE_EVENT_KINDS
+
+
+def test_block_names_every_reactive_kind():
+    """A kind the gate can fire must be named in the guidance, or the tutor
+    receives a sentinel it has no instructions for."""
+    out = _block()
+    for kind in REACTIVE_EVENT_KINDS:
+        assert f"``{kind}``" in out, kind
+
+
+def test_completion_guidance_acknowledges_specifically_and_asks_one_question():
+    out = _block()
+    assert "FINISHED" in out
+    assert "specifically WHAT they completed" in out
+    # Consistent with the praise preamble: name what is right, no stock praise.
+    assert "no stock praise" in out
+    assert "never praise" in out
+    assert "ONE reflection or transfer question" in out
+
+
+def test_completion_guidance_honours_a_stop_condition():
+    out = _block()
+    assert "STOP CONDITION" in out
+    assert "top" in out and "tier" in out
+    assert "ask nothing further" in out
+    assert "Consolidate" in out
+
+
+def test_completion_guidance_does_not_bake_in_a_language():
+    """Content-localisation rule (1.1.108 M4): prompt prose never picks the
+    language — the session does."""
+    out = _block()
+    assert "language of the session" in out
+    for pinned in ("in Danish", "in English", "på dansk"):
+        assert pinned not in out
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "1.1.140 M0: the gate's allowlist lives in protocols/proactive_routes.py, "
+        "which another session owns. Add 'completion' there (or import "
+        "REACTIVE_EVENT_KINDS) and DELETE this marker — strict xfail turns the "
+        "fix into a failure so the marker cannot outlive it."
+    ),
+)
+def test_gate_allowlist_equals_the_guidance_kinds():
+    from protocols.proactive_routes import MEANINGFUL_EVENT_KINDS
+
+    assert set(MEANINGFUL_EVENT_KINDS) == set(REACTIVE_EVENT_KINDS)
 
 
 if __name__ == "__main__":

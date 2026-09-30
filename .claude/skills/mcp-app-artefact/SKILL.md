@@ -221,6 +221,7 @@ splits it on `-` and `_`, and matches **any** token:
 
 | Category | Tokens |
 |---|---|
+| `completion` (checked first, 1.1.140) | `complete` `completed` `finished` `solved` `submitted` `mission_complete` `answered_all` |
 | `sim_run` | `play` `run` `simulate` `afspil` |
 | `step_advance` | `step` `next` `advance` `placed` `calibrated` |
 | `measurement_commit` | `measure` `record` `commit` `show_value` `reading` `fit` `spectrum` |
@@ -230,6 +231,14 @@ Anything else maps to null and never triggers a proactive turn — correct for
 list; if a new sim needs a word that genuinely fits a category, add it to the
 token list in that file **and** a case to its test, rather than inventing a
 synonym that silently does nothing.
+
+**Completion** (1.1.140 M0) is the "student finished a mission / question set"
+signal. Emit it once, at the moment of finishing, with the result and the
+student's `tier` / `maxTier` in `state`. The tutor's turn for it is shaped in
+`backend/adk/proactive_reactive.py` (acknowledge specifically what was done,
+one reflection question, and nothing further once the top tier is reached).
+The token list lives in three places that must agree: `proactiveEventCheck.ts`,
+`scripts/verify_sim.mjs`, and the backend gate's `MEANINGFUL_EVENT_KINDS`.
 
 `GenericArtefactFrame` separately drops kinds ending `.pause`, `.reset`,
 `-error` and `.sync` before they reach the tutor at all.

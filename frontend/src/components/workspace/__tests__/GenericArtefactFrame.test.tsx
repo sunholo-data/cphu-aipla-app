@@ -1,5 +1,8 @@
-import { render } from "@testing-library/react";
+import { render, waitFor } from "@testing-library/react";
+import { useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { ProactiveSimProvider, useSetProactiveSimWiring } from "@/contexts/ProactiveSimContext";
 
 vi.mock("@/lib/apiClient", () => ({
   fetchWithAuth: vi.fn(() => Promise.resolve(new Response(null, { status: 204 }))),
@@ -201,5 +204,63 @@ describe("GenericArtefactFrame", () => {
     );
     unmount();
     expect(registrations.at(-1)).toBeNull();
+  });
+
+  it("tells a running sim when the locale changes, without remounting it", () => {
+    // The sim reads its locale once, at ui/initialize. A student switching
+    // DA/EN mid-session reaches it through host-context-changed instead of a
+    // remount, which would reset the sim's state.
+    const { rerender } = render(
+      <LocaleProvider locale="da">
+        <GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={ARTEFACT} sessionId="s1" />
+      </LocaleProvider>,
+    );
+    expect(sendNotificationSpy).not.toHaveBeenCalled(); // nothing to say on mount
+    rerender(
+      <LocaleProvider locale="en">
+        <GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={ARTEFACT} sessionId="s1" />
+      </LocaleProvider>,
+    );
+    expect(sendNotificationSpy).toHaveBeenCalledWith("ui/notifications/host-context-changed", { locale: "en" });
+  });
+
+  it("a finished mission (`<id>.complete`) asks the gate for a completion turn and fires it (1.1.140 M0)", async () => {
+    const onTrigger = vi.fn();
+    vi.mocked(fetchWithAuth).mockImplementation((url: string) =>
+      Promise.resolve(
+        url.includes("/proactive-event-check")
+          ? new Response(JSON.stringify({ shouldFire: true, trigger: "[event_reactive:completion]" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            })
+          : new Response(null, { status: 204 }),
+      ),
+    );
+    function Wire() {
+      const set = useSetProactiveSimWiring();
+      useEffect(() => set({ skillId: "skill-sol", onProactiveTrigger: onTrigger }), [set]);
+      return null;
+    }
+    render(
+      <ProactiveSimProvider>
+        <Wire />
+        <GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={ARTEFACT} sessionId="s1" />
+      </ProactiveSimProvider>,
+    );
+    onUpdate()({
+      kind: "sol-jord-maane.complete",
+      label: "Fuldførte mission 3: 4 af 5 rigtige",
+      state: { mission: 3, score: 4, of: 5, tier: 2, maxTier: 3 },
+    });
+    await waitFor(() => expect(onTrigger).toHaveBeenCalledWith("[event_reactive:completion]"));
+    const check = vi
+      .mocked(fetchWithAuth)
+      .mock.calls.find(([u]) => String(u).includes("/proactive-event-check"));
+    expect(check).toBeDefined();
+    expect(JSON.parse((check![1] as RequestInit).body as string)).toMatchObject({
+      skillId: "skill-sol",
+      eventKind: "completion",
+    });
+    vi.mocked(fetchWithAuth).mockImplementation(() => Promise.resolve(new Response(null, { status: 204 })));
   });
 });

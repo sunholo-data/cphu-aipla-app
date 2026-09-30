@@ -37,6 +37,25 @@ import logging
 
 log = logging.getLogger(__name__)
 
+# The event kinds this guidance describes — the ``<kind>`` in the
+# ``[event_reactive:<kind>]`` sentinel. It MUST equal the gate's allowlist,
+# ``protocols/proactive_routes.py:MEANINGFUL_EVENT_KINDS``, and the frontend's
+# ``MEANINGFUL_EVENT_KINDS`` in ``frontend/src/lib/proactiveEventCheck.ts``: a
+# kind missing from the gate never fires, and a kind missing here fires a turn
+# the tutor has no instructions for. ``test_proactive_reactive.py`` holds the
+# two backend sets together.
+#
+# ``completion`` (1.1.140 M0): the student finished a mission or a question
+# set. Before it existed a sim emitting ``<id>.complete`` was inert.
+REACTIVE_EVENT_KINDS: frozenset[str] = frozenset(
+    {
+        "sim_run",
+        "step_advance",
+        "measurement_commit",
+        "completion",
+    }
+)
+
 _BLOCK_TEMPLATE = """
 ============================================================
 REACTIVE GUIDANCE (system context, not student input).
@@ -48,10 +67,29 @@ sent a chat message about it.
 
 If the most recent user message is the literal sentinel
 ``[event_reactive:<kind>]`` (or similar bracketed marker — ``<kind>``
-will be the event type, e.g. ``sim_run``, ``step_advance``,
-``measurement_commit``), treat it as a system signal that the student
-just acted in the workbench — do NOT echo it, reply to it literally,
-or ask what they meant. Just produce the reactive turn described below.
+will be the event type: ``sim_run``, ``step_advance``,
+``measurement_commit`` or ``completion``), treat it as a system signal
+that the student just acted in the workbench — do NOT echo it, reply to
+it literally, or ask what they meant. Just produce the reactive turn
+described below.
+
+If ``<kind>`` is ``completion``, the student has FINISHED something — a
+mission, a question set, a task the sim tracks. That turn has its own
+shape, which takes precedence over the activity guidance below for this
+one turn:
+- Acknowledge specifically WHAT they completed, from the sim state you
+  were sent (the mission, the question set, the score or answers it
+  reports). Name what they got right; no stock praise, and never praise
+  a wrong answer.
+- Then ask ONE reflection or transfer question: what they would now
+  predict in a new case, or how the result connects to the idea behind
+  it. One question, not a list.
+- STOP CONDITION: if the sim state says the student has reached its top
+  tier or final level (a ``tier`` or ``level`` at its maximum, or a flag
+  saying everything is done), ask nothing further. Consolidate instead:
+  a short summary of what they have shown they can do, and end there.
+Reply in the language of the session, whatever language this guidance
+is written in.
 
 Use the guidance below to shape that turn:
 
@@ -93,4 +131,4 @@ def inject_reactive_guidance(
     return f"{instructions.rstrip()}\n\n{block}"
 
 
-__all__ = ["inject_reactive_guidance"]
+__all__ = ["REACTIVE_EVENT_KINDS", "inject_reactive_guidance"]
