@@ -255,3 +255,119 @@ def test_a_mocked_go_run_is_blind_hashes_groups_and_computes_the_headline(bench,
     assert len({s["groupHash"] for s in scores}) == 6
     transcripts = [json.loads(line) for line in (tmp_path / "transcripts.jsonl").read_text().splitlines()]
     assert all(t["turns"][0]["role"] == "tutor" for t in transcripts)
+
+
+# --- --include-teacher-trials ------------------------------------------------------------
+
+TRIAL_GROUP = "preview-k7q2xz"  # a teacher's Try-as-student group: must never appear either
+
+
+class TrialBQ(FakeBQ):
+    """Like FakeBQ, but a Try-as-student session exists — and is returned only
+    when the SQL actually lets ``preview-`` through, so the flag's wiring is tested."""
+
+    def __call__(self, sql, params):
+        rows = super().__call__(sql, params)
+        if "GROUP BY session_id" in sql and "'preview-'" not in sql:
+            rows = [
+                *rows,
+                {**_summary_rows()[0], "session_id": "s-esru-trial", "group_ids": [TRIAL_GROUP], "tutor_turns": 8},
+            ]
+        return rows
+
+
+def _fake_judge(prompts):
+    fws = ready_frameworks()
+
+    async def judge(prompt, model):
+        prompts.append(prompt)
+        if "whether the TUTOR's praise is earned" in prompt:
+            return json.dumps({"grade": "none", "instances": []})
+        fw = next(f for f in fws if f"# Teaching approach: {f.label}" in prompt)
+        keys = criteria_block(fw)[1]
+        band = "strong" if f"MARK-{fw.id} " in prompt else "partial"
+        return json.dumps(
+            {
+                "constructs": {k: {"band": band, "rationale": "", "moves": [f"{k}.1"], "evidence": [0]} for k in keys},
+                "overall": {"band": band, "summary": "", "drift": []},
+            }
+        )
+
+    return judge
+
+
+def test_teacher_trials_are_opt_in_and_only_lift_the_try_as_student_prefix():
+    assert sd.TEACHER_TRIAL_PREFIX == "preview-"
+    for sql in (sd.selection_sql("`v`"), sd.transcript_sql("`v`"), sd.excluded_sources_sql("`v`")):
+        assert "'preview-'" in sql  # default: unchanged, excluded
+    for sql in (
+        sd.selection_sql("`v`", include_teacher_trials=True),
+        sd.transcript_sql("`v`", include_teacher_trials=True),
+        sd.excluded_sources_sql("`v`", include_teacher_trials=True),
+    ):
+        assert "'preview-'" not in sql
+        # A single-tutor preview and content-free teacher telemetry stay out either way.
+        assert "NOT STARTS_WITH(IFNULL(group_id, ''), 'preview:')" in sql
+        assert "NOT STARTS_WITH(IFNULL(group_id, ''), 'teacher:')" in sql
+    assert sd.cohort_of(TRIAL_GROUP) == sd.COHORT_TEACHER_TRIAL
+    assert sd.cohort_of("fys-a-1") == sd.COHORT_CLASSROOM and sd.cohort_of("") == sd.COHORT_CLASSROOM
+
+
+def test_teacher_trials_are_labelled_and_kept_out_of_the_classroom_n_table():
+    window = {"since": date(2026, 9, 26), "until": date(2026, 9, 30)}
+    off = sd.select_sessions(TrialBQ(), "`v`", **window)
+    assert "s-esru-trial" not in {s.session_id for s in off.sessions}
+    assert "Teacher trials" not in sd.render_selection(off, ["esru", "poe"], 6)
+
+    on = sd.select_sessions(TrialBQ(), "`v`", **window, include_teacher_trials=True)
+    assert [s.session_id for s in on.teacher_trials] == ["s-esru-trial"]
+    assert len(on.classroom) == 6 and all(s.cohort == sd.COHORT_CLASSROOM for s in on.classroom)
+    md = sd.render_selection(on, ["esru", "poe"], 6)
+    assert "| esru | 3 | 3 |" in md  # the classroom row did not grow
+    assert "**Teacher trials**" in md and "| esru | mikkel | 1 | 8 |" in md
+    assert TRIAL_GROUP not in md
+
+
+def test_a_mocked_go_run_reports_teacher_trials_separately_never_pooled(bench, env, no_model_calls, tmp_path):
+    rc = bench.main(
+        [
+            "--from-sessions",
+            "--go",
+            "--include-teacher-trials",
+            "--since",
+            "2026-09-26",
+            "--until",
+            "2026-09-30",
+            "--out",
+            str(tmp_path),
+        ],
+        query=TrialBQ(),
+        judge=_fake_judge([]),
+    )
+    assert rc == 0
+    report = (tmp_path / "report.md").read_text()
+    head, _, trials = report.partition("## Teacher trials (Try as student)")
+    # The classroom headline is exactly what it is without the trial session.
+    assert "top of its own column 2 of 2 clear, 0 tied" in head
+    assert "Sessions judged: **6**" in head
+    assert "s-esru-trial" not in head
+    assert trials and "| `s-esru-trial` | esru | mikkel | 8 |" in trials
+    assert "MARK-" not in report
+
+    scores = [json.loads(line) for line in (tmp_path / "raw_scores.jsonl").read_text().splitlines()]
+    cohorts = {s["sessionId"]: s["cohort"] for s in scores}
+    assert cohorts.pop("s-esru-trial") == "teacher trial"
+    assert set(cohorts.values()) == {"classroom"}
+    everything = "".join(p.read_text() for p in tmp_path.iterdir())
+    assert TRIAL_GROUP not in everything
+
+
+def test_dry_run_with_teacher_trials_counts_them_on_their_own_line(bench, env, no_model_calls, capsys):
+    rc = bench.main(
+        ["--from-sessions", "--dry-run", "--include-teacher-trials", "--since", "2026-09-26", "--until", "2026-09-30"],
+        query=TrialBQ(),
+    )
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert "sessions      : 6 in 6 groups" in out and "teacher trials: 1" in out
+    assert TRIAL_GROUP not in out

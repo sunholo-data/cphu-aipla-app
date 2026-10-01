@@ -43,6 +43,12 @@ as a salted hash (ADR-001).
 
     make bench-tutor-sessions ARGS="--dry-run --since 2026-09-26 --until 2026-09-30"
 
+--include-teacher-trials also selects teachers' "Try as student" sessions
+(``preview-<code>`` groups, 1.1.133): the real lesson prompt, but a teacher as
+the student. They are labelled "teacher trial" and reported in their own
+section, never pooled into the classroom headline, matrix or n table.
+``preview:`` tutor previews and content-free ``teacher:`` rows stay out.
+
 Auth for a real run: Application Default Credentials with Vertex + Firestore
 read on the chosen project (``gcloud auth application-default login``).
 """
@@ -130,6 +136,11 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     g.add_argument("--tutor", default="", help="comma-separated tutor ids to keep (default: all)")
     g.add_argument("--framework", default="", help="comma-separated assigned framework ids to keep (default: all)")
     g.add_argument("--max-sessions", type=int, default=None, help="cap on sessions judged (earliest first)")
+    g.add_argument(
+        "--include-teacher-trials",
+        action="store_true",
+        help="also judge teachers' Try-as-student sessions (preview- groups), reported separately, never pooled",
+    )
     return p.parse_args(argv)
 
 
@@ -681,6 +692,7 @@ def from_sessions(
         tutors=_csv(args.tutor),
         frameworks=_csv(args.framework),
         max_sessions=args.max_sessions,
+        include_teacher_trials=args.include_teacher_trials,
     )
     plan = sd.plan_session_calls(sel.sessions, frameworks, judge_model)
     costs = plan.cost_eur()
@@ -697,7 +709,15 @@ def from_sessions(
                 f"  window        : {args.since} .. {until} (inclusive, UTC) · min tutor turns {min_turns}",
                 f"  filters       : tutor={args.tutor or 'all'} · framework={args.framework or 'all'}"
                 f" · max-sessions={args.max_sessions or 'none'}",
-                f"  sessions      : {len(sel.sessions)} in {len({s.group_id for s in sel.sessions})} groups",
+                f"  sessions      : {len(sel.classroom)} in {len({s.group_id for s in sel.classroom})} groups",
+                *(
+                    [
+                        f"  teacher trials: {len(sel.teacher_trials)} (Try as student; judged, reported "
+                        "separately, never pooled)"
+                    ]
+                    if args.include_teacher_trials
+                    else []
+                ),
                 f"  judge model   : {judge_model} (blind; analysis model) · approaches judged: {len(order)}",
                 f"  fit calls     : {plan.fit_calls} · tone calls: {plan.tone_calls} · sycophancy: 0 (no planted claim)",
                 f"  TOTAL CALLS   : {plan.total_calls} (before any 429/5xx retries; zero tutor calls)",
@@ -771,11 +791,12 @@ def from_sessions(
     _write_jsonl(out_dir / "raw_scores.jsonl", [{**r, "revision": revision, "judgeModel": judge_model} for r in rows])
 
     calls = sum((r["fit"] or {}).get("calls", 0) + (r["tone"] or {}).get("calls", 0) for r in rows)
+    who = "student groups + teacher trials (separate section)" if args.include_teacher_trials else "student groups only"
     provenance = [
         f"- Run: {datetime.now(UTC).isoformat(timespec='seconds')} · project `{project}` · "
         f"{time.monotonic() - started:.0f}s · code revision `{revision or 'unknown'}`",
         f"- Selection: `{args.since}` .. `{until}` inclusive (UTC) · `teaching_source = 'tutor'` with a framework · "
-        f"student groups only · >= {min_turns} tutor turns · tutor={args.tutor or 'all'} · "
+        f"{who} · >= {min_turns} tutor turns · tutor={args.tutor or 'all'} · "
         f"framework={args.framework or 'all'}",
         f"- Judge: `{judge_model}` (blind) · fit `{FIT_PROMPT_VERSION}` · tone `{TONE_PROMPT_VERSION}` · "
         f"judge calls made **{calls}** · retries on 429/5xx {judge_retries[0]} · estimate was EUR {est_total:.2f}",
