@@ -109,12 +109,36 @@ Verified against code and prod data on 2026-09-30, they come in two groups.
   session; the one-line fix is to add `"completion"` (better: import
   `REACTIVE_EVENT_KINDS`). A **strict-xfail** test in `test_proactive_reactive.py`
   flips red the moment it lands — delete the marker then.
-- Retrofit still to do with JB: `sol-jord-maane` has no finish event (its
-  `answer-commit` maps to `measurement_commit`).
+- Retrofit with JB: `sol-jord-maane` now emits `complete` (2026-10-01, see the
+  note below); JB to check the label and the meaning of `tier`.
 - Extra: `GenericArtefactFrame` now sends `ui/notifications/host-context-changed
   {locale}` to a running sim when the student switches DA/EN, instead of the locale
   reaching it only at the next load. No sim listens for it yet; the guest bridge
   would need to merge it into `hostContext()`.
+
+**Note for JB — what changed in `sol-jord-maane` (2026-10-01).** It is your sim, so
+please check the wording before it reaches a class; everything below is small and
+easy to change.
+
+- **New event `sol-jord-maane.complete`**, sent once each time a student finishes a
+  mission (presses *Send svar* on its last step). This is the event that makes the
+  tutor acknowledge the finished mission. Its card label reads
+  *"Fuldførte mission 2: Afstand eller hældning? – «…svar…» (2 af 5)"*, and on the
+  fifth *"… · alle 5 missioner er færdige"*. **Please check that label.**
+- **What "tier" means here — please confirm.** The sim has no levels of its own (the
+  level is the tutor's diagnosis), so `tier` is *missions finished* and `maxTier` is
+  5. At 5 of 5 the tutor consolidates instead of asking further questions. If you
+  meant something else by the top tier — one mission's own goal level, say — tell
+  us and we change the one function (`Missions.completion`).
+- **The final answer now arrives inside `complete`** (`detail.tekst`, and every text
+  the student wrote in that mission in `state.answers`), not as a separate
+  `answer-commit`. Two tutor-triggering events in the same instant race each other
+  at the gate, so one of them would have been lost. `answer-commit` is still in the
+  code for any answer that is not a mission's last step. The tutorBlock says so.
+- **Indstillinger can now be folded at every width** (it was fixed open above
+  860 px) and starts folded below 900 px; *Målinger* also starts folded below
+  900 px. Nothing else in the layout moved.
+- Not changed: the missions, the quiz, the physics, any Danish text in the sim.
 
 ### M1 — Sim chrome the student can get out of the way (~0.75d) · **P1**
 
@@ -127,7 +151,7 @@ Verified against code and prod data on 2026-09-30, they come in two groups.
 - Tell teachers, via the guide and the build-a-simulation page, to start from the
   standard prompt. JB's sim is the example of what it prevents.
 
-**What shipped — 2026-09-30** ✅ (the teacher-guide nudge is still open)
+**What shipped — 2026-09-30** ✅ (teacher-guide nudge added 2026-10-01: T2 da+en, R2, `/project/build-a-simulation`)
 
 - **Focus mode** reuses the split's existing "chat hidden" state (ratio 1.0, which
   the chat page already renders as `md:hidden` on the chat column) — no chat-page
