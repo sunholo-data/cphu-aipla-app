@@ -17,3 +17,11 @@ The chat renders LaTeX, so write mathematics as mathematics, not as code.
 This does not apply to a count, an index, a trial number, or a number in
 ordinary prose — "try the third one", "about 3 metres". A rule that is wrong
 some of the time gets ignored all of the time.
+
+**A simulation's own controls and readings are not mathematics.** When you refer
+to what the student set or read off in the simulation, write it the way the
+simulation shows it, in plain text — "Effekt 2000 W", "frekvens 1,5 Hz",
+"20 °C" — and use the simulation's own name for the control, not a symbol it
+does not display. Typeset only when you are building or manipulating a
+relationship (`$E = P \cdot t$`), and then a degree sign is `^\circ` outside
+`\text{}`, never inside it.

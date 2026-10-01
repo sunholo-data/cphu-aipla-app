@@ -125,3 +125,15 @@ def test_no_tutor_body_demonstrates_asterisk_multiplication(skill_name: str) -> 
         if re.search(r"(?<!\*)[A-Za-z0-9)]\*[A-Za-z0-9(]", line)
     ]
     assert not offenders, f"{skill_name} SKILL.md demonstrates `*` as multiplication: {offenders}"
+
+
+def test_preamble_leaves_sim_readings_in_plain_text(preamble_text: str) -> None:
+    """09-29 meeting: "the tutor displays simulation variables as LaTeX". Prod,
+    25-30 Sep: 78 of 205 tutor turns in sim sessions typeset a slider or reading
+    ("$2000 \\text{ W}$" for "Effekt — 2000 W"), and two put `^` inside `\\text{}`,
+    which KaTeX renders as red source. Sim values are written as the sim shows them."""
+    lowered = preamble_text.lower()
+    assert "simulation's own controls and readings are not mathematics" in lowered
+    assert "plain text" in lowered
+    flat = " ".join(preamble_text.split())
+    assert "outside `\\text{}`, never inside it" in flat
