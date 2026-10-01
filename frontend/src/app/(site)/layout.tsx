@@ -17,7 +17,7 @@ const PROJECT_JSON_LD = {
   alternateName: BRANDING.tagline,
   description: BRANDING.description,
   url: PUBLIC_SITE_ORIGIN,
-  sameAs: KU_ECOSYSTEM.map((link) => link.href),
+  sameAs: KU_ECOSYSTEM.flatMap((link) => (link.hrefEn ? [link.href, link.hrefEn] : [link.href])),
   parentOrganization: {
     "@type": "CollegeOrUniversity",
     name: HOST_ATTRIBUTION.university,

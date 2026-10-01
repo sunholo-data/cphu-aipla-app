@@ -16,6 +16,18 @@ describe("SiteFooter", () => {
     }
   });
 
+  it("sends English readers to the English project page, Danish readers to the Danish one", () => {
+    const official = KU_ECOSYSTEM[0];
+    expect(official.hrefEn).toContain("/english/projects/");
+    render(
+      <LocaleProvider locale="en">
+        <SiteFooter />
+      </LocaleProvider>,
+    );
+    expect(document.querySelector(`a[href="${official.hrefEn}"]`)).not.toBeNull();
+    expect(document.querySelector(`a[href="${official.href}"]`)).toBeNull();
+  });
+
   it("credits the platform engineering with a link to sunholo.com", () => {
     // Asserted in English; the footer follows the person's language (1.1.108).
     render(

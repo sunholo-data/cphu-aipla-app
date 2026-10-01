@@ -79,4 +79,4 @@ The platform is one part of the research project. It provides a place to design,
 
 AIPLA is based at the [Department of Science Education, University of Copenhagen](https://www.ind.ku.dk/) and works with Danish upper-secondary physics teachers and the national subject community.
 
-The [official University of Copenhagen project page](https://www.ind.ku.dk/projekter/artificial-intelligence-in-physics-learning-and-assessment-aipla/) is the authoritative source for the formal project description, funding period, and contact details. The university's [project announcement](https://www.ind.ku.dk/Nyheder/nyheder-2026/aipla/) provides additional background on the educational motivation and teacher collaboration.
+The [official University of Copenhagen project page](https://www.ind.ku.dk/english/projects/artificial-intelligence-in-physics-learning-and-assessment-aipla/) is the authoritative source for the formal project description, funding period, and contact details. The university's [project announcement](https://www.ind.ku.dk/Nyheder/nyheder-2026/aipla/) provides additional background on the educational motivation and teacher collaboration.

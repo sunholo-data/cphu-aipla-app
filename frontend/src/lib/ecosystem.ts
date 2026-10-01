@@ -7,7 +7,8 @@
  * URLs lived only inside `frontend/content/project/*.md` body text, so they
  * were invisible from every surface except /project.
  *
- * All four ku.dk URLs verified live 2026-08-11.
+ * All four ku.dk URLs verified live 2026-08-11. The English project page
+ * (`hrefEn` on the first link) was added and verified live 2026-10-01.
  *
  * NOTE ON REFERRER: every link here is rendered with `referrerPolicy` set to
  * "no-referrer". The class join link carries the group code in the URL
@@ -22,6 +23,9 @@ export interface EcosystemLink {
   label: string;
   /** Longer description — used for the link title and by the JSON-LD block. */
   description: string;
+  /** The same page in English, where KU publishes one. Followed by readers in
+   *  English; `href` (Danish) stays the default. Both go into JSON-LD `sameAs`. */
+  hrefEn?: string;
 }
 
 /**
@@ -32,6 +36,7 @@ export interface EcosystemLink {
 export const KU_ECOSYSTEM: readonly EcosystemLink[] = [
   {
     href: "https://www.ind.ku.dk/projekter/artificial-intelligence-in-physics-learning-and-assessment-aipla/",
+    hrefEn: "https://www.ind.ku.dk/english/projects/artificial-intelligence-in-physics-learning-and-assessment-aipla/",
     label: "Officiel projektside / Official project page",
     description:
       "The University of Copenhagen's formal record of the AIPLA project — description, funding period, and contacts.",
@@ -55,6 +60,11 @@ export const KU_ECOSYSTEM: readonly EcosystemLink[] = [
       "The Department of Science Education, University of Copenhagen — the project's host department.",
   },
 ] as const;
+
+/** The link's address in the reader's language — the English page if KU has one. */
+export function ecosystemHref(link: EcosystemLink, locale: string): string {
+  return locale === "en" && link.hrefEn ? link.hrefEn : link.href;
+}
 
 /**
  * Who built and runs the AI platform underneath AIPLA.

@@ -85,4 +85,4 @@ Features involving audio, images, uploaded documents, or longitudinal models of 
 
 The principles above describe the current project direction. Specific privacy notices, retention periods, institutional hosting decisions, and study procedures will be published or linked only after the relevant University of Copenhagen review.
 
-For formal institutional information, consult the [official AIPLA project page](https://www.ind.ku.dk/projekter/artificial-intelligence-in-physics-learning-and-assessment-aipla/) and the privacy information supplied for the relevant activity or study.
+For formal institutional information, consult the [official AIPLA project page](https://www.ind.ku.dk/english/projects/artificial-intelligence-in-physics-learning-and-assessment-aipla/) and the privacy information supplied for the relevant activity or study.

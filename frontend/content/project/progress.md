@@ -101,4 +101,4 @@ The next public updates will follow evidence and operating milestones rather tha
 
 The old site's detailed 17-week contract plan is preserved in its source history. It is not presented as the current roadmap because tentative dates, named handover assignments, and internal backlog do not all describe the platform as it exists now.
 
-Formal project facts remain on the [University of Copenhagen AIPLA page](https://www.ind.ku.dk/projekter/artificial-intelligence-in-physics-learning-and-assessment-aipla/).
+Formal project facts remain on the [University of Copenhagen AIPLA page](https://www.ind.ku.dk/english/projects/artificial-intelligence-in-physics-learning-and-assessment-aipla/).

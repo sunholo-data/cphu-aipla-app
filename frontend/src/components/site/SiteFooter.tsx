@@ -3,12 +3,13 @@
 import Link from "next/link";
 
 import { LanguageSwitch } from "@/components/site/LanguageSwitch";
-import { useT, type MessageKey } from "@/i18n";
+import { useLocaleMode, useT, type MessageKey } from "@/i18n";
 import { BRANDING } from "@/lib/branding";
 import {
   ENGINEERING_CREDIT,
   HOST_ATTRIBUTION,
   KU_ECOSYSTEM,
+  ecosystemHref,
   outboundLinkProps,
 } from "@/lib/ecosystem";
 
@@ -64,6 +65,9 @@ const linkClass =
 
 export function SiteFooter() {
   const t = useT("SiteFooter");
+  // The official project page has an English edition (2026-10-01); English
+  // readers get it, everyone else the Danish one.
+  const localeMode = useLocaleMode();
   return (
     <footer className="mt-16 border-t border-border print:hidden">
       <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6">
@@ -93,7 +97,7 @@ export function SiteFooter() {
               {KU_ECOSYSTEM.map((link) => (
                 <li key={link.href}>
                   <a
-                    href={link.href}
+                    href={ecosystemHref(link, localeMode)}
                     title={link.description}
                     className={linkClass}
                     {...outboundLinkProps()}
