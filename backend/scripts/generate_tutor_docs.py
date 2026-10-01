@@ -179,6 +179,16 @@ def render_design_doc(fw: TeachingFramework) -> str:
         "",
         f"**Framework id:** `{fw.id}` · **Layer:** `{fw.layer}` · **Status:** `{fw.status}` · **Setting:** `{fw.setting}`",
         *([_GROUP_TALK_DESIGN] if fw.requires_group_talk else []),
+        # 1.1.133 M2 — only when the approach declares a level, so frameworks
+        # that say nothing (all of them, today) render byte-identically.
+        *(
+            [
+                f"**Simulation control:** `{fw.sim_control}` — what a tutor with this approach may change in "
+                "the student's simulation ([1.1.133](../v2.1.0-extension/tutor-controls-sims.md))."
+            ]
+            if fw.sim_control
+            else []
+        ),
         f"**Source of truth:** [`backend/frameworks/{fw.id}.yaml`](../../../../backend/frameworks/{fw.id}.yaml)",
         f"**Public page:** [/project/tutors/{fw.id}](../../../../frontend/content/project/tutors/{fw.id}.md)"
         if not fw.is_placeholder

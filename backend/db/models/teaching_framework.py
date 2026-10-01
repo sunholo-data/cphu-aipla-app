@@ -201,6 +201,15 @@ class TeachingFramework(BaseModel):
     # declares ``group_talk``.
     setting: DialogueSetting = "one_to_one"
 
+    # 1.1.133 M2 — how much a tutor teaching with this approach may change the
+    # student's simulation (``control_sim``). Cumulative: none < view < scaffold
+    # < restrict. None means "the approach says nothing", which resolves to the
+    # platform default (``adk.sim_control_tools.DEFAULT_SIM_CONTROL`` = view).
+    # ⚠️ No published framework sets it yet. A POE tutor that locks time until a
+    # prediction is in needs ``restrict``, and that is a claim about the approach
+    # for the people who own the pedagogy to make in the YAML — not a default.
+    sim_control: Literal["none", "view", "scaffold", "restrict"] | None = Field(default=None, alias="simControl")
+
     # ── custom approaches (1.1.110) ──────────────────────────────────────────
     #
     # A custom approach carries its instruction as prose instead of deriving it

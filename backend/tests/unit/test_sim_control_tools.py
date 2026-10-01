@@ -142,6 +142,63 @@ def test_the_level_comes_from_the_tutors_framework(monkeypatch) -> None:
     assert resolve_sim_control_level("fw-gone") == "view"
 
 
+def test_every_published_framework_parses_with_a_valid_level() -> None:
+    """The field is optional and today no published framework sets it — every
+    base tutor and every framework tutor is therefore at the default. A POE
+    tutor wanting `restrict` is a decision for the framework file, signed off by
+    the people who own the pedagogy, not a default slipped in here."""
+    from frameworks.loader import load_frameworks
+
+    for fw in load_frameworks():
+        assert fw.sim_control in (None, "none", "view", "scaffold", "restrict"), fw.id
+
+
+def test_the_framework_field_reads_from_yaml_and_refuses_nonsense() -> None:
+    from pydantic import ValidationError
+
+    from db.models.teaching_framework import TeachingFramework
+
+    assert TeachingFramework(id="x", label="X", simControl="restrict").sim_control == "restrict"
+    assert TeachingFramework(id="x", label="X").sim_control is None
+    with pytest.raises(ValidationError):
+        TeachingFramework(id="x", label="X", simControl="everything")
+
+
+@pytest.mark.parametrize(
+    ("level", "has_tool", "has_lock"),
+    [("none", False, False), ("view", True, False), ("scaffold", True, False), ("restrict", True, True)],
+)
+def test_the_tutors_framework_decides_what_the_agent_is_built_with(
+    _activity_env, monkeypatch, level, has_tool, has_lock
+) -> None:
+    """End to end over the real agent builder: the class tutor's framework sets
+    `sim_control`, and the agent the student talks to is built accordingly — a
+    `none` tutor never gets the tool, a `view` tutor gets one with no `lock`."""
+    import adk.agent as agent_mod
+    import db.framework_overrides as fo
+    from adk.tutor_resolution import TeachingContext
+
+    monkeypatch.setattr(
+        agent_mod,
+        "resolve_teaching_context",
+        lambda *a, **k: TeachingContext(
+            tutor_id="t",
+            framework_id="fw",
+            persona_id=None,
+            class_id=None,
+            activity_id=None,
+            interaction_style=None,
+            source="tutor",
+        ),
+    )
+    monkeypatch.setattr(fo, "effective_framework", lambda fid: NS(sim_control=level) if fid == "fw" else None)
+    tools = _agent_tools("sol-jord-maane")
+    control = [t for t in tools if getattr(t, "name", "") == "control_sim"]
+    assert bool(control) is has_tool
+    if control:
+        assert ("lock" in _declared_commands(control[0])) is has_lock
+
+
 # --- M1: the call ------------------------------------------------------------
 
 
@@ -296,6 +353,10 @@ def _activity_env(monkeypatch):
 
 
 def _agent_tool_names(artefact_id: str | None) -> list[str]:
+    return [getattr(t, "name", type(t).__name__) for t in _agent_tools(artefact_id)]
+
+
+def _agent_tools(artefact_id: str | None) -> list:
     from adk.agent import create_agent
     from adk.teacher_focus import LOCAL_MODE_DEMO_CLASS_ID
     from auth.firebase_auth import User
@@ -321,7 +382,7 @@ def _agent_tool_names(artefact_id: str | None) -> list[str]:
     )
     student = User(uid="group-x", email="", domain="", group_id="sweet-bison-13", auth_mode="anonymous_group_id")
     agent = create_agent(skill, student)
-    return [getattr(t, "name", type(t).__name__) for t in agent.tools]
+    return list(agent.tools)
 
 
 def test_the_agent_gets_control_sim_on_a_commanding_sim(_activity_env) -> None:
