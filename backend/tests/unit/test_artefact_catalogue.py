@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import re
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
 
@@ -188,3 +191,116 @@ def test_sol_jord_maane_keeps_the_construct_map_server_side() -> None:
     # (`commit`); mission start and a finished step deliberately are not.
     for verb in ("prediction-commit", "answer-commit", "quiz-record", "view-record"):
         assert verb in a.event_vocabulary, verb
+
+
+# --- 1.1.133 M0 — a sim declares what may be done to it ----------------------
+
+_SANDBOX_ARTEFACTS = Path(__file__).resolve().parents[3] / "infrastructure" / "mcp-sandbox" / "artefacts"
+
+# `onHostNotification(ARTEFACT_NAME + '.cmd-' + name, …)` inside a
+# `['a', 'b'].forEach(function (name) { … })` — sol-jord-maane's shape.
+_LOOP_REGISTRATION = re.compile(
+    r"\[([^\]]*)\]\s*\.forEach\(\s*function\s*\((\w+)\)\s*\{\s*"
+    r"AIPLA_BRIDGE\.onHostNotification\([^)]*'\.cmd-'\s*\+\s*\2",
+)
+# …or one literal registration per command: `'<id>.cmd-jump'` / `".cmd-jump"`.
+_LITERAL_REGISTRATION = re.compile(r"onHostNotification\(\s*[^)]*?['\"][\w-]*\.cmd-(\w+)['\"]")
+
+
+def _registered_commands(html: str) -> set[str]:
+    names: set[str] = set()
+    for m in _LOOP_REGISTRATION.finditer(html):
+        names.update(re.findall(r"['\"](\w+)['\"]", m.group(1)))
+    names.update(_LITERAL_REGISTRATION.findall(html))
+    return names
+
+
+def test_every_declared_command_is_registered_by_the_sim() -> None:
+    """Two sources of truth for commands — catalogue and HTML — can drift. A
+    command the catalogue declares and the sim never registers is a tool call
+    that reaches the iframe and does nothing, with a card telling the student
+    it happened. Grep the artefact, same shape as the broadcast floor."""
+    checked = 0
+    for a in load_artefacts():
+        if not a.commands:
+            continue
+        html = (_SANDBOX_ARTEFACTS / a.id / a.version / "index.html").read_text(encoding="utf-8")
+        registered = _registered_commands(html)
+        missing = sorted(c.name for c in a.commands if c.name not in registered)
+        assert not missing, f"{a.id}: declared but not registered by the HTML: {missing}"
+        checked += 1
+    assert checked >= 1, "no artefact declares commands — sol-jord-maane should"
+
+
+def test_the_registration_grep_sees_both_shapes() -> None:
+    """The cross-check above is only as good as its grep: prove it finds the
+    loop form AND the literal form, and nothing else."""
+    html = (
+        "['jump', 'setView'].forEach(function (name) {\n"
+        "  AIPLA_BRIDGE.onHostNotification(ARTEFACT_NAME + '.cmd-' + name, function (p) {});\n"
+        "});\n"
+        "AIPLA_BRIDGE.onHostNotification('demo.cmd-reset', function () {});\n"
+        "AIPLA_BRIDGE.onHostNotification('ui/notifications/chat-flush', function () {});\n"
+    )
+    assert _registered_commands(html) == {"jump", "setView", "reset"}
+
+
+def test_sol_jord_maane_declares_its_commands_minus_the_returning_ones() -> None:
+    a = load_artefact("sol-jord-maane")
+    assert a is not None
+    names = {c.name for c in a.commands}
+    assert {"jump", "setView", "setScale", "setShow", "setTask", "lock", "configure"} <= names
+    # These RETURN something; the host has no reply channel (M4), and snapshot is an image.
+    assert not names & {"getState", "snapshot", "getMissions"}
+    jump = a.command("jump")
+    assert jump is not None
+    assert "solform" in jump.args["properties"]["event"]["enum"]
+    assert jump.render_effect({"event": "solform"}) == "Sprang til næste solformørkelse"
+    # Power tiers: removing an ability is `restrict`, never the default.
+    assert a.command("lock").power == "restrict"  # type: ignore[union-attr]
+    assert a.command("setTask").power == "scaffold"  # type: ignore[union-attr]
+    assert a.command("setView").power == "view"  # type: ignore[union-attr]
+
+
+def test_commands_are_public_and_the_tutor_block_still_is_not() -> None:
+    pub = load_artefact("sol-jord-maane").public()  # type: ignore[union-attr]
+    assert {c["name"] for c in pub["commands"]} >= {"jump"}
+    assert "tutorBlock" not in pub
+
+
+def test_an_artefact_without_commands_declares_none() -> None:
+    """Default-deny per sim: no `commands` means no control tool (M1)."""
+    a = load_artefact("boldkast")
+    assert a is not None
+    assert a.commands == []
+    assert a.public()["commands"] == []
+
+
+def _meta(**cmd) -> dict:
+    base = {"name": "jump", "description": "d", "effect": "e"}
+    base.update(cmd)
+    return {"id": "x", "displayName": "X", "commands": [base]}
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        _meta(args={"type": "object", "properties": {"a": {"pattern": ".*"}}}),  # unsupported keyword
+        _meta(args={"type": "string"}),  # top level must be an object
+        _meta(args={"type": "object", "properties": {}, "required": ["ghost"]}),
+        _meta(effect="Til {ghost}"),  # placeholder that is not an argument
+        _meta(name="cmd-jump"),  # names are identifiers, they become `<id>.cmd-<name>`
+        _meta(power="everything"),
+        _meta(valueLabels={"ghost": {"a": "b"}}),
+    ],
+)
+def test_a_malformed_command_is_refused_at_load(bad: dict) -> None:
+    with pytest.raises(ValidationError):
+        ArtefactMeta.model_validate(bad)
+
+
+def test_duplicate_command_names_are_refused() -> None:
+    data = _meta()
+    data["commands"].append(dict(data["commands"][0]))
+    with pytest.raises(ValidationError):
+        ArtefactMeta.model_validate(data)

@@ -15,13 +15,91 @@ so the catalogue deploys with the backend image.
 
 from __future__ import annotations
 
-from typing import Literal
+import re
+from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from db.models.curriculum import StxLevel
 
 ArtefactStatus = Literal["live", "beta", "deprecated"]
+
+#: How much a command does to the student's screen (1.1.133 M2). Cumulative: a
+#: tutor allowed ``scaffold`` may also issue ``view`` commands.
+#:
+#: - ``view``     — changes what is shown; the student can change it straight back
+#: - ``scaffold`` — puts tutor-authored text or structure on the student's screen
+#: - ``restrict`` — removes an ability from the student (locks, configuration)
+CommandPower = Literal["view", "scaffold", "restrict"]
+
+_PLACEHOLDER = re.compile(r"\{(\w+)\}")
+
+
+class ArtefactCommand(BaseModel):
+    """One thing a tutor may do to a sim (1.1.133 M0).
+
+    The sim must register a host notification ``<artefact-id>.cmd-<name>`` for
+    it — ``test_artefact_catalogue.py`` cross-checks the artefact's HTML, so the
+    catalogue and the sim cannot disagree about what exists.
+    """
+
+    name: str = Field(min_length=1, max_length=40, pattern=r"^[a-zA-Z][a-zA-Z0-9]*$")
+    # What the MODEL reads, in the tool description. English, like tutorBlock.
+    description: str = Field(min_length=1, max_length=300)
+    # A small JSON-Schema subset — see artefacts/arg_schema.py for exactly which.
+    args: dict[str, Any] = Field(default_factory=lambda: {"type": "object", "properties": {}})
+    # What the STUDENT reads on the chat card, in the sim's own language,
+    # templated from the args: "Hoppede til {event}".
+    effect: str = Field(min_length=1, max_length=160)
+    # Optional student-facing names for enum values, per argument, so the card
+    # reads "næste solformørkelse" rather than the wire value "solform".
+    value_labels: dict[str, dict[str, str]] = Field(default_factory=dict, alias="valueLabels")
+    power: CommandPower = "view"
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("args")
+    @classmethod
+    def _schema_is_supported(cls, v: dict[str, Any]) -> dict[str, Any]:
+        from artefacts.arg_schema import check_schema
+
+        check_schema(v)
+        return v
+
+    @model_validator(mode="after")
+    def _effect_names_real_args(self) -> ArtefactCommand:
+        props = set((self.args.get("properties") or {}).keys())
+        for placeholder in _PLACEHOLDER.findall(self.effect):
+            if placeholder not in props:
+                raise ValueError(f"command {self.name!r}: effect names {{{placeholder}}}, which is not an argument")
+        for arg in self.value_labels:
+            if arg not in props:
+                raise ValueError(f"command {self.name!r}: valueLabels names {arg!r}, which is not an argument")
+        return self
+
+    def render_effect(self, args: dict[str, Any]) -> str:
+        """The card text for these (already validated) args. Substitution only —
+        the template is never format-parsed, so a model-chosen value cannot
+        reach anything but its own slot."""
+
+        def _sub(m: re.Match[str]) -> str:
+            key = m.group(1)
+            value = args.get(key)
+            if value is None:
+                return ""
+            label = self.value_labels.get(key, {}).get(str(value))
+            return str(label if label is not None else value)[:80]
+
+        return _PLACEHOLDER.sub(_sub, self.effect).strip()
+
+    def public(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "description": self.description,
+            "args": self.args,
+            "effect": self.effect,
+            "power": self.power,
+        }
 
 
 class ArtefactMeta(BaseModel):
@@ -60,8 +138,24 @@ class ArtefactMeta(BaseModel):
     # "open this on a tablet" beats a sim that silently renders half a circuit.
     min_viewport_px: int | None = Field(default=None, alias="minViewportPx", ge=320, le=2000)
     status: ArtefactStatus = "live"
+    # 1.1.133 M0 — what a tutor may do to this sim. EMPTY MEANS UNCONTROLLABLE:
+    # no ``control_sim`` tool is built for an activity hosting it (default-deny,
+    # per sim). Public — a teacher should see what the tutor may do in the sim
+    # they attach.
+    commands: list[ArtefactCommand] = Field(default_factory=list, max_length=30)
 
     model_config = ConfigDict(populate_by_name=True)
+
+    @model_validator(mode="after")
+    def _command_names_unique(self) -> ArtefactMeta:
+        names = [c.name for c in self.commands]
+        dupes = sorted({n for n in names if names.count(n) > 1})
+        if dupes:
+            raise ValueError(f"artefact {self.id!r}: duplicate command name(s) {dupes}")
+        return self
+
+    def command(self, name: str) -> ArtefactCommand | None:
+        return next((c for c in self.commands if c.name == name), None)
 
     @property
     def artefact_path(self) -> str:
@@ -83,7 +177,8 @@ class ArtefactMeta(BaseModel):
             "thumbnail": self.thumbnail,
             "minViewportPx": self.min_viewport_px,
             "status": self.status,
+            "commands": [c.public() for c in self.commands],
         }
 
 
-__all__ = ["ArtefactMeta", "ArtefactStatus"]
+__all__ = ["ArtefactCommand", "ArtefactMeta", "ArtefactStatus", "CommandPower"]

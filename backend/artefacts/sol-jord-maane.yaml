@@ -35,6 +35,9 @@ eventVocabulary:
 # them to the student: the <sim>{command}</sim> control lines and the
 # <vurdering>{...}</vurdering> assessment lines. Source of record:
 # docs/design/mockups/aktivitetsmodul.md.
+# 1.1.133: the control lines are now the `control_sim` TOOL, built from the
+# `commands` list at the end of this file — the tool's own description tells the
+# tutor what it can do, so nothing about commands belongs in this block.
 tutorBlock: |
   THE ACTIVITY. Upper-secondary (stx) students work in a 3D simulation of the Sun, Earth and Moon with real ephemerides (valid 1900-2100). The goal is that they can themselves explain day and night, the seasons, lunar phases, and solar and lunar eclipses from how the three bodies stand and move relative to each other. Your dialogic approach comes from your own tutor instructions; this block gives you the content, what the student sees, and what the events mean. It says nothing about how to run the dialogue.
 
@@ -78,3 +81,212 @@ tutorBlock: |
   - `state-change` how they explored since the last commit (views, scale, observer, time jumps, toggles) — useful evidence of HOW they investigate, e.g. whether they predicted before jumping.
   Every payload's state carries time (UTC and Danish), view, scale, the observer (solar and lunar altitude/azimuth, day length, noon solar altitude, % of the Sun covered), Earth-Sun distance, solar longitude and declination, season, lunar phase, illumination, elongation, age in days, Moon distance and ecliptic latitude, the node angle, eclipse status, and mission progress.
 status: live
+# 1.1.133 M0 — what a tutor may do to this sim, through the `control_sim` tool
+# (never through text lines in its reply). Every name here must be registered by
+# the HTML as the host notification `sol-jord-maane.cmd-<name>`; the catalogue
+# test cross-checks. Taken from the sim's own `command()` switch, minus the
+# three that RETURN something (`getState`, `snapshot`, `getMissions`): the host
+# has no reply channel yet (1.1.133 M4), and `snapshot` is an image, which has
+# no channel at all. Args mirror what each handler actually reads.
+#
+# `power` gates by the tutor's approach (M2): view < scaffold < restrict. The
+# handlers call the sim's setters with no `source`, so none of them emits a
+# labelled event — a tutor command cannot trigger a proactive turn.
+commands:
+  - name: jump
+    description: "Move the simulation's time to the NEXT occurrence of an astronomical event (phase, equinox/solstice, apsis, local noon/midnight, next solar or lunar eclipse)."
+    args:
+      type: object
+      properties:
+        event:
+          enum: [nymaane, foerste, fuldmaane, sidste, foraar, sommer, efteraar, vinter, perihel, aphel, middag, midnat, solform, maaneform]
+      required: [event]
+    effect: "Sprang til {event}"
+    valueLabels:
+      event:
+        nymaane: næste nymåne
+        foerste: næste første kvarter
+        fuldmaane: næste fuldmåne
+        sidste: næste sidste kvarter
+        foraar: forårsjævndøgn
+        sommer: sommersolhverv
+        efteraar: efterårsjævndøgn
+        vinter: vintersolhverv
+        perihel: perihel
+        aphel: aphel
+        middag: middag
+        midnat: midnat
+        solform: næste solformørkelse
+        maaneform: næste måneformørkelse
+    power: view
+  - name: setTime
+    description: "Set the simulation clock to a moment, as an ISO 8601 UTC timestamp (valid 1900-2100)."
+    args:
+      type: object
+      properties:
+        iso: { type: string, maxLength: 40, description: "e.g. 2027-02-06T16:00:00Z" }
+      required: [iso]
+    effect: "Satte tiden til {iso}"
+    power: view
+  - name: addTime
+    description: "Move the simulation clock forward (or back, with negative values) by days and/or hours."
+    args:
+      type: object
+      properties:
+        days: { type: number, minimum: -36500, maximum: 36500 }
+        hours: { type: number, minimum: -8760, maximum: 8760 }
+    effect: "Flyttede tiden"
+    power: view
+  - name: play
+    description: "Start time running."
+    effect: "Satte tiden i gang"
+    power: view
+  - name: pause
+    description: "Stop time."
+    effect: "Stoppede tiden"
+    power: view
+  - name: setSpeed
+    description: "Set how fast simulated time runs, in simulated seconds per real second, and optionally its direction."
+    args:
+      type: object
+      properties:
+        secondsPerSecond: { type: integer, enum: [1, 60, 600, 3600, 21600, 86400, 604800, 2551443, 7889238] }
+        direction: { enum: [frem, tilbage] }
+    effect: "Ændrede tidens hastighed"
+    power: view
+  - name: setView
+    description: "Switch the viewpoint: space (free), ecliptic (Earth's orbit from above), earthmoon (Earth and Moon from above), sun (from the Sun toward Earth), surface (observer on Earth), geo (from Earth's centre), moon (from the Moon toward Earth). Optionally what to aim at."
+    args:
+      type: object
+      properties:
+        id: { enum: [space, ecliptic, earthmoon, sun, surface, geo, moon] }
+        target: { enum: [sun, earth, moon] }
+      required: [id]
+    effect: "Skiftede udsigt: {id}"
+    valueLabels:
+      id:
+        space: Rummet
+        ecliptic: Ovenfra – Jordens bane
+        earthmoon: Ovenfra – Jord og Måne
+        sun: Fra Solen mod Jorden
+        surface: Fra Jorden – observatør
+        geo: Fra Jordens centrum
+        moon: Fra Månen mod Jorden
+    power: view
+  - name: setScale
+    description: "Switch between exaggerated sizes (overdrevet) and true scale (korrekt)."
+    args:
+      type: object
+      properties:
+        scale: { enum: [korrekt, overdrevet] }
+      required: [scale]
+    effect: "Skiftede til {scale} skala"
+    power: view
+  - name: setObserver
+    description: "Place the observer: a preset (kbh, tromsoe, nordpol, aswan, quito, sydney, sydpol), or lat/lon in degrees with a display name."
+    args:
+      type: object
+      properties:
+        preset: { enum: [kbh, tromsoe, nordpol, aswan, quito, sydney, sydpol] }
+        lat: { type: number, minimum: -90, maximum: 90 }
+        lon: { type: number, minimum: -180, maximum: 180 }
+        name: { type: string, maxLength: 40 }
+    effect: "Flyttede observatøren {preset}{name}"
+    valueLabels:
+      preset:
+        kbh: til København
+        tromsoe: til Tromsø
+        nordpol: til Nordpolen
+        aswan: til Aswan
+        quito: til Quito
+        sydney: til Sydney
+        sydpol: til Sydpolen
+    power: view
+  - name: look
+    description: "Aim the camera in the current view: target to track, field of view (fov, degrees) or a direction (az/alt, degrees) for observer views; distance/elevation for orbit views; zoom for the view from the Sun."
+    args:
+      type: object
+      properties:
+        target: { enum: [sun, earth, moon] }
+        fov: { type: number, minimum: 1, maximum: 120 }
+        az: { type: number, minimum: 0, maximum: 360 }
+        alt: { type: number, minimum: -90, maximum: 90 }
+        distance: { type: number, minimum: 0.1, maximum: 100 }
+        elevation: { type: number, minimum: -90, maximum: 90 }
+        zoom: { type: number, minimum: 0.1, maximum: 100 }
+    effect: "Drejede kameraet"
+    power: view
+  - name: setShow
+    description: "Turn overlays on or off: orbits, planes (orbital planes and node line), axis, grid (equator/tropics/polar circles), labels, paths (sky paths), atmo (atmosphere)."
+    args:
+      type: object
+      properties:
+        orbits: { type: boolean }
+        planes: { type: boolean }
+        axis: { type: boolean }
+        grid: { type: boolean }
+        labels: { type: boolean }
+        paths: { type: boolean }
+        atmo: { type: boolean }
+    effect: "Ændrede hvad der vises"
+    power: view
+  - name: setTask
+    description: "Show a task card in the simulation with your own title, text and steps. The text is yours: write it in the language you are speaking with the student."
+    args:
+      type: object
+      properties:
+        title: { type: string, maxLength: 80 }
+        text: { type: string, maxLength: 400 }
+        steps: { type: array, maxItems: 5, items: { type: string, maxLength: 160 } }
+      required: [text]
+    effect: "Viste en opgave: {title}"
+    power: scaffold
+  - name: clearTask
+    description: "Remove the task card you showed."
+    effect: "Fjernede opgavekortet"
+    power: scaffold
+  - name: toast
+    description: "Show a short message over the simulation for a few seconds."
+    args:
+      type: object
+      properties:
+        text: { type: string, maxLength: 200 }
+      required: [text]
+    effect: "Viste beskeden: {text}"
+    power: scaffold
+  - name: startMission
+    description: "Start one of the five missions (M1 day, M2 seasons, M3 lunar phases, M4 eclipses, M5 scale); the sim sets itself up and shows the mission's task card."
+    args:
+      type: object
+      properties:
+        id: { enum: [M1, M2, M3, M4, M5] }
+      required: [id]
+    effect: "Startede mission {id}"
+    power: scaffold
+  - name: openMissions
+    description: "Open the mission picker."
+    effect: "Åbnede missionerne"
+    power: scaffold
+  - name: openQuiz
+    description: "Open the six diagnostic questions."
+    effect: "Åbnede diagnosespørgsmålene"
+    power: scaffold
+  - name: lock
+    description: "Lock (or unlock, with locked=false) controls so the student cannot change them: time, view, scale, observer, show, camera."
+    args:
+      type: object
+      properties:
+        controls: { type: array, maxItems: 6, items: { enum: [time, view, scale, observer, show, camera] } }
+        locked: { type: boolean }
+      required: [controls]
+    effect: "Ændrede hvilke knapper du kan bruge"
+    power: restrict
+  - name: configure
+    description: "Configure the mission structure: struktur neutral (default) or poe (a prediction is required first, and time is locked until it is sent); quiz on/off."
+    args:
+      type: object
+      properties:
+        struktur: { enum: [neutral, poe] }
+        quiz: { type: boolean }
+    effect: "Ændrede missionernes opsætning"
+    power: restrict
