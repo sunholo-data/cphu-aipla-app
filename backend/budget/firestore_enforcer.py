@@ -23,7 +23,9 @@ THE CAP IS A CIRCUIT BREAKER, NOT AN ACCOUNTANT
 
     Its job is to convert an unbounded liability into a bounded one. The
     BigQuery pipeline (``analytics/cost_queries.py``) stays the accounting
-    truth, and Ring 0's Vertex quota stays the actual ceiling.
+    truth. The platform-wide ceiling is the programme daily budget below, in
+    block mode (since 2026-10-01 — the Vertex `global` quota that used to be
+    Ring 0 does not cover the `eu` endpoint Gemini now runs on).
 """
 
 from __future__ import annotations

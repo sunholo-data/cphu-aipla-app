@@ -31,7 +31,10 @@ from config.models import default_model
 # silently fall back to the upstream template's project.
 _FALLBACK_PROJECT = os.environ.get("PLATFORM_DEFAULT_PROJECT", "aipla-dev-2026")
 os.environ.setdefault("GOOGLE_CLOUD_PROJECT", resolve_gcp_project() or _FALLBACK_PROJECT)
-os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "global")
+# `eu` = Vertex AI's EU multi-region endpoint: Gemini inference stays in the EU
+# (KU data protection). No single EU region serves the Gemini 3.x models. See
+# the GOOGLE_CLOUD_LOCATION comment in cloudbuild.yaml.
+os.environ.setdefault("GOOGLE_CLOUD_LOCATION", "eu")
 os.environ.setdefault("GOOGLE_GENAI_USE_VERTEXAI", "True")
 
 

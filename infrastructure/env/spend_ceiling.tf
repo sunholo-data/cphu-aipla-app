@@ -47,7 +47,13 @@ locals {
 # one. A per-minute cap throttles a spike but still permits unbounded spend over
 # a day, which is exactly the shape of the risk here (one leaked join code, many
 # patient sessions). `global_*` and not the regional metric because the backend
-# runs with GOOGLE_CLOUD_LOCATION=global (cloudbuild.yaml).
+# ran with GOOGLE_CLOUD_LOCATION=global.
+#
+# ⚠️ NO LONGER BINDING since 2026-10-01: the backend now runs on the `eu`
+# multi-region endpoint (EU inference for the KU data-protection review), which
+# has no daily quota and no Gemini 3.x entry in the regional per-minute quota.
+# The platform-wide ceiling is now the programme daily budget in block mode —
+# `make spend-ceiling ENV=<env> APPLY=1` (scripts/spend-ceiling.sh).
 
 # --- Billing budget + alerts -------------------------------------------------
 #

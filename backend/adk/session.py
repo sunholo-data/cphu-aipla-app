@@ -301,9 +301,9 @@ def _session_location() -> str:
 
     Defaults to ``GOOGLE_CLOUD_LOCATION`` to preserve the upstream-template
     behaviour (where the same region serves both Gemini and Agent Engine).
-    AIPLA overrides ``GOOGLE_CLOUD_LOCATION=global`` so gemini-3.5-flash
-    routes via the global Vertex endpoint; Agent Engine isn't hosted on
-    ``global``, so a dedicated ``VERTEX_SESSION_LOCATION`` env var pins
+    AIPLA sets ``GOOGLE_CLOUD_LOCATION=eu`` so Gemini routes via the EU
+    multi-region Vertex endpoint; Agent Engine isn't hosted on a
+    multi-region, so a dedicated ``VERTEX_SESSION_LOCATION`` env var pins
     sessions + memory to a real region (europe-west1 on AIPLA dev).
     """
     return os.environ.get("VERTEX_SESSION_LOCATION") or os.environ["GOOGLE_CLOUD_LOCATION"]
@@ -662,8 +662,8 @@ def get_session_service_uri() -> str | None:
     Returns the FULL resource path (``agentengine://projects/.../locations/<loc>/reasoningEngines/<id>``)
     so ADK's service registry pulls the location off the URI itself rather
     than falling back to ``GOOGLE_CLOUD_LOCATION``. AIPLA sets
-    ``GOOGLE_CLOUD_LOCATION=global`` for gemini-3.5-flash routing; Agent
-    Engine doesn't live on ``global``, so a bare numeric URI would 404.
+    ``GOOGLE_CLOUD_LOCATION=eu`` (multi-region) for Gemini routing; Agent
+    Engine doesn't live on a multi-region, so a bare numeric URI would 404.
     """
     agent_engine_id = os.environ.get("AGENT_ENGINE_ID")
     if agent_engine_id and not _force_in_memory_session():

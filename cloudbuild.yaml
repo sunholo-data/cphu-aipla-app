@@ -304,7 +304,7 @@ steps:
       # (dev done 2026-06-12; create per-env before cutting test/prod). Unset ->
       # backend stores curriculum metadata-only (no RAG). The corpus lives in
       # europe-west1; db/rag_corpus.py derives the region from this resource
-      # name, NOT GOOGLE_CLOUD_LOCATION=global below.
+      # name, NOT GOOGLE_CLOUD_LOCATION=eu below.
       - '--set-secrets=CURRICULUM_RAG_CORPUS_NAME=CURRICULUM_RAG_CORPUS_NAME:latest'
       # The pedagogy-literature corpus (1.1.110) — researcher AUTHORING only,
       # never reachable from a student session (db/literature_corpus.py exposes
@@ -321,17 +321,26 @@ steps:
       # this is the human-readable release tag alongside it. `_IMAGE_TAG` is the
       # release tag on a tag build and the branch name on a branch build.
       - '--set-env-vars=APP_VERSION=${_IMAGE_TAG}'
-      # AIPLA v0.1: gemini-3.5-flash is GA only on `global` endpoint
-      # (Resolved Decision 1 in jutland-demo.md). europe-north1 returns
-      # 404 for the model. Switch back to ${_REGION} when europe-north1
-      # rollout completes — Open Question 3.
-      - '--set-env-vars=GOOGLE_CLOUD_LOCATION=global'
+      # Gemini runs on Vertex AI's `eu` MULTI-REGION endpoint
+      # (aiplatform.eu.rep.googleapis.com): inference stays in the EU, which
+      # the KU data-protection review needs. Until 2026-10-01 this was
+      # `global`, which may serve a request from any region. No single EU
+      # region serves the Gemini 3.x models (europe-north1/west1/west3/west4/
+      # west9/southwest1 all 404 for 3.5-flash-lite and 3.6–3.8-flash, probed
+      # 2026-10-01); `eu` serves all four, plus RAG grounding, google_search,
+      # code execution and url_context.
+      # ⚠️ Vertex has NO daily quota on `eu`, so scripts/spend-ceiling.sh (which
+      # sets the `global_*` daily metric) no longer binds. The platform-wide
+      # cap is now the programme daily budget in block mode
+      # (db/programme_budget.py, `make programme-budget`).
+      # ⚠️ Promote twin: cloudbuild.promote.yaml re-stamps this value.
+      - '--set-env-vars=GOOGLE_CLOUD_LOCATION=eu'
       - '--set-env-vars=GOOGLE_GENAI_USE_VERTEXAI=True'
       # Agent Engine pinned to europe-west1 (closest EU region that hosts
       # reasoningEngines — europe-north1 does NOT). Read by adk.session
       # via VERTEX_SESSION_LOCATION to override the `global` value of
       # GOOGLE_CLOUD_LOCATION above for VertexAiSessionService +
-      # VertexAiMemoryBankService only. Model routing keeps using `global`.
+      # VertexAiMemoryBankService only. Model routing keeps using `eu`.
       - '--set-env-vars=VERTEX_SESSION_LOCATION=europe-west1'
       - '--set-env-vars=ADK_ARTIFACT_BUCKET=${_PROJECT_ID}-artifacts'
       - '--set-env-vars=LOGS_BUCKET_NAME=${_PROJECT_ID}-aipla-v01-logs'

@@ -33,15 +33,16 @@ def _corpus_location(corpus_name: str) -> str:
     The vertexai RAG SDK builds the upload/query endpoint from the *init*
     location, NOT the corpus's own region — so we MUST init with the corpus's
     region (europe-west1 for AIPLA), not the backend's ``GOOGLE_CLOUD_LOCATION``
-    (which is ``global`` for Gemini/Vertex GenAI and would route RAG ops to the
+    (which is the ``eu`` multi-region for Gemini/Vertex GenAI and would route RAG ops to the
     wrong endpoint). Parse ``projects/.../locations/<region>/ragCorpora/...``.
     """
     m = re.search(r"/locations/([^/]+)/", corpus_name)
     if m:
         return m.group(1)
-    # Fallback: explicit env override, else AIPLA's Vertex region (NOT "global").
+    # Fallback: explicit env override, else AIPLA's Vertex region. Never
+    # "global" or a multi-region ("eu"/"us") — RAG corpora live in a real region.
     loc = os.environ.get("GOOGLE_CLOUD_LOCATION", "").strip()
-    return loc if loc and loc != "global" else "europe-west1"
+    return loc if loc and loc not in {"global", "eu", "us"} else "europe-west1"
 
 
 async def upload_text_as_rag_file(

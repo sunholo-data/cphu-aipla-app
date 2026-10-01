@@ -34,6 +34,13 @@ TWO DELIBERATE DIVERGENCES FROM THE DESIGN DOC, both recorded in the sprint doc:
    surface. ``PROGRAMME_MAX_DAILY_BUDGET_USD`` is set by ops alongside the quota
    instead. It bounds the knob without the app learning to read its own ceiling.
 
+**Update 2026-10-01: this is now THE platform-wide ceiling.** Gemini moved to
+Vertex's `eu` multi-region endpoint (EU inference, KU data protection), and
+`eu` has no daily quota, so the Ring 0 Vertex override above no longer binds.
+`scripts/spend-ceiling.sh` sets this budget in BLOCK mode on every env and reads
+it back. The trade-off is explicit: an app-level ceiling a programme admin can
+change, bounded by ``PROGRAMME_MAX_DAILY_BUDGET_USD``.
+
 **Unset is the honest default.** The per-teacher caps and Ring 0 already bound
 things, and inventing a number before ``class_spend`` has a month of pilot data
 would be a guess wearing a suit. No document ⇒ no enforcement.

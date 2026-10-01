@@ -417,14 +417,12 @@ tf-fmt:
 check-iam-posture:
 	@./scripts/check-iam-posture.sh $(ENVS)
 
-# Ring 0 of ACCESS-1: the Vertex daily input-token ceiling — the control that
-# actually STOPS spend (the billing budget in infrastructure/env/spend_ceiling.tf
-# only reports it). Verify-only by default; APPLY=1 to write the override.
-#
-# It always reads the DEPLOYED quota back, because a quota override whose
-# base_model dimension does not match a real model applies to nothing and still
-# exits 0 — the same "reports success having done nothing" class of bug that
-# cost the prod data plane on 2026-08-03.
+# The platform-wide daily spend ceiling — the control that actually STOPS spend
+# (the billing budget in infrastructure/env/spend_ceiling.tf only reports it).
+# Since 2026-10-01 it is the programme daily budget in block mode, not the
+# Vertex `global` quota: Gemini moved to the `eu` endpoint, which has no daily
+# quota. Verify-only by default; APPLY=1 to write it. Always reads the deployed
+# value back — a write that did nothing must not read as a ceiling in place.
 check-spend-ceiling:
 	@./scripts/spend-ceiling.sh $(or $(ENV),dev)
 
