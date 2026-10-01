@@ -283,10 +283,17 @@ open transcript card, above the timeline).
   chart and the panel alike. `parseCellNumber` in `chartPlot.ts` now reads a
   comma or a dot as the decimal separator, and a thousands separator only when
   it is unambiguous (a space). It does not guess that the comma in `"1,234"` is a thousands separator. Text such as
-  `"12abc"` no longer counts as a number. ⚠️ **Not changed:** the calculator
-  (`WorkbenchCalculator.tsx`, `Number(raw)` in two places) still treats
-  `"3,42"` as no input, so it shows no result rather than a wrong one. The tutor push
-  and the rubric evidence carry cell strings unparsed.
+  `"12abc"` no longer counts as a number. **The calculator too:** its inputs
+  go through the same `parseCellNumber`, which now lives in the neutral
+  `lib/numbers.ts`. Before this, `Number("3,42")` returned NaN, so the input counted as empty and the
+  calculator gave no result. Its inputs are now `type="text" inputMode="decimal"`, because a
+  `type="number"` input hands the page `""` for a comma in most browsers. On a
+  Danish activity the result and the trust card show a decimal comma
+  (`formatDecimal`). What reaches the tutor keeps the dot form. ⚠️ **Still open:** the
+  data table's inputs are `type="number"`, so whether a typed comma reaches the
+  store depends on the browser. The chart now reads a comma correctly when
+  one arrives, but switching the table to a text input is a separate change.
+  The tutor push and the rubric evidence carry cell strings unparsed.
 
 **Acceptance still open:** the retro-test on prod data from 2026-09-22 (a
 deploy-side check), and M4.

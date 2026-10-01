@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
 import { useSimSnapshotPush } from "@/hooks/useSimSnapshotPush";
-import { useT, type Translate } from "@/i18n";
+import { useLocaleMode, useT, type LocaleMode, type Translate } from "@/i18n";
+import { formatDecimal, parseCellNumber } from "@/lib/numbers";
 import { evaluateFormula } from "@/lib/safeFormula";
 import type { CalcInput, CalculatorElement } from "@/lib/elementTypes";
 
@@ -34,18 +35,28 @@ interface CalcSnapshot {
   }[];
 }
 
+/** The tutor-facing form: dot decimal, float noise trimmed. Stored and pushed —
+ *  never localised, so every reader parses it the same way. */
 function fmt(n: number): string {
-  // Trim float noise without forcing fixed decimals.
-  return String(Number(n.toPrecision(6)));
+  return formatDecimal(n, "en");
+}
+
+/** A typed input → the number the formula sees. Accepts a Danish decimal comma
+ *  ("3,42"); anything that is not a number is "not filled" (1.1.136). */
+function inputNumber(raw: string): number | null {
+  const n = parseCellNumber(raw);
+  return Number.isFinite(n) ? n : null;
 }
 
 /** Human-readable card label for a commit — names the computed value(s) so the
  *  student sees what reached the tutor. Returns null when nothing has a result
  *  yet (a card for an incomplete calculator would be noise). */
-function commitLabel(snap: CalcSnapshot, t: Translate<"WorkbenchCalculator">): string | null {
+function commitLabel(snap: CalcSnapshot, t: Translate<"WorkbenchCalculator">, mode: LocaleMode): string | null {
   const computed = snap.calculators.filter((c) => c.result !== null);
   if (computed.length === 0) return null;
-  const parts = computed.map((c) => `${c.title.trim() || c.formula} = ${c.result}`);
+  // The card is read by the student, so it speaks their decimal convention.
+  const shown = (r: string) => formatDecimal(Number(r), mode);
+  const parts = computed.map((c) => `${c.title.trim() || c.formula} = ${shown(c.result!)}`);
   return t("commitCard", { results: parts.join(", ") });
 }
 
@@ -60,8 +71,8 @@ function buildCalcSnapshot(
       let allFilled = calc.inputs.length > 0;
       const inputs = calc.inputs.map((inp) => {
         const raw = values[`${calc.id}::${inp.id}`] ?? "";
-        const n = Number(raw);
-        if (raw.trim() === "" || !Number.isFinite(n)) allFilled = false;
+        const n = inputNumber(raw);
+        if (n === null) allFilled = false;
         else vars[inp.id] = n;
         return { label: inp.label, value: raw, unit: inp.unit ?? "" };
       });
@@ -99,6 +110,7 @@ export function WorkbenchCalculator({
   calculators,
 }: WorkbenchCalculatorProps) {
   const t = useT("WorkbenchCalculator");
+  const mode = useLocaleMode();
   const [values, setValues] = useState<Record<string, string>>({});
   const pushCalc = useSimSnapshotPush<CalcSnapshot>(sessionId, "calculator");
   const humanToolEvents = useHumanToolEvents();
@@ -116,12 +128,12 @@ export function WorkbenchCalculator({
     // 1.1.136 M0 — the card text rides the push too (a card per action, so it
     // IS the card label: restored on reload, synced live to a groupmate). An
     // input with no result yet is still logged, under the element's name.
-    const label = commitLabel(snap, t);
+    const label = commitLabel(snap, t, mode);
     const req = pushCalc(snap, "calculator.commit", label, { logLabel: label ?? t("untitled"), activityId });
     if (!req) return;
     if (label) humanToolEvents.dispatch({ label, push: () => req });
     else void req.catch(() => {});
-  }, [calculators, values, pushCalc, humanToolEvents, t, activityId]);
+  }, [calculators, values, pushCalc, humanToolEvents, t, mode, activityId]);
 
   // Catch-up push when sessionId arrives: a student may compute before the first
   // chat turn (sessionId null → push short-circuits). Push any computed result.
@@ -130,7 +142,7 @@ export function WorkbenchCalculator({
     const snap = buildCalcSnapshot(calculators, values);
     if (snap.calculators.some((c) => c.result !== null)) {
       const req = pushCalc(snap, "calculator.sync", null, {
-        logLabel: commitLabel(snap, t) ?? t("untitled"),
+        logLabel: commitLabel(snap, t, mode) ?? t("untitled"),
         activityId,
       });
       if (req) void req.catch(() => {});
@@ -146,8 +158,8 @@ export function WorkbenchCalculator({
         let allFilled = calc.inputs.length > 0;
         for (const inp of calc.inputs) {
           const raw = values[`${calc.id}::${inp.id}`] ?? "";
-          const n = Number(raw);
-          if (raw.trim() === "" || !Number.isFinite(n)) allFilled = false;
+          const n = inputNumber(raw);
+          if (n === null) allFilled = false;
           else vars[inp.id] = n;
         }
         const result = allFilled ? evaluateFormula(calc.formula, vars) : null;
@@ -169,9 +181,14 @@ export function WorkbenchCalculator({
                     {inp.label}
                     {inp.unit ? <span className="text-muted-foreground/70"> ({inp.unit})</span> : null}
                   </span>
+                  {/* type="text", not "number": a number input hands the page ""
+                      for "3,42" in most browsers, so a Danish student's comma
+                      never reached the parser. inputMode keeps the decimal
+                      keypad on a phone. (1.1.136) */}
                   <input
-                    type="number"
+                    type="text"
                     inputMode="decimal"
+                    autoComplete="off"
                     aria-label={inp.label}
                     value={values[`${calc.id}::${inp.id}`] ?? ""}
                     onChange={(e) =>
@@ -186,7 +203,7 @@ export function WorkbenchCalculator({
             <div className="mt-3 flex items-center justify-between border-t border-border pt-2">
               <span className="font-mono text-xs text-muted-foreground">{calc.formula} =</span>
               <span className="font-semibold tabular-nums" aria-label={t("result")}>
-                {result === null ? "—" : fmt(result)}
+                {result === null ? "—" : formatDecimal(result, mode)}
               </span>
             </div>
           </section>

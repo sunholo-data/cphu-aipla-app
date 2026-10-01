@@ -9,6 +9,7 @@ vi.mock("@/hooks/useSimSnapshotPush", () => ({ useSimSnapshotPush: () => pushCal
 const dispatch = vi.fn();
 vi.mock("@/hooks/useHumanToolEvents", () => ({ useHumanToolEvents: () => ({ dispatch }) }));
 
+import { LocaleProvider } from "@/i18n";
 import { WorkbenchCalculator, type CalculatorElementDef } from "../WorkbenchCalculator";
 
 const CALC: CalculatorElementDef = {
@@ -112,4 +113,59 @@ describe("WorkbenchCalculator", () => {
 afterEach(() => {
   pushCalc.mockClear();
   dispatch.mockClear();
+});
+
+// 1.1.136 — a Danish student types a decimal COMMA. `Number("3,42")` is NaN, so
+// the calculator used to treat the input as empty and never give a result.
+describe("WorkbenchCalculator — decimal conventions", () => {
+  const enter = (s: string, t: string) => {
+    fireEvent.change(screen.getByLabelText("Strækning"), { target: { value: s } });
+    fireEvent.change(screen.getByLabelText("Tid"), { target: { value: t } });
+  };
+
+  it("accepts a typed comma (a text input, not type=number, which drops it)", () => {
+    render(<WorkbenchCalculator skillId="s" calculators={[CALC]} />);
+    expect(screen.getByLabelText("Strækning")).toHaveAttribute("type", "text");
+    expect(screen.getByLabelText("Strækning")).toHaveAttribute("inputmode", "decimal");
+  });
+
+  it("computes from a Danish decimal comma, and shows the result with a comma", () => {
+    render(<WorkbenchCalculator skillId="s" calculators={[CALC]} />);
+    enter("3,42", "2");
+    expect(screen.getByLabelText("Resultat")).toHaveTextContent("1,71");
+  });
+
+  it("still computes from a dot", () => {
+    render(<WorkbenchCalculator skillId="s" calculators={[CALC]} />);
+    enter("3.42", "2");
+    expect(screen.getByLabelText("Resultat")).toHaveTextContent("1,71");
+  });
+
+  it("leaves the result empty for input that is not a number", () => {
+    render(<WorkbenchCalculator skillId="s" calculators={[CALC]} />);
+    enter("abc", "2");
+    expect(screen.getByLabelText("Resultat")).toHaveTextContent("—");
+    enter("12abc", "2");
+    expect(screen.getByLabelText("Resultat")).toHaveTextContent("—");
+  });
+
+  it("sends the tutor the dot form, and the student's card the comma form", () => {
+    render(<WorkbenchCalculator skillId="s" sessionId="sess-1" calculators={[CALC]} />);
+    enter("3,42", "2");
+    fireEvent.blur(screen.getByLabelText("Tid"));
+    const [snap] = pushCalc.mock.calls[0];
+    expect(snap.calculators[0].result).toBe("1.71");
+    expect(snap.calculators[0].inputs[0].value).toBe("3,42"); // what they typed, verbatim
+    expect(dispatch.mock.calls[0][0].label).toMatch(/Fart = 1,71/);
+  });
+
+  it("shows a dot on an English activity", () => {
+    render(
+      <LocaleProvider locale="en">
+        <WorkbenchCalculator skillId="s" calculators={[CALC]} />
+      </LocaleProvider>,
+    );
+    enter("3,42", "2");
+    expect(screen.getByLabelText("Result")).toHaveTextContent("1.71");
+  });
 });
