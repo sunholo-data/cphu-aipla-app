@@ -447,3 +447,36 @@ It keeps the rule where it earns its place (formulae, working) and takes it away
 it fights the sim's own labels. Verifying it is cheap: re-run the frequency query above
 on a week after the change — the "typeset a sim reading" row should fall well below 48
 while the formula turns stay.
+
+## Teacher-trial sessions judged — 2026-10-01
+
+`make bench-tutor-sessions ARGS="--go --include-teacher-trials --min-turns 4 --since 2026-09-27 --until 2026-09-29"`
+(136 judge calls, ≈ EUR 0.6). **5 "Try as student" sessions (`preview-` groups), all
+Mikkel/ESRU, 4–8 tutor turns**, almost certainly JB's experienced-teacher session.
+They are judged and reported **separately**, never pooled with classroom sessions.
+
+| session | tutor turns | ESRU fit | best other | tone |
+|---|---|---|---|---|
+| 1 | 8 | 0.75 | 5E 0.40 | none |
+| 2 | 4 | 0.25 | 5E 0.10 | none |
+| 3 | 5 | 0.75 | 5E 0.70 | none |
+| 4 | 5 | 0.88 | 5E 0.60 | none |
+| 5 | 4 | 0.50 | 5E 0.30 | none |
+
+**Mikkel did ESRU in all five trials** (own approach top in 5/5), and **the judge found
+no unearned praise in any of them**, before the praise preamble shipped. Neither
+of JB's two impressions (*"not based on the teaching approach"*, *"too sycophantic"*)
+is reproduced by the instrument on the sessions that most likely produced them.
+
+Three readings, not exclusive:
+1. **The instrument misses what JB meant.** ESRU is the judge's most generous ruler
+   (BENCH: near ceiling for every tutor), so "ESRU wins" is weak evidence. And the tone
+   probe grades *unearned praise*; "sycophantic" may have meant over-agreeable,
+   validating, or eager-to-please in register, which the probe does not test.
+2. **The impression came from elsewhere**: a different session, a teacher's live
+   reading of one exchange, or the persona's voice and style rather than its pedagogy.
+3. **Short sessions** (4–8 tutor turns) are too short to show an approach clearly.
+
+**Next:** show JB transcripts 1 and 4 (the longest and the highest-fit) next to this
+table, and ask him to point at the turns he meant. That turns an impression into a
+rubric item, and is cheaper than recalibrating the judge blind.
