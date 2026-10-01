@@ -278,10 +278,15 @@ open transcript card, above the timeline).
   document per group + activity, across sessions; the panel's hint says so.
   Reconstructing the state at a session's end is what the timeline's expanded
   cards are for.
-- ⚠️ **Found, not fixed:** the chart parses cells with `parseFloat`, so a
-  Danish decimal comma (`"3,42"`) plots as **3** — on the student's chart and,
-  deliberately identically, on the panel. The fix belongs in
-  `plotFromCells`, once, so both change together.
+- **Fixed in the same sprint — the decimal comma.** The chart parsed cells
+  with `parseFloat`, so a Danish `"3,42"` plotted as **3** on the student's
+  chart and the panel alike. `parseCellNumber` in `chartPlot.ts` now reads a
+  comma or a dot as the decimal separator, and a thousands separator only when
+  it is unambiguous (a space). It does not guess that the comma in `"1,234"` is a thousands separator. Text such as
+  `"12abc"` no longer counts as a number. ⚠️ **Not changed:** the calculator
+  (`WorkbenchCalculator.tsx`, `Number(raw)` in two places) still treats
+  `"3,42"` as no input, so it shows no result rather than a wrong one. The tutor push
+  and the rubric evidence carry cell strings unparsed.
 
 **Acceptance still open:** the retro-test on prod data from 2026-09-22 (a
 deploy-side check), and M4.
