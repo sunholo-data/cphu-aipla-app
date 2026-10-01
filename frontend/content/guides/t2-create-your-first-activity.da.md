@@ -84,6 +84,19 @@ Alt, hvad eleven gør i arbejdsområdet — værdier de indtaster, en simulation
 kører — deles med tutoren, så den kan reagere på deres faktiske arbejde.
 :::
 
+::: callout-note
+## Vil du bygge din egen simulation?
+
+Tag udgangspunkt i den faste prompt til at bygge simuleringer, ikke i en tom
+chat. Kopiér den fra <https://aipla.ku.dk/project/build-a-simulation>, eller
+giv din AI-chat den rene tekstfil <https://aipla.ku.dk/sim-authoring-prompt.txt>.
+En simulation bygget ud fra den giver tutoren besked, når eleven tager en
+måling eller gennemfører en mission, så tutoren reagerer, uden at du skal
+skubbe til den. Og dens kontrolpaneler kan foldes sammen, så de ikke dækker
+simuleringen på en bærbar eller en telefon. En simulation bygget uden prompten
+kan sagtens fungere godt og alligevel mangle begge dele.
+:::
+
 ![Live-forhåndsvisningen viser elevens visning, mens du bygger.](/guides/assets/t2-04-elements.png)
 
 ## Trin 5 — Opret aktiviteten

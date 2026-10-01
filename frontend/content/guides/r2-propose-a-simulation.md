@@ -90,6 +90,16 @@ It tells the AI the size limit, the
 vocabulary, so what comes back can be dropped in with little rework rather than
 rebuilt.
 
+::: callout-tip
+**Start from the prompt even if you have built simulations with an AI before.**
+Two things come with it that are easy to miss without it. The tutor is told
+when a student takes a measurement or finishes a mission, so it responds on its
+own instead of waiting for the teacher to prompt it. And the control panels
+fold away and start folded on small screens, so they do not cover the
+experiment. A Sun–Earth–Moon simulation built from a blank chat in September
+2026 worked well in class and still needed both added afterwards.
+:::
+
 Then describe your experiment. A good brief says:
 
 1. **The physics.** The relationship the student should come away with.

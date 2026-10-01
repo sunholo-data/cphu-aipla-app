@@ -82,6 +82,18 @@ Anything the student does in the workspace — values they enter, a simulation
 they run — is shared with the tutor, so it can respond to their actual work.
 :::
 
+::: callout-note
+## Building your own simulation?
+
+Start from the standard authoring prompt rather than a blank chat. Copy it from
+<https://aipla.ku.dk/project/build-a-simulation>, or give your AI chat the plain
+file <https://aipla.ku.dk/sim-authoring-prompt.txt>. A simulation built from it
+tells the tutor when a student takes a measurement or finishes a mission, so
+the tutor responds without you prompting it, and its control panels fold away
+so they do not cover the simulation on a laptop or phone. A simulation built
+without it can work well and still miss both.
+:::
+
 ![The live preview shows the student's view as you build.](/guides/assets/t2-04-elements.png)
 
 ## Step 5 — Create the activity

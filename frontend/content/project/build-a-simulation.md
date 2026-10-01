@@ -74,6 +74,8 @@ The bench is about 700 px wide on a laptop and 390 px on a phone, so this is not
 
 The prompt tells the AI the size limit, the "no external resources" rule, the light-on-white visual standard and the event vocabulary the tutor listens for, so what comes back can be dropped in with little rework rather than rebuilt. It was tested cold on 2026-09-14 — a fresh AI given only the prompt and a brief produced simulations that passed every automated gate on the first attempt.
 
+**Start from this prompt even if you have built simulations with an AI before.** Two things come with it that are easy to miss without it. The tutor is told when a student takes a measurement or finishes a mission, so it responds on its own instead of waiting for the teacher to prompt it. And the control panels fold away, starting folded on small screens, so they do not cover the experiment on a laptop beside the chat or on a phone. A Sun–Earth–Moon simulation built from a blank chat in September 2026 worked well in class and still needed both added afterwards.
+
 ## What happens to your draft
 
 Your two files then go through a documented path that does the following, none of which is your problem:
