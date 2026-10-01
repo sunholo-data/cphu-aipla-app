@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
 import { useSimSnapshotPush } from "@/hooks/useSimSnapshotPush";
 import { useT } from "@/i18n";
+import { parseCellNumber } from "@/lib/numbers";
 import { fetchTable, saveTableCells } from "@/lib/tableApi";
 import type { TableColumn, TableElement } from "@/lib/elementTypes";
 
@@ -68,6 +69,14 @@ function cellKey(tableId: string, row: number, colId: string): string {
   return `${tableId}::${row}::${colId}`;
 }
 
+/** A numeric cell the chart cannot read (1.1.136). Empty is not "wrong" — it is
+ *  just not filled yet. Decided by `parseCellNumber`, the same reader the chart
+ *  uses, so the hint and the plot never disagree about what counts as a number. */
+function isUnreadableNumber(raw: string | undefined): boolean {
+  if (raw == null || raw.trim() === "") return false;
+  return Number.isNaN(parseCellNumber(raw));
+}
+
 /**
  * WorkbenchTable — student-fillable data table for a teacher-authored activity
  * (1.1.38 M1). The teacher defines columns + an empty row count; the student
@@ -90,6 +99,9 @@ export function WorkbenchTable({ skillId, tables, sessionId, activityId }: Workb
   const t = useT("WorkbenchTable");
   const revisionRef = useRef(0);
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  // The cell being typed in. The not-a-number hint waits for the student to
+  // leave the cell — "-" or "3e" mid-entry is not a mistake yet.
+  const [focusedKey, setFocusedKey] = useState<string | null>(null);
   // Last-pushed value per cell — a blur with no change is a no-op (no duplicate
   // iframe-context push).
   const committedRef = useRef<Record<string, string>>({});
@@ -289,7 +301,17 @@ export function WorkbenchTable({ skillId, tables, sessionId, activityId }: Workb
 
   return (
     <div className="space-y-4 p-4">
-      {tables.map((table) => (
+      {tables.map((table) => {
+        const hintId = `${table.id}-number-hint`;
+        const showHint = table.columns.some(
+          (col) =>
+            col.kind !== "text" &&
+            Array.from({ length: table.rows }).some((_, r) => {
+              const key = cellKey(table.id, r, col.id);
+              return key !== focusedKey && isUnreadableNumber(values[key]);
+            }),
+        );
+        return (
         <section
           key={table.id}
           className="rounded-lg border border-border bg-card p-4 text-sm"
@@ -332,17 +354,32 @@ export function WorkbenchTable({ skillId, tables, sessionId, activityId }: Workb
                   <tr key={r}>
                     {table.columns.map((col) => {
                       const key = cellKey(table.id, r, col.id);
+                      // 1.1.136 — a numeric cell is a TEXT input with a decimal
+                      // keypad, not type="number": most browsers hand the page ""
+                      // for "3,42" in a number input, so a Danish reading was
+                      // lost before any parser saw it. The value is stored EXACTLY
+                      // as typed; only the chart parses it (parseCellNumber).
+                      const numeric = col.kind !== "text";
+                      const unreadable = numeric && key !== focusedKey && isUnreadableNumber(values[key]);
                       return (
                         <td key={col.id} className="border-b border-border/50 px-1 py-0.5">
                           <input
-                            type={col.kind === "text" ? "text" : "number"}
-                            inputMode={col.kind === "text" ? "text" : "decimal"}
+                            type="text"
+                            inputMode={numeric ? "decimal" : "text"}
                             value={values[key] ?? ""}
                             onChange={(e) =>
                               setValues((prev) => ({ ...prev, [key]: e.target.value }))
                             }
-                            onBlur={() => commit(table, key)}
-                            className="w-full rounded border border-transparent bg-transparent px-1 py-0.5 focus:border-primary focus:outline-none"
+                            onFocus={() => setFocusedKey(key)}
+                            onBlur={() => {
+                              setFocusedKey((k) => (k === key ? null : k));
+                              commit(table, key);
+                            }}
+                            aria-invalid={unreadable || undefined}
+                            aria-describedby={unreadable ? hintId : undefined}
+                            className={`w-full rounded border bg-transparent px-1 py-0.5 focus:border-primary focus:outline-none ${
+                              unreadable ? "border-dashed border-amber-500/70" : "border-transparent"
+                            }`}
                             aria-label={t("cellLabel", { table: table.title || t("untitledLower"), column: col.label, row: r + 1 })}
                           />
                         </td>
@@ -353,11 +390,19 @@ export function WorkbenchTable({ skillId, tables, sessionId, activityId }: Workb
               </tbody>
             </table>
           </div>
+          {/* Soft, not a block: the reading is kept and shared as typed; the
+              student is only told the chart will skip it. */}
+          {showHint ? (
+            <p id={hintId} className="mt-2 text-xs text-amber-700 dark:text-amber-400">
+              {t("notANumber")}
+            </p>
+          ) : null}
           <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">
             {t("footer")}
           </p>
         </section>
-      ))}
+        );
+      })}
     </div>
   );
 }

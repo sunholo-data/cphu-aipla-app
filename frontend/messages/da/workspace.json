@@ -133,6 +133,7 @@
     "saved": "Gemt for gruppen",
     "saveError": "Ikke gemt — prøver igen",
     "cellLabel": "{table} {column} række {row}",
+    "notANumber": "Nogle felter er ikke tal, så grafen springer dem over. Brug cifre med komma eller punktum som decimaltegn.",
     "footer": "Indtast dine målinger — de deles med vejlederen, så du kan spørge til dem."
   },
   "WorkbenchTabs": {

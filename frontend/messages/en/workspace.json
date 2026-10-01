@@ -133,6 +133,7 @@
     "saved": "Saved for the group",
     "saveError": "Not saved — retrying",
     "cellLabel": "{table} {column} row {row}",
+    "notANumber": "Some cells aren't numbers, so the chart skips them. Use digits, with a comma or a dot for decimals.",
     "footer": "Enter your measurements — they're shared with the tutor, so you can ask about them."
   },
   "WorkbenchTabs": {

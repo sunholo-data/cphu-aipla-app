@@ -289,11 +289,16 @@ open transcript card, above the timeline).
   calculator gave no result. Its inputs are now `type="text" inputMode="decimal"`, because a
   `type="number"` input hands the page `""` for a comma in most browsers. On a
   Danish activity the result and the trust card show a decimal comma
-  (`formatDecimal`). What reaches the tutor keeps the dot form. ⚠️ **Still open:** the
-  data table's inputs are `type="number"`, so whether a typed comma reaches the
-  store depends on the browser. The chart now reads a comma correctly when
-  one arrives, but switching the table to a text input is a separate change.
-  The tutor push and the rubric evidence carry cell strings unparsed.
+  (`formatDecimal`). What reaches the tutor keeps the dot form. **And the data
+  table (done 2026-10-01):** its numeric cells were `type="number"`, so whether
+  a typed comma reached the store depended on the browser. They are now
+  `type="text" inputMode="decimal"` (phones keep the decimal keypad; text
+  columns are unchanged). The cell string is stored, synced to the group and
+  pushed to the tutor **exactly as typed** — `"3,42"` stays `"3,42"`; only the
+  chart parses it. A numeric cell `parseCellNumber` cannot read gets a soft
+  hint once the student leaves it (dashed border, `aria-invalid`, one line
+  saying the chart skips it); the value is kept, not blocked. The tutor push
+  and the rubric evidence carry cell strings unparsed.
 
 **Acceptance still open:** the retro-test on prod data from 2026-09-22 (a
 deploy-side check), and M4.

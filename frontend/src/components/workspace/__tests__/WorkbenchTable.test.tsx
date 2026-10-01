@@ -1,7 +1,10 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { WorkbenchChart, type ChartElementDef } from "../WorkbenchChart";
 import { TABLE_CARD_DEBOUNCE_MS, WorkbenchTable, type TableElementDef } from "../WorkbenchTable";
+import { plotFromCells } from "@/components/shared/work/chartPlot";
+import { resolveChartBinding } from "@/lib/resolveChartBinding";
 
 vi.mock("@/lib/apiClient", () => ({
   fetchWithAuth: vi.fn(() => Promise.resolve(new Response(null, { status: 204 }))),
@@ -36,8 +39,15 @@ describe("WorkbenchTable", () => {
     expect(screen.getByText("Tid")).toBeInTheDocument();
     expect(screen.getByText("(s)")).toBeInTheDocument();
     expect(screen.getByText("(m/s)")).toBeInTheDocument();
-    // 3 rows × 2 number columns = 6 numeric inputs.
-    expect(screen.getAllByRole("spinbutton")).toHaveLength(6);
+    // 3 rows × 2 number columns = 6 inputs. Text inputs with a decimal keypad,
+    // not spinbuttons — a type="number" input drops a Danish "3,42" (1.1.136).
+    expect(screen.queryAllByRole("spinbutton")).toHaveLength(0);
+    const inputs = screen.getAllByRole("textbox") as HTMLInputElement[];
+    expect(inputs).toHaveLength(6);
+    for (const input of inputs) {
+      expect(input.type).toBe("text");
+      expect(input.inputMode).toBe("decimal");
+    }
   });
 
   it("lets the student enter a value", () => {
@@ -265,5 +275,131 @@ describe("WorkbenchTable", () => {
     fireEvent.blur(cell);
     const body = JSON.parse((vi.mocked(fetchWithAuth).mock.calls[0][1] as RequestInit).body as string);
     expect(body.structuredContent.tables.map((t: { tableId: string }) => t.tableId)).toEqual(["t1", "t2"]);
+  });
+});
+
+/**
+ * 1.1.136 — the decimal comma. A type="number" input hands the page "" for
+ * "3,42" in most browsers, so a Danish reading never reached the store. The
+ * cells are now text inputs; the value is kept EXACTLY as typed, and only the
+ * chart parses it.
+ */
+describe("WorkbenchTable — decimal comma", () => {
+  // A fresh in-memory sessionStorage per test, so no reading leaks between
+  // tests (or from the describe above) through the offline buffer.
+  let store: Map<string, string>;
+  const realStorage = window.sessionStorage;
+  beforeEach(() => {
+    store = new Map();
+    Object.defineProperty(window, "sessionStorage", {
+      configurable: true,
+      value: {
+        getItem: (k: string) => store.get(k) ?? null,
+        setItem: (k: string, v: string) => void store.set(k, String(v)),
+        removeItem: (k: string) => void store.delete(k),
+        clear: () => store.clear(),
+      },
+    });
+    vi.mocked(fetchWithAuth).mockReset();
+    vi.mocked(fetchWithAuth).mockImplementation(() => Promise.resolve(new Response(null, { status: 204 })));
+    dispatch.mockClear();
+  });
+  afterEach(() => {
+    Object.defineProperty(window, "sessionStorage", { configurable: true, value: realStorage });
+  });
+
+  it.each(["3,42", "3.42"])("accepts %s and stores it exactly as typed", (typed) => {
+    render(<WorkbenchTable skillId="skill-1" tables={[TABLE]} sessionId="sess-1" />);
+    const cell = screen.getByLabelText("Målinger Tid række 1") as HTMLInputElement;
+    fireEvent.change(cell, { target: { value: typed } });
+    fireEvent.blur(cell);
+    expect(cell.value).toBe(typed);
+    expect(JSON.parse(store.get(KEY) || "{}")["t1::0::t"]).toBe(typed);
+    // The tutor gets the student's own string, not a normalised one.
+    const body = JSON.parse((vi.mocked(fetchWithAuth).mock.calls[0][1] as RequestInit).body as string);
+    expect(body.structuredContent.tables[0].data[0].t).toBe(typed);
+    expect(screen.queryByText(/ikke tal/i)).not.toBeInTheDocument();
+  });
+
+  it("saves a comma reading to the group store verbatim", async () => {
+    vi.mocked(fetchWithAuth).mockImplementation((url: RequestInfo | URL, opts?: RequestInit) => {
+      if (String(url).includes("/table") && opts?.method === "PUT") {
+        return Promise.resolve(
+          new Response(JSON.stringify({ cells: { "t1::0::t": "3,42" }, revision: 1 }), { status: 200 }),
+        );
+      }
+      if (String(url).includes("/table")) {
+        return Promise.resolve(new Response(JSON.stringify({ cells: {}, revision: 0 }), { status: 200 }));
+      }
+      return Promise.resolve(new Response(null, { status: 204 }));
+    });
+    render(<WorkbenchTable skillId="skill-1" activityId="act-1" tables={[TABLE]} />);
+    const cell = screen.getByLabelText("Målinger Tid række 1");
+    fireEvent.change(cell, { target: { value: "3,42" } });
+    fireEvent.blur(cell);
+    const put = await vi.waitFor(() => {
+      const call = vi.mocked(fetchWithAuth).mock.calls.find(([, o]) => (o as RequestInit)?.method === "PUT");
+      expect(call).toBeTruthy();
+      return call!;
+    });
+    expect(JSON.parse((put[1] as RequestInit).body as string).cells["t1::0::t"]).toBe("3,42");
+  });
+
+  it("the chart plots a typed '3,42' at 3.42", () => {
+    const CHART: ChartElementDef = { id: "c1", title: "Fart-tid", chartKind: "scatter" };
+    render(
+      <>
+        <WorkbenchTable skillId="skill-1" tables={[TABLE]} />
+        <WorkbenchChart skillId="skill-1" charts={[CHART]} tables={[TABLE]} />
+      </>,
+    );
+    const x = screen.getByLabelText("Målinger Tid række 1");
+    fireEvent.change(x, { target: { value: "3,42" } });
+    fireEvent.blur(x);
+    const y = screen.getByLabelText("Målinger Fart række 1");
+    fireEvent.change(y, { target: { value: "1,5" } });
+    fireEvent.blur(y);
+    // The rendered chart left its empty state…
+    expect(screen.queryByText(/udfyld datatabellen/i)).not.toBeInTheDocument();
+    // …and what it plots from the stored cells is 3.42, not 3.
+    const binding = resolveChartBinding(CHART, [TABLE])!;
+    const plotted = plotFromCells(binding, JSON.parse(store.get(KEY) || "{}"));
+    expect(plotted.points).toEqual([{ x: 3.42, y: 1.5 }]);
+  });
+
+  it("hints softly at a non-numeric entry in a number column, and keeps it", () => {
+    render(<WorkbenchTable skillId="skill-1" tables={[TABLE]} sessionId="sess-1" />);
+    const cell = screen.getByLabelText("Målinger Tid række 1") as HTMLInputElement;
+    fireEvent.focus(cell);
+    fireEvent.change(cell, { target: { value: "ca. 3" } });
+    // Not while typing…
+    expect(screen.queryByText(/ikke tal/i)).not.toBeInTheDocument();
+    fireEvent.blur(cell);
+    // …but once the student leaves the cell.
+    const hint = screen.getByText(/ikke tal/i);
+    expect(cell).toHaveAttribute("aria-invalid", "true");
+    expect(cell.getAttribute("aria-describedby")).toBe(hint.id);
+    // A hint, not a block: the value is kept, stored and shared as typed.
+    expect(cell.value).toBe("ca. 3");
+    expect(JSON.parse(store.get(KEY) || "{}")["t1::0::t"]).toBe("ca. 3");
+    expect(fetchWithAuth).toHaveBeenCalledTimes(1);
+    // Fixing it clears the hint.
+    fireEvent.change(cell, { target: { value: "3" } });
+    expect(screen.queryByText(/ikke tal/i)).not.toBeInTheDocument();
+    expect(cell).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("does not hint on a text column", () => {
+    const withText: TableElementDef = {
+      ...TABLE,
+      columns: [...TABLE.columns, { id: "n", label: "Note", kind: "text" }],
+    };
+    render(<WorkbenchTable skillId="skill-1" tables={[withText]} />);
+    const note = screen.getByLabelText("Målinger Note række 1") as HTMLInputElement;
+    expect(note.inputMode).toBe("text");
+    fireEvent.change(note, { target: { value: "skred lidt" } });
+    fireEvent.blur(note);
+    expect(screen.queryByText(/ikke tal/i)).not.toBeInTheDocument();
+    expect(note).not.toHaveAttribute("aria-invalid");
   });
 });
