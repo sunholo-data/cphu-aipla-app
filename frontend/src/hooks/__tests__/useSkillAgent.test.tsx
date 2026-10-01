@@ -469,6 +469,18 @@ describe("useSkillAgent — deterministic document attachment", () => {
     });
   });
 
+  it("a per-turn language overrides the hook's — the turn the student asked in chat", async () => {
+    const { result } = renderHook(() => useSkillAgent({ activityId: "act-1", language: null }));
+
+    await act(async () => {
+      await result.current.sendMessage("In english", { language: "en" });
+    });
+
+    expect(fake.runAgent).toHaveBeenCalledWith({
+      forwardedProps: { activity_id: "act-1", ui_language: "en" },
+    });
+  });
+
   it("sends no ui_language when the student never chose one", async () => {
     const { result } = renderHook(() => useSkillAgent({ activityId: "act-1", language: null }));
 

@@ -160,6 +160,9 @@ export interface UseSkillAgentReturn {
       documentIds?: string[];
       resumedSession?: boolean;
       attachments?: Array<{ mimeType: string; data: string; name?: string }>;
+      /** This turn's language, when it differs from the hook's — the turn on
+       *  which the student asked for it in the chat, before state catches up. */
+      language?: "da" | "en";
     },
   ) => Promise<void>;
   isLoading: boolean;
@@ -677,6 +680,9 @@ export function useSkillAgent(options?: {
         documentIds?: string[];
         resumedSession?: boolean;
         attachments?: Array<{ mimeType: string; data: string; name?: string }>;
+        /** This turn's language, when it differs from the hook's — the turn on
+         *  which the student asked for it in the chat, before state catches up. */
+        language?: "da" | "en";
       },
     ) => {
       clearError();
@@ -727,8 +733,9 @@ export function useSkillAgent(options?: {
         // The student's DA | EN choice outranks the activity's language in the
         // tutor's instruction (2026-09-30). Sent only when they chose, so a
         // student who never touched the switch keeps the teacher's language.
-        if (language) {
-          forwardedProps.ui_language = language;
+        const turnLanguage = opts?.language ?? language;
+        if (turnLanguage) {
+          forwardedProps.ui_language = turnLanguage;
         }
         // 1.1.7 images do NOT ride forwardedProps — they're native AG-UI
         // ImageInputContent parts in the message content (see addMessage

@@ -37,7 +37,8 @@ import { useSessionDocuments } from "@/hooks/useSessionDocuments";
 import { useStableThreadId } from "@/hooks/useStableThreadId";
 import { useProactiveGreet } from "@/lib/proactiveGreet";
 import { LanguageSwitch } from "@/components/site/LanguageSwitch";
-import { useStudentLanguage } from "@/i18n/userLocale";
+import { useStudentLanguage, useUserLocale } from "@/i18n/userLocale";
+import { detectLanguageRequest } from "@/lib/languageRequest";
 import {
   HumanToolEventsProvider,
   useSyncMessageCount,
@@ -403,6 +404,7 @@ function ChatShell({
   // language for this screen, the tutor and the read-aloud voice; null when they
   // never chose, which leaves the teacher's language in force.
   const studentLanguage = useStudentLanguage();
+  const { setLocale: setUserLocale } = useUserLocale();
   const {
     sessionId: agentSessionId,
     messages,
@@ -927,10 +929,16 @@ function ChatShell({
     // Snap to chat tab on mobile so the student sees the response
     // stream in. No effect on md+ where both panels are visible.
     setMobileTab("chat");
+    // "in English" / "på dansk" typed in the chat = pressing the switch, so the
+    // request sticks for the screen, the tutor and the voice (2026-09-30).
+    const requested = detectLanguageRequest(text);
+    const switchTo = requested && requested !== locale ? requested : undefined;
+    if (switchTo) setUserLocale(switchTo);
     await sendMessage(text, {
       documentIds: outgoingDocIds,
       resumedSession: enteredViaResume,
       attachments: attachments.length > 0 ? attachments : undefined,
+      language: switchTo,
     });
   }
 
