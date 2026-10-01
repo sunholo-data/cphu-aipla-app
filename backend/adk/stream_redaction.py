@@ -123,6 +123,25 @@ _CLIENT_RENDER_TOOLS = frozenset(
 )
 
 
+#: Tools whose ENTIRE call is dropped from a student stream — start, args, end
+#: and result. Redacting the result is not enough for these: the sensitive part
+#: is the ARGS the model wrote.
+#:
+#: ``record_assessment`` (1.1.133 M3) — the tutor's construct-map level for the
+#: student. The sim author's rule is "never show the student a level"; a level
+#: in a TOOL_CALL_ARGS delta is readable in devtools and, as a chip, on screen.
+#: Dropping the call makes the rule structural instead of a prompt instruction.
+#: Never add a name here that the client renders: it would vanish silently.
+_STUDENT_HIDDEN_TOOLS = frozenset({"record_assessment"})
+
+_TOOL_CALL_EVENTS = frozenset({"TOOL_CALL_START", "TOOL_CALL_ARGS", "TOOL_CALL_END", "TOOL_CALL_RESULT"})
+
+
+def should_hide_tool_call(tool_name: str) -> bool:
+    """True when a student must not see that this tool was called at all."""
+    return tool_name in _STUDENT_HIDDEN_TOOLS
+
+
 def should_redact_tool(tool_name: str) -> bool:
     """True when this tool's result must not reach a student client.
 
@@ -155,8 +174,15 @@ async def redact_student_stream(
         return
 
     names_by_call_id: dict[str, str] = {}
+    hidden_call_ids: set[str] = set()
     async for event in events:
         etype = event.get("type")
+        if etype in _TOOL_CALL_EVENTS:
+            call_id = event.get("toolCallId") or ""
+            if etype == "TOOL_CALL_START" and should_hide_tool_call(event.get("toolCallName") or ""):
+                hidden_call_ids.add(call_id)
+            if call_id in hidden_call_ids:
+                continue
         if etype == "TOOL_CALL_START":
             call_id = event.get("toolCallId")
             if call_id:
@@ -178,5 +204,6 @@ __all__ = [
     "begin_renderable_declaration",
     "declare_renderable_tools",
     "redact_student_stream",
+    "should_hide_tool_call",
     "should_redact_tool",
 ]

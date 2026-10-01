@@ -326,8 +326,12 @@ Current as of 2026-09-24. Fix or delete these lines when they change.
   loop. Call your setters with no `source`, as `sol-jord-maane` does. Not yet
   enforced (`verify_sim.mjs --commands` is acceptance 8, not built). Design:
   `docs/design/aipla/v2.1.0-extension/tutor-controls-sims.md`.
-- **No assessment channel yet.** `<vurdering>{…}</vurdering>` lines are not
-  parsed, so they are in no tutorBlock. `record_assessment` is 1.1.133 M3.
+- **Assessment is a hidden tool, never a tag** (1.1.133 M3). `<vurdering>{…}</vurdering>`
+  lines are not parsed. A sim with a construct map declares an `assessment:`
+  block (`phenomena`, `minLevel`, `maxLevel`, optional `missions`; server-side
+  only) and a student session gets `record_assessment`, whose call is dropped
+  from the student stream entirely and written to the chat log. The level
+  definitions stay in the tutorBlock.
 - **No per-activity sim configuration.** A sim cannot be told "run in POE mode"
   or "hide the quiz" by the activity. URL parameters do not work because the
   artefact is `document.write`n under `sandbox.html`'s URL. A `configure` host

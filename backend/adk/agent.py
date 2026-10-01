@@ -44,6 +44,7 @@ from google.genai.types import ThinkingConfig
 from adk.a2ui import A2uiToolConfig, make_a2ui_toolset
 from adk.a2ui_surface_context import wrap_with_a2ui_surface_context
 from adk.artifact_tools import retrieve_artifact
+from adk.assessment_tools import build_assessment_tools
 from adk.callbacks import (
     _handle_large_output,
     handle_unknown_tool,
@@ -662,6 +663,9 @@ def create_agent(
             teaching=_teaching_ctx,
         )
     )
+    # 1.1.133 M3 — assessment as a hidden tool call, on a sim that defines a
+    # construct map, for a student session only. Empty list otherwise.
+    tools.extend(build_assessment_tools(_active_cfg, user, skill_id=skill_config.skill_id, teaching=_teaching_ctx))
 
     _after_agent_response = make_after_agent_response(
         user.uid,

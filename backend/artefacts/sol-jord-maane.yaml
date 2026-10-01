@@ -81,6 +81,15 @@ tutorBlock: |
   - `state-change` how they explored since the last commit (views, scale, observer, time jumps, toggles) — useful evidence of HOW they investigate, e.g. whether they predicted before jumping.
   Every payload's state carries time (UTC and Danish), view, scale, the observer (solar and lunar altitude/azimuth, day length, noon solar altitude, % of the Sun covered), Earth-Sun distance, solar longitude and declination, season, lunar phase, illumination, elongation, age in days, Moon distance and ecliptic latitude, the node angle, eclipse status, and mission progress.
 status: live
+# 1.1.133 M3 — the construct map's vocabulary, for `record_assessment` (the
+# author's <vurdering> lines, as a hidden tool call). Levels 0-6 and the five
+# phenomena of the tutorBlock's CONSTRUCT MAP; the level definitions stay in the
+# tutorBlock. Server-side only, never sent to the student.
+assessment:
+  phenomena: [doegn, aarstider, faser, formoerkelser, skala]
+  minLevel: 0
+  maxLevel: 6
+  missions: [M1, M2, M3, M4, M5]
 # 1.1.133 M0 — what a tutor may do to this sim, through the `control_sim` tool
 # (never through text lines in its reply). Every name here must be registered by
 # the HTML as the host notification `sol-jord-maane.cmd-<name>`; the catalogue

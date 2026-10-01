@@ -102,6 +102,34 @@ class ArtefactCommand(BaseModel):
         }
 
 
+class ArtefactAssessment(BaseModel):
+    """The construct map a sim contributes as an assessment scale (1.1.133 M3).
+
+    Optional. When present, a student session gets ``record_assessment``, whose
+    phenomenon enum and level range are exactly these — so assessments recorded
+    by different tutors on the same sim land on ONE scale and can be compared.
+    The level DEFINITIONS stay in ``tutorBlock`` (server-side); this block is
+    only the vocabulary the tool enforces. SERVER-SIDE ONLY: "never show the
+    student a level" is the sim author's rule, so not even the scale is public.
+    """
+
+    phenomena: list[str] = Field(min_length=1, max_length=20)
+    min_level: int = Field(default=0, alias="minLevel", ge=0, le=20)
+    max_level: int = Field(alias="maxLevel", ge=1, le=20)
+    missions: list[str] = Field(default_factory=list, max_length=20)
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @model_validator(mode="after")
+    def _range_is_a_range(self) -> ArtefactAssessment:
+        if self.max_level <= self.min_level:
+            raise ValueError("assessment: maxLevel must exceed minLevel")
+        for word in [*self.phenomena, *self.missions]:
+            if not re.fullmatch(r"[a-zA-Z0-9_-]{1,40}", word):
+                raise ValueError(f"assessment: {word!r} must be a short identifier")
+        return self
+
+
 class ArtefactMeta(BaseModel):
     """A vetted MCP-App artefact in the catalogue."""
 
@@ -143,6 +171,9 @@ class ArtefactMeta(BaseModel):
     # per sim). Public — a teacher should see what the tutor may do in the sim
     # they attach.
     commands: list[ArtefactCommand] = Field(default_factory=list, max_length=30)
+    # 1.1.133 M3 — the construct map's vocabulary, for ``record_assessment``.
+    # Server-side only, like tutor_block: excluded from ``public()``.
+    assessment: ArtefactAssessment | None = None
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -181,4 +212,4 @@ class ArtefactMeta(BaseModel):
         }
 
 
-__all__ = ["ArtefactCommand", "ArtefactMeta", "ArtefactStatus", "CommandPower"]
+__all__ = ["ArtefactAssessment", "ArtefactCommand", "ArtefactMeta", "ArtefactStatus", "CommandPower"]
