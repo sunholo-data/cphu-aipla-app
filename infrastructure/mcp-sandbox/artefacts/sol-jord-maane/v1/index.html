@@ -129,7 +129,10 @@
   .moonphase canvas { width: 34px; height: 34px; flex: none; }
 
   /* Panel */
-  #panel { position: absolute; right: var(--gut); top: calc(var(--gut) + env(safe-area-inset-top, 0px)); width: 300px; max-height: calc(100% - var(--gut) - 108px - env(safe-area-inset-top, 0px)); overflow: auto; padding: 4px 0; overscroll-behavior: contain; }
+  /* AIPLA retrofit (1.1.140 M1): Indstillinger folds away at every width (it was
+     fixed open above 860px), opens by default only from 900px; see #panelToggle. */
+  #panel { position: absolute; right: var(--gut); top: calc(var(--gut) + 42px + env(safe-area-inset-top, 0px)); width: 300px; max-height: calc(100% - var(--gut) - 150px - env(safe-area-inset-top, 0px)); overflow: auto; padding: 4px 0; overscroll-behavior: contain; display: none; }
+  #panel.open { display: block; }
   .sec { padding: 10px 14px 12px; border-top: 1px solid var(--line); display: grid; gap: 8px; }
   .sec:first-child { border-top: 0; }
   .sec > h2 { margin: 0; font: 600 10.5px/1 var(--ui); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); display: flex; justify-content: space-between; align-items: center; }
@@ -187,7 +190,8 @@
   #zoomCtl { position: absolute; right: calc(var(--gut) + 312px); top: 50%; transform: translateY(-50%); display: grid; gap: 4px; }
   #zoomCtl button { width: 34px; height: 34px; font-size: 18px; line-height: 1; cursor: pointer; border-radius: 8px; }
 
-  #panelToggle { display: none; }
+  #panelToggle { display: inline-flex; position: absolute; right: var(--gut); top: calc(var(--gut) + env(safe-area-inset-top, 0px)); height: 34px; align-items: center; gap: 6px; padding: 0 12px; cursor: pointer; font-weight: 500; }
+  #panel:not(.open) ~ #zoomCtl { right: var(--gut); }
 
   #topStack { position: absolute; left: 50%; transform: translateX(-50%); top: calc(var(--gut) + env(safe-area-inset-top, 0px)); width: min(440px, calc(100% - 2 * var(--gut))); display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; z-index: 4; }
   #topStack > * { pointer-events: auto; }
@@ -2258,7 +2262,8 @@ var QUIZ = [
   // paneler
   $('#roToggle').onclick = function () { var ex = this.getAttribute('aria-expanded') === 'true'; this.setAttribute('aria-expanded', String(!ex)); $('#roBody').hidden = ex; };
   $('#panelToggle').onclick = function () { var p = $('#panel'), o = !p.classList.contains('open'); p.classList.toggle('open', o); this.setAttribute('aria-expanded', String(o)); };
-  if (window.innerWidth < 860) { $('#roToggle').setAttribute('aria-expanded', 'false'); $('#roBody').hidden = true; }
+  if (window.innerWidth < 900) { $('#roToggle').setAttribute('aria-expanded', 'false'); $('#roBody').hidden = true; }
+  else { $('#panel').classList.add('open'); $('#panelToggle').setAttribute('aria-expanded', 'true'); } // AIPLA retrofit: folded by default below 900px
   $('#taskMin').onclick = function () { var t = $('#task'), m = !t.classList.contains('min'); t.classList.toggle('min', m); this.textContent = m ? 'Vis' : 'Skjul'; };
   document.addEventListener('keydown', function (e) {
     if (e.target.matches('input, select, textarea')) return;
@@ -2397,10 +2402,27 @@ var QUIZ = [
     if (!d) return true;
     return clip(d.begivenhed || d.skala || d.hastighed || d.retning || (d.element ? d.element + '=' + d.til : '') || d.visning || d.navn || d.tid || d.dage || '', 60) || true;
   }
+  // AIPLA retrofit (1.1.140 M0): a finished mission is `<id>.complete`, the verb
+  // that makes the tutor acknowledge it. The answer that finishes a mission rides
+  // INSIDE that event instead of as a separate `answer-commit`: two proactive
+  // events in the same instant race the tutor gate (two turns, or the completion
+  // lost), so the final answer is held until `mission_slut` and sent once. `tier`
+  // is missions finished, `maxTier` all of them; at the top the tutor stops asking.
+  var finalAnswer = null;
+  function emitComplete(d) {
+    var a = finalAnswer || {}; finalAnswer = null;
+    var c = Missions.completion(d.mission), s = compactState();
+    s.mission = Object.assign(s.mission || {}, { id: c.id, nr: c.nr, titel: c.titel });
+    s.score = c.done; s.of = c.total; s.answers = c.answers; s.tier = c.done; s.maxTier = c.total;
+    var label = 'Fuldførte mission ' + c.nr + ': ' + c.titel + (a.tekst ? ' – «' + clip(a.tekst, 90) + '»' : '') +
+      (c.done >= c.total ? ' · alle ' + c.total + ' missioner er færdige' : ' (' + c.done + ' af ' + c.total + ')');
+    AIPLA_BRIDGE.emit(ARTEFACT_NAME + '.complete', { label: label, detail: commitDetail('svar', a.mission ? a : d), state: s });
+  }
   function emit(type, payload) {
     if (type !== 'event') return;
     var a = payload.action, c = COMMITS[a];
-    if (a === 'mission_slut') return; // always follows `svar`, which already carries it
+    if (a === 'mission_slut') { flushPendingChanges(a); emitComplete(payload.detail || {}); return; }
+    if (a === 'svar' && payload.detail && Missions.isFinalStep(payload.detail.mission, payload.detail.trin)) { finalAnswer = payload.detail; return; }
     if (!c) { pendingChanges[a] = explorationNote(a, payload.detail); return; }
     flushPendingChanges(a); // state precedes the action, on the wire in that order
     var d = payload.detail || {};
@@ -2689,7 +2711,17 @@ var QUIZ = [
       }
       return Object.assign({}, CFG);
     }
-    return { start: start, openPicker: openPicker, openQuiz: openQuiz, summary: summary, boot: boot, configure: configure };
+    // AIPLA retrofit (1.1.140 M0): what `<id>.complete` reports about a finished mission.
+    function completion(id) {
+      var m = byId(id) || {}, t = P.texts[id] || {};
+      return {
+        id: id, nr: MISSIONS.indexOf(m) + 1, titel: m.title || '',
+        answers: Object.keys(t).map(function (k) { return clip(t[k], 600); }),
+        done: MISSIONS.filter(function (x) { return P.done[x.id]; }).length, total: MISSIONS.length
+      };
+    }
+    function isFinalStep(id, trin) { var m = byId(id); return !!m && trin >= stepsOf(m).length; }
+    return { start: start, openPicker: openPicker, openQuiz: openQuiz, summary: summary, boot: boot, configure: configure, completion: completion, isFinalStep: isFinalStep };
   })();
 
   // ---------------------------------------------------------------- løkke

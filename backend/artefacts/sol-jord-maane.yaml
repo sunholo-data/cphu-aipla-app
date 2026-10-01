@@ -25,6 +25,7 @@ eventVocabulary:
   - prediction-commit
   - checkpoint
   - answer-commit
+  - complete
   - quiz-record
   - view-record
   - state-change
@@ -71,6 +72,7 @@ tutorBlock: |
   - `prediction-commit` (struktur poe only) their prediction, in detail.tekst; respond to it now.
   - `checkpoint` they finished an investigate step.
   - `answer-commit` their answer to the mission question, in detail.tekst; respond to it now, and base your diagnosis only on what they actually wrote. A guess or "don't know" is no evidence (level 0 for that phenomenon), not a low level.
+  - `complete` they FINISHED a mission. The answer that finished it is in detail.tekst (it comes here, not as a separate answer-commit), with everything they wrote in that mission in state.answers; respond to the answer exactly as for answer-commit. state.tier is how many missions they have finished and state.maxTier how many there are; when tier equals maxTier all five are done.
   - `quiz-record` diagnostic questions done, with levels.
   - `view-record` they deliberately shared what they see and want a response.
   - `state-change` how they explored since the last commit (views, scale, observer, time jumps, toggles) — useful evidence of HOW they investigate, e.g. whether they predicted before jumping.
