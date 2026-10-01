@@ -1,4 +1,4 @@
-import { render, waitFor } from "@testing-library/react";
+import { act, render, waitFor } from "@testing-library/react";
 import { useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -33,6 +33,7 @@ vi.mock("@/hooks/useHumanToolEvents", () => ({
 }));
 
 import { LocaleProvider } from "@/i18n";
+import { __resetSimCommandBusForTests, dispatchSimCommand } from "@/lib/simCommandBus";
 import { GenericArtefactFrame, type ActivityArtefact } from "../GenericArtefactFrame";
 
 const ARTEFACT: ActivityArtefact = { id: "boldkast", displayName: "Boldkast", artefactPath: "boldkast/v1" };
@@ -262,5 +263,49 @@ describe("GenericArtefactFrame", () => {
       eventKind: "completion",
     });
     vi.mocked(fetchWithAuth).mockImplementation(() => Promise.resolve(new Response(null, { status: 204 })));
+  });
+});
+
+// 1.1.133 M1 — tutor → sim. The chat card publishes a `control_sim` call on the
+// bus; the frame sends it to the sim as `<id>.cmd-<command>` over the bridge.
+describe("GenericArtefactFrame — tutor commands", () => {
+  const SOL: ActivityArtefact = { id: "sol-jord-maane", displayName: "Sol, Jord og Måne", artefactPath: "sol-jord-maane/v1" };
+  const initialized = () => act(() => (frameSpy.mock.calls.at(-1)![0].onInitialized as () => void)());
+  const jump = { toolCallId: "tc-1", artefactId: "sol-jord-maane", command: "jump", args: { event: "solform" } };
+
+  beforeEach(() => {
+    __resetSimCommandBusForTests();
+    frameSpy.mockClear();
+    sendNotificationSpy.mockClear();
+  });
+
+  it("delivers a command as the sim's host notification once the sim is initialised", () => {
+    render(<GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={SOL} sessionId="s1" />);
+    initialized();
+    act(() => void dispatchSimCommand(jump));
+    expect(sendNotificationSpy).toHaveBeenCalledWith("sol-jord-maane.cmd-jump", { event: "solform" });
+  });
+
+  it("holds a command that arrives before the handshake, then sends it", () => {
+    render(<GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={SOL} sessionId="s1" />);
+    act(() => void dispatchSimCommand(jump));
+    expect(sendNotificationSpy).not.toHaveBeenCalledWith("sol-jord-maane.cmd-jump", expect.anything());
+    initialized();
+    expect(sendNotificationSpy).toHaveBeenCalledWith("sol-jord-maane.cmd-jump", { event: "solform" });
+  });
+
+  it("delivers a command issued while the sim was closed when it opens", () => {
+    act(() => void dispatchSimCommand(jump));
+    render(<GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={SOL} sessionId="s1" />);
+    initialized();
+    expect(sendNotificationSpy).toHaveBeenCalledTimes(1);
+    expect(sendNotificationSpy).toHaveBeenCalledWith("sol-jord-maane.cmd-jump", { event: "solform" });
+  });
+
+  it("ignores a command for a different sim", () => {
+    render(<GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={ARTEFACT} sessionId="s1" />);
+    initialized();
+    act(() => void dispatchSimCommand(jump));
+    expect(sendNotificationSpy).not.toHaveBeenCalled();
   });
 });

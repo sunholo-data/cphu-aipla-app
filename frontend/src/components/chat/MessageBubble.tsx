@@ -29,6 +29,7 @@ import { useVoiceLang } from "@/hooks/useVoiceLang";
 import { ToolCallChip } from "@/components/chat/ToolCallChip";
 import { ChecklistMarkCard, parseChecklistMarkResult } from "@/components/chat/ChecklistMarkCard";
 import { CheckpointCard, parseCheckpointResult } from "@/components/chat/CheckpointCard";
+import { SimCommandCard, parseSimCommandResult } from "@/components/chat/SimCommandCard";
 import { useSurfaceRegistry } from "@/providers/SurfaceRegistry";
 import type { SkillMessage, ToolCallState } from "@/hooks/useSkillAgent";
 
@@ -360,6 +361,16 @@ export const MessageBubble = React.memo(function MessageBubble({
                 const result = parseChecklistMarkResult(tc.resultContent);
                 return result ? <ChecklistMarkCard key={tc.id} result={result} /> : null;
               })}
+            {/* 1.1.133 M1 — the tutor changed the student's simulation. The
+                card is ALSO the delivery: mounting it publishes the command to
+                the sim (once per toolCallId). A refused call parses to null,
+                so it renders as a chip and never reaches the sim. */}
+            {nonA2uiCalls
+              .filter((tc) => tc.name === "control_sim")
+              .map((tc) => {
+                const result = parseSimCommandResult(tc.resultContent);
+                return result ? <SimCommandCard key={tc.id} toolCallId={tc.id} result={result} /> : null;
+              })}
             {nonA2uiCalls.length > 0 && (
               <div className="flex flex-wrap gap-1.5 pt-1">
                 {nonA2uiCalls
@@ -369,7 +380,8 @@ export const MessageBubble = React.memo(function MessageBubble({
                         (tc.name === "record_checkpoint" || tc.name === "mark_concept") &&
                         parseCheckpointResult(tc.resultContent)
                       ) &&
-                      !(tc.name === "mark_checklist_item" && parseChecklistMarkResult(tc.resultContent)),
+                      !(tc.name === "mark_checklist_item" && parseChecklistMarkResult(tc.resultContent)) &&
+                      !(tc.name === "control_sim" && parseSimCommandResult(tc.resultContent)),
                   )
                   .map((tc) => (
                     <ToolCallChip key={tc.id} toolCall={tc} />

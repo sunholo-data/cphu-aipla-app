@@ -52,6 +52,7 @@ status: live
 | `thumbnail` | optional path/URL; unset → the picker draws a monogram tile | `SimThumbnail` |
 | `minViewportPx` | optional, 320–2000. The narrowest width at which the sim is **fully usable** | the student launcher, to warn rather than silently render half a bench |
 | `status` | `live` \| `beta` \| `deprecated` | `GET /api/artefacts?status=live` — **`SimPicker` requests `live` only** |
+| `commands` | optional (1.1.133). What a tutor may do to the sim: `name`, `description` (English, model-facing), `args` (a small JSON-Schema subset — `artefacts/arg_schema.py`), `effect` (student-facing card text in the sim's language, `{arg}` templated), `valueLabels`, `power: view\|scaffold\|restrict`. Absent → no `control_sim` tool. Each name must be registered as the host notification `<id>.cmd-<name>`, and its handler must emit **no labelled event**. Worked example: `backend/artefacts/sol-jord-maane.yaml` | `adk/sim_control_tools.py`; `test_artefact_catalogue.py` cross-checks the HTML |
 
 ## The three that need judgement
 

@@ -9,6 +9,10 @@
     "unmarked": "No longer done: {item}",
     "canChange": "You can change the mark in your overview."
   },
+  "SimCommandCard": {
+    "changed": "The tutor changed your simulation",
+    "canChangeBack": "You can change it back yourself in the simulation."
+  },
   "CheckpointCard": {
     "observed": "noticed",
     "demonstrated": "understood",

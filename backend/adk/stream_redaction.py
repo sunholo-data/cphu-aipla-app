@@ -112,6 +112,13 @@ _CLIENT_RENDER_TOOLS = frozenset(
         # label, derived status, one line of evidence, and the provenance. The
         # tool never sees the rubric or the definition of done.
         "mark_concept",
+        # SimCommandCard (1.1.133 M1) — the tutor changed the student's
+        # simulation. The client needs the result to do anything at all: it is
+        # what routes the command to the sim AND what draws the card, so a
+        # redacted result is a command that silently never happens. Card-safe
+        # by construction: the sim id, the command name, the validated args and
+        # the catalogue's own effect text — never the tutorBlock.
+        "control_sim",
     }
 )
 

@@ -9,6 +9,10 @@
     "unmarked": "Ikke længere klar: {item}",
     "canChange": "Du kan ændre markeringen i din oversigt."
   },
+  "SimCommandCard": {
+    "changed": "Tutoren ændrede din simulation",
+    "canChangeBack": "Du kan selv stille den tilbage i simulationen."
+  },
   "CheckpointCard": {
     "observed": "bemærket",
     "demonstrated": "forstået",

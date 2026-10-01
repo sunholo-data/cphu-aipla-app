@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
 import { useSimSnapshotPush } from "@/hooks/useSimSnapshotPush";
 import { DEFAULT_LOCALE, useLocaleMode } from "@/i18n";
+import { subscribeSimCommands, type SimCommand } from "@/lib/simCommandBus";
 
 import { StaticArtefactFrame, type McpAppHostContext, type StaticArtefactFrameHandle } from "./StaticArtefactFrame";
 
@@ -125,6 +126,27 @@ export function GenericArtefactFrame({
     sentLocaleRef.current = hostContext.locale;
     frameRef.current?.sendNotification(HOST_CONTEXT_CHANGED_NOTIFICATION, { locale: hostContext.locale });
   }, [hostContext.locale]);
+  // 1.1.133 M1 — tutor → sim. A `control_sim` call published by the chat card
+  // arrives here and goes to the sim as the host notification
+  // `<id>.cmd-<command>` over the same bridge as chat-flush. Commands that
+  // arrive before the sim has finished its ui/initialize handshake are held and
+  // sent once it has (a postMessage before then reaches no listener). The sim's
+  // resulting state comes back the normal way, on its next commit / flush.
+  const simReadyRef = useRef(false);
+  const heldCommandsRef = useRef<SimCommand[]>([]);
+  useEffect(() => {
+    const send = (c: SimCommand) => frameRef.current?.sendNotification(`${artefact.id}.cmd-${c.command}`, c.args);
+    return subscribeSimCommands(artefact.id, (c) => {
+      if (simReadyRef.current) send(c);
+      else heldCommandsRef.current.push(c);
+    });
+  }, [artefact.id]);
+  const handleInitialized = () => {
+    simReadyRef.current = true;
+    const held = heldCommandsRef.current;
+    heldCommandsRef.current = [];
+    held.forEach((c) => frameRef.current?.sendNotification(`${artefact.id}.cmd-${c.command}`, c.args));
+  };
   const pushSnapshot = useSimSnapshotPush<Record<string, unknown>>(sessionId ?? null, artefact.id);
   // Trust-card dispatcher. No-op fallback when rendered outside a
   // HumanToolEventsProvider (the builder preview), so this stays safe there.
@@ -206,6 +228,7 @@ export function GenericArtefactFrame({
         artefactPath={artefact.artefactPath}
         hostContext={hostContext}
         onUpdateModelContext={handleStructuredContent}
+        onInitialized={handleInitialized}
         title={artefact.displayName}
         className="w-full min-h-[700px] border-0"
       />

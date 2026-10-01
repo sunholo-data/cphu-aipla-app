@@ -84,6 +84,7 @@ from adk.proactive_reactive import inject_reactive_guidance
 from adk.proactive_telemetry import tag_proactive_span_from_callback_context
 from adk.progress_context import compose_progress_context
 from adk.resilient_llm import ResilientLlm
+from adk.sim_control_tools import build_sim_control_tools, resolve_sim_control_level
 from adk.teacher_focus import build_ilo_precedence_block, inject_teacher_focus, resolve_active_config
 from adk.tools import resolve_mcp_tools, resolve_tools
 from adk.tutor_framework import inject_framework_preamble
@@ -644,6 +645,22 @@ def create_agent(
         _activity_id,
         group_tags=user.group_tags,
         cfg=_active_cfg,
+    )
+
+    # 1.1.133 M1/M2 — the tutor can act on the simulation, through a tool call.
+    # Built only when the activity hosts a sim that declares `commands` AND the
+    # tutor's approach admits at least one (its `sim_control` level). Otherwise
+    # an empty list, so every other activity builds the tool list it built
+    # before (passthrough). Needs `_teaching_ctx` for the level and the stamp,
+    # which is why it is attached here rather than with the checklist tools.
+    tools.extend(
+        build_sim_control_tools(
+            _active_cfg,
+            user,
+            level=resolve_sim_control_level(_teaching_ctx.framework_id),
+            skill_id=skill_config.skill_id,
+            teaching=_teaching_ctx,
+        )
     )
 
     _after_agent_response = make_after_agent_response(

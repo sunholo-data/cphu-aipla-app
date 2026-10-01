@@ -313,13 +313,21 @@ Danish reads well, whether a student knows what to do next.
 
 Current as of 2026-09-24. Fix or delete these lines when they change.
 
-- **The tutor cannot drive a sim, and has no assessment channel.** Author
-  packages (sol-jord-maane's `INTEGRATION.md`) expect the tutor to write
-  `<sim>{command}</sim>` lines the host strips and forwards, and
-  `<vurdering>{…}</vurdering>` lines the host strips and stores. Neither is
-  parsed, so neither is in any tutorBlock: a tutor told to write them would show
-  them to the student. The sim half exists already: `sol-jord-maane` registers
-  every command as the host notification `sol-jord-maane.cmd-<command>`.
+- **The tutor drives a sim through a TOOL, never through text lines** (1.1.133,
+  2026-10-01). Author packages (sol-jord-maane's `INTEGRATION.md`) expect the
+  tutor to write `<sim>{command}</sim>` lines the host strips — we do not parse
+  those and never will. Instead a sim opts in by declaring `commands` in its
+  catalogue entry (name, description, args schema, student-facing `effect`,
+  `power: view|scaffold|restrict`), and registering each as the host
+  notification `<id>.cmd-<name>` (`test_artefact_catalogue.py` greps that they
+  match). The tutor then gets a `control_sim` tool; the student sees a card in
+  the chat for every change. **Rule: a command handler must not emit a labelled
+  event** — tutor command → labelled emit → proactive turn → tutor command is a
+  loop. Call your setters with no `source`, as `sol-jord-maane` does. Not yet
+  enforced (`verify_sim.mjs --commands` is acceptance 8, not built). Design:
+  `docs/design/aipla/v2.1.0-extension/tutor-controls-sims.md`.
+- **No assessment channel yet.** `<vurdering>{…}</vurdering>` lines are not
+  parsed, so they are in no tutorBlock. `record_assessment` is 1.1.133 M3.
 - **No per-activity sim configuration.** A sim cannot be told "run in POE mode"
   or "hide the quiz" by the activity. URL parameters do not work because the
   artefact is `document.write`n under `sandbox.html`'s URL. A `configure` host
