@@ -517,5 +517,22 @@
     "duration_m": "{m} min.",
     "duration_h": "{h} t.",
     "duration_hm": "{h} t. {m} min."
+  },
+  "FinalWorkPanel": {
+    "heading": "Det endte de med",
+    "hint": "Gruppens gemte arbejde i denne aktivitet, som det ser ud nu — på tværs af alle deres sessioner, ikke kun denne.",
+    "loading": "Henter gruppens arbejde…",
+    "nothingYet": "Intet gemt i arbejdsområdet endnu.",
+    "unreadable": "Gruppens gemte arbejde kunne ikke læses — det betyder IKKE, at de ikke har lavet noget.",
+    "partlyUnreadable": "En del af gruppens gemte arbejde kunne ikke læses, så det her kan være ufuldstændigt.",
+    "untitledTable": "Datatabel",
+    "untitledChart": "Graf",
+    "untitledWriting": "Tekst",
+    "checklist": "Tjekliste — {done} af {total} afkrydset",
+    "byTutor": "(afkrydset af tutoren)",
+    "concepts": "Begreber vist",
+    "statusDemonstrated": "vist",
+    "statusPartial": "delvist",
+    "photosNotKept": "Fotos delt med tutoren gemmes ikke."
   }
 }

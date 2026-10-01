@@ -17,6 +17,7 @@ import {
 
 import type { ChatLogTimelineItem, ChatLogTurn, ChatLogWorkEvent } from "@/lib/teacherApi";
 import { DEFAULT_LOCALE, translate, useT, type Translate } from "@/i18n";
+import { WorkChecklist, WorkTableGrid, WorkWriting } from "@/components/shared/work/WorkViews";
 
 /** UI copy, lifted out of JSX (1.1.108 M4) so a translator can reach it. */
 // Copy lives in messages/*/teacher-research.json — 1.1.108.
@@ -197,32 +198,12 @@ function StateView({ value }: { value: string | null }) {
       return (
         <div className="flex flex-col gap-2">
           {parsed.tables.map((tbl, ti) => (
-            <div key={ti} className="overflow-x-auto">
-              <p className="mb-1 text-[11px] font-medium text-muted-foreground">{tbl.title || t("untitledTable")}</p>
-              <table className="border-collapse text-xs">
-                <thead>
-                  <tr>
-                    {(tbl.columns ?? []).map((c) => (
-                      <th key={c.id} className="border border-border bg-muted/40 px-2 py-0.5 text-left font-medium">
-                        {c.label}
-                        {c.unit ? <span className="ml-1 text-muted-foreground">({c.unit})</span> : null}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {(tbl.data ?? []).map((row, ri) => (
-                    <tr key={ri}>
-                      {(tbl.columns ?? []).map((c) => (
-                        <td key={c.id} className="border border-border px-2 py-0.5 tabular-nums">
-                          {row?.[c.id] ?? ""}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <WorkTableGrid
+              key={ti}
+              title={tbl.title || t("untitledTable")}
+              columns={tbl.columns ?? []}
+              rows={tbl.data ?? []}
+            />
           ))}
         </div>
       );
@@ -230,10 +211,7 @@ function StateView({ value }: { value: string | null }) {
       return (
         <div className="flex flex-col gap-2">
           {parsed.docs.map((d, di) => (
-            <div key={di}>
-              <p className="mb-1 text-[11px] font-medium text-muted-foreground">{d.title || t("untitledText")}</p>
-              <p className="whitespace-pre-wrap text-xs text-foreground">{d.text}</p>
-            </div>
+            <WorkWriting key={di} title={d.title || t("untitledText")} text={d.text} />
           ))}
         </div>
       );
@@ -252,15 +230,7 @@ function StateView({ value }: { value: string | null }) {
         </ul>
       );
     case "checklist":
-      return (
-        <ul className="flex flex-col gap-0.5 text-xs">
-          {parsed.items.map((i) => (
-            <li key={i.id}>
-              <span aria-hidden="true">{parsed.done.includes(i.id) ? "☑" : "☐"}</span> {i.label}
-            </li>
-          ))}
-        </ul>
-      );
+      return <WorkChecklist items={parsed.items} isDone={(id) => parsed.done.includes(id)} />;
     default:
       return <pre className="max-h-64 overflow-auto whitespace-pre-wrap font-mono text-[11px]">{parsed.text.slice(0, 4000)}</pre>;
   }

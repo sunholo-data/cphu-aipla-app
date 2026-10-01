@@ -1,6 +1,6 @@
 # Review a group's work beside its conversation, not just the conversation
 
-**Status:** 🚧 PARTIAL — **1.1.136** · M0, M1, M3 shipped 2026-09-29 (sprint CLASSVISIT-1, lane D) · group-report Exports shipped 2026-09-30 · M2, M4 OPEN (next sprint, sequenced with 1.1.99)
+**Status:** 🚧 PARTIAL — **1.1.136** · M0, M1, M3 shipped 2026-09-29 (sprint CLASSVISIT-1, lane D) · group-report Exports shipped 2026-09-30 · M2 shipped 2026-10-01 · M4 OPEN
 **Priority:** **P1** — directly serves the extension's strategic bet (*"rubric-scored logs as assessment evidence"*, [plan](../v2.1.0-extension/plan-2026-09-to-2027-04.md) workstream D). A transcript without the table it discusses is half the evidence. Needs only researchers and **existing** data, so it is **un-gated** by either legal blocker
 **Estimated:** ~3–4d phased (M0 labelled events ~0.5d · M1 interleaved timeline ~1.5d · M2 final-state panel ~0.75d · M3 researcher read + lens wiring ~0.5d · M4 rubric evidence ~0.5d)
 **Scope:** Backend: `observability/chat_log.py` (`emit_workbench_event`), `protocols/iframe_context_routes.py`, `reports/session_summary.py`, `analytics/research_logs.py`, `protocols/{table,writing}_progress_routes.py`, `analytics/rubric_evidence.py`, the `aipla_workbench_event` BQ view (`infrastructure/modules/chat-logs/views.tf`). Frontend: `components/teacher/research/ChatLogTranscript.tsx`, `app/teacher/reports/groups/[groupId]/page.tsx`, `app/teacher/insights/conversations/page.tsx`, the four `Workbench*` elements (label on push)
@@ -91,7 +91,7 @@ researcher and student read the same record.
 - Same component on both surfaces: the researcher lens **and** the teacher
   group report, which retires the raw 80-char list at `page.tsx:466–497`.
 
-### M2 — "What they ended with" panel (~0.75d)
+### M2 — "What they ended with" panel (~0.75d) — ✅ shipped 2026-10-01
 
 Beside the timeline, a panel shows the group's **final** work per element,
 from the `*_progress` stores (the same reads `adk/element_state.py` already
@@ -235,8 +235,56 @@ the event loop. No UI calls these yet — M2 is the first consumer.
 
 **Not done here:** the Exports section (timeline rows in CSV/JSON — needs
 1.1.137's `downloadCsv`, lane C; **since shipped 2026-09-30 for the group report**,
-see §Exports; the researcher lens's server-side bulk export is still chat-only) · M2 · M4 · the photo placeholder card (the
-solution element does not push, so there is no event to hang it on; M2).
+see §Exports; the researcher lens's server-side bulk export is still chat-only) · M2 (**since shipped 2026-10-01**, below) · M4 · the photo placeholder card (the
+solution element does not push, so there is no event to hang it on; M2 carries the policy line instead).
+
+## What shipped — 2026-10-01
+
+**M2 — "What they ended with".** A panel showing the group's **final** work on
+the activity, on both surfaces: the teacher group report (above the transcript,
+re-read when the live poll brings new work) and the researcher lens (inside the
+open transcript card, above the timeline).
+
+- **What it shows:** each data table as a grid with units in the headers
+  (trailing empty rows dropped — those are the teacher's spare capacity, a
+  skipped row in the middle is kept); each chart **re-rendered from that table
+  with the activity's own chart definition**; the full writing, line breaks
+  kept; the checklist with each item's ticked state, a count, and *"ticked by
+  the tutor"* where the tick was the AI's; concept-map nodes the group has
+  partly or fully shown. Empty elements are omitted; an activity with no
+  workbench elements renders nothing, and no work is read for it. An activity
+  with a solution element gets the muted line *"Photos shared with the tutor
+  are not kept"* — the policy above, stated rather than left as an absence.
+- **Data:** `fetchActivity` (owner or researcher — a class owner always owns
+  its activities, since `PATCH /classes/{id}/activities` only accepts the
+  owner's) for the definitions, and one new client function,
+  `fetchGroupFinalWork`, which reads the four existing progress GETs with the
+  **teacher** token and picks the group out of the all-groups answer. The group
+  report passes `classId` (the M3 class-narrowed branch); the lens does not,
+  because it is researcher-only and a class id stamped on an old log row could
+  name a since-deleted class. **No backend change.**
+- **Unreadable ≠ empty.** Each store comes back as its value, `{}` (saved
+  nothing), or `null` (could not be read). All four unreadable says *"does NOT
+  mean they did none"*; some says the panel may be incomplete. Same rule as the
+  timeline's `workStatus`.
+- **The miniature renderers, built once** — `frontend/src/components/shared/work/`:
+  `chartPlot.ts` (cells → points, the pure half), `ChartSvg.tsx` (the student
+  chart's SVG, moved out of `WorkbenchChart`, which now imports it), and
+  `WorkViews.tsx` (`WorkTableGrid`, `WorkChart`, `WorkWriting`,
+  `WorkChecklist`). The transcript's expanded work cards (M1) now render
+  through the same components, so three surfaces — and 1.1.99 next — draw a
+  table one way. The panel itself is `components/teacher/work/FinalWorkPanel.tsx`.
+- ⚠️ **"Final" means *now*, not *end of this session*.** The stores are one
+  document per group + activity, across sessions; the panel's hint says so.
+  Reconstructing the state at a session's end is what the timeline's expanded
+  cards are for.
+- ⚠️ **Found, not fixed:** the chart parses cells with `parseFloat`, so a
+  Danish decimal comma (`"3,42"`) plots as **3** — on the student's chart and,
+  deliberately identically, on the panel. The fix belongs in
+  `plotFromCells`, once, so both change together.
+
+**Acceptance still open:** the retro-test on prod data from 2026-09-22 (a
+deploy-side check), and M4.
 
 ## Acceptance
 

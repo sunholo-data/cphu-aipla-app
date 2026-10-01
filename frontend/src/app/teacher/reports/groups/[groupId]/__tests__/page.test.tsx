@@ -22,6 +22,8 @@ vi.mock("@/lib/teacherApi", async () => {
     ...actual,
     fetchGroupLatestReport: vi.fn(),
     getGroupReportTimeline: vi.fn(),
+    fetchActivity: vi.fn(),
+    fetchGroupFinalWork: vi.fn(),
   };
 });
 
@@ -35,6 +37,9 @@ import TeacherGroupReportPage from "@/app/teacher/reports/groups/[groupId]/page"
 import {
   NotFoundError,
   type SessionSummaryPayload,
+  type ActivityPayload,
+  fetchActivity,
+  fetchGroupFinalWork,
   fetchGroupLatestReport,
   getGroupReportTimeline,
 } from "@/lib/teacherApi";
@@ -54,6 +59,8 @@ const fetchReport = vi.mocked(fetchGroupLatestReport);
 const csvSpy = vi.mocked(downloadCsv);
 const jsonSpy = vi.mocked(downloadJson);
 const fetchTimeline = vi.mocked(getGroupReportTimeline);
+const fetchActivitySpy = vi.mocked(fetchActivity);
+const fetchWorkSpy = vi.mocked(fetchGroupFinalWork);
 
 const LIVE_REPORT: SessionSummaryPayload = {
   sessionId: "sess-12345678",
@@ -91,6 +98,11 @@ beforeEach(() => {
   csvSpy.mockReset();
   jsonSpy.mockReset();
   fetchTimeline.mockRejectedValue(new NotFoundError());
+  // 1.1.136 M2 — the final-work panel. Default: no readable activity, so the
+  // panel renders nothing and the existing assertions are unchanged.
+  fetchActivitySpy.mockReset();
+  fetchWorkSpy.mockReset();
+  fetchActivitySpy.mockRejectedValue(new NotFoundError());
 });
 
 describe("/teacher/reports/groups/[groupId] — real session report", () => {
@@ -206,6 +218,29 @@ describe("/teacher/reports/groups/[groupId] — real session report", () => {
 
     expect(await screen.findByText(/no sessions yet/i)).toBeInTheDocument();
     expect(screen.queryByText(/mock data/i)).not.toBeInTheDocument();
+  });
+
+  it("shows what the group ended with, read for THIS class, above the transcript (1.1.136 M2)", async () => {
+    fetchReport.mockResolvedValueOnce({ ...LIVE_REPORT, activityId: "act-1", classId: "cls-7" });
+    fetchActivitySpy.mockResolvedValue({
+      activityId: "act-1",
+      table: [{ id: "t1", title: "Readings", rows: 4, columns: [{ id: "h", label: "Height", unit: "m" }] }],
+    } as unknown as ActivityPayload);
+    fetchWorkSpy.mockResolvedValue({
+      cells: { "t1::0::h": "1.5" },
+      docs: {},
+      itemStates: {},
+      nodeStates: {},
+    });
+
+    render(<TeacherGroupReportPage />);
+
+    expect(await screen.findByText("What they ended with")).toBeInTheDocument();
+    expect(await screen.findByText("1.5")).toBeInTheDocument();
+    expect(fetchWorkSpy).toHaveBeenCalledWith("act-1", groupId, "cls-7");
+    const panel = screen.getByTestId("final-work-panel");
+    const transcriptToggle = screen.getByRole("button", { name: /view full transcript/i });
+    expect(panel.compareDocumentPosition(transcriptToggle) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("shows an error state when the load fails (non-404)", async () => {

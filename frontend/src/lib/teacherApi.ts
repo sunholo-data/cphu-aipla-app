@@ -1727,6 +1727,58 @@ export async function getGroupReportTimeline(groupCode: string, sessionId: strin
   return readJson<ChatLogTimeline>(resp, "read group timeline");
 }
 
+/** One group's saved work on one activity, read from the per-group stores
+ *  (1.1.136 M2). Each field is that store's value for the group — `{}` when the
+ *  group saved nothing there — or `null` when the store could NOT be read. The
+ *  two are kept apart on purpose: "unreadable" must never render as "no work". */
+export interface GroupFinalWork {
+  /** `table_progress`: cells keyed `${tableId}::${row}::${colId}`. */
+  cells: Record<string, string> | null;
+  /** `writing_progress`: by writing element id. */
+  docs: Record<string, { text: string; words?: number; updatedAt?: string }> | null;
+  /** `checklist_progress`: by checklist item id. */
+  itemStates: Record<string, { done: boolean; by?: string }> | null;
+  /** `concept_progress`, derived server-side: by concept node id. */
+  nodeStates: Record<string, { status: string }> | null;
+}
+
+/** Read one group's final work on an activity — the teacher group report and
+ *  the researcher lens's "What they ended with" panel.
+ *
+ *  Teacher auth (this module's `fetchWithAuth` IS `fetchWithTeacherAuth`). The
+ *  four GETs are dual-audience: a teacher/researcher gets the all-groups branch,
+ *  which `protocols/progress_read_access.py` authorises — `classId` narrows it to
+ *  that class's groups (class owner or researcher); without it, the activity
+ *  owner or a researcher. This picks the one group out of the answer. */
+export async function fetchGroupFinalWork(
+  activityId: string,
+  groupCode: string,
+  classId?: string | null,
+): Promise<GroupFinalWork> {
+  const base = `/api/proxy/api/activities/${encodeURIComponent(activityId)}`;
+  const query = classId ? `?classId=${encodeURIComponent(classId)}` : "";
+  const one = async <V>(path: string): Promise<V | null> => {
+    try {
+      const resp = await fetchWithAuth(`${base}/${path}${query}`);
+      if (!resp.ok) return null;
+      const body = (await resp.json()) as { groups?: Record<string, unknown> };
+      const groups = body?.groups;
+      if (!groups || typeof groups !== "object") return null;
+      const mine = groups[groupCode];
+      return (mine && typeof mine === "object" ? mine : {}) as V;
+    } catch {
+      return null;
+    }
+  };
+  const [cells, docs, itemStates, nodeStates] = await Promise.all([
+    one<GroupFinalWork["cells"]>("table"),
+    one<GroupFinalWork["docs"]>("writing"),
+    one<GroupFinalWork["itemStates"]>("checklist-progress"),
+    one<GroupFinalWork["nodeStates"]>("concept-progress"),
+  ]);
+  return { cells, docs, itemStates, nodeStates };
+}
+
 
 /** Fetch an export as a Blob.
  *

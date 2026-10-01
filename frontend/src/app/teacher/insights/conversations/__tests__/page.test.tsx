@@ -81,6 +81,9 @@ function turn(overrides: Partial<ChatLogTurn> = {}): ChatLogTurn {
 
 beforeEach(() => {
   vi.spyOn(teacherApi, "listTeachingFrameworks").mockResolvedValue([]);
+  // 1.1.136 M2 — the final-work panel reads the activity; by default there is
+  // none, so the panel renders nothing and the transcript tests are unchanged.
+  vi.spyOn(teacherApi, "fetchActivity").mockRejectedValue(new Error("not found"));
 });
 
 afterEach(() => {
@@ -268,6 +271,37 @@ describe("researcher chat-log lens", () => {
     render(<ResearchLogsPage />);
     await userEvent.click(await screen.findByRole("button", { name: /read/i }));
     expect(await screen.findByText(/does NOT mean the group did no work/i)).toBeInTheDocument();
+  });
+
+  it("shows what the group ended with above the timeline — the researcher path (1.1.136 M2)", async () => {
+    vi.spyOn(teacherApi, "listChatLogTabs").mockResolvedValue({ tabs: [tab()], unassignedKey: UNASSIGNED });
+    vi.spyOn(teacherApi, "listChatLogSessions").mockResolvedValue([session()]);
+    vi.spyOn(teacherApi, "getChatLogTimeline").mockResolvedValue({
+      sessionId: session().session_id ?? "",
+      workStatus: "ok",
+      items: [{ kind: "turn", ...turn({ turn_index: 1, role: "student", content: "hej" }) }],
+    });
+    const activity = vi.spyOn(teacherApi, "fetchActivity").mockResolvedValue({
+      activityId: "act-f3bd4f92a9",
+      writing: [{ id: "w1", title: "Conclusion" }],
+    } as unknown as teacherApi.ActivityPayload);
+    const work = vi.spyOn(teacherApi, "fetchGroupFinalWork").mockResolvedValue({
+      cells: {},
+      docs: { w1: { text: "The slope is g." } },
+      itemStates: {},
+      nodeStates: {},
+    });
+
+    render(<ResearchLogsPage />);
+    await userEvent.click(await screen.findByRole("button", { name: /read/i }));
+
+    expect(await screen.findByText("The slope is g.")).toBeInTheDocument();
+    expect(activity).toHaveBeenCalledWith("act-f3bd4f92a9");
+    // The researcher branch, not a class-narrowed read: no classId.
+    expect(work).toHaveBeenCalledWith("act-f3bd4f92a9", "crisp-pebble-21", undefined);
+    const panel = screen.getByTestId("final-work-panel");
+    const turnText = screen.getByText("hej");
+    expect(panel.compareDocumentPosition(turnText) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it("switching tab refetches that tab's conversations", async () => {

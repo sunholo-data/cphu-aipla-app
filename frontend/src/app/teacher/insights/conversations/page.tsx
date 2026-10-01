@@ -21,6 +21,7 @@ import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
 import { InsightsTabs } from "@/components/teacher/insights/InsightsTabs";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 import { ChatLogTranscript } from "@/components/teacher/research/ChatLogTranscript";
+import { FinalWorkPanel } from "@/components/teacher/work/FinalWorkPanel";
 import { useT, type Translate } from "@/i18n";
 
 /** UI copy, lifted out of JSX (1.1.108 M4) so a translator can reach it. */
@@ -206,6 +207,7 @@ function ResearchLogsPageInner() {
     () => tabs.reduce((acc, tab) => ({ sessions: acc.sessions + tab.sessions, turns: acc.turns + tab.turns }), { sessions: 0, turns: 0 }),
     [tabs],
   );
+  const openRow = openSession ? (sessions.find((s) => s.session_id === openSession) ?? null) : null;
 
   if (status === "loading") {
     return (
@@ -386,6 +388,16 @@ function ResearchLogsPageInner() {
               {t("close")}
             </button>
           </div>
+          {/* 1.1.136 M2 — what the group ended with on this session's activity,
+              above the timeline. Needs both a group and an activity on the row.
+              No classId: this page is researcher-only, and the researcher branch
+              reads every group on the activity — a class id stamped on an old
+              log row (a since-deleted class) would otherwise 404 the read. */}
+          {openRow?.group_id && openRow.activity_id ? (
+            <div className="mb-4">
+              <FinalWorkPanel activityId={openRow.activity_id} groupCode={openRow.group_id} />
+            </div>
+          ) : null}
           <ChatLogTranscript
             items={timeline?.items ?? null}
             status={turnsStatus}

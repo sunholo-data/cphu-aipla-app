@@ -517,5 +517,22 @@
     "duration_m": "{m}m",
     "duration_h": "{h}h",
     "duration_hm": "{h}h {m}m"
+  },
+  "FinalWorkPanel": {
+    "heading": "What they ended with",
+    "hint": "The group's saved work on this activity as it stands now — across all their sessions, not only this one.",
+    "loading": "Loading the group's work…",
+    "nothingYet": "Nothing saved in the workbench yet.",
+    "unreadable": "The group's saved work could not be read — this does NOT mean they did none.",
+    "partlyUnreadable": "Part of the group's saved work could not be read, so this may be incomplete.",
+    "untitledTable": "Data table",
+    "untitledChart": "Chart",
+    "untitledWriting": "Writing",
+    "checklist": "Checklist — {done} of {total} ticked",
+    "byTutor": "(ticked by the tutor)",
+    "concepts": "Concepts shown",
+    "statusDemonstrated": "demonstrated",
+    "statusPartial": "partly",
+    "photosNotKept": "Photos shared with the tutor are not kept."
   }
 }

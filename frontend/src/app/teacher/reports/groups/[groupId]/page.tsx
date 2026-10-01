@@ -21,6 +21,7 @@ import {
   timelineToCsvRows,
 } from "@/components/teacher/research/timelineExport";
 import { GroupTranscriptSection } from "@/components/teacher/GroupTranscriptSection";
+import { FinalWorkPanel } from "@/components/teacher/work/FinalWorkPanel";
 import { TeachingApproachSection } from "@/components/teacher/TeachingApproachSection";
 import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
 import { useT, type Translate } from "@/i18n";
@@ -395,6 +396,19 @@ export default function TeacherGroupReportPage() {
           ))}
         </ul>
       </section>
+
+      {/* 1.1.136 M2 — the group's final work (table, re-rendered chart, writing,
+          checklist), above the timeline that shows how they got there. Re-reads
+          when the live poll brings new work. Renders nothing for an activity
+          without workbench elements. */}
+      {live?.activityId ? (
+        <FinalWorkPanel
+          activityId={live.activityId}
+          groupCode={liveGroup}
+          classId={live.classId ?? null}
+          refreshKey={`${liveMessages}:${liveWork}`}
+        />
+      ) : null}
 
       {/* 1.1.36 feedback — group the chat + recording transcripts as one
           "Source material" (provenance) block so they read together. */}
