@@ -1,6 +1,6 @@
 # The tutor can act on the simulation — commands as tool calls, not text
 
-**Status**: **Design (OPEN)** 2026-09-24 — **1.1.133**. Taken for the next sprint (M, 2026-09-24)
+**Status**: **SHIPPED (code, M0–M3) 2026-10-01** on `dev`, not yet deployed — see [What shipped](#what-shipped--2026-10-01). M4 (in-turn results) remains a spike. Designed 2026-09-24 — **1.1.133**
 **Priority**: **P2** — no sim needs it to work; the first author-supplied sim was designed around it, and it is the one capability every sim so far has lacked
 **Estimated**: **~3–3.5d for M0–M3** (catalogue command surface ~0.5d · the control tool + browser routing + student card ~1.5d · per-tutor control policy ~0.5d · assessment tool ~0.5–0.75d). M4 (in-turn results via AG-UI frontend tools) is a **~0.5d spike**, decided after M1 is in use
 **Scope**: Backend — `db/models/artefact.py` (a `commands` field), a new `adk/sim_control_tools.py`, `adk/stream_redaction.py` (allow-list), `adk/agent.py` (tool wiring), the tutor framework YAML (policy), chat-log stamp. Frontend — `GenericArtefactFrame.tsx`, `MessageBubble.tsx`, one small client bus. Sims — each sim that opts in declares its commands; `sol-jord-maane` already answers them
@@ -260,11 +260,87 @@ Not in scope; recorded so the in-app design does not paint over it.
 | Assessment leaks to the student | not allow-listed + redacted; acceptance 6 |
 | Two sources of truth for commands (catalogue vs. sim HTML) | catalogue test cross-checks registration (M0) |
 
-## Open decisions for the sprint
+## Open decisions for the sprint — decided 2026-10-01
 
 1. **Default `sim_control` level.** Proposed `view`. The alternative, `none`
    (opt-in per tutor), is safer and makes the first classroom use deliberate.
+   → **Decided: `view`.** A tutor's level comes from its framework's
+   `sim_control` field (M2); a framework that says nothing — and every base
+   tutor, which carries no framework by design — resolves to `view`.
 2. **Where the card sits** — in the chat stream (proposed; it is the tutor's
    act) or as a toast inside the sim frame.
+   → **Decided: in the chat stream**, beside the tutor's reply that made the
+   change.
 3. **Does `record_assessment` wait for M4**, or ship in the same sprint as M1?
    It does not depend on M1 at all, and it is the half that serves research.
+   → **Decided: same sprint, if time.** It did fit; shipped as M3.
+
+## What shipped — 2026-10-01
+
+Four commits on `dev` (`a868df19` M0 · `dd782665` M1 · `6de15dcb` M2 ·
+`6ebb5296` M3). Not deployed; no real model was called.
+
+**What the tutor can now do.** On an activity whose sim declares `commands`
+(today only `sol-jord-maane`, 19 of them), the tutor has a `control_sim` tool.
+At the default level it may `jump`, `setTime`, `addTime`, `play`, `pause`,
+`setSpeed`, `setView`, `setScale`, `setObserver`, `look` and `setShow`.
+`scaffold` adds `setTask`, `clearTask`, `toast`, `startMission`,
+`openMissions`, `openQuiz`; `restrict` adds `lock` and `configure`. On a sim
+with a construct map, a student session also gets `record_assessment`.
+
+**How it is gated.**
+
+| Gate | Where |
+|---|---|
+| per sim: no `commands` → no tool (default-deny) | `ArtefactMeta.commands`, `build_sim_control_tools` |
+| per tutor: the framework's `sim_control`; a disallowed command is absent from the schema | `TeachingFramework.sim_control`, `resolve_sim_control_level`, `admitted_commands` |
+| per call: command ∈ admitted, args valid against the declared schema, ≤3 per turn — refusals never reach the browser | `adk/sim_control_tools.py`, `artefacts/arg_schema.py` |
+| per catalogue: every declared command is registered by the sim's HTML | `test_artefact_catalogue.py` |
+| per stream: `control_sim` allow-listed (the guard goes red without it, tested); `record_assessment`'s whole call dropped from student streams | `adk/stream_redaction.py` |
+
+**The end-to-end path, as built.** `control_sim` returns
+`{ok, artefactId, command, args, effect, power}` → AG-UI `TOOL_CALL_RESULT` →
+`MessageBubble` renders `SimCommandCard` ("Tutoren ændrede din simulation" +
+the catalogue's own effect text, e.g. "Sprang til næste solformørkelse") →
+mounting the card calls `dispatchSimCommand` on `lib/simCommandBus.ts`, which
+applies each `toolCallId` exactly once and holds commands for a closed sim →
+`GenericArtefactFrame` (subscribed per artefact id) holds them until the sim's
+`ui/notifications/initialized`, then `sendNotification("<id>.cmd-<command>",
+args)` → the sim's `onHostNotification`. The sim's new state reaches the tutor
+on its next commit or chat flush. Every command is a chat-log row
+(workbench-event table: `server` = sim, `tool` = `control_sim`, `field` =
+command, `label` = effect, `value` = args + tutor/version/framework stamped at
+emit time).
+
+`record_assessment` rides the same table (`tool` = `record_assessment`,
+`field` = phenomenon, `value` = level, evidence, misconception, mission, scale,
+tutor stamp). The new `assessment:` block is server-side, like `tutorBlock`.
+
+**Deviations from the design, and why.**
+
+- The `args` parameter is declared as the typed **union** of the admitted
+  commands' properties, not a bare object: Gemini refuses an OBJECT parameter
+  with no properties. The server validates per command.
+- `record_assessment` is hidden by dropping **every** event of the call, not
+  only redacting its result — the level is in `TOOL_CALL_ARGS`.
+- Both log rows reuse the workbench-event sink rather than a new table; no
+  infrastructure change was needed.
+
+**Not done.**
+
+- **Undo on the card.** The card says a `view` change can be reversed from the
+  sim's own controls, and says nothing for `scaffold`/`restrict`. A one-click
+  Undo needs the prior value, which the host does not have without a reply
+  channel (M4).
+- **Acceptance 2/3 in a real browser** (the sandbox double iframe, the clock
+  reading 6 Feb 2027, reload does not re-jump). Covered by unit tests on each
+  hop: card → bus (once only), bus → frame, frame held until handshake. The
+  real-sandbox run remains.
+- **Acceptance 7** (the level-0 eval) needs a model run.
+- **Acceptance 8** (`verify_sim.mjs --commands`): the rule is stated in the
+  `mcp-app-artefact` skill and `sol-jord-maane` obeys it by construction; no
+  harness checks it yet.
+- No published framework sets `sim_control`. A POE tutor that wants `restrict`
+  is a decision for AR/JB in the YAML. The generated framework doc names a
+  level only when one is declared.
+- The public `/project/tutors` pages do not show the level yet.
