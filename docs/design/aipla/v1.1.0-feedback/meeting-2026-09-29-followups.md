@@ -305,6 +305,9 @@ applies, and the design belongs in 1.1.135 as a new milestone.
   whether right*; [1.1.129](explain-on-the-second-ask.md) holds the rest.
 - *"Sim variables displayed as LaTeX"*: needs one real example from the logs first.
   The notation preamble may be typesetting sim parameter names; check before changing it.
+  **Checked 2026-10-01** — see [LaTeX for sim variables](#latex-for-sim-variables--evidence-2026-10-01):
+  38 % of classroom tutor turns in sim sessions typeset, mostly sim readings; a preamble
+  carve-out is proposed, not applied.
 
 ## Suggested order
 
@@ -350,3 +353,97 @@ teachers used, and if needed add a `--include-teacher-trials` mode for that one 
 
 **Next:** more sessions (the window was 5 days), then 1.1.141 M0 on this harness.
 Do not quote the 0-of-5 headline without the n table beside it.
+
+### `--include-teacher-trials` — built 2026-10-01
+
+Opt-in flag on the same harness. It lifts **only** the `preview-` prefix (a teacher's
+"Try as student" group, 1.1.133: the real student pipeline on the full lesson prompt);
+`preview:` tutor previews and `teacher:` rows stay out, because there is nothing in them
+to judge (`teacher:` rows are content-free cost telemetry, `teaching_source = 'fields'`).
+Trial sessions are labelled `teacher trial`, carry `cohort` in `raw_scores.jsonl`, and
+get their own n table and their own per-session report section. They are **never
+pooled** into the classroom headline, matrix or n table — a test asserts the classroom
+headline and session count are unchanged when a trial session is added.
+
+Dry run on prod, 27–29 Sep (read-only, zero model calls): **10 teacher-trial sessions,
+all Mikkel/ESRU**, with 2, 8, 4, 5, 2, 1, 1, 1, 5, 4 tutor turns. At the default floor of
+6 tutor turns **one qualifies (8 turns)** — very likely the experienced-teacher session
+JB meant, but confirm with him before reading it as that. The rest are clicks-through.
+Classroom side of the same window: 12 sessions in 12 groups (ESRU 7, the rest 1–2).
+
+    make bench-tutor-sessions ARGS="--go --include-teacher-trials --since 2026-09-27 --until 2026-09-29"
+
+≈ 104 judge calls, est. EUR 0.48. `--min-turns 4` would add three more trial sessions
+(and lower the classroom floor too, so do not compare that run's headline with the
+first run's).
+
+## LaTeX for sim variables — evidence, 2026-10-01
+
+The "Out of scope" bullet asked for one real example before touching the notation
+preamble. There are many. Prod `chat_logs.chat_turns`, 25–30 Sep, tutor turns only,
+student groups only (no `preview-`/`preview:`/`teacher:`), a session counted as a sim
+session when `workbench_events` has a sim state push for it.
+
+**Frequency.**
+
+| classroom tutor turns | turns | with `$…$` | sessions |
+|---|---|---|---|
+| in a sim session | 205 | **78 (38 %)** | 21 |
+| — of which typeset a sim **reading** (a number + unit) | | **48** | |
+| — of which wrap a whole word in `\text{…}` | | 8 | |
+| — of which will not render (`^`/`\` inside `\text{}`) | | 2 | |
+| in a session with no sim | 39 | 0 | 8 |
+
+Per activity it tracks the sim, not the approach: kettle-efficiency 36 of 70 tutor turns
+(25 of 28 in one session), wave-speed 21 of 29, the Sun–Earth–Moon sim only 8 of 82 (its state is
+mostly views and dates, not quantities). No turn had **unwrapped** backslashes — the
+"Wrap it" rule works.
+
+**Examples** (tutor text only, trimmed):
+
+1. kettle — *"you have chosen an effect of `$2000 \text{ W}$` and a volume of
+   `$1{,}4 \text{ L}$` of water starting at `$20^\circ\text{C}$`."* The slider reads
+   **Effekt — 2000 W**; the tutor re-typesets the student's own setting.
+2. kettle — *"I can see your kettle is set to `$2000 \text{ W}$` and
+   `$1{,}4 \text{ litres}$` of water"* — a whole English word inside maths.
+3. kettle — *"a reading with `$1500\text{ W}$` and `$1\text{ kg}$` of water reaching
+   `$55{,}6\ \text{^\circ{}C}$`"* — **does not render**: `^` is not allowed in `\text{}`,
+   so KaTeX (rehype-katex, `throwOnError: false`) shows the raw source in red. The
+   student sees `55{,}6\ \text{^\circ{}C}` in the middle of a sentence.
+4. kettle — *"the total electrical energy from the power `$P$` and time `$t$`"*. The sim
+   never names the control `P`; it says **Effekt**. The preamble's "prefer the symbol to
+   the word" swapped the student's label for a symbol they were not shown.
+5. kettle — *"`$\text{nyttevirkning} = \frac{\text{nyttig energi}}{\text{tilført energi}}$`"* —
+   a word equation typeset as a fraction of `\text{}` blocks.
+6. wave-speed — *"du har valgt en frekvens på `$1{,}5 \text{ Hz}$` og en bølgelængde på
+   `$1{,}5 \text{ m}$` i din seneste måling."* The slider already shows `f — 1,5 Hz`.
+7. boldkast — *"Med de samme indstillinger (`$v_0 = 7{,}5\text{ m/s}$` og
+   `$\theta = 44^\circ$`)"* — here the sim does label its sliders `v₀` and `θ`, so the
+   symbol is right; the typesetting of the setting itself is the noise.
+8. Sun–Earth–Moon — *"I inddrager endda en konkret værdi fra simulationen på
+   `$10{,}9^\circ$`"* — a single read-off angle in maths mode.
+
+**Likely cause: the preamble, as written.** `backend/skills/preambles/math_notation.md`
+says *"A quantity carries its unit, and prefer the symbol to the word. Write
+`$v = 0{,}2 \text{ m/s}$`"*. A sim pushes its state as quantities with units
+(`power_W: 2000`, `frequency_Hz: 1.5`), so the model reads every setting as a
+"quantity" and applies that rule to it — including to a slider's own value, and
+substituting a symbol (`$P$`) for the label the student is looking at (**Effekt**). The
+carve-out at the end ("a count, an index, a trial number, a number in ordinary prose")
+does not cover a sim setting. The `\text{^\circ{}C}` failure is the model improvising
+units inside `\text{}` because the preamble's only unit example is `\text{ m/s}`.
+
+**Proposed fix (propose only — the preamble is not edited here).** Add one paragraph to
+the carve-out:
+
+> *A simulation's own controls and readings are not mathematics. When you refer to what
+> the student set or read off in the simulation, write it the way the simulation shows
+> it, in plain text — "Effekt 2000 W", "frekvens 1,5 Hz", "20 °C" — and use the
+> simulation's own name for the control, not a symbol it does not display. Typeset only
+> when you are building or manipulating a relationship (`$E = P \cdot t$`), and then a
+> degree sign is `^\circ` outside `\text{}`, never inside it.*
+
+It keeps the rule where it earns its place (formulae, working) and takes it away where
+it fights the sim's own labels. Verifying it is cheap: re-run the frequency query above
+on a week after the change — the "typeset a sim reading" row should fall well below 48
+while the formula turns stay.
