@@ -1024,8 +1024,9 @@ class TestQuotaExhaustedIsNotShownRawToStudents:
     "Upstream API error (429): <raw exception>" — a developer's stack detail
     shown to a fifteen-year-old, leaking internals and suggesting nothing useful.
 
-    `adk/quota_retry.py` absorbs the retryable ones before the first token; this
-    is what the student sees when a burst outlasts the retries.
+    `adk/resilient_llm.py` absorbs the retryable ones before the first token
+    (retry, then fail over); this is what the student sees when a burst outlasts
+    both.
     """
 
     def _exc(self, status: int, raw: str):

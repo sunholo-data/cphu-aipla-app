@@ -1,6 +1,6 @@
 # Retry, then escalate — a failed or struggling turn gets a second chance on a stronger model
 
-**Status:** Design (OPEN) — **1.1.142**
+**Status:** **M0–M2 SHIPPED 2026-10-01** (classifier, retry 429/5xx/stall, fail-over to the smart tier) · M3 (escalate hard turns) and M4 (cost + telemetry) OPEN — **1.1.142**
 **Priority:** **P2** — a failed turn is currently a dead turn (Gemini 5xx is not retried), and "Flash struggles with some harder tasks" has no remedy short of moving every student to a slower model
 **Estimated:** ~1.5–2d (M0 port the error classifier ~0.25d · M1 retry transient 5xx ~0.25d · M2 fail-over to the smart tier ~0.5d · M3 escalate on hard turns ~0.5d · M4 cost + telemetry ~0.25d)
 **Scope:** Backend: adapt upstream `backend/adk/model_errors.py` + `resilient_llm.py` (from `sunholo-data/platform-source`) into `backend/adk/`; replace/absorb `adk/quota_retry.py`; the model wiring in `adk/agent.py` (one seam); `config/models.yaml` (the chain as data); chat-log stamp. Frontend: none required (optionally a "still thinking — using a stronger model" line on the 1.1.131 M2 stall indicator)
@@ -69,6 +69,65 @@ invisible.
 A line in the insights cost view: share of turns on the smart tier, split by *fail-over* vs
 *escalation* vs *opt-in*. A budget alarm if smart-tier share exceeds a threshold
 agreed against [1.1.106](cloud-cost-envelope.md) (the 100,000 DKK envelope).
+
+## What shipped — 2026-10-01 (M0–M2)
+
+**Ported down, not merged**, from `sunholo-data/platform-source` `upstream/dev` @
+`c928fca6` (= `main` @ `b322f55d` + #14, the silent-stall class this fork
+authored and ported up on 2026-09-22). `model_errors.py` is verbatim below an
+AIPLA provenance paragraph; `resilient_llm.py` is adapted.
+
+- **M0 — `backend/adk/model_errors.py`** + `tests/unit/test_model_errors.py`
+  (upstream's table kept, LiteLLM rows included — inert here, correct when a
+  local tier arrives; AIPLA rows added for the real ADK `_ResourceExhaustedError`,
+  the 22 Sep `500 INTERNAL`, Vertex `retryDelay` JSON, and stalls).
+- **M1+M2 — `backend/adk/resilient_llm.py`.** Retries 429, 5xx and first-token
+  stalls with capped full-jitter backoff (retry-after honoured, capped at 10 s);
+  falls over down the chain **only before visible output**; after visible output
+  raises `ModelTurnError` (no second answer). AIPLA adaptations, each reasoned in
+  the module docstring: a **wall-clock budget of 25 s** on a patchable clock
+  (upstream bounds by retry counts only); the first-token deadline (10 s, one
+  stall retry on the primary, the fallback gets what is left); cooldown keyed by
+  **model**, not provider (every model here is "gemini"); dropped
+  `schema_conformance` (an Express-Mode-only 400 — AIPLA is Vertex-only), the
+  cross-provider tool-history sanitizer and `FAULT_INJECT_MODEL` (LiteLLM-only).
+- **The chain is data:** `tutor_chain: [gemini-3-5-flash-lite, gemini-3-8-flash]`
+  in `config/models.yaml`, validated (registered, google, no repeats, head =
+  `platform_default`) and read by `config.models.tutor_chain()`.
+- **The seam:** `adk/agent.py` `resolve_model()` now returns
+  `ResilientLlm(chain=[Gemini(...), …])` for every `gemini-*` id — the whole
+  chain when the id is the chain head (the platform default), a chain of one
+  (retry, no fail-over) for a skill pinning any other model. Non-Gemini
+  providers are untouched. Members are bare `Gemini` (no `retry_options`).
+- **`adk/quota_retry.py` is deleted**, with its test file; its 429 retry and
+  first-token deadline both live in the wrapper now, so attempts cannot
+  multiply. `_QuotaTolerantGemini` is gone (only tests imported it).
+- **The chat-log stamp names the model that answered.** The `model` column was
+  the skill's *configured* model (`adk/callbacks/session.py`). A failed-over
+  response now carries `custom_metadata["served_model"]`, ADK persists it onto
+  the session event, and the row (and `record_llm_cost`) use it — so a
+  failed-over turn prices at the smart-tier rate. An ADK Runner test proves the
+  stamp survives to the event.
+- **`skills/skill_processor.py`** translates a `ModelTurnError`: a `ClientError`
+  cause keeps its existing translation (429 → `QUOTA_EXHAUSTED`), anything else
+  a Danish student message with the classifier's code.
+- Reliability events `MODEL_RETRY` / `MODEL_FALLBACK` ride the existing
+  LatencyTracker queue as AG-UI CUSTOM events (the compaction notices' path).
+  The frontend ignores them today.
+
+**Known gaps (follow-ups):**
+
+- **M3 escalation and M4 telemetry are not built.** M4's "share of turns on the
+  smart tier" can now be read from the `model` column; the split by
+  fail-over vs escalation vs opt-in needs M3 first.
+- **The skill_processor branch may rarely fire.** ag_ui_adk catches runner
+  exceptions itself and emits `BACKGROUND_EXECUTION_ERROR` with `str(exc)` —
+  pre-existing for `ClientError` too. A student who exhausts the budget may see
+  `model turn failed on …` rather than the Danish line. Worth a translate pass
+  on ag_ui_adk's RUN_ERROR in `adk/agui.py`.
+- **No frontend notice** for `MODEL_FALLBACK` (the optional "using a stronger
+  model" line on the 1.1.131 M2 stall indicator).
+- **Cooldown is per instance**, as upstream.
 
 ## Out of scope
 

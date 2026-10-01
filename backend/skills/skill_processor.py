@@ -28,6 +28,7 @@ from google.genai.errors import ClientError
 
 from adk.agent import _HeuristicRouter, create_agent_with_thinking
 from adk.agui import build_agui_adk_agent, stream_agui_events
+from adk.model_errors import ModelTurnError
 from adk.session import get_session_service
 from auth.access_context import AccessContext
 from auth.firebase_auth import User
@@ -419,6 +420,19 @@ async def _run_skill_turn(
             # 1.1.108 — lets the banner speak the activity's language.
             "reason": decision.reason,
         }
+    except ModelTurnError as exc:
+        # 1.1.142 — `adk/resilient_llm.py` retried and failed over and still
+        # could not answer (or the model died AFTER the student saw text, where
+        # a retry would duplicate it). The original provider error rides as
+        # `__cause__`; a ClientError keeps its existing translation so a 429
+        # still reads as QUOTA_EXHAUSTED, everything else gets the typed code.
+        cause = exc.__cause__
+        if isinstance(cause, ClientError):
+            message, code = _translate_client_error(cause)
+        else:
+            message, code = _translate_model_turn_error(exc)
+        logger.error("skill=%s model turn failed: %s", skill_id, exc)
+        yield {"type": "RUN_ERROR", "message": message, "code": code}
     except ClientError as exc:
         # Vertex AI / Gemini API failures bubble up as ClientError. Translate
         # to an AG-UI RUN_ERROR event so the chat UI can render an actionable
@@ -526,6 +540,19 @@ def _derive_initial_access_control(document_id: str | None):
     return AccessControl(type="private")
 
 
+def _translate_model_turn_error(exc: ModelTurnError) -> tuple[str, str]:
+    """Map a non-ClientError ``ModelTurnError`` (5xx, a stall, an unknown
+    failure) to a (user_message, error_code) pair. Student-facing Danish for
+    the same reason as the 429 branch of ``_translate_client_error``: this is
+    what a student reads when Vertex is down for longer than the < 30 s
+    retry-and-fail-over budget. The code is the classifier's
+    (``MODEL_UNAVAILABLE`` etc.), never the raw provider text."""
+    return (
+        "Vejlederen svarer ikke lige nu. Prøv igen om et øjeblik.",
+        exc.error_class.code,
+    )
+
+
 def _translate_client_error(exc: ClientError) -> tuple[str, str]:
     """Map a google.genai ClientError to a (user_message, error_code) pair."""
     status = getattr(exc, "code", None)
@@ -542,9 +569,9 @@ def _translate_client_error(exc: ClientError) -> tuple[str, str]:
         # The one upstream error a STUDENT meets in normal running. Vertex serves
         # this project's Gemini models under Dynamic Shared Quota, so a burst is
         # an expected operating condition, not a misconfiguration — and there is
-        # no per-project QPM to raise. `adk/quota_retry.py` absorbs the ones that
-        # arrive before the first token; this message is for a burst that outlasts
-        # the retries.
+        # no per-project QPM to raise. `adk/resilient_llm.py` absorbs the ones that
+        # arrive before the first token (retry, then fail over); this message is
+        # for a burst that outlasts both.
         #
         # Danish, unlike its neighbours here, and deliberately: the branches above
         # are dev-facing (an ADC drift a developer fixes), while this one renders

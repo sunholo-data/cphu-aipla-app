@@ -36,6 +36,9 @@ class ModelsConfig(BaseModel):
     # without the key still loads; ``analysis_model()`` then falls back to
     # ``smart_model()``.
     analysis_model: str | None = None
+    # 1.1.142 M2: ordered fail-over chain for the platform default. Optional so
+    # an older YAML still loads; ``tutor_chain()`` then returns the default alone.
+    tutor_chain: list[str] | None = None
 
     @model_validator(mode="after")
     def validate_references(self) -> ModelsConfig:
@@ -44,6 +47,22 @@ class ModelsConfig(BaseModel):
             raise ValueError(f"platform_default {self.platform_default!r} not found in models list")
         if self.analysis_model is not None and self.analysis_model not in model_ids:
             raise ValueError(f"analysis_model {self.analysis_model!r} not found in models list")
+        if self.tutor_chain is not None:
+            if not self.tutor_chain:
+                raise ValueError("tutor_chain must not be empty (omit the key for no fail-over)")
+            if len(set(self.tutor_chain)) != len(self.tutor_chain):
+                raise ValueError(f"tutor_chain {self.tutor_chain!r} repeats a model")
+            by_id = {m.id: m for m in self.models}
+            for model_id in self.tutor_chain:
+                if model_id not in by_id:
+                    raise ValueError(f"tutor_chain entry {model_id!r} not found in models list")
+                if by_id[model_id].provider != "google":
+                    raise ValueError(f"tutor_chain entry {model_id!r} is not a google model (Gemini-only chain)")
+            if self.tutor_chain[0] != self.platform_default:
+                raise ValueError(
+                    f"tutor_chain must start with platform_default {self.platform_default!r}, "
+                    f"not {self.tutor_chain[0]!r}"
+                )
         for provider, model_id in self.defaults.items():
             if model_id not in model_ids:
                 raise ValueError(f"defaults[{provider!r}] = {model_id!r} not found in models list")
@@ -73,6 +92,7 @@ def load_models_config() -> ModelsConfig:
         defaults=raw["defaults"],
         platform_default=raw["platform_default"],
         analysis_model=raw.get("analysis_model"),
+        tutor_chain=raw.get("tutor_chain"),
     )
 
 
@@ -154,6 +174,21 @@ def analysis_model() -> str:
         return smart_model()
     entry = next(m for m in cfg.models if m.id == cfg.analysis_model)
     return entry.api_name
+
+
+def tutor_chain() -> list[str]:
+    """API names of the fail-over chain for the platform default (models.yaml
+    ``tutor_chain``), head first. The head is always ``default_model()``.
+
+    Used by ``adk.agent.resolve_model``: when the requested model is the head,
+    the model is wrapped with the whole chain; any other model gets a chain of
+    one (retry, no fail-over). Without the key → ``[default_model()]``.
+    """
+    cfg = load_models_config()
+    if not cfg.tutor_chain:
+        return [default_model()]
+    by_id = {m.id: m for m in cfg.models}
+    return [by_id[model_id].api_name for model_id in cfg.tutor_chain]
 
 
 def model_api_names() -> set[str]:

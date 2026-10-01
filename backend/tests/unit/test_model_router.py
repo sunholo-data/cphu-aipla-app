@@ -2,7 +2,8 @@
 
 Model IDs coming from SkillConfig.skill_metadata.model are dispatched to the
 correct ADK wrapper. Three provider families:
-  - Gemini: gemini-*  -> google.adk.models.Gemini
+  - Gemini: gemini-*  -> adk.resilient_llm.ResilientLlm over google.adk.models.Gemini
+    members (1.1.142 — retry, then fail over; see test_resilient_llm.py)
   - Claude: claude-*  -> google.adk.models.Claude
   - OpenAI: gpt-* / o3*  -> google.adk.models.lite_llm.LiteLlm (openai/ prefix)
 """
@@ -14,17 +15,20 @@ from google.adk.models import Claude, Gemini
 from google.adk.models.lite_llm import LiteLlm
 
 from adk.agent import resolve_model
+from adk.resilient_llm import ResilientLlm
 
 
-def test_gemini_model_returns_gemini_wrapper():
+def test_gemini_model_returns_resilient_wrapper_over_gemini():
     model = resolve_model("gemini-2.5-flash")
-    assert isinstance(model, Gemini)
+    assert isinstance(model, ResilientLlm)
     assert model.model == "gemini-2.5-flash"
+    assert all(isinstance(member, Gemini) for member in model.chain)
 
 
-def test_gemini_pro_model_returns_gemini_wrapper():
+def test_gemini_pro_model_returns_resilient_wrapper():
     model = resolve_model("gemini-2.5-pro")
-    assert isinstance(model, Gemini)
+    assert isinstance(model, ResilientLlm)
+    assert model.chain_models == ["gemini-2.5-pro"]
 
 
 def test_claude_model_returns_claude_wrapper():

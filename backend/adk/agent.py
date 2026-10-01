@@ -83,7 +83,7 @@ from adk.proactive_greet import inject_opening_guidance, wrap_opening_guidance_p
 from adk.proactive_reactive import inject_reactive_guidance
 from adk.proactive_telemetry import tag_proactive_span_from_callback_context
 from adk.progress_context import compose_progress_context
-from adk.quota_retry import first_token_deadline, retry_on_quota_exhaustion
+from adk.resilient_llm import ResilientLlm
 from adk.teacher_focus import build_ilo_precedence_block, inject_teacher_focus, resolve_active_config
 from adk.tools import resolve_mcp_tools, resolve_tools
 from adk.tutor_framework import inject_framework_preamble
@@ -102,10 +102,13 @@ logger = logging.getLogger(__name__)
 # --- Model routing ---
 
 
-def resolve_model(model_id: str) -> Gemini | Claude | LiteLlm:
+def resolve_model(model_id: str) -> ResilientLlm | Claude | LiteLlm:
     """Create the correct ADK model wrapper for the given model ID.
 
-    - `gemini-*` -> `Gemini(model=...)` (Vertex AI via ADC)
+    - `gemini-*` -> `ResilientLlm` over `Gemini(model=...)` members (Vertex AI
+      via ADC). When `model_id` is the head of models.yaml `tutor_chain` (the
+      platform default), the chain is the whole fail-over list; any other
+      Gemini model is a chain of one — retries, no fail-over (1.1.142).
     - `claude-*` -> `Claude(model=...)` (Vertex AI Anthropic models)
     - `gpt-*` / `o3*` -> `LiteLlm(model="openai/...")` (requires OPENAI_API_KEY)
 
@@ -113,7 +116,7 @@ def resolve_model(model_id: str) -> Gemini | Claude | LiteLlm:
         ValueError: If the model_id does not match a known provider prefix.
     """
     if model_id.startswith("gemini-"):
-        return _QuotaTolerantGemini(model=model_id)
+        return ResilientLlm(chain=[Gemini(model=member) for member in _gemini_chain_for(model_id)])
     if model_id.startswith("claude-"):
         return Claude(model=model_id)
     if model_id.startswith("gpt-") or model_id.startswith("o3"):
@@ -121,38 +124,27 @@ def resolve_model(model_id: str) -> Gemini | Claude | LiteLlm:
     raise ValueError(f"Unsupported model: {model_id!r}")
 
 
-class _QuotaTolerantGemini(Gemini):
-    """``Gemini``, but a 429 before the first token retries instead of ending the turn.
+def _gemini_chain_for(model_id: str) -> list[str]:
+    """The ordered Gemini models a turn for `model_id` may be answered by.
 
-    Vertex serves Gemini 2.x here under Dynamic Shared Quota — there is no
-    per-project QPM to raise, so 429s are an expected operating condition rather
-    than a misconfiguration, and the client is the only place they can be
-    absorbed. Three bursts ended real student turns mid-sentence in the
-    2026-08-21 pilot.
-
-    The retry is narrow by construction: `retry_on_quota_exhaustion` re-runs the
-    call ONLY when nothing has been yielded yet, because ADK wraps its whole
-    streaming loop in one `try` and a mid-stream retry would emit a second copy
-    of text the student can already read. See `adk/quota_retry.py`.
-
-    The same seam carries the first-token deadline (2026-09-21): a streamed
-    request that has produced nothing after `FIRST_TOKEN_DEADLINE_S` is dropped
-    and made once more. Six prod turns in 30 days sat 48-105 s waiting on a
-    request Vertex had accepted and gone quiet on; the student's browser had
-    given up at 30 s. Streaming only — a non-streamed call's single "chunk" is
-    the whole answer, and its length is not a stall.
+    Retry, then fail over (1.1.142): `adk/resilient_llm.py` retries 429 / 5xx /
+    first-token stalls and moves down this list only while the student has seen
+    nothing. Fail-over applies to the PLATFORM DEFAULT only — a skill that pins
+    a specific model asked for that model, and silently answering with another
+    would make its chat-log rows and its cost lie. The members are bare `Gemini`
+    instances on purpose: retries live in ONE layer, and stacking a retrying
+    member under the wrapper multiplies attempts past the < 30 s budget.
     """
+    try:
+        from config.models import tutor_chain
 
-    async def generate_content_async(self, llm_request, stream: bool = False):
-        def _attempt():
-            # A fresh generator per attempt — a consumed one has nothing to replay.
-            return super(_QuotaTolerantGemini, self).generate_content_async(llm_request, stream)
-
-        async for response in retry_on_quota_exhaustion(
-            _attempt,
-            first_token_deadline_s=first_token_deadline() if stream else None,
-        ):
-            yield response
+        chain = tutor_chain()
+    except Exception as exc:  # a broken registry must not take the model down with it
+        logger.warning("tutor_chain unavailable (%s) — %s runs without fail-over", exc, model_id)
+        return [model_id]
+    if chain and chain[0] == model_id:
+        return chain
+    return [model_id]
 
 
 # --- Name sanitisation ---

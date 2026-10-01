@@ -123,6 +123,24 @@ defaults:
 
 platform_default: "gemini-3-5-flash-lite"
 
+# ─── Tutor fail-over chain (1.1.142 M2, 2026-10-01) ───────────────────────
+# Ordered: when the head fails BEFORE the student has seen any text (5xx, 429
+# outlasting its retries, a first-token stall), adk.resilient_llm moves down the
+# list. After visible text it never does — that would splice a second answer
+# onto the first. The whole retry + fail-over budget is < 30 s.
+# Read by config.models.tutor_chain(); resolve_model() applies it ONLY when the
+# requested model is the head, which must equal platform_default. A skill that
+# pins any other model gets retries on that model and no fail-over.
+# The tail is the smart tier: ~5 s median first token (p90 ~20 s, see above) —
+# slow, but a slow answer after a failure beats a dead turn. A failed-over turn
+# is stamped with the model that answered, so it prices correctly.
+# Every entry must be a registered google model (Gemini-only, model-provider
+# direction); a local model can join later because the chain is data.
+
+tutor_chain:
+  - "gemini-3-5-flash-lite" # api_name: gemini-3.5-flash-lite (= platform_default)
+  - "gemini-3-8-flash"      # api_name: gemini-3.8-flash (smart tier)
+
 # ─── Analysis model (BENCH-1, 1.1.139 D1, 2026-09-30) ─────────────────────
 # THE RULE: after-the-fact analysis uses analysis_model — the report narrative,
 # the RUBRIC lens defaults, the approach-fidelity judge, the discrimination

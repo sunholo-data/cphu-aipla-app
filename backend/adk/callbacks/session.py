@@ -55,6 +55,17 @@ def _is_proactive_sentinel(text: str) -> bool:
     return bool(_EVENT_REACTIVE_PATTERN.match(stripped))
 
 
+def _served_model(event: Any, configured: str | None) -> str | None:
+    """The model that actually answered ``event``: the fail-over stamp
+    (``resilient_llm.SERVED_MODEL_KEY``) when present, else the configured one."""
+    try:
+        meta = getattr(event, "custom_metadata", None) or {}
+        served = meta.get("served_model") if isinstance(meta, dict) else None
+    except Exception:
+        served = None
+    return served if isinstance(served, str) and served else configured
+
+
 def _emit_new_turns(
     session: Any,
     session_id: str,
@@ -165,6 +176,11 @@ def _emit_new_turns(
             except Exception:
                 pass
 
+            # 1.1.142: a failed-over turn was answered by a different model
+            # than the skill configures; `adk/resilient_llm.py` stamps that on
+            # the response, and the row (and its price) must name it.
+            answered_by = _served_model(event, turn_model) if role == "tutor" else None
+
             emit_chat_turn(
                 group_id=group_code,
                 session_id=session_id,
@@ -188,7 +204,7 @@ def _emit_new_turns(
                 # Every turn carries its transcript — students' is the research
                 # data, teachers' is how a co-pilot turn gets debugged.
                 content=text,
-                model=turn_model if role == "tutor" else None,
+                model=answered_by,
                 token_in=token_in,
                 token_out=token_out,
                 latency_ms=latency_ms,
@@ -197,11 +213,11 @@ def _emit_new_turns(
             # 1.1.9 cost metrics. `record_llm_cost` has been implemented and
             # uncalled since it was written; wiring it here means the OTEL
             # counters see the same turns BigQuery does.
-            if role == "tutor" and turn_model and (token_in or token_out):
+            if role == "tutor" and answered_by and (token_in or token_out):
                 try:
                     from observability.llm_metrics import record_llm_cost
 
-                    record_llm_cost(turn_model, int(token_in or 0), int(token_out or 0))
+                    record_llm_cost(answered_by, int(token_in or 0), int(token_out or 0))
                 except Exception:
                     pass
     except Exception as exc:

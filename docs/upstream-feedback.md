@@ -1550,6 +1550,18 @@ First token measured 4.2 → ~2.1 s on dev.
 > retry-then-fallback loop. Upstream fast suite 3426 passed. ⚠️ When
 > workstream F ports `ResilientLlm` DOWN, the deadline should come with it and
 > `adk/quota_retry.py` retire — two implementations of one seam otherwise.
+>
+> **Ported DOWN 2026-10-01 (1.1.142 M0–M2), and `quota_retry.py` retired.**
+> `backend/adk/model_errors.py` (verbatim) and `backend/adk/resilient_llm.py`
+> (adapted) from `platform-source` `upstream/dev` @ `c928fca6` (= `main` @
+> `b322f55d` + #14). Per-file copy, no merge. Adaptations: a wall-clock failover
+> budget (< 30 s, patchable clock) and cooldown keyed by model instead of
+> provider; `schema_conformance`, the cross-provider tool-history sanitizer and
+> `FAULT_INJECT_MODEL` left behind (Gemini-only, Vertex-only). **Candidate to
+> port back up:** the wall-clock budget — upstream states the < 30 s axiom but
+> bounds it only by retry counts, so three 10 s retry-afters already break it —
+> and the provider-vs-model cooldown key, which benches every Gemini fallback
+> with its primary on a Gemini-only chain.
 
 ## 51. Google sign-in auto-selects the wrong account, and nothing in the product names which account you are
 
