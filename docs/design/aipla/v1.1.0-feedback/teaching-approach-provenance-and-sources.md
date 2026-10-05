@@ -118,6 +118,19 @@ regardless, which is what M0 and the M2 backfill read.
   (`frameworks/instruction.py:105-110`). `summary`, `material_refs` and `provenance` are not
   rendered, so a new field is invisible to the student **unless someone adds it there**.
 
+
+## M0 results — prod, read 2026-10-05 evening
+
+**Found.** "Didaktisk Tutor" is `authored_frameworks/custom-didaktisk-tutor` — a **custom
+teaching approach**, not a tutor — created **2026-10-03 13:00:42 UTC** by a **pilot teacher**
+(a gmail account, not AR), `authorRole: teacher`, `visibility: private`, `version: 1`. It shows
+in AR's account because AR is a researcher: F2 is the whole story. No overwrite (F4) — version 1.
+
+**M's requirement, 2026-10-05:** *"we should be labelling who is making the tutor for
+researchers."* That is acceptance criterion 1 as written (author role on every row, author
+email for researchers, "Yours" only for your own). Make it apply to **custom approaches and
+custom personas as well as tutors** — the row that confused AR was an approach.
+
 ## Decision
 
 ### Q1 — provenance of every authored record

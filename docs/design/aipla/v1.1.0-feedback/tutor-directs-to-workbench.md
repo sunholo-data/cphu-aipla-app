@@ -116,6 +116,34 @@ which M0 can count.
 - *H3.* Referrals did happen, phrased generically ("try changing the angle") without
   naming the sim, and were not noticed. M0's lexical count separates H3 from the rest.
 
+
+## M0 results — prod, read 2026-10-05 evening
+
+**The note is half right.** Lexical referral rate (the doc's lexicon plus *arbejdsflade*,
+*arbejdsfelt*, *skrivefelt*, *simulator*, *elmåler*, *kurve*), tutor turns on 10-05:
+
+| Activity | Bench | Tutor turns | Refers to the bench |
+|---|---|---|---|
+| Den hoppende bold | two tables | 143 | 47 (33 %) |
+| Effekt og nyttevirkning **med simulering** | kettle sim + writing | 42 | 24 (57 %) |
+| Termisk og kemisk energi **med simulering** | phase-change sim | 7 | 5 |
+| Mekanisk energi | writing surface | 26 | 5 (19 %) |
+| Energikilder — debat | none | 26 | 0 |
+
+Students **did** use the sims (`workbench_events`: `kettle-efficiency` 65 state pushes across
+five groups, `phase-change` 61 across three) and the tutor **read the sim's state back**
+(*"I can see from your simulator state that you have started heating 100 g of ice at 310 W"*).
+
+**Answer to M's question — can it see the simulations? Yes, and it is told it can't.** The
+sim's `tutorBlock` is in the prompt (`teacher_focus.py:327`) and its live state arrives through
+`mcp_app_context`; but the element manifest never lists the sim as a thing on the bench, and
+`concept-dialogue/SKILL.md:105` says *"There is no simulator on screen; the conversation is the
+whole activity."* So it **reacts** to the sim once the student has used it and **never sends
+them to it** — e.g. the kettle opening: *"Hvilke tanker gør du dig om…"*, no mention of the sim
+until the student asked *"hvordan stopper jeg simuleringen"*. Tables fare better because the
+manifest names them, which is the evidence that inventory drives referral. This supports F1–F2
+as the cause and option B as the fix; the 33 % on tables shows naming alone is not enough.
+
 ## Goals
 
 **Primary:** in an activity with a simulation or a fillable element, the tutor sends

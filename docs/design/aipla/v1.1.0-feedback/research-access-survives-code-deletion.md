@@ -132,6 +132,27 @@ remain: the Cloud Logging lines `classes_db: revoked group code=%s from class=%s
 - **H3.** All of the affected turns are after 2026-09-11, so `class_id` in BigQuery
   attributes them. Earlier turns need the Cloud Logging witness.
 
+
+## M0 results — prod, read 2026-10-05 evening
+
+**H2 confirmed: per-code Revoke, not class Delete.** Cloud Logging, `classes_route: revoked code=`:
+
+| When (UTC) | Codes | Class | Student turns lost to review |
+|---|---|---|---|
+| 2026-09-30 09:01:31–36 | `busy-garden-11`, `tidy-boulder-05`, `huge-seed-10`, `late-guppy-49` | `0be138dda057` (*Fysik C – Energi*, the 10-05 seminar class) | 235 attributed + **62 before 2026-09-11 with `class_id` NULL** (`busy-garden-11`, H3) |
+| 2026-09-30 09:02:25–28 | `nimble-button-13`, `salty-brook-09`, `happy-leaf-26` | `399b198bbe21` | 30 |
+| 2026-09-30 10:45 | `leafy-thicket-13` | `59ad12cd997b` (JB's) | 5, all unattributed (Aug–Sep 3) |
+
+All seven in the first two rows were revoked **the morning after the 29 Sept class**, about one
+code per 2 seconds — a clean-up, not a security response. ⚠️ **The revoking uid is the class
+owner, AR's account**, not a separate teacher account; the note says Tabitha. Either she was
+signed in as AR, or the note conflates people. Worth one question, because 1.1.150 raises the
+same shared-login possibility. The conversations are intact in BigQuery (queries above).
+
+**M's requirement, 2026-10-05:** *"we want to analyse sessions even after they are revoked."*
+That is Option A as recommended — Revoke ends access, never evidence — and the M3 repair input
+is the table above.
+
 ## Decision
 
 The governing distinction, already recommended by 1.1.80 and adopted here:

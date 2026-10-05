@@ -106,6 +106,39 @@ Verified against code on 2026-10-05 (no prod data read). **V** = verified in cod
 | D | Ids the judge **invented** | No range check (`:392`); an id ≥ the session length would be a hallucination | H — M0 Q3 (`out_of_range`) |
 | E | Not the judge at all: M looked up `#43` in the transcript | Index-space mismatch above; the same `#43` row is what a reader lands on whatever is cited | V that the mismatch exists; H that it explains the remark |
 
+
+## M0 results — prod, read 2026-10-05 evening
+
+**"19.43.47" located.** It is the `data` construct of the toulmin run on session `f1c333c9…`
+(`woody-beetle-71`, *Den hoppende bold*), latest emission 11:47 CEST: `"evidence": [19, 43, 47]`.
+That run's other constructs cite `claim [7, 13, 27]`, `warrant [27]`, `backing [35]`,
+`qualifier [43]`, `rebuttal [41, 43, 47]` — **43 is cited by three of six constructs**, which is
+*"43 appears too often"* (reading A). Across all prod runs, 43 is not unusual (11th most cited).
+
+**Why turn 43 "wasn't in the list" (verified):** the judge's 43 is the **0-based position in the
+list of student + tutor messages**; the transcript the researcher reads labels turns by ADK
+`turn_index`. Position 43 is transcript **#98** (*"Det er en skarp observation — ud fra dette
+specifikke forsøg…"*), 19 is #50, 47 is #106. Every cited position is **odd**, i.e. a tutor
+turn — correct for a fidelity rubric, but nowhere stated. The free-text `drift` field uses a
+**third** numbering (*"Turns 1-17"*, *"Turn 37"*, *"Turns 44-55"*).
+
+**Why it reads as confusing (M, 2026-10-05: *"what is it actually assessing — was it all
+three?"*):**
+- The run judges **the tutor's fidelity to Toulmin**, not the student's argument. The page does
+  not say so; a researcher reading "Data: partial, 19 · 43 · 47" naturally reads it as the
+  student's data-use, scored from three student turns.
+- "Evidence" lists the turns the judge drew on for that construct, not three turns that each
+  scored "partial". The band is one judgement per construct.
+- The session was **judged three times in ~60 s** (11:46, 11:46, 11:47, model
+  `gemini-3.8-flash`, prompt `fidelity-r2`), with very different evidence — one emission cited
+  almost nothing. Firestore keeps only the last; nothing shows that runs differ.
+
+**UI requirements this adds to M2 (show the working):** a one-line header per run — *"Judges
+the tutor's moves against Toulmin. Student turns are context, not scored."*; cited turns shown
+as the **transcript's own numbers** and as quoted snippets, clickable, never bare integers;
+"band = one judgement per construct, evidence = the tutor turns it rests on" in the legend;
+and when a session has more than one run, say so and let the researcher compare them.
+
 ## Decision
 
 ### Options

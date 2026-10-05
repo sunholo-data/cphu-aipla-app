@@ -136,6 +136,40 @@ Side observation, out of scope: `app:resumed_session` / `app:docs_loaded`
 ADK's **app-scoped** prefix, which in ADK semantics is shared across all users. Whether
 `VertexAiSessionService` honours that scope is unverified; check separately, not here.
 
+
+## M0 results — prod, read 2026-10-05 evening
+
+One seminar class (*Fysik C – Energi*, owner AR), nine codes, seven activities, 11:23–12:02.
+
+- **H1 holds.** Every `(group, activity)` pair had exactly one session; no session spans two
+  activities (H4: zero rows). "Different activities" in the note was groups moving between the
+  class's seven activities, each with its own conversation.
+- **H2 happened once** (`brave-grove-12`, two sessions on *Mekanisk energi*, 13:38 and 13:39).
+- **V1 is the seminar.** `kind-kettle-86` on *Den hoppende bold*: **61 student turns in one
+  session** from several people typing seconds apart (11:33:42, :49, :54, :59), talking *about*
+  each other — *"Lone er håbløs"*, *"Venter lige på hun svarer dig, så jeg kan se det"*, *"Hvor
+  kan jeg se det som de andre har lavet?"*, *"Hvorfor laver de andre i gruppen ikke noget?"*.
+  They could see one another were there (the pulse and the composer lock work) but not what was
+  said — exactly the `watcherRevision` gap above.
+- **The tutor denied it.** Asked *"har du koblet svar fra andre i gruppen ind i din samtale med
+  mig?"*, it answered *"Nej, jeg kan kun se det, du og din arbejdsflade bidrager med her"* —
+  false: it was answering from all of them. **Add to M-tests:** the tutor's prompt must say the
+  conversation is shared by the group when `devices_present > 1`, so it can answer that
+  question truthfully.
+- **The turn-lock rejected messages.** 7 `409`s on `/stream` during the seminar, **6 on that
+  one session** (09:29–09:48 UTC). The soft queue holds a message composed *while the lock is
+  visible*; a send that races the pulse is refused. A student whose message bounces and who
+  cannot see the reply that beat it has no way to understand what happened.
+- **It was the intended design, not misuse.** The teacher's own uploaded instructions (*Prompt
+  for Energi*, see 1.1.151 F1) describe *"en parret elevsamtale"* — pairs sharing one code. So
+  the shared-code path is the main path for this teacher, not an edge.
+
+**Answer to M's question, 2026-10-05:** not a sync outage — a **latent design gap**. 1.1.53 M1
+shipped live sync for *pure watchers only* (`ea08d147`), because restored history and the live
+stream render un-deduplicated; the moment a student sends one message, their device stops
+refetching. The pulse kept working, which is why presence was visible and content was not.
+M2 of this doc (every device keeps syncing, other devices' turns labelled) is the fix.
+
 ## Decisions
 
 **D1 — keep one conversation per (group, activity).** Options:
