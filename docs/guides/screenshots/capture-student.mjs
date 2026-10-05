@@ -13,6 +13,13 @@ import { chromium } from "playwright";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
+// The guides' screenshots are ENGLISH (decided 2026-10-05; the .da.md pages
+// reuse them). Since 1.1.108 the UI defaults to Danish, so without this a
+// fresh capture shows Danish chrome beside English prose. `aipla.uiLocale` is
+// the DA | EN switch's own key (frontend/src/i18n/userLocale.tsx), and an
+// explicit choice outranks an activity's language on student surfaces too.
+const GUIDE_LOCALE = process.env.GUIDE_LOCALE || "en";
+
 const BASE_URL =
   process.env.BASE_URL || "https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app";
 const CODE = process.env.GROUP || "aipla-demo-1";
@@ -52,6 +59,9 @@ async function shot(page, file, el) {
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 2 });
+await ctx.addInitScript((loc) => {
+  try { localStorage.setItem("aipla.uiLocale", loc); } catch {}
+}, GUIDE_LOCALE);
 const page = await ctx.newPage();
 let ok = 0;
 
@@ -86,7 +96,7 @@ try {
     await settle(page, "");
     // Give the workspace a moment to load its config.
     await page
-      .getByRole("region", { name: "Workspace" })
+      .getByLabel("Workspace", { exact: true })
       .first()
       .waitFor({ timeout: 10000 })
       .catch(() => console.log("  (warn) no workspace region"));

@@ -17,6 +17,13 @@ import { chromium } from "playwright";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 
+// The guides' screenshots are ENGLISH (decided 2026-10-05; the .da.md pages
+// reuse them). Since 1.1.108 the UI defaults to Danish, so without this a
+// fresh capture shows Danish chrome beside English prose. `aipla.uiLocale` is
+// the DA | EN switch's own key (frontend/src/i18n/userLocale.tsx), and an
+// explicit choice outranks an activity's language on student surfaces too.
+const GUIDE_LOCALE = process.env.GUIDE_LOCALE || "en";
+
 const BASE_URL =
   process.env.BASE_URL || "https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app";
 const EMAIL = process.env.TEACHER_EMAIL || "test-teacher@example.dk";
@@ -111,14 +118,28 @@ const GOAL =
 // The co-pilot converses before it proposes — it often asks a clarifying
 // question first. Nudge it directively and answer follow-ups until a proposal
 // card appears, then scroll the card into view within the panel.
+// Since d799db95 every co-pilot opens from the header's "Ask AIPLA" menu; the
+// panel is not mounted open any more.
+async function openCopilot(page) {
+  const panel = page.locator('[data-testid="copilot-panel"]').first();
+  if (await panel.isVisible().catch(() => false)) return;
+  await page.locator('[data-testid="ask-aipla"]').first().click();
+  const item = page.getByRole("menuitem", { name: /Co-builder|Medbygger/ }).first();
+  if (await item.count()) await item.click();
+  await panel.waitFor({ timeout: 10000 });
+}
+
 async function copilotPropose(page) {
+  await openCopilot(page);
   const panel = page.locator('[data-testid="copilot-panel"]');
-  const input = panel.getByPlaceholder(/energibevarelse for en B-klasse/).first();
+  const input = panel.getByPlaceholder(/conservation of energy|energibevarelse/).first();
   const card = page.locator('[data-testid="proposal-card"]').first();
   const prompts = [
-    "Lav et konkret forslag til en lærer-prompt og en tjekliste til energibevarelse for en 2.g klasse. Kom med forslaget nu.",
-    "Ja tak — kom med et konkret forslag på lærer-prompt og en tjekliste nu.",
-    "Bare foreslå noget nu; jeg retter det bagefter.",
+    // English: the co-builder replies in the language it is written to, and the
+    // guide screenshots are English.
+    "Make a concrete proposal for a lesson prompt and a checklist on conservation of energy for a second-year class. Make the proposal now.",
+    "Yes please — give me a concrete lesson prompt and a checklist now.",
+    "Just propose something now; I will edit it afterwards.",
   ];
   for (const prompt of prompts) {
     await input.waitFor({ timeout: 10000 });
@@ -151,6 +172,9 @@ async function run() {
     viewport: VIEWPORT,
     deviceScaleFactor: 2,
   });
+  await context.addInitScript((loc) => {
+    try { localStorage.setItem("aipla.uiLocale", loc); } catch {}
+  }, GUIDE_LOCALE);
   const page = await context.newPage();
 
   await login(page);
@@ -244,7 +268,7 @@ async function run() {
       element: '[data-testid="copilot-panel"]',
       run: async () => {
         await go(page, "/teacher/activities/new", "New activity");
-        await page.locator('[data-testid="copilot-panel"]').first().waitFor({ timeout: 10000 });
+        await openCopilot(page);
         await page.waitForTimeout(500);
       },
     },
@@ -266,12 +290,12 @@ async function run() {
           await go(page, "/teacher/activities/new", "New activity");
           await copilotPropose(page);
         }
-        const apply = page.getByRole("button", { name: "Anvend" }).first();
+        const apply = page.getByRole("button", { name: /^(Apply|Anvend)$/ }).first();
         await apply.scrollIntoViewIfNeeded().catch(() => {});
         await apply.click();
         await page
           .getByRole("status")
-          .filter({ hasText: /Anvendt/ })
+          .filter({ hasText: /Applied|Anvendt/ })
           .first()
           .waitFor({ timeout: 10000 });
         await page.waitForTimeout(400);
@@ -281,7 +305,21 @@ async function run() {
     // role:researcher claim (run this pass with TEACHER_EMAIL=test-researcher…).
     {
       file: "r1-01-research.png",
-      run: () => go(page, "/teacher/research/activities", "Research"),
+      run: async () => {
+        await go(page, "/teacher/research/activities", "Research");
+        // The guides are public and this view lists every teacher's activities
+        // by owner. Real people appear by initials only (the repo convention);
+        // test-account emails are left as they are.
+        await page.evaluate(() => {
+          const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+          for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+            const m = /^(\s*(?:Owner|Ejer):\s*)(.+?)(\s*)$/.exec(n.nodeValue || "");
+            if (!m || m[2].includes("@")) continue;
+            const initials = m[2].split(/\s+/).map((w) => w[0]).join("").toUpperCase();
+            n.nodeValue = m[1] + initials + m[3];
+          }
+        });
+      },
     },
     {
       file: "r1-02-lenses.png",

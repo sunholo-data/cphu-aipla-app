@@ -63,11 +63,11 @@ node capture-student.mjs
 # Researcher pass (R1) — only if the account has the claim.
 echo
 if [ "$DO_R1" = "1" ]; then
-  echo "Capturing researcher guide (R1) as $RESEARCHER_EMAIL…"
+  echo "Capturing researcher guide (R1) as ${RESEARCHER_EMAIL}…"
   TEACHER_EMAIL="$RESEARCHER_EMAIL" TEACHER_PASSWORD="$RESEARCHER_PASSWORD" \
     ONLY=r1-01-research,r1-02-lenses node capture.mjs
 else
-  echo "Skipping R1 (researcher) shots — $RESEARCHER_EMAIL is not a researcher yet."
+  echo "Skipping R1 (researcher) shots — ${RESEARCHER_EMAIL} is not a researcher yet."
   echo "  Grant it, then re-run: aiplatform --env dev users grant-researcher <uid>"
 fi
 
