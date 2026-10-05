@@ -24,6 +24,7 @@ log = logging.getLogger(__name__)
 CHAT_LOGS_DATASET = "chat_logs"
 CHAT_TURN_TABLE = "aipla_chat_turn"
 WORKBENCH_EVENT_TABLE = "aipla_workbench_event"
+RUBRIC_RUN_TABLE = "aipla_rubric_run"  # RUBRIC-2 M3 mirror; every fidelity judgement (1.1.148)
 
 # Dataset location — must match the dataset created by the chat-logs module /
 # ensure_chat_logs() (ADR-007 europe-north1).
@@ -130,6 +131,7 @@ def run_query(sql: str, params: dict[str, Any] | None = None) -> list[Any]:
 __all__ = [
     "CHAT_LOGS_DATASET",
     "CHAT_TURN_TABLE",
+    "RUBRIC_RUN_TABLE",
     "WORKBENCH_EVENT_TABLE",
     "jsonpayload_columns",
     "run_query",

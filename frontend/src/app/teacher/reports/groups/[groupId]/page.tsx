@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ChevronRight, RefreshCw } from "lucide-react";
 import { ArrowLeft, Download } from "lucide-react";
 
@@ -23,6 +23,7 @@ import {
 import { GroupTranscriptSection } from "@/components/teacher/GroupTranscriptSection";
 import { FinalWorkPanel } from "@/components/teacher/work/FinalWorkPanel";
 import { TeachingApproachSection } from "@/components/teacher/TeachingApproachSection";
+import { citationsByTurn } from "@/components/teacher/FidelityConstructDetail";
 import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
 import { useT, type Translate } from "@/i18n";
 
@@ -185,6 +186,16 @@ export default function TeacherGroupReportPage() {
   const liveMessages = live?.messageCount ?? 0;
   const liveWork = live?.simRunCount ?? 0;
   const [timeline, setTimeline] = useState<ChatLogTimeline | null>(null);
+
+  // 1.1.148 M3 — a cited turn in the construct detail opens the transcript and
+  // scrolls to that `#N`. Opening here does not persist the open/closed
+  // preference: following a citation is not choosing a default.
+  const [citeTarget, setCiteTarget] = useState<{ turn: number; key: number } | null>(null);
+  const onCiteTurn = useCallback((turn: number) => {
+    setTranscriptOpen(true);
+    setCiteTarget({ turn, key: Date.now() });
+  }, []);
+  const citedBy = useMemo(() => citationsByTurn(live?.fidelity ?? null), [live?.fidelity]);
   useEffect(() => {
     if (!transcriptOpen || !liveSession) return;
     let cancelled = false;
@@ -347,7 +358,11 @@ export default function TeacherGroupReportPage() {
       </section>
 
       {/* 1.1.107 M5 — how the session's ONE teaching approach was used. */}
-      <TeachingApproachSection fidelity={state.kind === "live" ? state.data.fidelity : null} />
+      <TeachingApproachSection
+        fidelity={state.kind === "live" ? state.data.fidelity : null}
+        sessionId={live?.sessionId ?? null}
+        onCiteTurn={onCiteTurn}
+      />
 
       <section
         aria-labelledby="summary-label"
@@ -470,6 +485,8 @@ export default function TeacherGroupReportPage() {
               items={timeline?.items ?? timelineFromSummary(live.conversation, live.workbenchEvents ?? [])}
               status="ok"
               workStatus={timeline?.workStatus}
+              highlight={citeTarget}
+              citedBy={citedBy}
             />
           </div>
         ) : null}

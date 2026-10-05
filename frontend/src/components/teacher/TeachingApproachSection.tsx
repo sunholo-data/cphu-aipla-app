@@ -4,6 +4,7 @@ import Link from "next/link";
 import { BookOpen, Radio } from "lucide-react";
 
 import type { FidelityPayload } from "@/lib/teacherApi";
+import { FidelityConstructDetail } from "@/components/teacher/FidelityConstructDetail";
 import { useT } from "@/i18n";
 
 
@@ -18,7 +19,17 @@ import { useT } from "@/i18n";
  * backend does for a researcher alone: fit is not quality, and a number about
  * a teacher's own tutor must not read as a grade of the teacher.
  */
-export function TeachingApproachSection({ fidelity }: { fidelity: FidelityPayload | null | undefined }) {
+export function TeachingApproachSection({
+  fidelity,
+  sessionId,
+  onCiteTurn,
+}: {
+  fidelity: FidelityPayload | null | undefined;
+  /** The session the read judged — for the researcher's run comparison. */
+  sessionId?: string | null;
+  /** Open the transcript at turn `#N` (1.1.148 M3). */
+  onCiteTurn?: (turn: number) => void;
+}) {
   const t = useT("TeachingApproachSection");
   if (!fidelity) return null;
   const label = fidelity.frameworkLabel ?? fidelity.frameworkId ?? "";
@@ -68,69 +79,11 @@ export function TeachingApproachSection({ fidelity }: { fidelity: FidelityPayloa
               <Radio className="h-3 w-3" aria-hidden /> {t("spoken")}
             </p>
           ) : null}
-          {fidelity.constructs ? <ConstructDetail fidelity={fidelity} /> : null}
+          {fidelity.constructs ? (
+            <FidelityConstructDetail fidelity={fidelity} sessionId={sessionId} onCiteTurn={onCiteTurn} />
+          ) : null}
         </>
       )}
     </section>
-  );
-}
-
-function ConstructDetail({ fidelity }: { fidelity: FidelityPayload }) {
-  const t = useT("TeachingApproachSection");
-  const rows = Object.entries(fidelity.constructs ?? {});
-  return (
-    <details className="mt-1">
-      <summary className="cursor-pointer text-xs text-muted-foreground">{t("researcherHeading")}</summary>
-      <div className="mt-2 overflow-x-auto">
-        <table className="w-full text-xs">
-          <thead>
-            <tr className="text-left text-muted-foreground">
-              <th className="pr-3 font-medium">{t("construct")}</th>
-              <th className="pr-3 font-medium">{t("band")}</th>
-              <th className="pr-3 font-medium">{t("rationale")}</th>
-              <th className="font-medium">{t("evidence")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map(([name, c]) => (
-              <tr key={name} className="border-t border-border align-top">
-                <td className="py-1 pr-3 font-mono">{name}</td>
-                <td className="py-1 pr-3">
-                  <BandChip band={c.band} />
-                </td>
-                <td className="py-1 pr-3">{c.rationale}</td>
-                <td className="py-1 font-mono">{c.evidence.join(", ")}</td>
-              </tr>
-            ))}
-            {fidelity.overallBand ? (
-              <tr className="border-t border-border">
-                <td className="py-1 pr-3 font-medium">{t("overall")}</td>
-                <td className="py-1 pr-3">
-                  <BandChip band={fidelity.overallBand} />
-                </td>
-                <td className="py-1 pr-3 text-muted-foreground" colSpan={2}>
-                  {fidelity.model ?? ""}
-                  {fidelity.evidenceSummary
-                    ? ` · ${t("turns", { tutor: fidelity.evidenceSummary.tutor ?? 0, student: fidelity.evidenceSummary.student ?? 0 })}`
-                    : ""}
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </div>
-    </details>
-  );
-}
-
-const BAND_STYLE: Record<string, string> = {
-  strong: "bg-emerald-100 text-emerald-800",
-  partial: "bg-amber-100 text-amber-800",
-  absent: "bg-slate-100 text-slate-700",
-};
-
-function BandChip({ band }: { band: string }) {
-  return (
-    <span className={`rounded px-1.5 py-0.5 font-medium ${BAND_STYLE[band] ?? BAND_STYLE.absent}`}>{band}</span>
   );
 }

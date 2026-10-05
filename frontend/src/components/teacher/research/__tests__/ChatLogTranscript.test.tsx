@@ -2,7 +2,7 @@ import { render as rtlRender, screen } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { LocaleProvider, translate } from "@/i18n";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { ChatLogTimelineItem } from "@/lib/teacherApi";
 
@@ -132,5 +132,46 @@ describe("timelineFromSummary — the report's fallback", () => {
     expect(items.map((i) => i.kind)).toEqual(["turn", "work", "turn"]);
     const w = items[1];
     expect(w.kind === "work" && w.value).toBe(TABLE_VALUE);
+  });
+});
+
+// 1.1.148 M3 — a fidelity citation lands on its turn.
+describe("turn anchors and citations (1.1.148)", () => {
+  it("numbers the fallback transcript by the emitter's turn index, not by position", () => {
+    const items = timelineFromSummary([
+      { timestamp: "2026-10-05T09:00:00Z", role: "student", content: "a", turnIndex: 0 },
+      { timestamp: "2026-10-05T09:01:00Z", role: "tutor", content: "b", turnIndex: 6 },
+      { timestamp: "2026-10-05T09:02:00Z", role: "tutor", content: "c" },
+    ]);
+    expect(items.map((i) => (i.kind === "turn" ? i.turn_index : null))).toEqual([0, 6, 2]);
+  });
+
+  it("gives every turn row an anchor a citation can target", () => {
+    const { container } = render(<ChatLogTranscript items={[turn(0, "a"), turn(98, "b")]} status="ok" />);
+    expect(container.querySelector("#turn-98")?.textContent).toContain("b");
+    expect(container.querySelector("#turn-0")?.textContent).toContain("a");
+  });
+
+  it("scrolls to and highlights the cited turn, and marks which constructs cite it", () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    const { container } = render(
+      <ChatLogTranscript
+        items={[turn(50, "first"), turn(98, "Det er en skarp observation")]}
+        status="ok"
+        highlight={{ turn: 98, key: 1 }}
+        citedBy={{ 98: ["data", "qualifier", "rebuttal"] }}
+      />,
+    );
+    const row = container.querySelector("#turn-98") as HTMLElement;
+    expect(row.dataset.highlighted).toBe("true");
+    expect(container.querySelector("#turn-50")?.getAttribute("data-highlighted")).toBeNull();
+    expect(scroll).toHaveBeenCalled();
+    expect(screen.getByText("cited by: data, qualifier, rebuttal")).toBeInTheDocument();
+  });
+
+  it("shows no citation badge without a researcher's citations", () => {
+    render(<ChatLogTranscript items={[turn(98, "b")]} status="ok" />);
+    expect(screen.queryByText(/cited by/)).not.toBeInTheDocument();
   });
 });

@@ -345,7 +345,8 @@
     "fallback_calculator": "Lommeregner brugt",
     "fallback_progress": "Tjekliste opdateret",
     "fallback_chart": "Graf opdateret",
-    "fallback_documents": "Dokument: {tool}"
+    "fallback_documents": "Dokument: {tool}",
+    "citedBy": "citeret af: {list}"
   },
   "TutorVariantDialog": {
     "defaultName": "{name} — variant",

@@ -345,7 +345,8 @@
     "fallback_calculator": "Calculator used",
     "fallback_progress": "Checklist updated",
     "fallback_chart": "Chart updated",
-    "fallback_documents": "Document: {tool}"
+    "fallback_documents": "Document: {tool}",
+    "citedBy": "cited by: {list}"
   },
   "TutorVariantDialog": {
     "defaultName": "{name} — variant",

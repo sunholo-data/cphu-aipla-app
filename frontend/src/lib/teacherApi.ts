@@ -256,6 +256,9 @@ export interface SessionTurnPayload {
   timestamp: string;
   role: "student" | "tutor";
   content: string;
+  /** 1.1.148 — the emitter's turn number, the `#N` the transcript shows. Sparse
+   *  (tool events take numbers too). Null on a row that carries none. */
+  turnIndex?: number | null;
 }
 
 export interface WorkbenchEventPayload {
@@ -318,9 +321,146 @@ export interface FidelityPayload {
   promptVersion: string;
   /** Researcher-only — absent for a teacher (fit is not quality; 1.1.65 R1). */
   overallBand?: "absent" | "partial" | "strong" | null;
-  constructs?: Record<string, { band: string; score: number; rationale: string; evidence: number[] }>;
-  evidenceSummary?: Record<string, number>;
+  constructs?: Record<string, FidelityConstruct>;
+  evidenceSummary?: Record<string, number | string>;
   model?: string;
+  // ── 1.1.148, researcher-only ──
+  /** The run-store id reviews are keyed to. */
+  runId?: string;
+  /** `fidelity-r3+fw<criteria version>`; a pre-r3 run keeps its bare prompt version. */
+  rubricVersion?: string;
+  criteriaVersion?: string | null;
+  currentCriteriaVersion?: string;
+  /** True when the framework's criteria were edited after this run was judged. */
+  criteriaChanged?: boolean;
+  /** How the run's turn ids were read: `turn_index` (the transcript's own
+   *  numbers), `position-translated` (an older run, mapped), `position`. */
+  idScheme?: "turn_index" | "position" | "position-translated";
+  /** The criteria the judge was given, per construct. */
+  criteria?: Record<string, FidelityCriterion>;
+  notAssessed?: Record<string, string>;
+  basedOnMessageCount?: number;
+  sessionMessageCount?: number;
+  scoredAt?: string | null;
+}
+
+/** One cited turn, resolved to the transcript (1.1.148 M1). `transcriptTurn`
+ *  null = no honest link (the UI shows the citation unlinked). */
+export interface FidelityCitation {
+  turn: number;
+  transcriptTurn?: number | null;
+  position?: number;
+  role?: "student" | "tutor";
+  snippet?: string;
+  /** The judge's verbatim quote (r3 runs). */
+  quote?: string | null;
+  /** False = the quote is not in that turn. Absent = nothing to verify (older run). */
+  verified?: boolean;
+}
+
+export interface FidelityConstruct {
+  band: string;
+  score: number;
+  rationale: string;
+  evidence: FidelityCitation[];
+  moves?: string[];
+  downgraded?: string;
+  /** Ids the judge gave that are not turns of the scored dialogue — never links. */
+  rejectedEvidence?: { turn: number | string; quote?: string | null; reason?: string }[];
+}
+
+export interface FidelityCriterion {
+  name: string;
+  summary: string;
+  moves: { id: string; text: string }[];
+  avoid: string[];
+  evaluationHint: string;
+}
+
+/** One judgement of a session (1.1.148): the run store's row per version, or a
+ *  BigQuery-mirror emission (every judgement). */
+export interface FidelityRunRow {
+  runId: string;
+  rubricVersion: string;
+  promptVersion?: string;
+  criteriaVersion?: string | null;
+  scoredAt: string | null;
+  model?: string;
+  abstained?: boolean;
+  abstainReason?: string;
+  overallBand?: string | null;
+  constructs?: Record<string, FidelityConstruct>;
+  idScheme?: string | null;
+  basedOnMessageCount?: number;
+  source: "store" | "log";
+  unreadable?: boolean;
+}
+
+export interface FidelityRunHistory {
+  sessionId: string;
+  stored: FidelityRunRow[];
+  emissions: FidelityRunRow[];
+  /** "unreadable" = the mirror could not be read. NOT "judged once". */
+  emissionsStatus: "ok" | "unreadable";
+}
+
+/** A researcher's correction of one construct (or `overall`) of a run. */
+export interface RubricReview {
+  review_id: string;
+  run_id: string;
+  construct_key: string;
+  band: string;
+  evidence: number[];
+  reason: string;
+  reviewer_uid: string;
+  reviewer_email: string;
+  supersedes: string | null;
+  created_at: string;
+  judged: { band?: string | null; rationale?: string; evidence?: unknown[] };
+}
+
+export interface RubricReviews {
+  runId: string;
+  reviews: RubricReview[];
+  effective: Record<
+    string,
+    { band: string | null; source: "judge" | "review"; judgedBand: string | null; reviewId?: string; reviewedAgainstEarlier?: boolean }
+  >;
+}
+
+export interface RubricReviewInput {
+  constructKey: string;
+  band: "absent" | "partial" | "strong";
+  evidence: number[];
+  reason: string;
+  supersedes?: string | null;
+}
+
+/** Every fidelity judgement of one session — researcher-only (1.1.148). */
+export async function listFidelityRuns(sessionId: string): Promise<FidelityRunHistory> {
+  const resp = await fetchWithAuth(
+    `/api/proxy/api/research/sessions/${encodeURIComponent(sessionId)}/fidelity-runs`,
+  );
+  return readJson<FidelityRunHistory>(resp, "list fidelity runs");
+}
+
+/** The reviews of one run, with the effective band per construct. */
+export async function listRubricReviews(runId: string): Promise<RubricReviews> {
+  const resp = await fetchWithAuth(`/api/proxy/api/research/rubric-runs/${encodeURIComponent(runId)}/reviews`);
+  return readJson<RubricReviews>(resp, "list rubric reviews");
+}
+
+/** Record a correction. Create-only: there is no edit or delete. */
+export async function postRubricReview(
+  runId: string,
+  body: RubricReviewInput,
+): Promise<RubricReviews & { review: RubricReview }> {
+  const resp = await fetchWithAuth(`/api/proxy/api/research/rubric-runs/${encodeURIComponent(runId)}/reviews`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return readJson<RubricReviews & { review: RubricReview }>(resp, "save rubric review");
 }
 
 export class NotFoundError extends Error {

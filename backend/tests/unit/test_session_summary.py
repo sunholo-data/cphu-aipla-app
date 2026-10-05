@@ -343,3 +343,103 @@ def test_the_report_ignores_the_tutors_hidden_assessment_rows():
     assert s is not None
     assert [e.tool for e in s.workbench_events] == ["sim_run"]
     assert s.sim_run_count == 1
+
+
+# --- 1.1.148 M1: one turn identity -------------------------------------------
+
+
+def _tool_event(timestamp: float):
+    """A function-call / function-response event: content, but no text part."""
+    event = MagicMock()
+    event.author = "agent"
+    event.timestamp = timestamp
+    part = MagicMock()
+    part.text = None
+    event.content = MagicMock()
+    event.content.parts = [part]
+    return event
+
+
+def _interleaved_events():
+    """Student, tutor, then tool chatter between messages — the shape that made
+    the judge's position and the transcript's #N disagree on prod."""
+    evs = [
+        _make_event("user", "Hvorfor hopper bolden lavere?", timestamp=1.0),  # 0
+        _make_event("agent", "Hvad tror du selv?", timestamp=2.0),  # 1
+        _tool_event(3.0),  # 2 — function call
+        _tool_event(3.5),  # 3 — function response
+        _make_event("user", "Energi forsvinder?", timestamp=4.0),  # 4
+        _tool_event(4.5),  # 5
+        _make_event("agent", "Hvor bliver den af?", timestamp=5.0),  # 6
+    ]
+    for e in evs:
+        e.invocation_id = "inv-1"
+    return evs
+
+
+@pytest.mark.asyncio
+async def test_live_summary_turn_index_is_the_emitters_index():
+    """One event list, fed to BOTH the chat-log emitter and the live-session
+    summary: every turn must carry the same number in each. The judge cites the
+    summary's; the transcript shows the emitter's."""
+    from adk.callbacks.session import _emit_new_turns
+
+    events = _interleaved_events()
+    session = MagicMock()
+    session.events = events
+    session.state = {}
+    ctx = MagicMock()
+    ctx.invocation_id = "inv-1"
+    emitted: list[tuple[int, str]] = []
+
+    def _capture(**kw):
+        emitted.append((kw["turn_index"], kw["content"]))
+
+    with patch("observability.chat_log.emit_chat_turn", side_effect=_capture):
+        _emit_new_turns(session, "sess-1", "anon-g-1", "act-1", ctx, group_id="g-1")
+
+    idx = ChatSessionIndex(
+        sessionId="sess-1",
+        skillId="act-1",
+        ownerUid="anon-g-1",
+        accessControl=AccessControl(type="public"),
+        firstMessageAt=datetime(2026, 10, 5, 10, 0, tzinfo=UTC),
+        lastMessageAt=datetime(2026, 10, 5, 10, 5, tzinfo=UTC),
+    )
+    service = MagicMock()
+    service.get_session = AsyncMock(return_value=session)
+    with (
+        patch("reports.session_summary.get_session_index", return_value=idx),
+        patch("reports.session_summary.get_session_service", return_value=service),
+    ):
+        summary = await summarize_session("sess-1")
+
+    assert emitted == [
+        (0, "Hvorfor hopper bolden lavere?"),
+        (1, "Hvad tror du selv?"),
+        (4, "Energi forsvinder?"),
+        (6, "Hvor bliver den af?"),
+    ]
+    assert [(t.turn_index, t.content) for t in summary.conversation] == emitted
+
+
+def test_bq_summary_keeps_the_logged_turn_index():
+    import asyncio
+
+    from reports.session_summary import summarize_session_bq
+
+    ts = datetime(2026, 10, 5, 10, 0, tzinfo=UTC)
+    rows = [
+        {"ts": ts, "group_id": "g", "skill_id": "a", "role": "student", "content": "a", "turn_index": 0},
+        {"ts": ts, "group_id": "g", "skill_id": "a", "role": "tutor", "content": "b", "turn_index": 3},
+        {"ts": ts, "group_id": "g", "skill_id": "a", "role": "tutor", "content": "c", "turn_index": None},
+    ]
+
+    def _q(sql, params=None):
+        return rows if "turn_index" in sql else []
+
+    with patch("db.bigquery.run_query", side_effect=_q):
+        s = asyncio.run(summarize_session_bq("s-1"))
+    assert [t.turn_index for t in s.conversation] == [0, 3, None]
+    # The payload names it the way the frontend reads it.
+    assert s.model_dump(by_alias=True)["conversation"][1]["turnIndex"] == 3

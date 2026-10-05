@@ -63,7 +63,7 @@ def test_dialogue_units_keep_order_and_the_tutor():
     ev = ff.dialogue_units(ESRU_DIALOGUE)
     assert [u.role for u in ev.units] == ["tutor", "student", "tutor", "student", "tutor", "student", "tutor"]
     assert [u.index for u in ev.units] == list(range(7))
-    assert ev.summary == {"units": 7, "tutor": 4, "student": 3}
+    assert ev.summary == {"units": 7, "tutor": 4, "student": 3, "idScheme": "position"}
 
 
 def test_dialogue_units_window_the_tail_and_say_so():
@@ -186,7 +186,8 @@ async def test_scored_read_carries_prose_bands_and_evidence():
     assert r.summary.startswith("The tutor asked open questions")
     assert r.drift == ["The use phase came only after the sim run."]
     assert set(r.constructs) == set(keys)
-    assert r.constructs[keys[0]]["score"] == 2 and r.constructs[keys[0]]["evidence"] == [0, 2]
+    assert r.constructs[keys[0]]["score"] == 2
+    assert [e["turn"] for e in r.constructs[keys[0]]["evidence"]] == [0, 2]
     assert r.based_on_message_count == 7
     assert r.spoken_included is False
     # Teacher view: prose, no bands, no construct detail.
@@ -196,7 +197,8 @@ async def test_scored_read_carries_prose_bands_and_evidence():
 
 
 @pytest.mark.asyncio
-async def test_resolve_caches_in_the_run_store_and_regenerates_when_the_session_grows():
+async def test_resolve_caches_in_the_run_store_and_regenerates_when_the_session_grows(monkeypatch):
+    monkeypatch.setattr(ff, "RESCORE_MIN_INTERVAL_S", 0)  # the debounce has its own test
     fw = load_framework("esru")
     _, keys = ff.criteria_block(fw)
     payload = json.loads(_JUDGE_JSON)
@@ -243,7 +245,7 @@ async def test_the_judge_defaults_to_the_analysis_model_not_the_tutors():
 
 
 def test_prompt_version_is_bumped_so_stored_runs_stay_attributable():
-    assert ff.PROMPT_VERSION == "fidelity-r2"
+    assert ff.PROMPT_VERSION == "fidelity-r3"
 
 
 @pytest.mark.parametrize("fw_id", ["5e", "accountable-talk", "authentic-dialogue", "cer", "esru", "poe", "toulmin"])
@@ -359,7 +361,7 @@ async def test_judge_sanity_generic_questioning_is_not_strong_esru():
     assert not r.abstained
     assert all(c["band"] != "strong" for c in r.constructs.values())
     assert all(c.get("downgraded") for c in r.constructs.values())
-    assert r.prompt_version == "fidelity-r2"
+    assert r.prompt_version == "fidelity-r3"
 
 
 @pytest.mark.asyncio
@@ -388,3 +390,211 @@ async def test_a_framework_with_nothing_a_dialogue_can_show_abstains_without_a_c
         r = await ff.score_fidelity(_summary(ESRU_DIALOGUE, framework_id="cer"))
     assert r.abstained and "single tutoring dialogue" in r.abstain_reason
     judge.assert_not_called()
+
+
+# ── 1.1.148 M1: one turn identity (fidelity-r3) ──────────────────────────────
+#
+# Prod, 2026-10-05: the judge cited 0-based POSITIONS in the conversation list;
+# the transcript labels turns by the emitter's ADK event index. Position 43 was
+# transcript #98. These pin the fix: the judge sees, and cites, the #N.
+
+#: Sparse, as the emitter writes them: tool events take indexes too.
+SPARSE = [0, 1, 3, 6, 7, 10, 12]
+
+
+def _sparse_dialogue() -> list[SessionTurn]:
+    return [
+        SessionTurn(timestamp="2026-10-05T10:00:00+00:00", role=t.role, content=t.content, turnIndex=ti)
+        for t, ti in zip(ESRU_DIALOGUE, SPARSE, strict=True)
+    ]
+
+
+def _esru_payload(evidence_by_construct: dict[int, list]) -> tuple[list[str], str]:
+    fw = load_framework("esru")
+    _, keys = ff.criteria_block(fw)
+    constructs = {
+        k: {"band": "partial", "rationale": "r", "moves": [], "evidence": evidence_by_construct.get(i, [])}
+        for i, k in enumerate(keys)
+    }
+    raw = json.dumps({"constructs": constructs, "overall": {"band": "partial", "summary": "s", "drift": []}})
+    return keys, raw
+
+
+def test_dialogue_ids_are_the_emitters_turn_index():
+    ev = ff.dialogue_units(_sparse_dialogue())
+    assert ev.id_scheme == ff.ID_TURN_INDEX
+    assert [u.index for u in ev.units] == SPARSE
+    assert [u.position for u in ev.units] == list(range(7))
+    assert ev.summary["idScheme"] == "turn_index"
+    prompt = ff.build_fidelity_prompt(load_framework("esru"), ev, None)
+    assert "[3] TUTOR:" in prompt and "[6] STUDENT:" in prompt
+    assert "[2] " not in prompt  # position 2 is turn #3 — never the position
+
+
+def test_a_duplicate_or_missing_turn_index_falls_back_to_position_and_says_so():
+    turns = _sparse_dialogue()
+    turns[3] = turns[3].model_copy(update={"turn_index": 1})  # a duplicate (M0 Q4)
+    ev = ff.dialogue_units(turns)
+    assert ev.id_scheme == ff.ID_POSITION and [u.index for u in ev.units] == list(range(7))
+    turns[3] = turns[3].model_copy(update={"turn_index": None})
+    assert ff.dialogue_units(turns).id_scheme == ff.ID_POSITION
+
+
+def test_parser_rejects_ids_outside_the_scored_window():
+    ev = ff.dialogue_units(_sparse_dialogue())
+    keys, raw = _esru_payload({0: [{"turn": 7, "quote": "Lad os prøve i simulationen"}, {"turn": 2}, {"turn": 98}]})
+    parsed = ff.parse_judgement(raw, keys, None, ev)
+    c = parsed["constructs"][keys[0]]
+    assert [e["turn"] for e in c["evidence"]] == [7]
+    assert c["evidence"][0]["role"] == "tutor"
+    assert sorted(r["turn"] for r in c["rejectedEvidence"]) == [2, 98]
+
+
+def test_quote_verification_match_whitespace_case_and_miss():
+    content = "Så du siger, at tungere ting falder hurtigere. Hvad bygger du det på?"
+    assert ff.quote_verified("tungere ting falder hurtigere", content)
+    assert ff.quote_verified("  Tungere   ting\nfalder  HURTIGERE ", content)  # whitespace + case
+    assert ff.quote_verified('"Så du siger … Hvad bygger du det på?"', content)  # an elision, in order
+    assert not ff.quote_verified("lettere ting falder hurtigere", content)  # not said
+    assert not ff.quote_verified("Hvad bygger du det på? … Så du siger", content)  # out of order
+    assert not ff.quote_verified("", content) and not ff.quote_verified(None, content)
+
+
+def test_each_quote_is_checked_against_the_turn_it_names():
+    ev = ff.dialogue_units(_sparse_dialogue())
+    keys, raw = _esru_payload(
+        {
+            0: [
+                {"turn": 3, "quote": "tungere ting falder hurtigere"},  # really in #3
+                {"turn": 12, "quote": "tungere ting falder hurtigere"},  # NOT in #12
+            ]
+        }
+    )
+    ev_out = ff.parse_judgement(raw, keys, None, ev)["constructs"][keys[0]]["evidence"]
+    assert [(e["turn"], e["verified"]) for e in ev_out] == [(3, True), (12, False)]
+    assert ev_out[0]["role"] == "tutor"
+
+
+@pytest.mark.asyncio
+async def test_an_r3_read_cites_turn_index_and_presents_the_transcript_number():
+    keys, raw = _esru_payload({0: [{"turn": 7, "quote": "Lad os prøve i simulationen"}]})
+    with patch("analytics.session_rubric._call_judge_model", new=AsyncMock(return_value=raw)):
+        r = await ff.score_fidelity(_summary(_sparse_dialogue()))
+    assert r.evidence_summary["idScheme"] == "turn_index"
+    view = r.researcher_view(_sparse_dialogue())
+    e = view["constructs"][keys[0]]["evidence"][0]
+    assert e["turn"] == 7 and e["transcriptTurn"] == 7 and e["position"] == 4
+    assert e["verified"] is True and e["snippet"].startswith("Godt at du siger")
+    assert view["idScheme"] == "turn_index"
+    assert view["runId"].endswith("fidelity-r3_fwyaml") and view["rubricVersion"] == "fidelity-r3+fwyaml"
+
+
+def test_an_r2_run_is_translated_from_position_to_the_transcript_number():
+    """A stored r2 run cited POSITIONS. Read time maps them to #N, once,
+    deterministically, and says so. The stored run is not rewritten."""
+    r2 = ff.FidelityResult(
+        sessionId="s-1",
+        frameworkId="esru",
+        promptVersion="fidelity-r2",
+        constructs={"elicit": {"band": "partial", "score": 1, "rationale": "r", "evidence": [2, 4, 40]}},
+        evidenceSummary={"units": 7, "tutor": 4, "student": 3},
+    )
+    view = r2.researcher_view(_sparse_dialogue())
+    assert view["idScheme"] == "position-translated"
+    ev = view["constructs"]["elicit"]["evidence"]
+    assert [(e["turn"], e["transcriptTurn"]) for e in ev] == [(2, 3), (4, 7)]
+    assert view["constructs"]["elicit"]["rejectedEvidence"][0]["turn"] == 40  # beyond the session
+    assert r2.constructs["elicit"]["evidence"] == [2, 4, 40]  # untouched
+    assert view["runId"].endswith("fidelity-r2")  # pre-r3 runs keep their id
+
+
+def test_the_prompt_asks_for_quotes_and_one_turn_per_construct():
+    prompt = ff.build_fidelity_prompt(load_framework("esru"), ff.dialogue_units(_sparse_dialogue()), None)
+    assert '"quote"' in prompt and "word for word" in prompt
+    assert "Do not cite one turn for several constructs" in prompt
+    assert "#<turn id>" in prompt  # drift lines use the same ids
+
+
+# ── 1.1.148 M5: the criteria version rides every run ─────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_a_criteria_edit_yields_a_new_run_beside_the_old_one():
+    from analytics.rubric_runs import list_rubric_runs
+    from db.framework_overrides import criteria_version, save_framework_structure
+
+    _, raw = _esru_payload({})
+    judge = AsyncMock(return_value=raw)
+    with patch("analytics.session_rubric._call_judge_model", new=judge):
+        first = await ff.resolve_fidelity(_summary(ESRU_DIALOGUE))
+        assert first.rubric_version == "fidelity-r3+fwyaml"
+        await ff.resolve_fidelity(_summary(ESRU_DIALOGUE))
+        assert judge.await_count == 1  # cached
+
+        fw = load_framework("esru")
+        save_framework_structure(
+            "esru", {"constructs": fw.model_dump(by_alias=True, mode="json")["constructs"]}, updated_by="r@ku.dk"
+        )
+        assert criteria_version("esru") == "1"
+        second = await ff.resolve_fidelity(_summary(ESRU_DIALOGUE))
+    assert judge.await_count == 2  # the cache missed honestly
+    assert second.rubric_version == "fidelity-r3+fw1" and second.criteria_version == "1"
+    versions = sorted(r["rubric_version"] for r in list_rubric_runs(rubric_id="fidelity:esru"))
+    assert versions == ["fidelity-r3+fw1", "fidelity-r3+fwyaml"]  # the old run is still listable
+
+
+# ── M0 finding: one session judged three times in a minute ────────────────────
+
+
+@pytest.mark.asyncio
+async def test_a_growing_session_is_not_rejudged_inside_the_debounce():
+    _, raw = _esru_payload({})
+    judge = AsyncMock(return_value=raw)
+    with patch("analytics.session_rubric._call_judge_model", new=judge):
+        await ff.resolve_fidelity(_summary(ESRU_DIALOGUE))
+        grown = [*ESRU_DIALOGUE, _turn("student", "ok"), _turn("tutor", "Godt.")]
+        r = await ff.resolve_fidelity(_summary(grown))
+        assert judge.await_count == 1 and r.based_on_message_count == 7  # served, and says what it was built on
+        await ff.resolve_fidelity(_summary(grown), force=True)
+        assert judge.await_count == 2  # Refresh still forces
+
+
+@pytest.mark.asyncio
+async def test_concurrent_report_reads_share_one_judgement():
+    import asyncio
+
+    _, raw = _esru_payload({})
+
+    async def slow(*_a, **_k):
+        await asyncio.sleep(0.05)
+        return raw
+
+    judge = AsyncMock(side_effect=slow)
+    with patch("analytics.session_rubric._call_judge_model", new=judge):
+        a, b, c = await asyncio.gather(*(ff.resolve_fidelity(_summary(ESRU_DIALOGUE)) for _ in range(3)))
+    assert judge.await_count == 1
+    assert a is not None and a.scored_at == b.scored_at == c.scored_at
+
+
+def test_run_history_keeps_the_mirror_apart_from_the_store():
+    """BigQuery unreadable is said as such — never an empty history."""
+    with patch("db.bigquery.run_query", side_effect=RuntimeError("no creds")):
+        h = ff.fidelity_run_history("s-1", _sparse_dialogue())
+    assert h["emissionsStatus"] == "unreadable" and h["emissions"] == []
+
+    profile = ff.FidelityResult(
+        sessionId="s-1",
+        frameworkId="esru",
+        promptVersion="fidelity-r2",
+        overallBand="partial",
+        constructs={"elicit": {"band": "partial", "score": 1, "rationale": "r", "evidence": [2]}},
+    ).model_dump(by_alias=True, mode="json")
+    rows = [
+        {"ts": datetime(2026, 10, 5, 9, 47, tzinfo=UTC), "run_id": "x", "v": "fidelity-r2", "p": json.dumps(profile)},
+        {"ts": datetime(2026, 10, 5, 9, 46, tzinfo=UTC), "run_id": "x", "v": "fidelity-r2", "p": json.dumps(profile)},
+    ]
+    with patch("db.bigquery.run_query", return_value=rows):
+        h = ff.fidelity_run_history("s-1", _sparse_dialogue())
+    assert h["emissionsStatus"] == "ok" and len(h["emissions"]) == 2
+    assert h["emissions"][0]["constructs"]["elicit"]["evidence"][0]["transcriptTurn"] == 3
+    assert h["emissions"][0]["idScheme"] == "position-translated"

@@ -316,5 +316,14 @@ service cloud.firestore {
     match /access_requests/{uid} {
       allow read, write: if false;
     }
+
+    // 1.1.148 M4 — researcher corrections of a fidelity judgement. Append-only
+    // by construction: the backend has create + list and nothing else, and the
+    // only writer is the Admin SDK behind `assert_researcher`. A client must
+    // not be able to read a band (fit is not quality, 1.1.65 R1) or rewrite
+    // the record of who corrected what.
+    match /rubric_reviews/{reviewId} {
+      allow read, write: if false;
+    }
   }
 }

@@ -44,6 +44,14 @@ class SessionTurn(BaseModel):
     timestamp: str  # ISO 8601
     role: Literal["student", "tutor"]
     content: str
+    #: The emitter's own turn number (1.1.148 M1) — the ADK event index the
+    #: chat-turn log stamps as ``turn_index`` (``adk/callbacks/session.py``),
+    #: and so the ``#N`` the researcher transcript shows. SPARSE: tool calls and
+    #: tool responses are events too, so a session reads 0, 1, 3, 6, ... Null
+    #: only on a row that carries none. The fidelity judge cites THIS, never the
+    #: turn's position in ``conversation`` — the two diverge in any tool-heavy
+    #: session, which is how a cited "turn 43" landed on transcript #98.
+    turn_index: int | None = Field(default=None, alias="turnIndex")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -179,7 +187,9 @@ async def summarize_session(session_id: str) -> SessionSummary | None:
 
     conversation: list[SessionTurn] = []
     if session is not None and session.events:
-        for event in session.events:
+        # ``event_index`` over ALL events, exactly as the emitter numbers them — the
+        # live fallback must cite the same turn the BigQuery path would.
+        for event_index, event in enumerate(session.events):
             if not event.content or not event.content.parts:
                 continue
             text = " ".join(p.text for p in event.content.parts if p.text).strip()
@@ -191,6 +201,7 @@ async def summarize_session(session_id: str) -> SessionSummary | None:
                     timestamp=datetime.fromtimestamp(event.timestamp).isoformat(),
                     role=role,
                     content=text,
+                    turnIndex=event_index,
                 )
             )
 
@@ -279,6 +290,7 @@ async def summarize_session_bq(session_id: str) -> SessionSummary | None:
                 timestamp=row["ts"].isoformat(),
                 role=role,
                 content=row["content"] or "",
+                turnIndex=_as_int(row.get("turn_index")),
             )
         )
 
