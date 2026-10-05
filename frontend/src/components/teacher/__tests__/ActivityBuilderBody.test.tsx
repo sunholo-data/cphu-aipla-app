@@ -379,3 +379,28 @@ describe("ActivityBuilderBody — works with a directly-mutated builder (no re-r
     expect(within(list).getAllByRole("textbox")).toHaveLength(2);
   });
 });
+
+// 1.1.151 F2b/F2c — the students' language is visible and a wrong-looking
+// value earns a soft, non-blocking hint.
+describe("ActivityBuilderBody — students' language hint (1.1.151)", () => {
+  it("hints when an English activity has a Danish title, and never blocks save", async () => {
+    const user = userEvent.setup();
+    setup();
+    expect(screen.queryByTestId("builder-hints")).toBeNull();
+    await user.type(screen.getByLabelText("Activity name"), "Bølger og lyd");
+    await user.selectOptions(screen.getByLabelText(/students' language/i), "en");
+    expect(screen.getByTestId("builder-hints")).toHaveTextContent(
+      "The title is in Danish, but the students get an English tutor. Is that intended?",
+    );
+    expect(screen.getByRole("button", { name: "Create activity" })).not.toBeDisabled();
+  });
+
+  it("puts the language field beside the title (same row container)", () => {
+    setup();
+    const title = screen.getByLabelText("Activity name");
+    const language = screen.getByLabelText(/students' language/i);
+    const row = title.closest("div.sm\\:flex-row");
+    expect(row).not.toBeNull();
+    expect(row?.contains(language)).toBe(true);
+  });
+});

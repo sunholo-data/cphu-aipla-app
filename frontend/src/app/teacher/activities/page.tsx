@@ -30,7 +30,9 @@ import {
 import { ActivityFacetEditor } from "@/components/teacher/ActivityFacetEditor";
 import { InheritedChip } from "@/components/teacher/ui/FacetRow";
 import type { CurriculumFacets, RagStatusEntry } from "@/lib/curriculumApi";
-import { citedDocIds, FailedMaterialsWarning, useRagStatuses } from "@/components/teacher/FailedMaterialsWarning";import { EmptyState } from "@/components/teacher/ui/EmptyState";
+import { citedDocIds, FailedMaterialsWarning, useRagStatuses } from "@/components/teacher/FailedMaterialsWarning";
+import { StudentsLanguageBadge } from "@/components/teacher/StudentsLanguageBadge";
+import { EmptyState } from "@/components/teacher/ui/EmptyState";
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
@@ -422,7 +424,7 @@ function ResearchCard({ activity }: { activity: ActivityPayload }) {
           <p className="line-clamp-2 text-xs text-muted-foreground">{activity.teachingGoal}</p>
         ) : null}
         <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-          <span>{activity.language === "da" ? "Dansk" : "English"}</span>
+          <StudentsLanguageBadge language={activity.language} />
           <span className="truncate" data-testid="activity-owner" title={activity.ownerUid}>
             {t("owner", { label: activity.ownerLabel ?? activity.ownerUid })}
           </span>
@@ -526,7 +528,7 @@ function SharedActivityCard({
         <p className="line-clamp-2 text-xs text-muted-foreground">{activity.teachingGoal}</p>
       ) : null}
       <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span>{activity.language === "da" ? "Dansk" : "English"}</span>
+        <StudentsLanguageBadge language={activity.language} />
         <button
           type="button"
           onClick={onAdopt}
@@ -691,7 +693,7 @@ function ActivityCard({
       ) : null}
 
       <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
-        <span>{activity.language === "da" ? "Dansk" : "English"}</span>
+        <StudentsLanguageBadge language={activity.language} />
         <div className="flex items-center gap-3">
           <Link href={editHref} className="flex items-center gap-1 font-medium hover:text-foreground">
             <Sliders className="h-3 w-3" aria-hidden="true" />
