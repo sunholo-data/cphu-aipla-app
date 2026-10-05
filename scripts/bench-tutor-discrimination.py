@@ -49,6 +49,20 @@ the student. They are labelled "teacher trial" and reported in their own
 section, never pooled into the classroom headline, matrix or n table.
 ``preview:`` tutor previews and content-free ``teacher:`` rows stay out.
 
+Workbench scenarios (1.1.149 M5): a scenario may carry an inline ``activity:``
+(a sim plus elements) and a planted ``probe.stuckTurn``. Its tutor is composed
+per turn through the REAL ``create_agent`` (``compose_activity_turn``), so the
+workbench block, referral rule and nudge are the ones a student gets, and each
+transcript is graded by the deterministic referral probe
+(``analytics/workbench_referral.py``) in its own report section. They live in
+``research/workbench-referral/scenarios.yaml``, outside the BENCH-2 file, so the
+discrimination baseline keeps its n:
+
+    make bench-tutors ARGS="--dry-run --scenarios ../research/workbench-referral/scenarios.yaml"
+
+``--from-sessions --referral-only`` counts referrals in real sessions with ZERO
+model calls (1.1.149 M6).
+
 Auth for a real run: Application Default Credentials with Vertex + Firestore
 read on the chosen project (``gcloud auth application-default login``).
 """
@@ -78,6 +92,10 @@ BENCH_UID = "bench-tutor-discrimination"
 RESCORED_REPORT = "report-rescored.md"
 
 ComposeFn = Callable[[str], dict[str, Any]]
+#: (framework_id, ActivityConfig, history so far, this student message) -> the
+#: instruction for THIS turn (1.1.149 M5). Per turn, because the workbench block
+#: and its nudge are composed per turn in a lesson too.
+ActivityComposeFn = Callable[[str, Any, list[dict[str, str]], str], Awaitable[str]]
 TutorTurnFn = Callable[..., Awaitable[dict[str, Any]]]
 JudgeFn = Callable[[str, str], Awaitable[str]]
 SleepFn = Callable[[float], Awaitable[None]]
@@ -140,6 +158,12 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         "--include-teacher-trials",
         action="store_true",
         help="also judge teachers' Try-as-student sessions (preview- groups), reported separately, never pooled",
+    )
+    g.add_argument(
+        "--referral-only",
+        action="store_true",
+        help="1.1.149: count workbench referrals in the selected sessions (deterministic, ZERO model calls; "
+        "one more read-only BigQuery read for the transcripts). No --go needed",
     )
     return p.parse_args(argv)
 
@@ -327,7 +351,69 @@ def build_report(
         lines += ["", "### Failed transcripts", ""] + [
             f"- `{r['id']}`: {r.get('error') or 'no error recorded'}" for r in failed
         ]
+    referral = render_referral_section(rows, order=order, tutor_models=tutor_models)
+    if referral:
+        sections.append(referral)
     return "\n".join(lines) + "\n\n" + "\n\n".join(sections) + "\n"
+
+
+#: Acceptance criterion 4 of 1.1.149 (first guesses, design doc O5).
+REFERRAL_FIRST_BY_TURN = 2
+REFERRAL_FIRST_TARGET = 0.8
+REFERRAL_STUCK_TARGET = 0.7
+REFERRAL_SHARE_CEILING = 0.6
+
+
+def _referral_line(label: str, refs: list[dict[str, Any]]) -> str:
+    n = len(refs)
+    early = sum(1 for r in refs if r.get("firstReferralTurn") and r["firstReferralTurn"] <= REFERRAL_FIRST_BY_TURN)
+    stuck = [r for r in refs if r.get("afterStuck") is not None]
+    stuck_ok = sum(1 for r in stuck if r["afterStuck"])
+    shares = [r["share"] for r in refs if r.get("share") is not None]
+    mean_share = sum(shares) / len(shares) if shares else None
+
+    def pct(k: int, d: int) -> str:
+        return f"{k / d:.0%} ({k}/{d})" if d else "n/a"
+
+    return (
+        f"| {label} | {n} | {pct(early, n)} | {pct(stuck_ok, len(stuck))} | "
+        f"{'n/a' if mean_share is None else f'{mean_share:.2f}'} |"
+    )
+
+
+def render_referral_section(rows: list[dict[str, Any]], *, order: list[str], tutor_models: list[str]) -> str:
+    """1.1.149 M5 — does the tutor send the student to the workbench? Deterministic
+    (no judge), from ``analytics.workbench_referral``. ``""`` when no transcript
+    had a workbench, so a BENCH-2 report is unchanged."""
+    graded = [r for r in rows if r.get("ok") and r.get("referral")]
+    if not graded:
+        return ""
+    out = [
+        "## Workbench referral (1.1.149)",
+        "",
+        "Scenarios with a workbench only. A referral is a tutor turn the shared matcher counts "
+        "(`analytics/workbench_referral.py` — the same one the runtime nudge fires on and the prod SQL uses). "
+        f"Targets: first referral by tutor turn {REFERRAL_FIRST_BY_TURN} in >= {REFERRAL_FIRST_TARGET:.0%}; "
+        f"a referral within two tutor turns of the planted stuck turn in >= {REFERRAL_STUCK_TARGET:.0%}; "
+        f"referral share <= {REFERRAL_SHARE_CEILING} (no nagging).",
+    ]
+    for m in tutor_models:
+        rs = [r for r in graded if r["tutorModel"] == m]
+        if not rs:
+            continue
+        out += [
+            "",
+            f"### {m}",
+            "",
+            f"| Approach | n | first referral by turn {REFERRAL_FIRST_BY_TURN} | after the stuck turn | mean share |",
+            "|---|---|---|---|---|",
+        ]
+        for fid in order:
+            refs = [r["referral"] for r in rs if r["producing"] == fid]
+            if refs:
+                out.append(_referral_line(f"`{fid}`", refs))
+        out.append(_referral_line("**all**", [r["referral"] for r in rs]))
+    return "\n".join(out)
 
 
 def report_only(run_dir: Path, out_dir: Path | None) -> tuple[Path, str]:
@@ -427,16 +513,22 @@ async def _run_transcript(
     *,
     attempts: int,
     sleep: SleepFn,
+    activity_compose: ActivityComposeFn | None = None,
 ) -> dict[str, Any]:
     history: list[dict[str, str]] = []
     tokens = [0, 0]
+    activity = getattr(scenario, "activity", None)
+    composed_from = dict(composed["composedFrom"])
+    if activity is not None:
+        composed_from["activity"] = activity.activity_id
+        composed_from["notIncluded"] = ["group history", "persona"]
     record: dict[str, Any] = {
         "id": f"{scenario.id}|{fw.id}|{tutor_model}",
         "scenario": scenario.id,
         "producing": fw.id,
         "tutorModel": tutor_model,
         "tutorId": composed["tutorId"],
-        "composedFrom": composed["composedFrom"],
+        "composedFrom": composed_from,
         "ok": True,
         "error": "",
         "retries": 0,
@@ -446,9 +538,16 @@ async def _run_transcript(
         record["retries"] += 1
 
     for i, student in enumerate(scenario.student_turns):
+        turn_composed = composed
+        if activity is not None:
+            if activity_compose is None:
+                raise SystemExit(f"scenario {scenario.id} has a workbench but no activity composer was given")
+            # The REAL agent build, this turn: the workbench block, the referral
+            # rule and the nudge are the ones a student would get.
+            turn_composed = {**composed, "instruction": await activity_compose(fw.id, activity, history, student)}
         out = await _tutor_turn_with_retry(
             tutor_turn,
-            (composed, history, student),
+            (turn_composed, history, student),
             {"model": tutor_model, "uid": BENCH_UID, "turn_index": 2 * i + 1},
             label=f"tutor {record['id']} turn {i}",
             attempts=attempts,
@@ -465,7 +564,83 @@ async def _run_transcript(
         tokens[1] += int(out.get("tokenOut") or 0)
     record["turns"] = history
     record["tutorTokens"] = tokens
+    record["referral"] = None
+    if activity is not None and record["ok"]:
+        from analytics.workbench_referral import referral_probe, referral_vocabulary
+
+        # Deterministic, no judge call — and the SAME matcher the runtime nudge
+        # fires on and the prod SQL counts with.
+        record["referral"] = referral_probe(
+            history, referral_vocabulary(activity), stuck_student_turn=scenario.stuck_turn
+        ).to_dict()
     return record
+
+
+#: One agent build at a time: composing patches module-level resolvers (below).
+#: Per event loop, since a lock is bound to the loop it first waits on.
+_ACTIVITY_COMPOSE_LOCKS: dict[int, asyncio.Lock] = {}
+
+
+def _activity_compose_lock() -> asyncio.Lock:
+    return _ACTIVITY_COMPOSE_LOCKS.setdefault(id(asyncio.get_running_loop()), asyncio.Lock())
+
+
+async def compose_activity_turn(framework_id: str, cfg: Any, history: list[dict[str, str]], message: str) -> str:
+    """This turn's instruction for an approach tutor ON A WORKBENCH (1.1.149 M5).
+
+    Built by the real ``adk.agent.create_agent`` on the environment's seeded
+    ``concept-dialogue`` skill, then ``agent.instruction(ctx)`` is awaited the
+    way ADK awaits it — so every per-turn provider, including the workbench
+    block and its nudge, runs exactly as in a lesson. Two things are pinned
+    rather than looked up, because a scripted bench has neither a class nor a
+    saved activity in Firestore: the ACTIVITY (the scenario's inline config) and
+    the TEACHING CONTEXT (this approach, no persona — the same 1-1 confound
+    ``compose_approach_instruction`` keeps out). Nothing is written anywhere.
+    """
+    from types import SimpleNamespace
+    from unittest import mock
+
+    from adk.agent import create_agent
+    from adk.tutor_resolution import TeachingContext
+    from analytics.tutor_preview import DEFAULT_PREVIEW_SKILL
+    from auth import User
+    from skills.platform import PLATFORM_OWNER_UID
+    from skills.skill_config import find_by_slug
+
+    skill = find_by_slug(PLATFORM_OWNER_UID, DEFAULT_PREVIEW_SKILL)
+    if skill is None:
+        raise SystemExit(f"the {DEFAULT_PREVIEW_SKILL} skill is not seeded in this environment (make seed ENV=...)")
+    teaching = TeachingContext(
+        tutor_id=f"approach:{framework_id}",
+        framework_id=framework_id,
+        persona_id=None,
+        class_id=None,
+        activity_id=cfg.activity_id,
+        interaction_style=None,
+        source="tutor",
+    )
+
+    def _event(author: str, text: str) -> Any:
+        return SimpleNamespace(author=author, content=SimpleNamespace(parts=[SimpleNamespace(text=text)]))
+
+    events = [_event("user" if h["role"] == "student" else "tutor", h["content"]) for h in history]
+    events.append(_event("user", message))
+    ctx = SimpleNamespace(
+        state={},
+        user_content=SimpleNamespace(parts=[SimpleNamespace(text=message)]),
+        session=SimpleNamespace(events=events, id=f"preview:{BENCH_UID}"),
+        user_id=BENCH_UID,
+    )
+    user = User(uid=f"preview:{BENCH_UID}", email="", domain="")
+    async with _activity_compose_lock():
+        with (
+            mock.patch("adk.agent.resolve_active_config", return_value=cfg),
+            mock.patch("adk.teacher_focus.resolve_active_config", return_value=cfg),
+            mock.patch("adk.agent.resolve_teaching_context", return_value=teaching),
+            mock.patch("adk.tutor_resolution.resolve_teaching_context", return_value=teaching),
+        ):
+            agent = create_agent(skill, user, activity_id=cfg.activity_id)
+            return await agent.instruction(ctx)
 
 
 async def run_benchmark(
@@ -478,6 +653,7 @@ async def run_benchmark(
     judge: JudgeFn | None,
     attempts: int = 4,
     sleep: SleepFn = asyncio.sleep,
+    activity_compose: ActivityComposeFn | None = None,
 ) -> dict[str, Any]:
     from analytics.framework_discrimination import (
         FIT_PROMPT_VERSION,
@@ -525,7 +701,14 @@ async def run_benchmark(
     async def _one(scenario: Any, fw: Any, tutor_model: str) -> dict[str, Any]:
         async with sem:
             rec = await _run_transcript(
-                scenario, fw, tutor_model, composed_by_fw[fw.id], tutor_turn, attempts=attempts, sleep=sleep
+                scenario,
+                fw,
+                tutor_model,
+                composed_by_fw[fw.id],
+                tutor_turn,
+                attempts=attempts,
+                sleep=sleep,
+                activity_compose=activity_compose,
             )
             if not rec["ok"]:
                 rec["fit"] = None
@@ -573,7 +756,18 @@ async def run_benchmark(
         for r in records:
             keep = {
                 k: r[k]
-                for k in ("id", "scenario", "producing", "tutorModel", "ok", "error", "fit", "sycophancy", "tone")
+                for k in (
+                    "id",
+                    "scenario",
+                    "producing",
+                    "tutorModel",
+                    "ok",
+                    "error",
+                    "fit",
+                    "sycophancy",
+                    "tone",
+                    "referral",
+                )
             }
             # The arm, in the same field names 1.1.92 M0 put on RubricResult, so a
             # benchmark row and a scored classroom session can sit in one table.
@@ -731,6 +925,8 @@ def from_sessions(
     if args.dry_run:
         print("\n--dry-run: no model was called (one read-only BigQuery selection only).")
         return 0
+    if args.referral_only:
+        return _sessions_referral(args, query, view, sel, until=until, order=order)
     if not args.go:
         print("\nRefusing to call any model without --go. The judge costs real money; get M's go-ahead first.")
         return 2
@@ -817,6 +1013,47 @@ def from_sessions(
     return 0
 
 
+def _sessions_referral(
+    args: argparse.Namespace, query: QueryFn, view: str, sel: Any, *, until: Any, order: list[str]
+) -> int:
+    """1.1.149 M6 — the referral probe over REAL sessions. Deterministic: no model
+    is called. Uses the GENERIC lexicon only — a session row carries no activity
+    config to take element and sim names from — which is exactly what the M0 SQL
+    counts, so the two numbers are comparable.
+
+    ⚠️ The selection keeps only ``teaching_source = 'tutor'`` sessions WITH a
+    framework (it was built for the discrimination judge). Workbench activities
+    run by a framework-less tutor are not in it; the M0 SQL (``research/
+    workbench-referral/m0.sql`` Q1) is the all-sessions count.
+    """
+    from analytics import session_discrimination as sd
+    from analytics.workbench_referral import referral_probe
+
+    if not sel.sessions:
+        print("\nNo sessions selected; nothing to count.")
+        return 0
+    transcripts = sd.fetch_transcripts(query, view, sel.sessions, since=args.since, until=until)
+    rows = []
+    for s in sel.sessions:
+        turns = [{"role": t.role, "content": t.content} for t in transcripts.get(s.session_id, [])]
+        rows.append(
+            {
+                "ok": True,
+                "producing": s.framework_id,
+                "tutorModel": s.cohort,
+                "referral": referral_probe(turns).to_dict(),
+            }
+        )
+    cohorts = list(dict.fromkeys(r["tutorModel"] for r in rows))
+    section = render_referral_section(rows, order=order, tutor_models=cohorts)
+    print("\n" + section)
+    print("\n--referral-only: no model was called.")
+    if args.out is not None:
+        args.out.mkdir(parents=True, exist_ok=True)
+        (args.out / "referral.md").write_text(section + "\n", encoding="utf-8")
+    return 0
+
+
 def _headline_of(report: str) -> str:
     """The headline section of a rendered report, for the terminal."""
     start = report.find("## Headline")
@@ -832,6 +1069,7 @@ def main(
     judge: JudgeFn | None = None,
     sleep: SleepFn = asyncio.sleep,
     query: QueryFn | None = None,
+    activity_compose: ActivityComposeFn | None = None,
 ) -> int:
     args = _parse_args(argv)
     if args.from_sessions:
@@ -868,6 +1106,7 @@ def main(
             judge=judge,
             attempts=args.retry_attempts,
             sleep=sleep,
+            activity_compose=activity_compose or compose_activity_turn,
         )
     )
     print("\n" + _headline_of(result["report"]))
