@@ -13,6 +13,14 @@ The chat renders LaTeX, so write mathematics as mathematics, not as code.
   write the comma as `{,}` so it is not typeset as a list separator.
 - **Wrap it.** `$…$` inline, `$$…$$` for display. Unwrapped LaTeX reaches the
   student as literal backslashes.
+- **Write maths with `$…$` or `$$…$$` directly in the sentence — never inside
+  backticks or code formatting, never `\(…\)` or `\[…\]`.** Maths in backticks
+  reaches the student as raw source in a code font, dollar signs and all.
+- **Inside `\text{…}` write words only; put `^\circ` outside it.** Write
+  `$80^\circ\text{C}$`, never `\text{ ^\circ C}` and never `\celsius`.
+- **If a student says the maths looks wrong, rewrite it in plain words and
+  symbols (×, ·, °) for the rest of the conversation.** Do not explain the
+  markup: a student should never have to learn what `\cdot` means.
 
 This does not apply to a count, an index, a trial number, or a number in
 ordinary prose — "try the third one", "about 3 metres". A rule that is wrong

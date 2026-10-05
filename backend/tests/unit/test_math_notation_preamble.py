@@ -137,3 +137,17 @@ def test_preamble_leaves_sim_readings_in_plain_text(preamble_text: str) -> None:
     assert "plain text" in lowered
     flat = " ".join(preamble_text.split())
     assert "outside `\\text{}`, never inside it" in flat
+
+
+def test_preamble_forbids_maths_in_backticks_and_text_mode_degrees(preamble_text: str) -> None:
+    """1.1.147 M0, prod 2026-10-05: 15 of 234 tutor turns wrapped maths in
+    backticks (`` `$E = P \\cdot t$` ``) — a code span, so the student read the
+    source in monospace — and 3 put `^\\circ` or `\\celsius` inside `\\text{}`,
+    which KaTeX rejects. Students asked the tutor what `cdot` meant; it explained
+    the markup. The renderer now repairs both; these lines lower the rate."""
+    flat = " ".join(preamble_text.split())
+    assert "never inside backticks or code formatting" in flat
+    assert "never `\\(…\\)` or `\\[…\\]`" in flat
+    assert "Inside `\\text{…}` write words only; put `^\\circ` outside it." in flat
+    assert "\\celsius" in flat
+    assert "If a student says the maths looks wrong, rewrite it in plain words" in flat

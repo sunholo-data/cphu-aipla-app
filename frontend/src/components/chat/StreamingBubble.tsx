@@ -10,6 +10,12 @@
 import type { SkillMessage } from "@/hooks/useSkillAgent";
 import { BrandAvatar } from "@/components/chat/BrandAvatar";
 import { ThinkingPanel } from "@/components/chat/ThinkingPanel";
+import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
+import { holdOpenMath } from "@/lib/mathDelimiters";
+
+// A streaming bubble has no document panel to navigate; a chip that arrives
+// mid-stream becomes live once the turn finalises into MessageBubble.
+const noNavigate = () => {};
 
 interface StreamingBubbleProps {
   message: SkillMessage;
@@ -30,10 +36,14 @@ export function StreamingBubble({ message, skillId, thinkingContent, isThinking 
           {thinkingContent && (
             <ThinkingPanel content={thinkingContent} isThinking={isThinking ?? false} />
           )}
-          <p className="whitespace-pre-wrap">
-            {message.content}
-            <span className="ml-0.5 inline-block h-3.5 w-0.5 bg-orange-400 animate-pulse align-middle" />
-          </p>
+          {/* 1.1.147 M0: Markdown + KaTeX WHILE streaming, not only once the
+              turn ends — the raw-text bubble showed `$…$` source on every
+              turn and its swap for rendered Markdown at the end was a layout
+              jump that broke auto-scroll. holdOpenMath holds back an unclosed
+              `$`, `$$`, `\(`, `\[` or backtick at the tail, so neither source
+              nor a half code span flashes. */}
+          <ChatMarkdown content={holdOpenMath(message.content)} navigateToBlock={noNavigate} />
+          <span className="ml-0.5 inline-block h-3.5 w-0.5 bg-orange-400 animate-pulse align-middle" />
         </div>
       </div>
     </div>
