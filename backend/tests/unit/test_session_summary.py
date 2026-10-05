@@ -301,3 +301,45 @@ async def test_bq_summary_carries_the_last_framework_stamp():
     assert s is not None
     assert s.framework_id == "esru"
     assert s.tutor_id == "sofie-esru"
+
+
+def test_the_report_ignores_the_tutors_hidden_assessment_rows():
+    """1.1.133 M3 writes record_assessment into the workbench sink table. The
+    teacher report read every row of it, so a Sol-Jord-Maane session showed the
+    tutor's raw level as a "work" item and counted it as a sim run."""
+    import asyncio
+    from datetime import UTC, datetime
+
+    from adk.assessment_tools import TOOL_NAME
+    from reports.session_summary import NOT_STUDENT_WORK_TOOLS, summarize_session_bq
+
+    assert TOOL_NAME in NOT_STUDENT_WORK_TOOLS
+
+    ts = datetime(2026, 10, 5, 10, 0, tzinfo=UTC)
+    turns = [
+        {
+            "ts": ts,
+            "group_id": "g",
+            "skill_id": "act",
+            "role": "student",
+            "content": "hej",
+            "turn_index": 0,
+            "framework_id": None,
+            "tutor_id": None,
+        },
+    ]
+    work = [
+        {"ts": ts, "server": "sol-jord-maane", "tool": "sim_run", "field": "", "value": "1"},
+        {"ts": ts, "server": "", "tool": TOOL_NAME, "field": "aarstider", "value": '{"level": 4}'},
+    ]
+
+    def _q(sql, params=None):
+        if "jsonPayload.tool" in sql:
+            return work
+        return turns if "session_id = @session_id" in sql else []
+
+    with patch("db.bigquery.run_query", side_effect=_q):
+        s = asyncio.run(summarize_session_bq("s-1"))
+    assert s is not None
+    assert [e.tool for e in s.workbench_events] == ["sim_run"]
+    assert s.sim_run_count == 1

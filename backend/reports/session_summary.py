@@ -29,6 +29,14 @@ from db.models.chat_session import ChatSessionIndex
 
 log = logging.getLogger(__name__)
 
+#: Workbench-sink rows that are NOT something the student did, so a teacher's
+#: session report must neither list them as work nor count them as sim runs.
+#: ``record_assessment`` (1.1.133 M3) is the tutor's hidden judgement of the
+#: student; it is for researchers until docs/design/aipla/v2.1.0-extension/
+#: concept-assessment.md gives the teacher a proper view of it. Pinned to
+#: ``adk.assessment_tools.TOOL_NAME`` by test_session_summary.
+NOT_STUDENT_WORK_TOOLS: frozenset[str] = frozenset({"record_assessment"})
+
 
 class SessionTurn(BaseModel):
     """A single user/assistant message in the report's conversation log."""
@@ -286,6 +294,11 @@ async def summarize_session_bq(session_id: str) -> SessionSummary | None:
             params={"session_id": session_id},
         )
         for row in wb_rows:
+            # Not the student's work: the tutor's hidden judgement rides the same
+            # sink table (1.1.133 M3) and would otherwise show the teacher a raw
+            # level as a "work" item and count as a sim run.
+            if (row["tool"] or "") in NOT_STUDENT_WORK_TOOLS:
+                continue
             workbench_events.append(
                 WorkbenchEvent(
                     timestamp=row["ts"].isoformat(),
