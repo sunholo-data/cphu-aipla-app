@@ -7,8 +7,8 @@ order: "2"
 lang: "en"
 status: "Current"
 owner: "AIPLA project team"
-reviewed: "2026-09-14"
-reviewBy: "2026-12-13"
+reviewed: "2026-10-05"
+reviewBy: "2027-01-05"
 ---
 ::: callout-note
 ## For physics staff
@@ -26,7 +26,7 @@ A simulation in AIPLA is a small interactive bench that opens beside the tutor
 in the student's workspace. The student changes something, watches what happens,
 and records readings. The tutor sees those readings and can ask about them.
 
-Seven are live today:
+Nine are live today:
 
 | Simulation | The student's job |
 |---|---|
@@ -37,6 +37,8 @@ Seven are live today:
 | Faseovergange | Heat ice to steam, read the plateaus off the heating curve |
 | Bølgefart | Set *f* and *λ*, work out the wave speed |
 | Interferens | Add two waves, find constructive, destructive and beats |
+| Sol, Jord og Måne | Change viewpoint, scale and time; solve five missions on day, seasons, moon phases, eclipses and scale |
+| Sekantbænk | Read points on a parabola, lay secants, find how steep the graph is at a point (mathematics) |
 
 Note the shape they share. **The simulation never shows the answer.** The kettle
 reports energy and temperature and never the efficiency; the wave bench reports
@@ -108,8 +110,28 @@ Then describe your experiment. A good brief says:
 4. **What must stay hidden**, explicitly.
 5. **What "done" looks like** — the capture or commit action.
 
+6. **What the tutor may do to it**, if anything — for example "jump to the
+   next full moon" or "switch to the view from the Moon". See below.
+
 Open the result in a browser and try it. You are the physics reviewer; nobody
 downstream can catch a wrong model, and the automated checks certainly cannot.
+
+## Letting the tutor act on the simulation
+
+By default the tutor only *watches* the bench. It can also *act* on it — move
+the clock, switch the view — if the simulation declares those actions as
+**commands** in its catalogue entry. Each command has a name, the values it
+takes, the sentence the student sees ("Sprang til næste fuldmåne"), and a power
+level: **view** (changes what is shown; the student can change it straight
+back), **scaffold** (puts a task or message on the student's screen) or
+**restrict** (locks something). How far a tutor may go is set by its teaching
+approach; with nothing set it may use only **view** commands. Every change
+shows the student a card in the chat. *Sol, Jord og Måne* is the first bench
+that does this.
+
+If you want this, list the actions in your brief, in plain words, and say which
+ones would take something away from the student. Leave it out and the bench is
+watched, not driven.
 
 ## What happens to your draft
 
@@ -123,7 +145,9 @@ Hand over the HTML file. It then goes through a documented path
   student sees a "shared with the AI" card;
 - runs the security, size, layout and phone-width gates;
 - drives it in a real browser and captures the events;
-- writes the tutor's private note, including your reference values.
+- writes the tutor's private note, including your reference values;
+- declares any tutor commands you asked for in the catalogue entry, each with
+  its power level.
 
 Then it is in the library and any teacher can attach it to an activity.
 

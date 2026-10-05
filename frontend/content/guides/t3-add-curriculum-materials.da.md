@@ -7,17 +7,20 @@ order: "3"
 lang: "da"
 status: "Current"
 owner: "AIPLA project team"
-reviewed: "2026-07-14"
-reviewBy: "2026-10-12"
+reviewed: "2026-10-05"
+reviewBy: "2027-01-05"
 ---
 ::: callout-note
 ## Hvor dette hører til
 
-Pensummaterialer tilføjes **inde i en aktivitet** (vejledning *T2*). Åbn en
-aktivitet, gå til dens **Materials**-sektion, og vedhæft de dokumenter, du vil
-have tutoren til at trække på. Der er ikke noget separat bibliotek at
-administrere — du organiserer materialerne på stedet, i konteksten af den
-aktivitet, der bruger dem.
+Pensummaterialer vedhæftes **inde i en aktivitet** (vejledning *T2*). Åbn en
+aktivitet, gå til dens **Materialer**-sektion, og vedhæft de dokumenter, du vil
+have tutoren til at trække på. Vil du uploade og sortere dokumenter uden at
+åbne en aktivitet, så brug **Materialer** i lærermenuen — det samme bibliotek,
+uden de kontroller, der hører til en aktivitet.
+
+Knapnavnene nedenfor er de danske. Lærerskærmene følger **DA | EN**-knappen;
+på engelsk hedder sektionen **Materials**.
 :::
 
 ## Hvad materialer gør
@@ -30,7 +33,9 @@ forankre sine svar i din kilde frem for i almen viden. Du kan vedhæfte:
 - dine **egne uploads** — en PDF, slides, et opgaveark, noter eller et billede.
 
 Hvert vedhæftet dokument er enten **synligt** for elever eller **skjult** (bruges
-kun til at forankre tutoren). Du vælger per dokument.
+kun til at forankre tutoren), og enten **Opslag** (tutoren slår det op, når det
+er relevant) eller **I kontekst** (tutoren får hele teksten ved hver besked). Du
+vælger per dokument.
 
 ::: callout-tip
 ## Medbyggeren kan også hjælpe her
@@ -40,51 +45,69 @@ foreslå pensummaterialer at vedhæfte — se *T4 — Byg med AI-medbyggeren*. D
 altid tilføje og organisere materialer i hånden som beskrevet nedenfor.
 :::
 
-## Trin 1 — Åbn Materials-sektionen
+## Trin 1 — Åbn Materialer-sektionen
 
 Åbn en aktivitet til redigering (eller opret en — vejledning *T2*). I byggerens
-sektionsnavigation vælger du **Materials**. Sektionen viser det delte
+sektionsnavigation vælger du **Materialer**. Sektionen viser det delte
 materialebibliotek, du kan gennemse, med en **Upload**-knap og kontroller til at
 filtrere og organisere.
 
-![Materials-sektionen: gennemse det delte materialebibliotek, upload dit eget, filtrer efter niveau, tag, fag eller mappe.](/guides/assets/t3-01-materials.png)
+![Materialer-sektionen: gennemse det delte materialebibliotek, upload dit eget, filtrer efter fag, mappe, niveau eller tag.](/guides/assets/t3-01-materials.png)
 
 ## Trin 2 — Vedhæft et dokument
 
 Du har to måder at vedhæfte materiale på:
 
-- **Citer et eksisterende dokument.** Brug **Search materials**-feltet eller
-  filtrene for **niveau**, **tag**, **fag** og **mappe** til at finde det, du vil
-  have, og vælg derefter **Cite** på dets række. Det flyttes ind i aktivitetens
-  citerede liste.
+- **Henvis til et eksisterende dokument.** Brug feltet **Søg i materialer**
+  eller filtrene **Fag**, **Mapper**, **Niveau** og **Tags** til at finde det, du
+  vil have, og vælg derefter **Henvis** på dets række. Det flyttes ind i
+  aktivitetens liste over henviste materialer.
 - **Upload dit eget.** Vælg **Upload** og vælg en fil (PDF, Word, slides,
-  regneark, almindelig tekst eller et billede). AIPLA udtrækker teksten og viser
-  dig **hvad den udtrak**, så du kan bekræfte, at dokumentet blev læst korrekt,
-  før du forlader dig på det.
+  regneark, almindelig tekst eller et billede). Et dokument bliver henvist med
+  det samme, og AIPLA viser dig **hvad den fik ud af det**, så du kan bekræfte,
+  at det blev læst korrekt, før du forlader dig på det. Et billede bliver ikke
+  lavet om til tekst — tutoren ser selve billedet; gem aktiviteten én gang, før
+  du uploader et.
 
 ![Efter en upload viser AIPLA den udtrukne tekst, så du kan verificere fortolkningen.](/guides/assets/t3-02-extracted.png)
+
+Vælg et dokuments titel, når som helst, for at se igen, hvad der blev hentet ud
+af det.
 
 ## Trin 3 — Organiser: mapper, tags og fag
 
 Hold et voksende materialebibliotek overskueligt:
 
-- **Mapper** — gruppér relaterede dokumenter; opret en med **New** i
-  mappepanelet. Sletning af en mappe fjerner dokumenterne fra mappen frem for at
+- **Mapper** — gruppér relaterede dokumenter; opret en med **Ny** i rækken
+  **Mapper**. Sletning af en mappe fjerner dokumenterne fra mappen frem for at
   slette dem.
-- **Tags** og **Fag** — sæt på et dokument, så filtrene kan finde det senere.
+- **Tags** og **Fag** — vælg **Tilføj tags** (eller **Redigér**) på et dokument
+  for at sætte dets fag, mappe og tags, så filtrene kan finde det senere. På
+  siden **Materialer** hedder den samme knap **Sortér**.
 
-Dette er fælles organisering, så et dokument, du tagger godt, er lettere for dig
-og dine kolleger at genbruge på tværs af aktiviteter.
+En upload lægges i det fag og den mappe, du har filtreret på i øjeblikket.
+Sorteringen af det delte materialebibliotek er fælles, så et dokument, du
+tagger godt, er lettere for dig og dine kolleger at genbruge på tværs af
+aktiviteter. Dine egne uploads bliver i dit eget bibliotek; kun forskere kan
+lægge en upload i det fælles bibliotek. Skraldespandsikonet på en række sletter
+dokumentet fra biblioteket.
 
-## Trin 4 — Styr hvad elever ser
+## Trin 4 — Styr hvad elever ser, og hvad tutoren altid har
 
-Hvert citeret dokument har en **Visible / Hidden**-omskifter. Skjulte dokumenter
-forankrer stadig tutorens svar; synlige dokumenter vises også for elever i
-aktiviteten. Nye uploads er som standard **Hidden** — gør kun et dokument synligt,
-når du vil have eleverne til at læse kilden direkte.
+Hvert henvist dokument har to omskiftere:
+
+- **Synlig / Skjult** — skjulte dokumenter forankrer stadig tutorens svar;
+  synlige dokumenter vises også for elever i aktiviteten. Nyligt henviste
+  dokumenter starter som **Skjult** — gør kun et dokument synligt, når du vil
+  have eleverne til at læse kilden direkte.
+- **Opslag / I kontekst** — **Opslag** (standard) lader tutoren slå dokumentet
+  op, når det er relevant, hvilket passer til en lærebog. **I kontekst** giver
+  tutoren hele teksten ved hver besked: brug det til den opgave, eleverne
+  arbejder med, så tutoren aldrig skal lede efter den eller bede dem indsætte
+  den.
 
 ::: callout-tip
-Forankring virker, uanset om et dokument er synligt eller skjult. Brug *hidden*
+Forankring virker, uanset om et dokument er synligt eller skjult. Brug *skjult*
 til kildemateriale, der skal forme tutorens svar uden at blive udleveret ordret
 til eleverne.
 :::

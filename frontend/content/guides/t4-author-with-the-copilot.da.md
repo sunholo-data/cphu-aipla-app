@@ -7,8 +7,8 @@ order: "4"
 lang: "da"
 status: "Current"
 owner: "AIPLA project team"
-reviewed: "2026-09-21"
-reviewBy: "2026-12-21"
+reviewed: "2026-10-05"
+reviewBy: "2027-01-05"
 ---
 ::: callout-note
 ## Hvor dette passer ind
@@ -25,10 +25,14 @@ godkender det.
 Medbyggeren (mærket **Medbygger**) læser en beskrivelse i almindeligt sprog af
 din lektion og udkaster:
 
-- et **undervisningsmål** (den sokratiske prompt, tutoren følger),
-- **elementer til arbejdsområdet** — en tjekliste, en note, en tabel, en
-  beregner og så videre, og
-- foreslåede **pensummaterialer**, der kan vedhæftes (vejledning *T3*).
+- et **undervisningsmål** (den lærer-prompt, tutoren følger),
+- **elementer til arbejdsområdet** — en tjekliste, en note, en tabel, en graf,
+  en beregner og så videre — eller en **simulation** fra biblioteket,
+- et **begrebskort** til aktiviteten,
+- foreslåede **pensummaterialer**, der kan vedhæftes (vejledning *T3*), og
+  hvordan aktiviteten skal arkiveres (emne, niveau, tags).
+
+Den svarer på det sprog, du skriver på.
 
 Hvert forslag ankommer som et **forslag**, du kan anvende, redigere eller
 afvise. Du bevarer kontrollen: medbyggeren ændrer aldrig aktiviteten på egen
@@ -36,7 +40,7 @@ hånd.
 
 ## Trin 1 — Åbn byggeren
 
-Opret eller åbn en aktivitet (vejledning *T2*). Klik på **Ask AIPLA** i
+Opret eller åbn en aktivitet (vejledning *T2*). Klik på **Spørg AIPLA** i
 toppen og vælg **Medbygger** — panelet åbner nederst til højre i byggeren,
 klar til en beskrivelse. (Samme knap giver *AIPLA Hjælp* på alle sider; på
 sider med deres egen medbygger tilbyder den begge.)
@@ -51,11 +55,11 @@ tænker et øjeblik og returnerer så et eller flere forslag.
 
 ## Trin 3 — Gennemgå hvert forslag
 
-Hvert forslag er et kort: et foreslået undervisningsmål, en tjekliste, en note,
+Hvert forslag er et kort: en foreslået lærer-prompt, en tjekliste, en note,
 en tabel og så videre. For hvert af dem kan du:
 
 - **Anvend** — accepter forslaget ind i dit udkast,
-- **Rediger** — juster det først og anvend det derefter, eller
+- **Redigér** — juster det først, og vælg derefter **Brug denne**, eller
 - **Afvis** — afvis det.
 
 ![Hvert forslag er et forslagskort, du kan anvende, redigere eller afvise.](/guides/assets/t4-02-proposal.png)

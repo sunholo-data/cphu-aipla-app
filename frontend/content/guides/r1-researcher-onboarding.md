@@ -7,8 +7,8 @@ order: "1"
 lang: "en"
 status: "Current"
 owner: "AIPLA project team"
-reviewed: "2026-09-21"
-reviewBy: "2026-12-21"
+reviewed: "2026-10-05"
+reviewBy: "2027-01-05"
 ---
 ::: callout-note
 ## For researchers
@@ -21,7 +21,7 @@ your account (see *Getting access* below).
 
 ## What a researcher can do
 
-Three capabilities beyond a normal teacher account:
+Four capabilities beyond a normal teacher account:
 
 1. **Observe across the whole cohort** — every teacher's classes, activities,
    engagement and cost.
@@ -30,7 +30,9 @@ Three capabilities beyond a normal teacher account:
    share or unshare an activity. An activity you create inside a teacher's
    class belongs to *them* — it appears in their own library and they can edit
    it without you. You cannot delete a teacher's class.
-3. **Experiment with rubrics** — author and version the judge prompts (lenses)
+3. **Maintain the teaching approaches** — edit the seven published approaches
+   that tutors teach with, and see which tutor teaches with what.
+4. **Experiment with rubrics** — author and version the judge prompts (lenses)
    used to score student sessions, and run a judge over a captured session.
 
 When you edit something you do not own, the page tells you whose it is, and the
@@ -43,8 +45,13 @@ The researcher role is a claim an administrator sets on your account (via
 `aiplatform users grant-researcher <uid>`). Once granted, sign out and back in
 so your session picks up the new role. You will then see the extra controls
 described below — scope toggles on **Classes** and **Activities**, extra tabs
-under **Insights**, and a **Programme** item in the sidebar. Without the role, these surfaces
-show a "Researcher access required" message.
+under **Insights**, extra tabs under **Approaches** (account menu), and a
+**Programme** item in the sidebar. Without the role, these surfaces show a
+"Researcher access required" message.
+
+With the role, the screens default to **English**. To read them in Danish, use
+the **DA | EN** switch in the account menu (top right); your choice is
+remembered in this browser.
 
 ## Cross-teacher observation
 
@@ -61,12 +68,42 @@ show a "Researcher access required" message.
   teachers** scope toggle widens the engagement comparison to the whole cohort.
 - **Conversations** — a researcher-only tab under **Insights**: every student
   conversation, grouped by the teaching approach that produced it, with the
-  transcript one click away.
+  transcript one click away (**Read**). The transcript shows the group's
+  workspace work — table entries, writing, checklist ticks, simulation
+  events — between the turns where it happened, and **What they ended with**
+  beside it shows the group's final saved work on that activity. **Export CSV**
+  and **Export JSONL** download the turns under the selected approach.
 - **Cost** — a researcher-only **Cost** tab under Insights breaks cross-class
   spend down by cohort, model, voice (speech-to-text / text-to-speech) and
   class, over a period you choose.
 
 ![The cross-teacher research surfaces — every teacher and class, with the owner shown.](/guides/assets/r1-01-research.png)
+
+## Teaching approaches and tutors
+
+Open **Approaches** from the account menu (top right). As a researcher you get:
+
+- **Approaches** — the seven published approaches. **Edit teaching approach**
+  changes an approach's constructs; the tutor's prompt is rebuilt from them, so
+  it stays traceable to the source paper. Below them are the custom approaches
+  teachers and researchers have written.
+- **Who teaches with what** — change which approach a tutor teaches with, in
+  every class that uses it.
+- **Try them** — ask two tutors the same question side by side, and see what
+  each was told.
+- **Tutors** and **Faces and voices** — build tutors, the same panels teachers
+  have.
+- **Usage** — every approach, who wrote it, how many tutors use it and how many
+  turns it has taught.
+
+The **Tutor co-pilot** on this page proposes constructs for an approach and can
+search the papers held in the private literature corpus; citations stay yours
+to vouch for.
+
+Writing a custom approach and building a tutor on it does **not** need the
+researcher role — any teacher can, on **Your approaches** and **Tutors** (guide
+*T1*, *Make your own tutor*). Only editing the seven published approaches is
+researcher-only.
 
 ## Rubric experimentation
 

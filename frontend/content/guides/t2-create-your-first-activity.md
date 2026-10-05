@@ -7,8 +7,8 @@ order: "2"
 lang: "en"
 status: "Current"
 owner: "AIPLA project team"
-reviewed: "2026-09-21"
-reviewBy: "2026-12-21"
+reviewed: "2026-10-05"
+reviewBy: "2027-01-05"
 ---
 ::: callout-note
 ## Before you start
@@ -52,28 +52,34 @@ class page's **New activity** button, which pre-selects that class for you.)
 
 ## Step 2 — Choose a starting point
 
-At the top of the builder is a **template picker**. Pick a template close to
-what you want — it fills in a sensible starting configuration — or start from
-blank. You can change everything afterwards, so the choice is not binding.
+At the top of the builder is **Start from a template**. Click a template close
+to what you want — it fills in a sensible starting configuration, and the
+preview beside the builder shows what students will see — or choose **Start
+from scratch**. You can change everything afterwards, so the choice is not
+binding.
 
 ## Step 3 — Set the teaching goal
 
-Give the activity a **title** and a **teaching goal**. The goal is the most
+The builder has four sections: **Setup**, **Lesson**, **Workspace** and
+**Materials**. Under **Setup**, give the activity an **Activity name**. Under
+**Lesson**, write the **Lesson prompt (the teaching goal)**. The goal is the most
 important field: it is the instruction the tutor follows when it talks to your
 students. Write it as you would brief a teaching assistant — for example,
 *"Help the student reason about energy conservation on a frictionless ramp;
 do not give the final answer, ask guiding questions."*
 
-Set the **language** the tutor should use with students, and pick a
-**workbench type** if this activity needs a workspace (or leave it as a
-chat-only conceptual dialogue).
+Under **Setup**, also set **Students' language** — the language students see
+the activity in and the tutor replies in. (A student can still switch DA | EN
+for themselves.) The tutor itself comes from the class (guide *T1*); the Setup
+section shows which one will teach.
 
 ![The teaching goal is the instruction the tutor follows. Keep it specific.](/guides/assets/t2-03-goal.png)
 
 ## Step 4 — Add a workspace (optional)
 
-If you chose a workbench, add the elements your students will use — a
-simulation, a table to fill in, a chart, a calculator, or notes. The **live
+In the **Workspace** section, add the elements your students will use — a
+simulation, a checklist, a table to fill in, a chart, a calculator, or notes —
+or leave it empty for a chat-only conceptual dialogue. The **live
 preview** on the right updates as you add each element, so you see exactly
 what the student will see.
 
@@ -106,7 +112,9 @@ a confirmation that the activity is live for your class.
 From the confirmation you can:
 
 - **Configure activity** — reopen it to add curriculum documents or refine the
-  goal (see *T3 — Add and organise curriculum materials*).
+  goal (see *T3 — Add and organise curriculum materials*). Once it is saved,
+  **Try as student** there opens the real student view in a new tab, tutor
+  included, with no join code.
 - **Create another** — start a fresh activity for the same class.
 - **Back to classes** — return to your class list.
 

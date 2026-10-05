@@ -7,8 +7,8 @@ order: "4"
 lang: "en"
 status: "Current"
 owner: "AIPLA project team"
-reviewed: "2026-09-21"
-reviewBy: "2026-12-21"
+reviewed: "2026-10-05"
+reviewBy: "2027-01-05"
 ---
 ::: callout-note
 ## Where this fits
@@ -21,13 +21,17 @@ proposal and decide what to keep. Nothing changes until you approve it.
 
 ## What the co-pilot does
 
-The co-pilot (labelled **Medbygger**) reads a plain-language description of your
-lesson and drafts:
+The co-pilot (labelled **Co-builder**; **Medbygger** when your screens are in
+Danish) reads a plain-language description of your lesson and drafts:
 
-- a **teaching goal** (the Socratic prompt the tutor follows),
-- **workspace elements** — a checklist, a note, a table, a calculator, and so
-  on, and
-- suggested **curriculum materials** to attach (guide *T3*).
+- a **teaching goal** (the lesson prompt the tutor follows),
+- **workspace elements** — a checklist, a note, a table, a chart, a calculator,
+  and so on — or a **simulation** from the library,
+- a **concept map** for the activity,
+- suggested **curriculum materials** to attach (guide *T3*), and how to file the
+  activity (subject, level, tags).
+
+It replies in the language you write in.
 
 Each suggestion arrives as a **proposal** you can apply, edit, or dismiss. You
 stay in control: the co-pilot never changes the activity on its own.
@@ -35,11 +39,11 @@ stay in control: the co-pilot never changes the activity on its own.
 ## Step 1 — Open the builder
 
 Create or open an activity (guide *T2*). Click **Ask AIPLA** in the header
-and choose **Medbygger** — the co-pilot panel opens at the bottom-right of the
-builder, ready for a description. (The same button offers *AIPLA Hjælp* on
+and choose **Co-builder** — the co-pilot panel opens at the bottom-right of the
+builder, ready for a description. (The same button offers *AIPLA Help* on
 every page; on pages with a co-pilot of their own it offers both.)
 
-![The co-pilot panel (Medbygger) sits at the bottom-right of the activity builder.](/guides/assets/t4-01-copilot-panel.png)
+![The co-pilot panel (Co-builder) sits at the bottom-right of the activity builder.](/guides/assets/t4-01-copilot-panel.png)
 
 ## Step 2 — Describe what you want to teach
 
@@ -49,12 +53,12 @@ thinks for a moment, then returns one or more proposals.
 
 ## Step 3 — Review each proposal
 
-Each proposal is a card: a suggested teaching goal, a checklist, a note, a table,
+Each proposal is a card: a suggested lesson prompt, a checklist, a note, a table,
 and so on. For each one you can:
 
-- **Anvend** (Apply) — accept the suggestion into your draft,
-- **Rediger** (Edit) — adjust it first, then apply, or
-- **Afvis** (Dismiss) — reject it.
+- **Apply** — accept the suggestion into your draft,
+- **Edit** — adjust it first, then select **Use this**, or
+- **Dismiss** — reject it.
 
 ![Each suggestion is a proposal card you can apply, edit, or dismiss.](/guides/assets/t4-02-proposal.png)
 
@@ -70,8 +74,8 @@ When the activity looks right, **save** it as usual (guide *T2*). Nothing the
 co-pilot proposed is live until you save the activity.
 
 ::: callout-tip
-The co-pilot proposes; you dispose. Every change waits for your **Anvend**
-(Apply), and even applied changes remain editable before you save — so it is
+The co-pilot proposes; you dispose. Every change waits for your **Apply**,
+and even applied changes remain editable before you save — so it is
 safe to explore its suggestions freely.
 :::
 

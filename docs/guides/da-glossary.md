@@ -1,21 +1,26 @@
 # Danish translation glossary for the AIPLA guides
 
-Reference for the Danish (`*.da.qmd`) guide versions. Keeps terminology
-consistent and matched to the app's actual UI strings.
+Reference for the Danish (`*.da.md`) guide versions in `frontend/content/guides/`.
+Keeps terminology consistent and matched to the app's actual UI strings.
 
 ## The one rule that matters
 
-**Keep on-screen button/label text exactly as it appears in the UI.** The
-teacher UI chrome is English (`New activity`, `New class`, `Create activity`,
-`Setup`, `Lesson`, `Workspace`, `Materials`, `Cite`, `Upload`, `New group`,
-`Manage`). In Danish prose, refer to these by their English on-screen label —
-optionally with a short Danish gloss the first time — so the reader can find the
-button. Do **not** translate a label that is English on screen.
+**Keep on-screen button/label text exactly as it appears in the UI — in the
+language of the page you are writing.** Since 1.1.108 M2 (2026-09-30) the
+teacher screens are localised as well as the student ones, and they default to
+Danish (`frontend/src/i18n/locale.ts`, `DEFAULT_LOCALE = "da"`). So a Danish
+guide quotes the **Danish** label and an English guide the English one.
 
-Where the UI is already Danish, use the Danish label verbatim: `Tilslut / Join`,
-`Skift kode / Change code`, `Gruppekode`, `Aktiviteter`, `Arbejdsområde`,
-`Fremgang`, `Opgave`, `Åbn`, `Tilkald lærer`, and the co-pilot `Medbygger` with
-`Anvend` / `Rediger` / `Afvis` / `Send`.
+Take labels from the message files, never from memory or from an old
+screenshot: `frontend/messages/da/*.json` for the Danish page,
+`frontend/messages/en/*.json` for the English one (e.g. `Materialer`,
+`Henvis`, `Synlig` / `Skjult`, `Tilslut`, the co-pilot `Medbygger` with
+`Anvend` / `Redigér` / `Afvis` / `Send`). A page renders one language at a
+time, so don't write combined labels like `Tilslut / Join`.
+
+> Before 2026-09-30 the rule here was the opposite — the teacher UI was English
+> and Danish prose kept English labels. Guides reviewed before that date may
+> still follow it.
 
 ## Term map (prose, not labels)
 

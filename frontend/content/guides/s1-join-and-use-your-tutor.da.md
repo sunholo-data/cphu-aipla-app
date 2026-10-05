@@ -7,8 +7,8 @@ order: "1"
 lang: "da"
 status: "Current"
 owner: "AIPLA project team"
-reviewed: "2026-07-14"
-reviewBy: "2026-10-12"
+reviewed: "2026-10-05"
+reviewBy: "2027-01-05"
 ---
 ::: callout-note
 ## Til elever
@@ -20,8 +20,10 @@ et minut.
 
 ## Trin 1 — Åbn linket og indtast din kode
 
-Åbn det elevlink, din lærer har givet dig. Du ser en tilslutningsside. Indtast
-din **gruppekode** — den ser ud som `bright-fox-42` — og vælg **Tilslut / Join**.
+Åbn det elevlink, din lærer har givet dig. Du ser en tilslutningsside. Hvis
+linket allerede har udfyldt din **gruppekode**, skal du bare vælge **Tilslut**.
+Ellers skriver du koden — den ser ud som `bright-fox-42` — og vælger derefter
+**Tilslut**. Med **DA | EN**-knappen øverst kan du vælge dansk eller engelsk.
 
 ![Indtast den gruppekode, din lærer har givet dig, og vælg Tilslut.](/guides/assets/s1-01-join.png)
 
@@ -38,16 +40,22 @@ den, du arbejder med.
 ## Trin 3 — Arbejd sammen med tutoren
 
 Aktiviteten åbner med to sider: **tutoren**, som du chatter med, og dit
-**arbejdsområde** — en simulation, en tjekliste, en datatabel eller noter,
-afhængigt af aktiviteten. Stil tutoren spørgsmål med dine egne ord; den guider
-dig mod forståelse i stedet for bare at give dig svarene.
+**arbejdsområde** — en simulation, en tjekliste, en datatabel, en beregner
+eller noter, afhængigt af aktiviteten. Stil tutoren spørgsmål med dine egne
+ord; den guider dig mod forståelse i stedet for bare at give dig svarene.
+
+Aktiviteten starter på det sprog, din lærer har valgt. Vil du bruge det andet,
+så vælg **DA** eller **EN** øverst på siden — knapperne, tutoren og
+oplæsningsstemmen skifter alle sammen.
 
 ![Tutoren på den ene side, dit arbejdsområde på den anden.](/guides/assets/s1-03-workspace.png)
 
 ::: callout-tip
 Alt, hvad du gør i arbejdsområdet — værdier, du indtaster, en simulation, du
 kører, trin, du krydser af — deles med tutoren, så den kan hjælpe dig med dit
-faktiske arbejde.
+faktiske arbejde. I nogle aktiviteter kan tutoren også ændre en indstilling i
+din simulation. Når den gør det, står der **Tutoren ændrede din simulation** i
+chatten, og du kan altid selv stille den tilbage.
 :::
 
 ## Hvis din kode holder op med at virke
