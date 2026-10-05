@@ -34,7 +34,13 @@ from auth.access_context import AccessContext
 from auth.firebase_auth import User
 from auth.spend_authority import resolve_spend_authority
 from budget import BudgetExceededError
-from db.group_sessions import acquire_turn_lock, bump_turn_revision, release_turn_lock
+from db.group_sessions import (
+    acquire_turn_lock,
+    bump_turn_revision,
+    count_present_devices,
+    release_turn_lock,
+    scope_key,
+)
 from skills.skill_config import get_skill
 
 logger = logging.getLogger(__name__)
@@ -64,6 +70,45 @@ class TurnLockedError(Exception):
     def __init__(self, group_id: str) -> None:
         super().__init__(f"Turn already in flight for group: {group_id!r}")
         self.group_id = group_id
+
+
+class SessionScopeMismatchError(Exception):
+    """Raised when a group turn names a ``threadId`` whose session belongs to a
+    DIFFERENT activity of the group (1.1.145 M3).
+
+    Every session the group ever opened is readable and writable under its one
+    synthetic uid, so without this a shared ``?session=`` URL (or a stale tab)
+    could write one activity's conversation from another's page (H4). The
+    streaming route collapses it into HTTP 422 — distinct from the 409 the
+    turn-lock uses, which the client treats as "wait and resend".
+    """
+
+    def __init__(self, session_id: str, expected: str, found: str) -> None:
+        super().__init__(f"Session {session_id!r} belongs to {found!r}, not {expected!r}")
+        self.session_id = session_id
+        self.expected = expected
+        self.found = found
+
+
+def _assert_session_in_scope(session_id: str, scope: str) -> None:
+    """Refuse a group turn on a session created for another activity (M3).
+
+    Sessions created before M3 carry no ``activityId`` and pass — there is
+    nothing to compare. A read failure also passes, loudly: refusing a student's
+    turn because Firestore blinked is worse than the cross-activity write this
+    guards, and ``_ensure_session_index`` reads the same row a moment later.
+    """
+    from db.chat_sessions import get_session_index
+
+    try:
+        idx = get_session_index(session_id)
+    except Exception as exc:
+        logger.warning("session scope check could not read %s (allowing): %s", session_id, exc)
+        return
+    if idx is None or not idx.activity_id:
+        return
+    if idx.activity_id != scope:
+        raise SessionScopeMismatchError(session_id, expected=scope, found=idx.activity_id)
 
 
 class SpendNotAuthorisedError(Exception):
@@ -217,10 +262,25 @@ async def process_skill_request(
 
     group_id = user.group_id or None
     lock_token: str | None = None
-    if group_id:
+    # 1.1.145 M3 — the (group, scope) every shared-session doc is keyed by: the
+    # act- id, or the skill id for a legacy lesson. Never the group-level doc, so
+    # two legacy lessons on one code no longer share a lock or a revision.
+    scope: str | None = scope_key(activity_id, skill_id) if group_id else None
+    devices_present = 0
+    if group_id and scope is not None:
+        if session_id:
+            _assert_session_in_scope(session_id, scope)
         lock_token = uuid.uuid4().hex
-        if not acquire_turn_lock(group_id, lock_token, activity_id=activity_id):
+        if not acquire_turn_lock(group_id, lock_token, activity_id=scope):
             raise TurnLockedError(group_id)
+        # 1.1.145 — how many screens share this conversation right now, so the
+        # tutor can say so truthfully. Prompt-only: NOT written to the research
+        # log (D3 / M4 is gated on JB). Best-effort — a failed read reads as
+        # "not shared", which is today's prompt.
+        try:
+            devices_present = count_present_devices(group_id, activity_id=scope)
+        except Exception as exc:
+            logger.warning("presence count failed for group turn (prompt omits it): %s", exc)
     try:
         async for event in _run_skill_turn(
             skill_id=skill_id,
@@ -233,6 +293,8 @@ async def process_skill_request(
             a2ui_surface_state=a2ui_surface_state,
             activity_id=activity_id,
             student_language=student_language,
+            session_scope=scope,
+            devices_present=devices_present,
         ):
             yield event
     finally:
@@ -241,9 +303,9 @@ async def process_skill_request(
             # devices' pulse sees a new turn and refetches, THEN drop the lock. A
             # bump failure must not block the release (the TTL is the backstop).
             try:
-                bump_turn_revision(group_id, activity_id=activity_id)
+                bump_turn_revision(group_id, activity_id=scope)
             finally:
-                release_turn_lock(group_id, lock_token, activity_id=activity_id)
+                release_turn_lock(group_id, lock_token, activity_id=scope)
 
 
 async def _run_skill_turn(
@@ -257,6 +319,8 @@ async def _run_skill_turn(
     a2ui_surface_state: dict[str, Any] | None = None,
     activity_id: str | None = None,
     student_language: str | None = None,
+    session_scope: str | None = None,
+    devices_present: int = 0,
 ) -> AsyncGenerator[dict, None]:
     """Yield AG-UI events for one turn of `skill_id`.
 
@@ -307,14 +371,18 @@ async def _run_skill_turn(
     # closes the race window. The callback is now idempotent: it observes
     # the existing row and short-circuits.
     thread_id = session_id or f"thread-{uuid.uuid4().hex[:12]}"
-    _ensure_session_index(thread_id, skill_id, user.uid, document_ids, user.group_id or None)
+    _ensure_session_index(thread_id, skill_id, user.uid, document_ids, user.group_id or None, activity_id=session_scope)
 
     message_text = _message_text(message)
     # ALS-1 M0: the student opened a specific activity (an act- id from the lesson
     # card); thread it so the agent injects THAT activity's teacher-focus. None
     # (every legacy caller) falls back to the skill id inside the factory.
     agent_or_router = create_agent_with_thinking(
-        skill, user, activity_id=activity_id, student_language=student_language
+        skill,
+        user,
+        activity_id=activity_id,
+        student_language=student_language,
+        devices_present=devices_present,
     )
     if isinstance(agent_or_router, _HeuristicRouter):
         agent = agent_or_router.pick_agent(message_text)
@@ -449,6 +517,8 @@ def _ensure_session_index(
     owner_uid: str,
     document_ids: list[str] | None,
     group_code: str | None = None,
+    *,
+    activity_id: str | None = None,
 ) -> None:
     """Synchronously create the chat_sessions/{thread_id} row if absent,
     and ArrayUnion this turn's document_ids onto it whether or not the
@@ -495,6 +565,7 @@ def _ensure_session_index(
                 access_control=access_control,
                 document_ids=docs,
                 group_code=group_code,
+                activity_id=activity_id,
             )
             logger.info("chat_sessions/%s index created synchronously (owner=%s)", thread_id, owner_uid)
         except Exception as exc:

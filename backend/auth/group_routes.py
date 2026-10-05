@@ -424,6 +424,89 @@ async def get_active_session_endpoint(
     return ActiveSessionResponse(session_id=get_active_session_for_group(user.group_id, activity_id))
 
 
+class GroupSessionRequest(BaseModel):
+    """Body of ``POST /api/auth/group/session`` (1.1.145 M1)."""
+
+    skill_id: str = Field(alias="skillId", min_length=1, max_length=128)
+    # The ALS-1 activity (``act-…``). Absent / empty for a legacy lesson, which
+    # is then scoped by its skill id (``group_sessions.scope_key``).
+    activity_id: str | None = Field(default=None, alias="activityId", max_length=128)
+
+    model_config = {"populate_by_name": True, "extra": "forbid"}
+
+
+class GroupSessionResponse(BaseModel):
+    session_id: str = Field(alias="sessionId")
+    # True only for the call that minted it — the chat page greets on a created
+    # session and restores workbench state on an existing one.
+    created: bool
+
+    model_config = {"populate_by_name": True}
+
+
+@router.post("/session", response_model=GroupSessionResponse)
+async def group_session_endpoint(
+    body: GroupSessionRequest,
+    request: Request,
+    user: User = Depends(_resolve_firebase_user_dep()),  # noqa: B008
+) -> GroupSessionResponse:
+    """THE shared session for this group on this activity — the server decides
+    (1.1.145 D2).
+
+    Returns the active session for ``(group, activity)`` or creates it, in a
+    Firestore transaction, so every device that opens the activity — however
+    simultaneously — lands on one ``session_id``. The chat page awaits this
+    before it builds the agent; anonymous-group students no longer mint a
+    session id on the client. On a create, the session index (stamped with its
+    activity, M3) and the ADK session are made here too, so a workbench push
+    before the first turn has somewhere to land — the job ``/bootstrap`` did.
+
+    404 for a caller with no group (a teacher has their own session list); 403
+    for a skill the caller cannot see.
+    """
+    if not user.group_id:
+        raise HTTPException(status_code=404, detail="not a group-auth user")
+
+    from adk.agui import APP_NAME
+    from adk.session import get_session_service
+    from db.chat_sessions import create_session_index, get_session_index
+    from db.group_sessions import get_or_create_active_session, scope_key
+    from skills import skill_config
+
+    skill = skill_config.get_skill(body.skill_id)
+    if skill is None or not request.state.access.can_access(skill):
+        # Same collapse as the bootstrap route: a missing skill reads as denied,
+        # so skill ids cannot be enumerated.
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    scope = scope_key(body.activity_id or None, body.skill_id)
+    session_id, created = get_or_create_active_session(user.group_id, scope)
+
+    if get_session_index(session_id) is None:
+        create_session_index(
+            session_id=session_id,
+            skill_id=body.skill_id,
+            owner_uid=user.uid,
+            access_control=skill.access_control,
+            document_ids=[],
+            group_code=user.group_id,
+            activity_id=scope,
+        )
+        try:
+            await get_session_service().create_session(app_name=APP_NAME, user_id=user.uid, session_id=session_id)
+        except Exception as exc:  # duplicate create is benign, as in /bootstrap
+            logger.info("group_session: ADK create_session non-fatal session=%s exc=%s", session_id, exc)
+
+    logger.info(
+        "group_session: group=%s scope=%s session=%s created=%s",
+        user.group_id,
+        scope,
+        session_id,
+        created,
+    )
+    return GroupSessionResponse(sessionId=session_id, created=created)
+
+
 class RaiseHandRequest(BaseModel):
     activity_id: str = Field(default="", alias="activityId")
     activity_title: str = Field(default="", alias="activityTitle")

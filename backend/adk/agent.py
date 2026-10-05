@@ -85,6 +85,7 @@ from adk.proactive_reactive import inject_reactive_guidance
 from adk.proactive_telemetry import tag_proactive_span_from_callback_context
 from adk.progress_context import compose_progress_context
 from adk.resilient_llm import ResilientLlm
+from adk.shared_conversation import build_shared_conversation_block
 from adk.sim_control_tools import build_sim_control_tools, resolve_sim_control_level
 from adk.teacher_focus import build_ilo_precedence_block, inject_teacher_focus, resolve_active_config
 from adk.tools import resolve_mcp_tools, resolve_tools
@@ -405,6 +406,7 @@ def create_agent(
     activity_id: str | None = None,
     access_context: AccessContext | None = None,
     student_language: str | None = None,
+    devices_present: int = 0,
     _seen: set[str] | None = None,
     _model_override: str | None = None,
     _planner_override: BuiltInPlanner | None = None,
@@ -917,7 +919,14 @@ def create_agent(
                                 # only: the persona renders in the anonymous-group
                                 # chat, and a teacher co-pilot must not be told
                                 # it is "Sofie".
-                                + (build_identity_block(_teaching_ctx.persona_id) if user.group_id else ""),
+                                + (build_identity_block(_teaching_ctx.persona_id) if user.group_id else "")
+                                # 1.1.145 — the conversation is shared by N
+                                # screens on one group code, and the tutor
+                                # reads all of them. Without this it told a
+                                # seminar student it could "only see what you
+                                # write". Empty for one device and for anyone
+                                # not on a group code (byte-identical prompt).
+                                + (build_shared_conversation_block(devices_present) if user.group_id else ""),
                                 skill_config.multimodal_input,
                             ),
                             _activity_id,
@@ -997,6 +1006,7 @@ def create_agent_with_thinking(
     activity_id: str | None = None,
     access_context: AccessContext | None = None,
     student_language: str | None = None,
+    devices_present: int = 0,
 ) -> LlmAgent | _HeuristicRouter:
     """Dispatch to the three-tier thinking strategy.
 
@@ -1018,12 +1028,18 @@ def create_agent_with_thinking(
             activity_id=activity_id,
             access_context=access_context,
             student_language=student_language,
+            devices_present=devices_present,
         )
 
     # Tier 3: two agents + picker. Build both via the same recursive factory
     # so sub-skills/tools/callbacks stay wired identically.
     fast = create_agent(
-        skill_config, user, activity_id=activity_id, access_context=access_context, student_language=student_language
+        skill_config,
+        user,
+        activity_id=activity_id,
+        access_context=access_context,
+        student_language=student_language,
+        devices_present=devices_present,
     )
     thinking = create_agent(
         skill_config,
@@ -1031,6 +1047,7 @@ def create_agent_with_thinking(
         activity_id=activity_id,
         access_context=access_context,
         student_language=student_language,
+        devices_present=devices_present,
         _model_override=md.thinking_model,
         _planner_override=None,
     )
