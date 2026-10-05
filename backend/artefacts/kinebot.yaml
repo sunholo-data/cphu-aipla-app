@@ -1,7 +1,7 @@
 id: kinebot
 version: v1
 displayName: "KineBot — kinematics & motion graphs"
-description: "Interactive kinematics: the student sets motion parameters and reads position/velocity/acceleration graphs."
+description: "Interactive kinematics: the student sets motion parameters and watches the motion, with a velocity–time graph alongside."
 topics:
   - kinematics
   - motion-graphs

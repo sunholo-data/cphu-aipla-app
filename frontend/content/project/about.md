@@ -3,8 +3,8 @@ title: "About AIPLA"
 description: "The project's purpose, objectives, method, partners, and intended outputs."
 eyebrow: "Project overview"
 owner: "AIPLA project team"
-reviewed: "2026-08-04"
-reviewBy: "2027-02-04"
+reviewed: "2026-10-05"
+reviewBy: "2027-04-05"
 status: "Current"
 order: "10"
 nav: "true"
@@ -71,7 +71,7 @@ AIPLA is expected to produce several kinds of output:
 
 ## What the platform is — and is not
 
-The AIPLA application is a research and teaching environment, not an unrestricted general-purpose chatbot. A teacher prepares a class and activity, chooses the learning goal and source material, and decides which forms of support are available. Students enter through a group code supplied by their teacher.
+The AIPLA application is a research and teaching environment, not an unrestricted general-purpose chatbot. A teacher prepares a class and activity, chooses the learning goal, source material and tutor, and decides which forms of support are available. Students enter through a group code supplied by their teacher.
 
 The platform is one part of the research project. It provides a place to design, deliver, and study activities, but it does not by itself determine the pedagogy or replace professional teacher judgement.
 

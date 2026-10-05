@@ -3,8 +3,8 @@ title: "KineBot: kinematics workbench"
 description: "A case study in migrating an externally created, multi-part teaching artefact into AIPLA."
 eyebrow: "Activity case study"
 owner: "AIPLA project team"
-reviewed: "2026-08-04"
-reviewBy: "2026-11-04"
+reviewed: "2026-10-05"
+reviewBy: "2027-01-05"
 status: "Current"
 order: "43"
 nav: "false"
@@ -13,19 +13,21 @@ nav: "false"
 
 ![Illustration for the KineBot kinematics activity](/lesson-images/kinebot-kinematics-tutor.svg)
 
-KineBot is a broad kinematics teaching artefact that combines interactive simulations, motion graphs, conceptual prompts, reference material, and guided activity. It was originally developed outside AIPLA and then used to define a repeatable migration process for existing educational tools.
+KineBot began as a broad kinematics teaching artefact that combined interactive simulations, motion graphs, a quiz, conceptual prompts, reference material, a built-in AI chat, and guided activity. It was developed outside AIPLA and then used to define a repeatable migration process for existing educational tools. In AIPLA it is the simulation part of that artefact, paired with the platform's tutor.
+
+Unlike the Danish-language Boldkast and LED Planck, KineBot is deliberately kept in English, because it is meant for an international audience as well as a Danish one.
 
 ## Coverage
 
-The artefact includes representations related to:
+The simulation is organised by topic, with representations related to:
 
-- one-dimensional motion;
+- displacement and one-dimensional motion;
 - velocity and acceleration;
+- motion graphs, including a velocity–time graph alongside the motion;
+- the equations of motion;
 - free fall;
-- projectile motion;
-- vector components;
-- position, velocity, and acceleration graphs; and
-- relationships between equations and graphical motion descriptions.
+- vectors and projectile motion; and
+- circular and relative motion.
 
 Its breadth makes it different from a single-purpose activity such as Boldkast. That creates useful opportunities, but also makes teacher framing important: students need a clear task rather than an undirected collection of features.
 
@@ -47,7 +49,7 @@ Migration asks a consistent set of questions:
 
 The original standalone form included browser-side AI integration and instructions for entering a service key. That pattern is not appropriate for student deployment.
 
-The AIPLA form separates the interactive artefact from centrally managed tutor services. It uses the platform's reviewed bridge for communication, runs within the dedicated artefact origin, and can be selected as part of a teacher-prepared activity.
+The AIPLA form separates the interactive artefact from centrally managed tutor services. The original's own chat, quiz, formula sheet and notes were removed: the tutor supplies the conversation and the prompts, and the teacher's activity supplies the task. What remains uses the platform's reviewed bridge for communication, runs within the dedicated artefact origin, and can be selected as part of a teacher-prepared activity.
 
 This means:
 

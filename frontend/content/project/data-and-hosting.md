@@ -3,8 +3,8 @@ title: "Data, privacy, and hosting"
 description: "The project's public data-protection principles, present hosting posture, and institutional transition direction."
 eyebrow: "Responsible operation"
 owner: "AIPLA project team"
-reviewed: "2026-09-07"
-reviewBy: "2026-10-07"
+reviewed: "2026-10-05"
+reviewBy: "2026-11-05"
 status: "Provisional"
 order: "70"
 nav: "true"
@@ -29,7 +29,7 @@ Technical access control is only one layer. Researchers must also follow the app
 
 ## Transparency within an activity
 
-Students should be able to understand the role of the tutor and what information is being shared with it. When a workbench sends relevant state to the conversation, the interface provides a visible indication.
+Students should be able to understand the role of the tutor and what information is being shared with it. When a workbench sends relevant state to the conversation, the interface provides a visible indication. When the tutor changes a simulation, a note in the conversation says what it changed.
 
 The system should not imply that an AI is a person, that its output is guaranteed correct, or that it has access to work it has not received.
 
@@ -42,6 +42,8 @@ Teacher review remains important even when an artefact has passed technical chec
 ## Present deployment posture
 
 The application currently operates in separate development, test, and production environments hosted in Google Cloud in European regions. Promotion between environments is gated by automated tests and smoke checks.
+
+The tutor currently uses Google's Gemini models through Vertex AI. Since October 2026 model requests are sent to Vertex AI's EU multi-region endpoint, so inference is served within the EU rather than from a global endpoint that may route a request to any region.
 
 Public project pages contain no student research data. Access-controlled application features and research data paths are governed separately.
 

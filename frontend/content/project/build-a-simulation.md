@@ -3,8 +3,8 @@ title: "Build a simulation with an AI chat"
 description: "How physics staff draft a new AIPLA simulation in Claude, ChatGPT or any AI chat, using the authoring prompt — no coding required."
 eyebrow: "For physics staff"
 owner: "AIPLA project team"
-reviewed: "2026-09-14"
-reviewBy: "2026-12-14"
+reviewed: "2026-10-05"
+reviewBy: "2027-01-05"
 status: "Current"
 order: "44"
 nav: "false"
@@ -17,7 +17,9 @@ This page is for the person who knows the physics, not the person who writes the
 
 A simulation in AIPLA is a small interactive bench that opens beside the tutor in the student's workspace. The student changes something, watches what happens, and records readings. The tutor sees those readings and can ask about them. [Boldkast](/project/activities/boldkast) is a worked example.
 
-Seven are live today:
+A simulation can also let the tutor act on it — jump to a moment, set a value — if it declares which changes it accepts. The student sees a card in the chat each time, and the tutor's teaching approach decides how far it may go. Today only Sol, Jord og Måne does this; the others are watched, not steered.
+
+Nine are live today:
 
 | Simulation | The student's job |
 |---|---|
@@ -28,6 +30,8 @@ Seven are live today:
 | Faseovergange | Heat ice to steam, read the plateaus off the heating curve |
 | Bølgefart | Set *f* and *λ*, work out the wave speed |
 | Interferens | Add two waves, find constructive, destructive and beats |
+| Sol, Jord og Måne | Change viewpoint, scale and time; solve missions on days, seasons, moon phases and eclipses |
+| Sekantbænk | Read coordinates off a parabola, draw secants, work out how steep it is at a point — the first mathematics bench |
 
 Note the shape they share. **The simulation never shows the answer.** The kettle reports energy and temperature and never the efficiency; the wave bench reports *f*, *λ* and *T* and never the speed. That withholding is the exercise, and it is the single most useful thing you can specify when you propose one.
 
@@ -85,7 +89,8 @@ Your two files then go through a documented path that does the following, none o
 - wires the capture button so the tutor actually receives the readings and the student sees a "shared with the AI" card;
 - runs the security, size, layout and phone-width gates;
 - drives it in a real browser and captures the events;
-- writes the tutor's private note, including your reference values.
+- writes the tutor's private note, including your reference values;
+- if the tutor should be able to change the bench, declares those changes and how far each teaching approach may use them.
 
 Then it is in the library and any teacher can attach it to an activity.
 

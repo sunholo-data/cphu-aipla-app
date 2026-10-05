@@ -3,8 +3,8 @@ title: "Project decisions"
 description: "A public record of the product and research-infrastructure choices that shape AIPLA, with their rationale and practical consequences."
 eyebrow: "Why the platform works this way"
 owner: "AIPLA project team"
-reviewed: "2026-09-07"
-reviewBy: "2026-10-07"
+reviewed: "2026-10-05"
+reviewBy: "2026-11-05"
 status: "Current"
 order: "75"
 nav: "true"
@@ -87,13 +87,29 @@ This page records the decisions that materially affect the public experience. It
 
 **Consequence:** each public page carries an owner, a status, and a review date, and a page whose review has lapsed fails the build rather than quietly ageing. The former site remains reachable until its redirects are enabled, so older external links may still resolve to the previous address.
 
+## September 2026: a tutor's teaching approach is published data
+
+**Decision:** a tutor carries its teaching approach — the individual teaching moves, what it should avoid, and the published research each comes from — as structured data that approved researchers can edit in the application, rather than as a hidden prompt.
+
+**Why:** a tutor's behaviour should be reviewable by teachers and education researchers, not only by engineers. Holding the approach as data makes it possible to compare what the tutor is told to do with the research it claims to follow.
+
+**Consequence:** the approaches are published on [Teaching frameworks](/project/tutors). Teachers choose the tutor for a class and can define their own approaches. An approach also sets how much a tutor may change a simulation during an activity, and any such change is shown to the students.
+
 ## September 2026: programme-level administration and usage limits
 
-**Decision:** administrative roles for operating the service are separated from teaching roles, and the programme can set a daily usage limit that warns before it restricts.
+**Decision:** administrative roles for operating the service are separated from teaching roles, and the programme sets a daily usage limit across all classes.
 
-**Why:** granting access and managing the cost of AI services are operational responsibilities, not teaching ones, and they should not be bundled into a teacher account. A limit that stops a class mid-lesson without warning is worse than one that signals first.
+**Why:** granting access and managing the cost of AI services are operational responsibilities, not teaching ones, and they should not be bundled into a teacher account. The limit was introduced in a warning-only mode so that its level could be set from real use before it restricted any class.
 
-**Consequence:** access grants and programme-level limits are held by named project staff. Usage limits are a budgeting control and are not a research or data-governance measure, which remain separate.
+**Consequence:** access grants and programme-level limits are held by named project staff. Since October 2026 the daily limit is the platform-wide ceiling: once reached, further tutor use pauses until the next day. Usage limits are a budgeting control and are not a research or data-governance measure, which remain separate.
+
+## October 2026: model inference stays in the EU
+
+**Decision:** the tutor's model requests are sent to Vertex AI's EU multi-region endpoint rather than its global endpoint.
+
+**Why:** the global endpoint may serve a request from any region, and the University of Copenhagen's data-protection review requires inference within the EU. No single EU region currently serves the models the tutor uses; the EU multi-region endpoint does.
+
+**Consequence:** the change applies to all three environments. It also moved the platform's spending ceiling from a cloud-provider quota to the programme's own daily limit, described above. The current position is maintained on [Data, privacy, and hosting](/project/data-and-hosting).
 
 ## Hosting direction
 

@@ -3,15 +3,15 @@ title: "Build timeline"
 description: "A dated public record of how AIPLA progressed from its first connected physics activity to a teacher-authoring, classroom, and research platform."
 eyebrow: "Follow the build"
 owner: "AIPLA project team"
-reviewed: "2026-09-07"
-reviewBy: "2026-10-07"
+reviewed: "2026-10-05"
+reviewBy: "2026-11-05"
 status: "Current"
 order: "80"
 nav: "true"
 ---
 # Build timeline
 
-AIPLA's current platform-development phase began in May 2026. This timeline connects visible releases to the questions and decisions that shaped them. It records shipped capabilities, not every commit, and distinguishes delivery from research validation.
+AIPLA's current platform-development phase began in May 2026 and continues to at least April 2027. This timeline connects visible releases to the questions and decisions that shaped them. It records shipped capabilities, not every commit, and distinguishes delivery from research validation.
 
 For the reasoning behind the platform's shape, read [Project decisions](/project/decisions). Detailed sprint plans and unresolved working notes remain in the repository until they are suitable for publication.
 
@@ -65,13 +65,29 @@ For the reasoning behind the platform's shape, read [Project decisions](/project
 
 **Shipped to the active development line:** a dedicated Materials area, clearer environment labelling, authentication and role hardening, automated release-promotion improvements, infrastructure backup and access controls, and custom-domain/load-balancer preparation for University of Copenhagen hosting. The public project documentation moved into the application repository so product, research, and website changes can be reviewed together.
 
+**Release milestone:** the teacher pilot began in mid-August on the production environment.
+
 **What changed:** the work became easier to operate, hand over, and explain as one maintained system. This in-app site now includes a live Boldkast workbench, an updated platform diagram, this timeline, and a public decision record.
 
-## September 2026 — the public site moves to its own domain
+## September 2026 — tutors that carry their teaching approach
 
-**Shipped to the active development line:** the public project pages moved into the application and are now served at the authoritative `aipla.ku.dk` domain, with editorial metadata and review deadlines enforced automatically. Administrative roles were separated from teaching roles, and a programme-level daily usage limit was added that warns before it restricts.
+**Shipped:** the public project pages moved into the application and are served at the authoritative `aipla.ku.dk` domain, with editorial metadata and review deadlines enforced automatically. Administrative roles were separated from teaching roles, and a programme-level daily usage limit was added that warns before it restricts.
+
+The largest change was to the tutor itself. A tutor now carries a named teaching approach — seven are published, each drafted from its research source and readable at [Teaching frameworks](/project/tutors) — and a teacher chooses one tutor per class. Researchers can edit an approach and compare tutors side by side; free-text tutor instructions and the separate "teaching style" setting were retired so that every tutor's behaviour can be checked against the approach it claims to follow. Later in the month teachers could make their own tutors, write their own approaches, give a tutor a face and a voice, and keep it private or share it. Session reports now judge how closely a tutor stayed with its approach, and every tutor turn records which tutor and approach produced it.
+
+Alongside this: concept maps became on by default, with a class view that shows where groups differ rather than an average; researchers can read each group's work beside its conversation; teachers can try an activity as a student without making a join code, revoke a leaked join code, and keep a class list of names that never leaves their own device; the how-to guides became pages in the application; and the simulation library grew to include heating, wave, Sun–Earth–Moon and a first mathematics simulation. Student and teacher screens were translated so that each speaks Danish or English: students' screens, tutor and voice follow the activity's language unless the student chooses otherwise, and teachers and researchers pick their own language.
+
+**Programme milestone:** 15 September was the contracted mid-programme checkpoint, not an end point. The platform engagement has been extended to at least April 2027. A second developer, AD, joined at the start of October and works alongside the existing team rather than taking over from it.
 
 **What changed:** the project's public explanation and its software are now one maintained artefact, reviewed and deployed together. The project's former website stays reachable until its redirects are enabled.
+
+## October 2026 — tutors that can act on a simulation
+
+**Shipped:** on a simulation that declares which actions a tutor may take — so far the Sun–Earth–Moon simulation — the tutor can change what the student sees, for example jumping to the next eclipse or changing the viewpoint. The student sees a card each time naming what the tutor changed. How much a tutor may change comes from its teaching approach, and by default it can change only the view, which the student can change straight back. On simulations with a defined assessment scale, the tutor's judgement of a student's understanding is recorded for researchers as structured evidence and is never shown to the student.
+
+Teacher reports gained a panel showing each group's final work. Tables, charts and the calculator accept a Danish decimal comma. Model requests now run on Google's EU endpoint rather than a global one, and a failed model request is retried, or handed to a second model, before the student has seen any answer. The project pages link to the University of Copenhagen's official AIPLA pages in Danish and English.
+
+**What changed:** the connection between tutor and workbench now works in both directions, which is the property that most separates a paired activity from a general-purpose chatbot.
 
 ## Current capability snapshot
 
@@ -79,8 +95,9 @@ As of this page's review date, the active platform line includes:
 
 - anonymous group-based student access and shared group sessions;
 - teacher-created classes, materials, activities, templates, and preview;
-- guided tutors grounded in selected teaching material;
-- simulations, documents, images, concept maps, and structured workbench elements;
+- tutors that each carry a published or teacher-written teaching approach, persona and voice, grounded in selected teaching material;
+- simulations, documents, images, concept maps, and structured workbench elements, with tutor actions on simulations that support them;
+- Danish and English student and teacher screens;
 - teacher co-pilots using explicit propose-and-apply actions;
 - activity sharing, adoption, duplication, and branching with provenance;
 - live-class and session-review views;
@@ -93,12 +110,14 @@ Availability can differ by environment, role, activity configuration, and study 
 
 The next public updates will follow evidence and operating milestones rather than speculative feature dates:
 
-- teacher workshops and classroom use;
+- a teacher review of the platform later in the autumn;
+- teacher workshops and classroom use, with broader student trials depending on the necessary data-processing agreements;
 - changes made in response to teacher and student experience;
 - dated, reproducible evaluation snapshots;
 - privacy, consent, and institutional-hosting decisions for each study phase;
-- reusable teacher resources and maintained example activities.
+- reusable teacher resources and maintained example activities; and
+- the extension's focus on the physics-specific layer: activity authoring, simulations, curriculum grounding on cleared material, and rubric-scored session evidence for assessment research.
 
-The old site's detailed 17-week contract plan is preserved in its source history. It is not presented as the current roadmap because tentative dates, named handover assignments, and internal backlog do not all describe the platform as it exists now.
+The old site's detailed 17-week contract plan is preserved in its source history; the contract it described has since been extended. It is not presented as the current roadmap because tentative dates, named handover assignments, and internal backlog do not all describe the platform as it exists now.
 
 Formal project facts remain on the [University of Copenhagen AIPLA page](https://www.ind.ku.dk/english/projects/artificial-intelligence-in-physics-learning-and-assessment-aipla/).

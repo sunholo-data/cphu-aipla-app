@@ -1,6 +1,6 @@
 # The tutor can act on the simulation — commands as tool calls, not text
 
-**Status**: **SHIPPED (code, M0–M3) 2026-10-01** on `dev`, not yet deployed — see [What shipped](#what-shipped--2026-10-01). M4 (in-turn results) remains a spike. Designed 2026-09-24 — **1.1.133**
+**Status**: **SHIPPED (code, M0–M3) 2026-10-01**; **deployed to test and prod in v0.1.79 on 2026-10-05** — see [What shipped](#what-shipped--2026-10-01). M4 (in-turn results) remains a spike. Designed 2026-09-24 — **1.1.133**
 **Priority**: **P2** — no sim needs it to work; the first author-supplied sim was designed around it, and it is the one capability every sim so far has lacked
 **Estimated**: **~3–3.5d for M0–M3** (catalogue command surface ~0.5d · the control tool + browser routing + student card ~1.5d · per-tutor control policy ~0.5d · assessment tool ~0.5–0.75d). M4 (in-turn results via AG-UI frontend tools) is a **~0.5d spike**, decided after M1 is in use
 **Scope**: Backend — `db/models/artefact.py` (a `commands` field), a new `adk/sim_control_tools.py`, `adk/stream_redaction.py` (allow-list), `adk/agent.py` (tool wiring), the tutor framework YAML (policy), chat-log stamp. Frontend — `GenericArtefactFrame.tsx`, `MessageBubble.tsx`, one small client bus. Sims — each sim that opts in declares its commands; `sol-jord-maane` already answers them

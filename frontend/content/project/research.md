@@ -3,8 +3,8 @@ title: "Research"
 description: "Research questions, principles, instruments, and the classroom contexts AIPLA studies."
 eyebrow: "Questions and method"
 owner: "AIPLA research team"
-reviewed: "2026-08-04"
-reviewBy: "2027-02-04"
+reviewed: "2026-10-05"
+reviewBy: "2027-04-05"
 status: "Current"
 order: "20"
 nav: "true"
@@ -61,7 +61,7 @@ Every activity begins with a learning purpose. AI is included only where it can 
 
 ### Teacher control
 
-Teachers choose the activity, source material, learning goals, and tutor configuration. Student sessions take place within that prepared context rather than in an unrestricted chatbot.
+Teachers choose the activity, source material, learning goals, and tutor configuration. Student sessions take place within that prepared context rather than in an unrestricted chatbot. The teaching approaches a tutor can follow, and the research each is based on, are published under [Tutors](/project/tutors).
 
 ### Physics-specific design
 

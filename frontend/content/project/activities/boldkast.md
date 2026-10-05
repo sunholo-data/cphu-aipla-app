@@ -3,8 +3,8 @@ title: "Boldkast: projectile motion"
 description: "How a projectile-motion simulation and Socratic tutor form one connected activity."
 eyebrow: "Activity case study"
 owner: "AIPLA project team"
-reviewed: "2026-08-04"
-reviewBy: "2026-11-04"
+reviewed: "2026-10-05"
+reviewBy: "2027-01-05"
 status: "Current"
 order: "41"
 nav: "false"
@@ -23,7 +23,7 @@ On larger screens, conversation and workbench can be visible together. On phones
 
 ## The tutor's role
 
-The tutor is configured to scaffold rather than solve. It can ask for a prediction, direct attention to a representation, invite the student to compare two runs, or ask the group to explain a relationship.
+The tutor is configured to scaffold rather than solve, and the teacher chooses which [teaching approach](/project/tutors) it follows. It can ask for a prediction, direct attention to a representation, invite the student to compare two runs, or ask the group to explain a relationship.
 
 The activity uses three broad phases:
 

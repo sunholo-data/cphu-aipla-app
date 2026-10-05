@@ -3,8 +3,8 @@ title: "Evaluation"
 description: "How AIPLA evaluates task-specific AI capability and pedagogical use without treating rankings as permanent."
 eyebrow: "Evidence and limitations"
 owner: "AIPLA research team"
-reviewed: "2026-09-03"
-reviewBy: "2026-12-03"
+reviewed: "2026-10-05"
+reviewBy: "2027-01-05"
 status: "Provisional"
 order: "50"
 nav: "true"
@@ -87,6 +87,7 @@ Tutor evaluation can therefore examine whether it:
 
 - asks a question appropriate to the current activity stage;
 - uses workbench state accurately;
+- changes a simulation only as far as its teaching approach allows;
 - avoids claiming access it does not have;
 - leaves the central reasoning step to the student;
 - handles incorrect student reasoning constructively;
@@ -103,4 +104,4 @@ Results are published as **dated snapshots** rather than as a running leaderboar
 
 The exam items underlying that snapshot are used under the research-organisation exception for text and data mining in section 11 c of the Danish Copyright Act. Aggregate results are published; the items and answer keys are not reproduced or redistributed. The rights position is set out in full on the snapshot page.
 
-Evaluation of tutor behaviour and the classroom evidence that must accompany it are still in development, and no snapshot of either is published yet. Claims about tutor quality should be treated as provisional engineering evidence rather than project findings.
+Evaluation of tutor behaviour has begun as engineering work: an automated harness runs scripted student conversations through each [teaching approach](/project/tutors) and asks a language-model judge whether each session fits its own approach better than the others. The first runs, in September 2026, are small, single-run and judged by a model that is also one of the tutors under test, so they indicate a direction rather than a result. No snapshot of tutor behaviour, or of the classroom evidence that must accompany it, is published yet. Claims about tutor quality should be treated as provisional engineering evidence rather than project findings.

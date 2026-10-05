@@ -3,8 +3,8 @@ title: "Workstreams"
 description: "The connected platform, activity-creation, and scoping work that supports the research."
 eyebrow: "How the project is organised"
 owner: "AIPLA project team"
-reviewed: "2026-09-14"
-reviewBy: "2026-10-07"
+reviewed: "2026-10-05"
+reviewBy: "2026-11-05"
 status: "Current"
 order: "30"
 nav: "true"
@@ -13,17 +13,23 @@ nav: "true"
 
 The early project work is organised around three connected strands. The first establishes a platform for teacher-configured pedagogical tutors. The second explores simulations, games, and students as creators. The third investigates directions that need research and feasibility work before they become commitments.
 
+Since the September 2026 checkpoint, and through the extension to at least April 2027, the platform work concentrates on the physics-specific layer: activity authoring, simulations, curriculum grounding on cleared material, and rubric-scored session evidence for assessment research.
+
 The strands share infrastructure and inform one another. An interactive artefact developed in one strand can become material for a classroom study in another, while evaluation work helps determine which AI capabilities are suitable for a task.
 
 ## Strand A: pedagogical tutor infrastructure
 
 The first strand develops the environment in which teachers prepare and deliver AI-supported physics activities.
 
-Its central design pattern is a **paired activity**: a guided tutor in the conversation and a prepared workbench containing the problem, document, simulation, experiment, table, graph, or other representation being studied. The tutor can refer to that material rather than behaving like a generic chatbot.
+Its central design pattern is a **paired activity**: a guided tutor in the conversation and a prepared workbench containing the problem, document, simulation, experiment, table, graph, or other representation being studied. The tutor can refer to that material rather than behaving like a generic chatbot, and on simulations that allow it the tutor can make bounded changes that the student sees named.
+
+### Tutors and teaching approaches
+
+Each tutor carries a named teaching approach as structured, reviewable content — seven are published on [Teaching frameworks](/project/tutors) — together with a persona and voice. Researchers maintain the approaches; teachers choose a tutor for each class and can make their own tutors and approaches, kept private or shared. Because the approach is explicit, a session can be reviewed against the approach the tutor was meant to follow.
 
 ### Teacher preparation
 
-Teachers can create classes and activities, choose curriculum material, define a teaching goal, select an activity structure, and review the student experience before sharing it.
+Teachers can create classes and activities, choose curriculum material, define a teaching goal, select an activity structure and language, and try the activity as a student before sharing it.
 
 Authoring is intended to support teacher judgement rather than automate it away. Where an AI co-pilot proposes content or configuration, the teacher reviews and applies the proposal.
 
@@ -33,7 +39,7 @@ Students join a teacher-prepared activity using a group code. Within the activit
 
 ### Teacher and research review
 
-Teacher-facing views help educators review how groups used an activity. Research views support analysis across approved studies and roles. Access to those views is distinct from student access.
+Teacher-facing views help educators review how groups used an activity, including each group's final work. Research views support analysis across approved studies and roles, including comparison of tutors and teaching approaches. Access to those views is distinct from student access.
 
 ### Safeguards and boundaries
 
@@ -68,7 +74,7 @@ The third strand examines questions that are promising but not yet mature enough
 
 ### Beyond a single model class
 
-Different tasks may require different capabilities: textual reasoning, diagrams and images, audio, structured data, or interaction with a simulation. The project evaluates capabilities per task rather than assuming one model is best for everything.
+Different tasks may require different capabilities: textual reasoning, diagrams and images, audio, structured data, or interaction with a simulation. The project evaluates capabilities per task rather than assuming one model is best for everything; the first results are published as the [capability-floor snapshot](/project/evaluation/capability-floor).
 
 ### Beyond chat
 
@@ -77,6 +83,8 @@ Chat is useful but not universal. Voice, concept maps, branching structures, sha
 ### Models of student understanding
 
 One research direction is whether a student's developing conceptual structure can be represented and compared with a curated reference. A visible concept network or “teachable agent” could make that structure an object students inspect and revise.
+
+Concept maps are now part of the platform: on by default in activities, with a class view that shows where groups' understanding differs. Whether they measure understanding remains a research question.
 
 This direction raises substantive validity and privacy questions. A model-generated account of student understanding must not be mistaken for a neutral or complete measurement.
 
