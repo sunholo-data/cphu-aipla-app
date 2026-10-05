@@ -39,7 +39,9 @@
     "manual": "Manual"
   },
   "PinnedWelcome": {
-    "heading": "How to get started"
+    "heading": "How to get started",
+    "privacyTitle": "Protect personal information",
+    "privacyBody": "Don't write your real name, or anyone else's, in the chat. Don't upload documents or pictures that show names, CPR numbers or yourself."
   },
   "ReadAloudButton": {
     "read": "Read aloud",

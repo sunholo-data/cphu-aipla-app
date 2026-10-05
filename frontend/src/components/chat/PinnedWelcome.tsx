@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ShieldAlert } from "lucide-react";
 import type { PersonaSummary } from "@/components/chat/MessageBubble";
 import { useT } from "@/i18n";
 
@@ -49,7 +50,10 @@ export function PinnedWelcome({ content, skillId, persona }: PinnedWelcomeProps)
     if (stored === "1") setCollapsed(true);
   }, [skillId]);
 
-  if (!content) return null;
+  // The privacy notice is the reason this box always renders now: KU legal
+  // (2026-10-05) asked that students be told, explicitly and on screen, not to
+  // share names, CPR numbers or pictures of themselves. It stays visible when
+  // the box is collapsed and when the teacher wrote no welcome text.
 
   const toggle = () => {
     setCollapsed((v) => {
@@ -86,7 +90,8 @@ export function PinnedWelcome({ content, skillId, persona }: PinnedWelcomeProps)
         </svg>
         <span>👋 {t("heading")}</span>
       </button>
-      {!collapsed && (
+      <PrivacyNotice title={t("privacyTitle")} body={t("privacyBody")} />
+      {!collapsed && content && (
         <div
           id="pinned-welcome-body"
           className="flex flex-col gap-4 px-4 pb-4 text-sm text-foreground sm:flex-row sm:items-start sm:gap-5"
@@ -119,6 +124,21 @@ export function PinnedWelcome({ content, skillId, persona }: PinnedWelcomeProps)
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function PrivacyNotice({ title, body }: { title: string; body: string }) {
+  return (
+    <div
+      role="note"
+      aria-label={title}
+      className="mx-4 mb-2 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100"
+    >
+      <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+      <p>
+        <strong className="font-semibold">{title}.</strong> {body}
+      </p>
     </div>
   );
 }

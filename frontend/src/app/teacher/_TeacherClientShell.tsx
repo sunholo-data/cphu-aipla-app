@@ -10,6 +10,7 @@ import { AskAiplaButton, CopilotEntryProvider } from "@/components/teacher/copil
 import { AccountMenu } from "@/components/teacher/ui/AccountMenu";
 import { TeacherNav } from "@/components/teacher/ui/TeacherNav";
 import { VisitorAccessBanner } from "@/components/teacher/VisitorAccessBanner";
+import { PrivacyNoticeGate } from "@/components/teacher/PrivacyNoticeGate";
 import { BRANDING } from "@/lib/branding";
 import { cn } from "@/lib/utils";
 import { isLocalMode } from "@/lib/localMode";
@@ -91,6 +92,9 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
       {/* ACCESS-1 M4: renders nothing for a pilot teacher; above the header so
           it is the first thing a visitor reads, and never covers the nav. */}
       <VisitorAccessBanner />
+      {/* KU legal, 2026-10-05 — shown until this teacher acknowledges the
+          current notice; renders nothing afterwards (and on a read failure). */}
+      <PrivacyNoticeGate />
       <header className="sticky top-0 z-10 border-b border-border bg-background/90 backdrop-blur">
         <div className={cn("mx-auto flex items-center justify-between gap-3 px-4 py-3 sm:px-6", containerMax)}>
           <Link

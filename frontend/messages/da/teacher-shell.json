@@ -303,5 +303,19 @@
     "tabRequests": "Anmodninger",
     "nobodyNotified": "Ingen får besked, når nogen beder om adgang. Tjek denne kø efter hver omgang omtale, eller når nogen siger, at de har spurgt.",
     "loading": "Indlæser…"
+  },
+  "PrivacyNoticeGate": {
+    "title": "Sådan behandler vi dine data",
+    "intro": "AIPLA er et forskningsprojekt ved Københavns Universitet. Før du bruger platformen, skal du vide, hvordan dine og dine elevers data behandles.",
+    "pointAccount": "Du logger ind med din arbejdsmail via Google. Vi gemmer din e-mail, dit navn og dit profilbillede fra Google samt de klasser, aktiviteter og materialer, du opretter.",
+    "pointStudents": "Elever er anonyme: de logger ind med en gruppekode, i grupper på mindst tre. Vi indsamler ikke elevers navne eller e-mails.",
+    "pointChat": "Det, du og eleverne skriver til tutoren, gemmes og bruges i forskningsprojektet.",
+    "pointAi": "Tutorens svar laves af Googles Gemini-modeller. Data gemmes og behandles i EU (Finland og Belgien), undtagen selve login-tjenesten, som Google driver globalt. Google træner ikke sine modeller på dataene.",
+    "pointAsk": "Bed eleverne om ikke at skrive navne eller CPR-numre og ikke at uploade billeder af sig selv. Det står også i elevernes chat.",
+    "pointContact": "Spørgsmål, eller ønske om indsigt i eller sletning af dine data: kontakt projektleder Jesper Bruun, jbruun@ind.ku.dk.",
+    "readFull": "Læs hele privatlivspolitikken",
+    "acknowledge": "Jeg har læst og forstået",
+    "saving": "Gemmer…",
+    "error": "Det kunne ikke gemmes. Prøv igen."
   }
 }

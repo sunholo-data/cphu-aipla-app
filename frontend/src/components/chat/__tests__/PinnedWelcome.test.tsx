@@ -22,9 +22,17 @@ describe("PinnedWelcome", () => {
     expect(screen.getByRole("button", { expanded: true })).toBeInTheDocument();
   });
 
-  it("returns null when content is empty", () => {
-    const { container } = render(<PinnedWelcome content="" skillId="skill-1" />);
-    expect(container.firstChild).toBeNull();
+  it("still shows the privacy notice when the teacher wrote no welcome text", () => {
+    render(<PinnedWelcome content="" skillId="skill-1" />);
+    expect(screen.getByRole("note")).toHaveTextContent(/CPR/);
+    expect(screen.queryByTestId("markdown-stub")).not.toBeInTheDocument();
+  });
+
+  it("keeps the privacy notice visible when the box is collapsed", () => {
+    render(<PinnedWelcome content="welcome body" skillId="skill-1" />);
+    fireEvent.click(screen.getByRole("button"));
+    expect(screen.queryByTestId("markdown-stub")).not.toBeInTheDocument();
+    expect(screen.getByRole("note")).toBeInTheDocument();
   });
 
   it("collapses on toggle and hides the body", () => {

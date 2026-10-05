@@ -17,6 +17,7 @@ import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
 import { HumanToolUseCard } from "./HumanToolUseCard";
 import { MessageBubble, type PersonaSummary } from "./MessageBubble";
 import { PinnedWelcome } from "./PinnedWelcome";
+import { isAnonymousGroupAuthMode } from "@/lib/anonymousGroupAuth";
 import { latestAssistantMessageId } from "./autoReadTarget";
 import { StreamingBubble } from "./StreamingBubble";
 import { TypingIndicator } from "./TypingIndicator";
@@ -225,8 +226,10 @@ export function ChatMessageList({
           stays visible after the student sends their first message.
           Was previously inside the empty-state gate (vanished on first
           turn). Collapsible per-skill, persisted in sessionStorage. */}
-      {skillInitialMessage && skillId && (
-        <PinnedWelcome content={skillInitialMessage} skillId={skillId} persona={persona} />
+      {/* Also mounted for EVERY student session, welcome text or not: it
+          carries the privacy notice (KU legal, 2026-10-05). */}
+      {skillId && (skillInitialMessage || isAnonymousGroupAuthMode()) && (
+        <PinnedWelcome content={skillInitialMessage ?? ""} skillId={skillId} persona={persona} />
       )}
 
       <div

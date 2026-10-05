@@ -39,7 +39,9 @@
     "manual": "Manuel"
   },
   "PinnedWelcome": {
-    "heading": "Sådan kommer du i gang"
+    "heading": "Sådan kommer du i gang",
+    "privacyTitle": "Pas på personlige oplysninger",
+    "privacyBody": "Skriv ikke dit rigtige navn eller andres navne i chatten. Upload ikke dokumenter eller billeder, der viser navne, CPR-numre eller dig selv."
   },
   "ReadAloudButton": {
     "read": "Læs op",
