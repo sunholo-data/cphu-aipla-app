@@ -32,7 +32,7 @@ import logging
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 
 from analytics.auth import assert_can_read_class
-from analytics.framework_fidelity import resolve_fidelity
+from analytics.framework_fidelity import researcher_payload, resolve_fidelity
 from auth import User, get_current_user
 from config.models import analysis_model
 from db.classes import get_class_for_group
@@ -152,7 +152,11 @@ async def _fidelity_for(summary: SessionSummary, user: User, *, force: bool = Fa
     result = await resolve_fidelity(summary, force=force)
     if result is None:
         return None
-    return result.researcher_view() if getattr(user, "is_researcher", False) else result.teacher_view()
+    if not getattr(user, "is_researcher", False):
+        return result.teacher_view()
+    # 1.1.148 — cited turns resolved to the transcript's own numbers, plus the
+    # criteria the judge was given. Firestore reads, so off the loop.
+    return await asyncio.to_thread(researcher_payload, result, summary)
 
 
 @router.get("/sessions/{session_id}")
