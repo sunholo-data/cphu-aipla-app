@@ -81,6 +81,49 @@ def test_a_teacher_may_author_a_tutor_but_only_one_that_names_an_approach():
     )
 
 
+def test_a_teachers_own_approach_is_offered_in_the_tutor_builder():
+    """Reported 2026-10-05: a teacher wrote her own approach, then found only the
+    seven published ones in the tutor builder — whose help text says "or one of
+    your own". The create route already accepted a custom id; only the list
+    feeding the dropdown left them out. Another teacher's PRIVATE approach must
+    stay out of it.
+    """
+    from protocols.frameworks_routes import router as frameworks_router
+
+    def _both(user: User) -> TestClient:
+        c = _client(user)
+        c.app.include_router(frameworks_router)
+        return c
+
+    mine = _both(TEACHER).post(
+        "/api/research/frameworks/custom",
+        json={"label": "Predict — then explain", "instructionText": "Ask for a prediction first."},
+    )
+    assert mine.status_code == 200, mine.text
+    other = User(uid="t-2", is_teacher=True)
+    hidden = _both(other).post("/api/research/frameworks/custom", json={"label": "Secret", "instructionText": "x"})
+    assert hidden.status_code == 200, hidden.text
+    assert (
+        _both(other)
+        .put(f"/api/research/frameworks/custom/{hidden.json()['id']}/visibility", json={"visibility": "private"})
+        .status_code
+        == 200
+    )
+
+    offered = {f["id"]: f for f in _client(TEACHER).get("/api/tutors").json()["frameworks"]}
+    assert offered[mine.json()["id"]]["name"] == "Predict — then explain"
+    assert offered[mine.json()["id"]]["isCustom"] is True
+    assert offered["esru"]["isCustom"] is False
+    assert hidden.json()["id"] not in offered
+
+    # And picking it actually authors the tutor.
+    ok = _client(TEACHER).post(
+        "/api/research/tutors",
+        json={"id": "x-mine", "displayName": "Mine", "frameworkId": mine.json()["id"]},
+    )
+    assert ok.status_code == 200, ok.text
+
+
 def test_a_student_reaches_none_of_it():
     c = _client(STUDENT)
     assert c.get("/api/tutors").status_code == 403

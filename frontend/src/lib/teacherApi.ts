@@ -1371,7 +1371,9 @@ export interface TutorCatalogue {
   /** 1.1.91 M7 — tutors migrated from a SKILL.md. Addressable and usable as
    *  research arms, but not a class identity choice, so not in the picker. */
   skillBoundTutors?: TutorPayload[];
-  frameworks: { id: string; name: string; summary: string; isPlaceholder: boolean }[];
+  /** The seven published approaches, then the custom ones this caller may see
+   *  (their own + shared), flagged `isCustom`. */
+  frameworks: { id: string; name: string; summary: string; isPlaceholder: boolean; isCustom?: boolean }[];
 }
 
 /** Every pickable tutor, bases before variants, plus the framework list. */

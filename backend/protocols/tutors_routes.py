@@ -27,6 +27,7 @@ from pydantic import BaseModel, ConfigDict, Field
 # scripts/check-auth-dispatcher.sh with that reason.
 from auth.firebase_auth import User, get_current_user
 from auth.guards import assert_researcher, assert_teacher
+from db.authored_frameworks import list_authored_frameworks
 from db.classes import get_class, update_class_tutor
 from db.framework_overrides import effective_framework
 from db.models.activity_config import InteractionStyle
@@ -221,8 +222,25 @@ async def list_tutors_route(user: User = Depends(get_current_user)) -> dict:  # 
                 "name": plain_framework_name(f.id),
                 "summary": " ".join(f.summary.split()) if f.summary else "",
                 "isPlaceholder": f.is_placeholder,
+                "isCustom": False,
             }
             for f in load_frameworks()
+        ]
+        # Custom approaches the caller may see — their own plus shared ones.
+        # Omitting these left the tutor builder offering only the seven
+        # published approaches, while its help text said "or one of your own"
+        # and create_tutor_route already accepted a custom id. Named by their
+        # label as written: plain_framework_name's acronym handling would cut a
+        # teacher's label at its first em-dash.
+        + [
+            {
+                "id": f.id,
+                "name": f.label,
+                "summary": " ".join(f.summary.split()) if f.summary else "",
+                "isPlaceholder": f.is_placeholder,
+                "isCustom": True,
+            }
+            for f in list_authored_frameworks(user.uid, see_all=user.is_researcher)
         ],
     }
 
