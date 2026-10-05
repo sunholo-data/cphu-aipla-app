@@ -40,7 +40,6 @@ from adk.agui import APP_NAME
 from adk.session import get_session_service
 from auth import User, get_current_user
 from db.chat_sessions import create_session_index, get_session_index
-from db.group_sessions import set_active_session_for_group
 from skills import skill_config
 
 log = logging.getLogger(__name__)
@@ -114,12 +113,13 @@ async def post_session_bootstrap(
         document_ids=[],
     )
 
-    # Register this session as the active one for the group (1.F). The
-    # join endpoint reads it back on the next join and returns it as
-    # resumedSessionId. Only written for anonymous-group users — Firebase
-    # users have their own session persistence via ChatSessionIndex queries.
-    if user.auth_mode == "anonymous_group_id" and user.group_id:
-        set_active_session_for_group(user.group_id, session_id, activity_id=body.activity_id)
+    # 1.1.145 M1: this route NO LONGER registers the group's active session.
+    # It used to (first-wins), which made the session a client race: a device
+    # that lost a simultaneous open kept a private session nobody watched. The
+    # pointer is now written only by ``POST /api/auth/group/session``, inside a
+    # transaction, and the chat page awaits that before building the agent — so
+    # for a student this route normally finds the index already there and
+    # returns above. ``activity_id`` is still accepted so older clients don't 422.
 
     # ALSO pre-create the ADK session under the canonical APP_NAME triple.
     # Without this, iframe-context POSTs that arrive before the agent's

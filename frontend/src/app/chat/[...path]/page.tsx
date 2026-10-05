@@ -31,6 +31,7 @@ import { useSkillMeta } from "@/hooks/useSkillMeta";
 import { useUserSkills } from "@/hooks/useUserSkills";
 import { useSessionMessages } from "@/hooks/useSessionMessages";
 import { useGroupPulse } from "@/hooks/useGroupPulse";
+import { useGroupSession } from "@/hooks/useGroupSession";
 import { Loader2 } from "lucide-react";
 import { useEnteredViaResume } from "@/hooks/useEnteredViaResume";
 import { useSessionDocuments } from "@/hooks/useSessionDocuments";
@@ -229,79 +230,95 @@ function ChatPageInner({
   const router = useRouter();
   const searchParams = useSearchParams();
   const urlSessionId = searchParams.get("session");
-  // ALS-1: the activity this chat runs. The group's active session is now scoped
-  // per activity (a group runs many activities, each its own conversation), so we
-  // resolve/resume by activity below.
+  // ALS-1: the activity this chat runs. A group runs many activities, each its
+  // own conversation; a legacy lesson (no act- id) falls back to its skill id.
   const activityId = searchParams.get("activity_id") || skillId;
-  const isActivityChat = (searchParams.get("activity_id") || "").startsWith("act-");
+  const t = useT("ChatPage");
 
-  // 1.F: for anonymous-group users, read the resumedSessionId from the stored
-  // join response (a GROUP-level pointer). For an ALS-1 activity chat this is the
-  // wrong scope (it would resume some other activity's conversation), so suppress
-  // the group-level fast-path there and let the per-activity active-session fetch
-  // below be authoritative. Memoised once at mount.
-  const resumedSessionId = useMemo<string | null>(() => {
-    if (!isAnonymousGroupAuthMode()) return null;
-    if (urlSessionId !== null) return null; // already navigated to a specific session
-    if (isActivityChat) return null; // per-activity resume is handled by the fetch below
-    return readStoredGroupSession()?.resumedSessionId ?? null;
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // 1.1.145 D2 / M1 — for an anonymous-group student the SERVER decides the
+  // session: POST /api/auth/group/session returns the (group, activity)'s active
+  // session or creates it in a transaction, and the chat waits for it before
+  // building the agent. This replaces three client paths that raced each other —
+  // a minted UUID bootstrapped at once (first-wins pointer), the join-time
+  // group-level resumedSessionId fast path, and a GET /active-session adoption —
+  // which left any device that lost a simultaneous open on a private session no
+  // groupmate watched, and moved it onto the winner's on reload (V2).
+  // Teachers (Firebase) keep their own session list and the URL-driven path.
+  const isGroup = useMemo(() => isAnonymousGroupAuthMode(), []);
+  const {
+    session: groupSession,
+    failed: groupSessionFailed,
+    retry: retryGroupSession,
+  } = useGroupSession(isGroup, skillId, activityId);
 
-  // Write ?session=resumedSessionId immediately on mount so useSessionMessages
-  // starts loading the prior history without waiting for the first message.
-  // This is the fast path: it only fires when the STORED resumedSessionId is
-  // fresh. The authoritative resolution is the backend fetch below.
+  // The URL follows the server's choice (a reload, a copied link or the resume
+  // banner all read it), never the other way round: a stale ?session= — a
+  // teacher reset, another activity's link — is replaced, not adopted.
   useEffect(() => {
-    if (resumedSessionId && !urlSessionId) {
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("session", resumedSessionId);
-      router.replace(`${pathPrefix}?${params.toString()}`);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- intentionally runs once on mount
+    if (!groupSession || typeof window === "undefined") return;
+    const live = new URLSearchParams(window.location.search);
+    if (live.get("session") === groupSession.sessionId) return;
+    live.set("session", groupSession.sessionId);
+    router.replace(`${pathPrefix}?${live.toString()}`);
+  }, [groupSession, pathPrefix, router]);
 
-  // 1.F resume fix (2026-06-13): the stored resumedSessionId is frozen at join
-  // time — null on the first join (before any chat) and never refreshed. So a
-  // student who joins, chats, then revisits in the same tab keeps reading null
-  // and starts a blank session every time (lazy-flute-39: 122 turns, always
-  // restarted). Re-resolve the group's live active session from the backend on
-  // load and adopt it via ?session= (useStableThreadId picks up the change,
-  // useSessionMessages loads the history). No-op once a session is in the URL
-  // (mid-chat or already resumed) so we never disrupt an active conversation.
-  useEffect(() => {
-    if (!isAnonymousGroupAuthMode() || urlSessionId) return;
-    let cancelled = false;
-    // ALS-1: resolve the active session for THIS activity (per-activity scope).
-    fetchWithAuth(`/api/proxy/api/auth/group/active-session?activityId=${encodeURIComponent(activityId)}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: { sessionId?: string | null } | null) => {
-        const sid = data?.sessionId;
-        // Guard against the LIVE url (the captured searchParams is the mount
-        // snapshot): only adopt if the user hasn't navigated to / started a
-        // session while we were fetching.
-        const liveSession =
-          typeof window !== "undefined"
-            ? new URLSearchParams(window.location.search).get("session")
-            : null;
-        if (cancelled || !sid || liveSession) return;
-        const params = new URLSearchParams(window.location.search);
-        params.set("session", sid);
-        router.replace(`${pathPrefix}?${params.toString()}`);
-      })
-      .catch(() => {
-        /* resume is best-effort; a fresh session is the safe fallback */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- once on mount
+  if (isGroup && !groupSession) {
+    return groupSessionFailed ? (
+      <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-sm text-muted-foreground">
+        <p>{t("sessionFailed")}</p>
+        <button
+          type="button"
+          onClick={retryGroupSession}
+          className="rounded border px-3 py-1 text-foreground hover:bg-muted"
+        >
+          {t("tryAgain")}
+        </button>
+      </div>
+    ) : (
+      <div className="p-6 text-sm text-muted-foreground">{t("sessionResolving")}</div>
+    );
+  }
+
+  return (
+    <ChatThread
+      skillId={skillId}
+      pathPrefix={pathPrefix}
+      user={user}
+      urlSessionId={urlSessionId}
+      groupSessionId={groupSession?.sessionId ?? null}
+      groupSessionCreated={groupSession?.created ?? false}
+    />
+  );
+}
+
+function ChatThread({
+  skillId,
+  pathPrefix,
+  user,
+  urlSessionId,
+  groupSessionId,
+  groupSessionCreated,
+}: {
+  skillId: string;
+  pathPrefix: string;
+  user: User;
+  urlSessionId: string | null;
+  /** The server-decided shared session (anonymous-group students), else null. */
+  groupSessionId: string | null;
+  groupSessionCreated: boolean;
+}) {
+  // An existing group session is a resume: its workbench state is restored and
+  // the resume banner may show. A session this call just created is fresh.
+  const resumedSessionId = groupSessionId && !groupSessionCreated ? groupSessionId : null;
 
   // chat-history-deep-fixes-2 Bug A': pre-allocate a stable threadId so the
   // URL-writeback effect after the first turn doesn't change AGUIProvider's
   // sessionId prop. Without this, useMemo([sessionId, …]) rebuilds the
   // HttpAgent the moment ?session= is written, agent.messages is destroyed,
   // and the user sees turn 1 vanish until the GET refills initialMessages.
+  // 1.1.145 M1: for a group student the server's id is the thread id, full stop.
   const stableThreadId = useStableThreadId(urlSessionId, {
-    initialSessionId: resumedSessionId ?? undefined,
+    serverSessionId: groupSessionId ?? undefined,
   });
 
   return (
@@ -322,6 +339,8 @@ function ChatPageInner({
           user={user}
           stableThreadId={stableThreadId}
           resumedSessionId={resumedSessionId}
+          groupShared={groupSessionId !== null}
+          groupSessionCreated={groupSessionCreated}
         />
       </HumanToolEventsProvider>
     </AGUIProvider>
@@ -376,12 +395,18 @@ function ChatShell({
   user,
   stableThreadId,
   resumedSessionId,
+  groupShared,
+  groupSessionCreated,
 }: {
   skillId: string;
   pathPrefix: string;
   user: User;
   stableThreadId: string;
   resumedSessionId: string | null;
+  /** 1.1.145 — this chat is a group's shared, server-decided session. */
+  groupShared: boolean;
+  /** The server minted the session on this open (fresh: greet, no restore). */
+  groupSessionCreated: boolean;
 }) {
   // ALS-1 M0: the chat runs a SKILL but is scoped to a specific ACTIVITY. The
   // lesson card opens /chat/{skillId}?activity_id={act-…}; the activity selects the
@@ -423,6 +448,8 @@ function ChatShell({
     stop,
     stall,
     retryStalled,
+    turnRefused,
+    clearTurnRefused,
   } = useSkillAgent({ activityId, language: studentLanguage });
   const {
     displayName,
@@ -779,26 +806,40 @@ function ChatShell({
   // open. Resolves on commit, or a short cap when nothing was pending.
   const artefactFlushRef = useRef<(() => Promise<void>) | null>(null);
 
-  // Session routing: read ?session= from URL, allow programmatic navigation
-  const sessionId = searchParams.get("session");
+  // Session routing: read ?session= from URL, allow programmatic navigation.
+  // 1.1.145 M1: a group student's session is the server-decided thread id from
+  // the first render — not the URL, which only catches up a tick later.
+  const urlSession = searchParams.get("session");
+  const sessionId = groupShared ? stableThreadId : urlSession;
 
-  // 1.1.53 M1 — live pulse for the group's shared session. `pulseActivityId`
-  // mirrors what useSkillAgent puts on the wire (activity_id only when it's an
-  // `act-…` id, else the turn is keyed group-level), so the pulse reads the SAME
-  // group_sessions doc the turn-lock writes.
-  const pulseActivityId = activityId.startsWith("act-") ? activityId : null;
+  // 1.1.53 M1 — live pulse for the group's shared session. Since 1.1.145 M3 it
+  // is keyed by the activity, or by the skill for a legacy lesson — the same
+  // scope the backend's turn-lock and revision use (`group_sessions.scope_key`),
+  // so two legacy lessons on one code no longer share a lock or a counter.
   const {
     revision: groupRevision,
     turnInFlight: groupTurnInFlightRaw,
     activeDevices: groupActiveDevices,
-  } = useGroupPulse(pulseActivityId);
-  // A device with no live messages of its own is a "pure watcher": refetching
-  // history on a revision bump is duplicate-free (ChatMessageList renders
-  // restored history and the live block separately, un-deduped). Once this
-  // device sends, it relies on its own live stream and stops live-refetching.
-  const watcherRevision = messages.length === 0 ? groupRevision : 0;
-  const { initialMessages, initialInteractions, interactionsTruncated, historyError, sessionGone } =
-    useSessionMessages(sessionId, watcherRevision);
+  } = useGroupPulse(activityId);
+  // 1.1.145 M2 — EVERY device keeps syncing, not only one that has never sent:
+  // ChatMessageList's shared mode folds this device's live messages into the
+  // refetched transcript, so the 1.1.53 "pure watcher" gate (and the ghost
+  // context it left behind the moment a student spoke) is gone. The revision is
+  // held while this device's own turn streams — a refetch mid-turn would read a
+  // half-persisted turn — and released when it ends, which fetches it whole.
+  const heldRevisionRef = useRef(0);
+  if (!isLoading) heldRevisionRef.current = groupRevision;
+  const syncRevision = groupShared ? heldRevisionRef.current : 0;
+  const {
+    initialMessages,
+    initialInteractions,
+    interactionsTruncated,
+    historyError,
+    sessionGone,
+    syncedFrom,
+  } = useSessionMessages(sessionId, syncRevision);
+  // Stable identity so the message list's fold memo only recomputes on change.
+  const sharedTranscriptOpts = useMemo(() => ({ syncedFrom }), [syncedFrom]);
   // Another group member's turn is streaming (and it isn't THIS device's own
   // send — that's `isLoading`). Drives the composer lock + queue below.
   const groupTurnInFlight = groupTurnInFlightRaw && !isLoading;
@@ -806,6 +847,28 @@ function ChatShell({
   // Held locally and auto-sent when the shared session frees (soft turn-lock),
   // so two students can't race two parallel turns onto one session.
   const [queuedMessage, setQueuedMessage] = useState<string | null>(null);
+  // 1.1.145 — a send the turn-lock refused (409): another device's message
+  // reached the tutor first, in the gap before this device's pulse showed it.
+  // The text is queued, not lost, and held until that turn has finished (the
+  // revision advances) — re-sending at once would only be refused again.
+  const [refusedHold, setRefusedHold] = useState<number | null>(null);
+  useEffect(() => {
+    if (turnRefused === null) return;
+    setQueuedMessage(turnRefused);
+    setRefusedHold(groupRevision);
+    clearTurnRefused();
+  }, [turnRefused, clearTurnRefused, groupRevision]);
+  useEffect(() => {
+    if (refusedHold === null) return;
+    if (groupRevision > refusedHold) {
+      setRefusedHold(null);
+      return;
+    }
+    // Backstop: a holder that crashed never bumps the revision; its lock
+    // expires on the server, so stop waiting for a bump after a while.
+    const timer = setTimeout(() => setRefusedHold(null), 20_000);
+    return () => clearTimeout(timer);
+  }, [refusedHold, groupRevision]);
 
   // Phase 1.I-PhA proactive greet: fire POST /api/sessions/{id}/greet on
   // chat mount when the skill opts in AND we're starting a brand-new
@@ -814,7 +877,10 @@ function ChatShell({
   // first assistant message so the student sees the tutor speak first
   // instead of staring at the static welcome banner. Idempotent on the
   // backend; ref-guarded on the frontend.
-  const proactiveGreetEnabled = skillProactiveGreet && sessionId === null;
+  // 1.1.145: a group student greets only on the open that CREATED the shared
+  // session — the others see that greet arrive through the sync.
+  const proactiveGreetEnabled =
+    skillProactiveGreet && (groupShared ? groupSessionCreated : sessionId === null);
   const { greetMessage: proactiveGreetMessage, loading: greetLoading } = useProactiveGreet({
     sessionId: stableThreadId,
     skillId,
@@ -838,8 +904,10 @@ function ChatShell({
   // session-adoption that previously left history unrendered on reload; see
   // useEnteredViaResume for the full rationale. Explicit nav still sets it
   // directly (select-thread → true, new-conversation → false).
+  // 1.1.145: a group session created on this open is fresh, not a resume, even
+  // though its id is known from the first render.
   const [enteredViaResume, setEnteredViaResume] = useEnteredViaResume(
-    sessionId,
+    groupShared && groupSessionCreated ? null : sessionId,
     messages.length,
   );
 
@@ -966,7 +1034,7 @@ function ChatShell({
   // 1.1.53 M1 — flush a queued message once the group's turn-lock clears (and
   // this device isn't mid-send). Sends exactly once, then clears the queue.
   useEffect(() => {
-    if (groupTurnInFlight || isLoading || !queuedMessage) return;
+    if (groupTurnInFlight || isLoading || !queuedMessage || refusedHold !== null) return;
     const text = queuedMessage;
     setQueuedMessage(null);
     lastUserMessageRef.current = text;
@@ -974,7 +1042,7 @@ function ChatShell({
       documentIds: outgoingDocIds,
       resumedSession: enteredViaResume,
     });
-  }, [groupTurnInFlight, isLoading, queuedMessage, sendMessage, outgoingDocIds, enteredViaResume]);
+  }, [groupTurnInFlight, isLoading, queuedMessage, refusedHold, sendMessage, outgoingDocIds, enteredViaResume]);
 
   const handleAction = useCallback(
     (event: { actionName: string; context: Record<string, unknown> }) => {
@@ -1037,11 +1105,13 @@ function ChatShell({
   // ?session= from the URL so useStableThreadId mints a fresh UUID before
   // the next outbound POST. One-shot — handleNewSession clears sessionId,
   // which resets sessionGone via the hook on the next effect cycle.
+  // Not for a group session: the server created its index before the chat
+  // mounted, and clearing the URL would only bounce off the server's choice.
   useEffect(() => {
-    if (sessionGone && sessionId) {
+    if (sessionGone && sessionId && !groupShared) {
       handleNewSession();
     }
-  }, [sessionGone, sessionId, handleNewSession]);
+  }, [sessionGone, sessionId, handleNewSession, groupShared]);
 
   const handleDeleteSkillSession = useCallback(
     async (sid: string) => {
@@ -1127,7 +1197,11 @@ function ChatShell({
   // resumed session, so reload re-renders "student did X" before the tutor's
   // reaction (not just the reaction). Gated on enteredViaResume, exactly like
   // initialMessages — a fresh chat seeds nothing (stable empty array).
-  useSeedRestoredInteractions(enteredViaResume ? initialInteractions : NO_RESTORED_INTERACTIONS);
+  // A group session seeds on every refetch (1.1.145 M2): a groupmate's
+  // workbench share arrives as a restored card, like their messages do.
+  useSeedRestoredInteractions(
+    enteredViaResume || groupShared ? initialInteractions : NO_RESTORED_INTERACTIONS,
+  );
 
   // Sprint PROACTIVE-SIM-REACTIVE M8-fix #2 (2026-06-03): populate the
   // ProactiveSimProvider's ref via useEffect AFTER useSkillAgent has
@@ -1323,17 +1397,25 @@ function ChatShell({
             // live `messages` — duplicating every bubble. `enteredViaResume`
             // distinguishes the two cases.
             initialMessages={
-              // For a fresh chat (no resume) prepend the proactive-greet
-              // message if it arrived. For a resumed session, the
-              // historical greet is already in `initialMessages` from
-              // useSessionMessages — no need to splice again.
-              enteredViaResume
-                ? initialMessages
-                : proactiveGreetMessage
-                  ? [proactiveGreetMessage]
-                  : undefined
+              // 1.1.145 M2 — a group session renders the shared transcript
+              // (folded with this device's live block by ChatMessageList). The
+              // greet shows until the first refetch carries its persisted copy.
+              groupShared
+                ? initialMessages.length > 0 || !proactiveGreetMessage
+                  ? initialMessages
+                  : [proactiveGreetMessage]
+                : // For a fresh chat (no resume) prepend the proactive-greet
+                  // message if it arrived. For a resumed session, the
+                  // historical greet is already in `initialMessages` from
+                  // useSessionMessages — no need to splice again.
+                  enteredViaResume
+                  ? initialMessages
+                  : proactiveGreetMessage
+                    ? [proactiveGreetMessage]
+                    : undefined
             }
-            interactionsTruncated={enteredViaResume && interactionsTruncated}
+            sharedTranscript={groupShared ? sharedTranscriptOpts : undefined}
+            interactionsTruncated={(enteredViaResume || groupShared) && interactionsTruncated}
             skillInitialMessage={skillInitialMessage}
             historyError={historyError}
             toolCalls={toolCalls}
@@ -1425,6 +1507,11 @@ function ChatShell({
                   {t("compacted", { count: compactions[compactions.length - 1].eventsCompacted })}
                 </p>
               )
+            )}
+            {refusedHold !== null && queuedMessage && (
+              <p role="status" className="mb-2 text-xs text-muted-foreground">
+                {t("turnRefused")}
+              </p>
             )}
             {groupTurnInFlight ? (
               <p className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">

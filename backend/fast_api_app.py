@@ -354,6 +354,7 @@ from protocols.voice_routes import router as voice_router  # noqa: E402
 from protocols.writing_progress_routes import router as writing_progress_router  # noqa: E402
 from skills.routes import router as skills_router  # noqa: E402
 from skills.skill_processor import (  # noqa: E402
+    SessionScopeMismatchError,
     SkillNotFoundError,
     SpendNotAuthorisedError,
     TurnLockedError,
@@ -785,6 +786,15 @@ async def stream_skill(
         raise HTTPException(
             status_code=409,
             detail={"error": "turn_in_progress", "group_id": exc.group_id},
+        ) from exc
+    except SessionScopeMismatchError as exc:
+        # 1.1.145 M3 — the threadId belongs to another activity of this group.
+        # 422, not 409: the client reads 409 as "a groupmate holds the turn,
+        # wait and resend", and resending this would be refused forever.
+        reset_current_tracker(_tracker_token)
+        raise HTTPException(
+            status_code=422,
+            detail={"error": "session_activity_mismatch", "session_id": exc.session_id},
         ) from exc
     except SpendNotAuthorisedError as exc:
         # ACCESS-1 M1 — the caller may SEE this skill but may not pay for it.

@@ -1,6 +1,6 @@
 # Many devices on one group code — the tutor reads a conversation nobody can see
 
-**Status:** Design (OPEN) — **1.1.145**
+**Status:** **Partly implemented** (2026-10-05, branch commits, not yet on `dev`) — **1.1.145**. M1, M2, M3 and the shared-conversation prompt line shipped; **M4 not started (gated on JB)**; **M5 not started (threshold is M's call)**. See [Implementation notes](#implementation-notes-2026-10-05).
 **Priority:** **P1** for M0–M2 (a teacher-visible correctness gap on prod, and it corrupts what the logs mean) · **P2** for M3–M5
 **Estimated:** ~2.5–3d phased (M0 evidence ~0.25d · M1 server-authoritative session per (group, activity) ~0.75d · M2 every device renders the shared transcript ~0.75d · M3 bind a session to its activity ~0.5d · M4 device *count* on the log row ~0.25d · M5 crowded-code hint for teachers ~0.25d)
 **Scope:** Backend: `db/group_sessions.py`, `protocols/session_bootstrap_routes.py`, `auth/group_routes.py`, `db/chat_sessions.py`, `skills/skill_processor.py`, `observability/chat_log.py` + `infrastructure/modules/chat-logs/views.tf`. Frontend: `app/chat/[...path]/page.tsx`, `hooks/useSessionMessages.ts`, `hooks/useGroupPulse.ts`, `hooks/useStableThreadId.ts`, `components/chat/ChatMessageList.tsx`
@@ -286,12 +286,100 @@ student mid-lesson.
 
 ## Acceptance criteria
 
-- [ ] M0 queries run and their answers written into this doc, with H1–H4 each marked confirmed or refuted.
-- [ ] Two devices joining one code and opening one activity **within the same second** end up on the same `session_id` (M1).
-- [ ] After device A sends, device B's next tutor answer is never about a message B's screen does not show, within one pulse interval (M2).
-- [ ] A turn posted with a `threadId` belonging to another activity of the same group is refused (M3).
-- [ ] Two legacy lessons on one code do not lock each other (M3).
-- [ ] `devices_present` is populated on new prod rows, or M4 is recorded as declined by JB.
+- [x] M0 queries run and their answers written into this doc, with H1–H4 each marked confirmed or refuted.
+- [x] Two devices joining one code and opening one activity **within the same second** end up on the same `session_id` (M1) — `test_concurrent_calls_for_one_group_activity_return_one_id` (16 threads, one id, one creator).
+- [x] After device A sends, device B's next tutor answer is never about a message B's screen does not show, within one pulse interval (M2) — `shared-transcript.test.tsx`; backend half in `test_shared_code_end_to_end.py`.
+- [x] A turn posted with a `threadId` belonging to another activity of the same group is refused (M3) — 422 `session_activity_mismatch`.
+- [x] Two legacy lessons on one code do not lock each other (M3).
+- [ ] `devices_present` is populated on new prod rows, or M4 is recorded as declined by JB. **Open — JB.**
+- [x] (added from M0) The tutor is told when the conversation is shared, so it answers *"can you see the others?"* truthfully.
+- [x] (added from M0) A send refused by the turn-lock (409) is explained to the student and not lost.
+
+## Implementation notes (2026-10-05)
+
+Shipped on a worktree branch, one commit per milestone; not yet merged to `dev` or
+deployed. Nothing was read from or written to any deployed environment.
+
+**M1 — server-authoritative session (D2).**
+- `db/firestore.py` gains `transact_document(collection, doc_id, fn)` — the data
+  layer's only transaction, a single-document compare-and-set (real Firestore
+  `@transactional`; LOCAL_MODE holds the in-memory store lock). Kept that narrow
+  on purpose: it maps onto `SELECT … FOR UPDATE` for the on-prem adapter.
+- `db/group_sessions.get_or_create_active_session(group, scope)` → `(id, created)`;
+  merges into the existing doc so lock/revision/presence fields survive; an
+  archived or expired pointer yields a new session.
+- `POST /api/auth/group/session` (`auth/group_routes.py`, `get_current_user` via
+  the dispatcher) returns `{sessionId, created}` and, on a create, makes the
+  session index (stamped with its scope) and the ADK session — the job
+  `/bootstrap` did. `/bootstrap` no longer writes the group pointer.
+- Frontend: `useGroupSession` + `lib/groupSessionApi.resolveGroupSession`; the
+  chat page waits for it (with retries, then a "try again" — no private-UUID
+  fallback, which *was* V2). `useStableThreadId({ serverSessionId })` never mints
+  for a group student; the URL follows the server's id (a stale `?session=` is
+  replaced). The join-time `resumedSessionId` fast path and the
+  `GET /active-session` adoption are gone from the chat page. The greet fires only
+  on the open that created the session; `created: false` drives restore + banner.
+- Left in place, deliberately: `GET /api/auth/group/active-session` and the join
+  response's `resumedSessionId` field (no frontend caller now; removing an API
+  field is a separate change). `set_active_session_for_group` stays for tests and
+  tooling.
+
+**M2 — every device renders the shared transcript.**
+- The `messages.length === 0` gate is gone: every group device refetches
+  `/messages` on a revision bump. The revision is *held* while this device's own
+  turn streams and released when it ends (a refetch mid-turn would read a
+  half-persisted turn).
+- `components/chat/sharedTranscript.ts` folds this device's live messages into
+  their persisted copies (same role + whitespace-insensitive text, small
+  lookahead, never against history that predates this mount), so groupmates'
+  turns interleave in true order and nothing renders twice; live bubbles keep
+  their tool-call cards. `ChatMessageList` gets a `sharedTranscript` mode; restored
+  trust cards that duplicate a live card are hidden by label.
+- History ids are now positional (`hist-<n>`), so a refetch per groupmate turn
+  does not remount every bubble.
+- A user turn that arrived by refetch and is not this device's is labelled
+  *"Sent from another device in your group"* (`ChatMessageList.fromGroupDevice`,
+  da + en). Only user turns are labelled; no identity is involved.
+
+**M3 — bind a session to its activity.** `ChatSessionIndex.activity_id`, set at
+creation (route and the turn path's synchronous index write). A group turn whose
+`threadId` index names a different scope is refused with **422**
+`session_activity_mismatch` (not 409: the client reads 409 as "wait and resend").
+Sessions created before M3 have no scope and are not checked. Legacy lessons are
+keyed by `group_sessions.scope_key(activity_id, skill_id)` → `{group}:{skillId}` for
+lock, revision, pulse and pointer — never the group-level doc.
+
+**Shared-conversation prompt (from M0).** `adk/shared_conversation.py`: when the
+live presence count (`count_present_devices`, read-only) on the turn's
+`(group, scope)` is > 1, the instruction says the conversation is shared by that
+many screens, that the tutor sees every student's messages and must say so if
+asked, and must not attribute messages to individuals. Empty for one device and
+for non-group callers (byte-identical prompt). The count is **prompt-only — it is
+not written to `chat_turns`.**
+
+**409 (turn-lock) refusal.** `useSkillAgent` recognises `HTTP 409`, takes the
+refused bubble back out, sets no error, and returns the text as `turnRefused`. The
+chat page queues it, shows *"Someone in your group reached the tutor just before
+you…"*, and sends it once the revision advances (or after a 20 s backstop, for a
+crashed holder whose lock expires server-side). Staged images on a refused send
+are not re-queued (text only, like the existing soft queue).
+
+**Not done here, by design:**
+- **M4 / D3 — `devices_present` on `chat_turns`**: gated on JB's sign-off (a
+  change to what research collects). Nothing writes a device count to the log.
+- **M5 — crowded-code hint**: the threshold is M's decision (open question 2), and
+  whether to tell students the tutor reads everyone (open question 4) is M's too.
+- **D1 options a/b** (per-device identity, teacher-chosen isolated mode): ADR-001
+  revision for M and JB.
+
+**Tests.** `backend/tests/api_tests/test_group_session_get_or_create.py`,
+`backend/tests/api_tests/test_shared_code_end_to_end.py` (two real `join_group`
+tokens through the real dispatcher, no `dependency_overrides`; model stubbed),
+`backend/tests/unit/test_group_sessions.py` (scope keys, legacy locks, presence
+count); `frontend/src/app/chat/[...path]/__tests__/shared-transcript.test.tsx`,
+`frontend/src/components/chat/__tests__/sharedTranscript.test.ts`,
+`useStableThreadId.test.ts`, `useSkillAgent.test.tsx` (409), and the chat-page
+characterization suite updated for the server-decided session.
 
 ## Tests
 

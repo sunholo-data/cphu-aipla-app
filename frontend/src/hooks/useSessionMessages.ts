@@ -38,6 +38,11 @@ interface UseSessionMessagesReturn {
   isLoadingHistory: boolean;
   historyError: string | null;
   sessionGone: boolean;
+  /** 1.1.145 M2 — how many history messages were already there when this
+   *  session was first loaded on this mount. Messages at or after this index
+   *  arrived by a live refetch (a groupmate's turn, or this device's own once
+   *  persisted) — the chat page labels the ones that are not this device's. */
+  syncedFrom: number;
 }
 
 const NO_INTERACTIONS: HumanToolEvent[] = [];
@@ -72,23 +77,22 @@ class SessionNotFoundError extends Error {
   }
 }
 
-let _msgCounter = 0;
-function nextId(): string {
-  return `hist-${++_msgCounter}`;
-}
-
-function toSkillMessage(m: SessionMessage): SkillMessage {
-  return { id: nextId(), role: m.role, content: m.content, timestamp: m.timestamp };
+// 1.1.145 M2 — a history message's id is its POSITION in the session's
+// transcript (which is append-only), not a fresh counter per fetch. A live
+// refetch on every groupmate turn re-maps the whole list; position ids keep each
+// bubble's identity, so React.memo holds and rendered diagrams don't remount.
+function toSkillMessage(m: SessionMessage, index: number): SkillMessage {
+  return { id: `hist-${index}`, role: m.role, content: m.content, timestamp: m.timestamp };
 }
 
 export function useSessionMessages(
   sessionId: string | null,
   /** 1.1.53 M1 — a group's shared-session turn revision (from `useGroupPulse`).
    *  When it advances, the history is refetched so a groupmate's turn appears
-   *  live. 0 (the default) disables live refetch — pass the pulse revision only
-   *  for a device that has no live messages of its own (a pure watcher), since
-   *  `ChatMessageList` renders restored history and live messages as separate
-   *  un-deduped blocks. */
+   *  live. 0 (the default) disables live refetch. Since 1.1.145 M2 every group
+   *  device passes it, not only a pure watcher: `ChatMessageList`'s shared mode
+   *  folds this device's live messages into the refetched transcript, so nothing
+   *  renders twice. */
   revision = 0,
 ): UseSessionMessagesReturn {
   const [initialMessages, setInitialMessages] = useState<SkillMessage[]>([]);
@@ -97,6 +101,7 @@ export function useSessionMessages(
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [sessionGone, setSessionGone] = useState(false);
+  const [syncedFrom, setSyncedFrom] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
   const lastSessionId = useRef<string | null>(null);
   const lastRevision = useRef<number>(0);
@@ -131,6 +136,9 @@ export function useSessionMessages(
           // filters these; this keeps the resumed transcript consistent.
           const filtered = data.messages.filter((m) => !isProactiveSentinel(m.content));
           setInitialMessages(filtered.map(toSkillMessage));
+          // The first (non-silent) load of a session is the baseline; silent
+          // live refreshes leave it alone so what they add reads as "new".
+          if (!opts?.silent) setSyncedFrom(filtered.length);
           // 1.1.34 — restored MCP-app interaction cards, indexed against the
           // SAME filtered history that renders. The reactive sentinel (the
           // trigger) is filtered above; the interaction (the card) is restored
@@ -166,6 +174,7 @@ export function useSessionMessages(
       setInteractionsTruncated(false);
       setHistoryError(null);
       setSessionGone(false);
+      setSyncedFrom(0);
       lastSessionId.current = null;
       lastRevision.current = 0;
       return;
@@ -192,5 +201,6 @@ export function useSessionMessages(
     isLoadingHistory,
     historyError,
     sessionGone,
+    syncedFrom,
   };
 }

@@ -44,6 +44,7 @@ from db.chat_sessions import (
 )
 from skills.skill_config import get_skill
 from skills.skill_processor import (
+    SessionScopeMismatchError,
     SkillNotFoundError,
     SpendNotAuthorisedError,
     TurnLockedError,
@@ -229,6 +230,11 @@ async def post_session_greet(
         # process_skill_request applies the same access-aware skill check;
         # surface as 404 to match the chat-stream behaviour.
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except SessionScopeMismatchError:
+        # 1.1.145 M3 — this session belongs to another activity of the group. A
+        # greet is a welcome; skip it rather than write it into the wrong thread.
+        log.info("greet skipped: session belongs to another activity session=%s", session_id)
+        return _serialize(GreetResponse(skipped=True, text="", sessionId=session_id))
     except TurnLockedError:
         # 1.1.53 M0 — a member of this group already has a turn in flight. Don't
         # race a proactive greet onto the shared session; just skip it (a greet

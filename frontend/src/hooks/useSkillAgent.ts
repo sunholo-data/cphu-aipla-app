@@ -185,6 +185,26 @@ export interface UseSkillAgentReturn {
    * sends the same text once. Never two runs in flight, never two copies of the
    * question on screen. No-op when there is nothing to retry. */
   retryStalled: () => Promise<void>;
+  /** 1.1.145 — the text of a send the group turn-lock refused (HTTP 409):
+   * another device's message reached the tutor first. The refused bubble is
+   * taken back out of the transcript and NO error is set — the caller queues
+   * this text and resends it when the group's turn frees. null otherwise. */
+  turnRefused: string | null;
+  clearTurnRefused: () => void;
+}
+
+/** 1.1.145 — did the stream request come back 409 (the group turn-lock)? The
+ *  AG-UI client reports an HTTP failure as `Error("HTTP 409: …")`, either thrown
+ *  from `runAgent` or handed to `onRunFailed` as `{ error }`. */
+export function isTurnLockRefusal(errLike: unknown): boolean {
+  const candidates: unknown[] = [errLike];
+  if (errLike && typeof errLike === "object" && "error" in errLike) {
+    candidates.push((errLike as { error: unknown }).error);
+  }
+  return candidates.some((c) => {
+    const msg = c instanceof Error ? c.message : typeof c === "string" ? c : "";
+    return /HTTP 409\b/.test(msg);
+  });
 }
 
 function toSkillMessage(m: Message): SkillMessage | null {
@@ -335,6 +355,10 @@ export function useSkillAgent(options?: {
   const [tidyingUp, setTidyingUp] = useState(false);
   const [compactions, setCompactions] = useState<CompactionNoticeItem[]>([]);
   const compactionSeqRef = useRef(0);
+  const [turnRefused, setTurnRefused] = useState<string | null>(null);
+  const clearTurnRefused = useCallback(() => setTurnRefused(null), []);
+  // Set when this run was refused by the group turn-lock (see sendMessage).
+  const refusedRef = useRef(false);
 
   // 1.1.131 M2 — the post-RUN_STARTED stall watchdog. Timers live in refs so a
   // stream event (which may fire dozens of times a second) re-arms them without
@@ -568,9 +592,12 @@ export function useSkillAgent(options?: {
       },
       onRunFailed: (event: unknown) => {
         runFailedRef.current = true;
+        // 1.1.145 — a turn-lock refusal is not an error to show: sendMessage
+        // takes the bubble back and hands the text to the queue instead.
+        if (isTurnLockRefusal(event)) refusedRef.current = true;
         const streamErr = classifyRunError(event);
         console.warn("stream_run_failed", streamErr);
-        if (!retryingRef.current) setError(streamErr);
+        if (!retryingRef.current && !refusedRef.current) setError(streamErr);
         setIsLoading(false);
         setRunStarted(false);
         setStage(null);
@@ -690,6 +717,7 @@ export function useSkillAgent(options?: {
       setStage(null);
       setTidyingUp(false);
       runFailedRef.current = false;
+      refusedRef.current = false;
       // 1.1.11 follow-up — when the student takes action (typing AND
       // sending), stop any in-flight auto-read. The previous assistant
       // turn's voice shouldn't keep playing into the new exchange.
@@ -759,7 +787,9 @@ export function useSkillAgent(options?: {
         // overwrite it with the AG-UI state-machine protocol exception that
         // the backend triggers by emitting RUN_FINISHED after RUN_ERROR.
         // A retry's own abort is not an error either.
-        if (!runFailedRef.current && !retryingRef.current) {
+        if (isTurnLockRefusal(err)) {
+          refusedRef.current = true;
+        } else if (!runFailedRef.current && !retryingRef.current) {
           const streamErr = classifyError(err);
           console.warn("stream_error", streamErr);
           setError(streamErr);
@@ -767,6 +797,22 @@ export function useSkillAgent(options?: {
       } finally {
         setIsLoading(false);
         setRunStarted(false);
+      }
+      if (refusedRef.current) {
+        // 1.1.145 — the group turn-lock refused this send: another device's
+        // message reached the tutor first. Take the bubble back out (it never
+        // reached the tutor, so showing it would misstate the transcript) and
+        // hand the text to the caller to queue — the student loses nothing.
+        refusedRef.current = false;
+        setError(null);
+        const idx = agent.messages.findIndex((m) => m.id === userMessageId);
+        if (idx >= 0) {
+          agent.setMessages(agent.messages.slice(0, idx));
+          setMessages(
+            agent.messages.map(toSkillMessage).filter((m): m is SkillMessage => m !== null),
+          );
+        }
+        setTurnRefused(text);
       }
     },
     [agent, clearError, surfaceRegistry, activityId, language],
@@ -832,5 +878,7 @@ export function useSkillAgent(options?: {
     stop,
     stall,
     retryStalled,
+    turnRefused,
+    clearTurnRefused,
   };
 }

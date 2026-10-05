@@ -26,7 +26,10 @@
     "error_serverError": "Noget gik galt hos os. Prøv igen.",
     "error_requestFailed": "Forespørgslen mislykkedes. Prøv igen.",
     "error_connectionLost": "Forbindelsen blev afbrudt. Prøv igen.",
-    "error_agentError": "Tutoren løb ind i en fejl. Prøv igen."
+    "error_agentError": "Tutoren løb ind i en fejl. Prøv igen.",
+    "turnRefused": "En fra din gruppe nåede tutoren lige før dig. Din besked er gemt og bliver sendt, så snart tutoren har svaret dem.",
+    "sessionResolving": "Åbner jeres gruppesamtale…",
+    "sessionFailed": "Kunne ikke åbne jeres gruppesamtale."
   },
   "StageProgress": {
     "thinking": "Tænker…",
