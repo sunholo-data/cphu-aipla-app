@@ -1,4 +1,4 @@
-.PHONY: sync-tutor-assignments tf-plan tf-apply tf-local tf-fmt check-iam-posture check-spend-ceiling spend-ceiling check-domains deploy-status dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes check-role list-roles list-unregistered grant-researcher revoke-researcher register-demo-teacher force-seed-demo bind-demo-code reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content backfill-document-skill-ids seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check smoke-sim guides guides-pdf check-guides guide-screens seed-guide-corpus guide-staleness
+.PHONY: sync-tutor-assignments tf-plan tf-apply tf-local tf-fmt check-iam-posture check-spend-ceiling spend-ceiling check-eu-log-routing eu-log-routing check-domains deploy-status dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes check-role list-roles list-unregistered grant-researcher revoke-researcher register-demo-teacher force-seed-demo bind-demo-code reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content backfill-document-skill-ids seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check smoke-sim guides guides-pdf check-guides guide-screens seed-guide-corpus guide-staleness
 
 # Seed SKILL.md templates -> Firestore. Since P1.3 the Cloud Build deploy runs
 # this automatically via the `aipla-seed-skills` Cloud Run job (see
@@ -428,6 +428,15 @@ check-spend-ceiling:
 
 spend-ceiling:
 	@./scripts/spend-ceiling.sh $(or $(ENV),dev) $(if $(filter 1,$(APPLY)),--apply,)
+
+# EU residency for application logs: routes the _Default sink to a europe-north1
+# bucket (the default bucket is `global` and cannot be moved). Verify-only by
+# default; APPLY=1 to write. Reads the deployed routing back.
+check-eu-log-routing:
+	@./scripts/eu-log-routing.sh $(or $(ENV),dev)
+
+eu-log-routing:
+	@./scripts/eu-log-routing.sh $(or $(ENV),dev) $(if $(filter 1,$(APPLY)),--apply,)
 
 # Is the ku.dk cutover actually complete? Most of the chain comes up by itself
 # once UCPH IT create the records. The sandbox's ALLOWED_HOST_ORIGINS does NOT —
