@@ -1,6 +1,6 @@
 # Assessment transparency and researcher override — what a cited turn is, why the band, and how a researcher corrects it
 
-**Status:** Design (OPEN) — **1.1.148**
+**Status:** Implemented M1–M5 on branch (2026-10-05), not yet deployed — **1.1.148**. Gated on M: open questions 3–5, the Terraform sink-filter apply. See "Implementation notes"
 **Priority:** **P1** for M0–M2 (a researcher-visible defect: the cited turn numbers do not match the transcript's numbers) · **P2** for M3–M5
 **Estimated:** ~5d phased (M0 prod evidence ~0.25d, M's queries · M1 one turn identity ~1d · M2 transparent construct detail ~1d · M3 turn references in the transcript ~0.5d · M4 researcher review, append-only ~1.5d · M5 criteria version on every run ~0.75d). At 2.5 days/week, **~2 weeks of calendar**
 **Scope:** Backend: `analytics/framework_fidelity.py`, `reports/session_summary.py` (`SessionTurn`), `analytics/rubric_runs.py`, a new `db/rubric_reviews.py`, `protocols/reports_routes.py` (or `research_lens_routes.py`), `observability/chat_log.py`, `infrastructure/modules/chat-logs/variables.tf` (sink filter). Frontend: `components/teacher/TeachingApproachSection.tsx`, `components/teacher/research/ChatLogTranscript.tsx`, `app/teacher/reports/groups/[groupId]/page.tsx`, `lib/teacherApi.ts`, `messages/{da,en}/teacher-classes.json`
@@ -139,6 +139,51 @@ as the **transcript's own numbers** and as quoted snippets, clickable, never bar
 "band = one judgement per construct, evidence = the tutor turns it rests on" in the legend;
 and when a session has more than one run, say so and let the researcher compare them.
 
+## Implementation notes (2026-10-05)
+
+Built M1–M5 plus the M0-results UI requirements. Not deployed; nothing read or written on any env.
+
+- **M1 — one turn identity (`fidelity-r3`).** `SessionTurn.turnIndex` carries the emitter's ADK event index on
+  both paths (BQ `turn_index`; live `enumerate(session.events)`). `dialogue_units` cites it when every turn has a
+  unique one, else falls back to position for the whole session and says so (`evidenceSummary.idScheme`; covers the
+  Q4 duplicate hazard). Prompt asks for `{"turn", "quote"}` per citation, adds "one turn per construct unless it
+  holds a move of each" (M0 confirmed reading A) and asks drift lines to name turns as `#<id>`. The parser rejects
+  ids outside the scored window (`rejectedEvidence`) and marks each quote `verified` (whitespace/case-normalised
+  substring; an elision splits it and the fragments must appear in order). r1/r2 runs are translated at read time
+  (`present_constructs`, `idScheme: "position-translated"`); no stored run is rewritten.
+- **M2/M3 — show the working.** New `FidelityConstructDetail.tsx`: header *"Judges the tutor's moves against X.
+  Student turns are context, not scored."*, legend (band = one judgement per construct; turns = what it rests on),
+  the banding rule in plain words, prompt/criteria/model/when and "judged on N of M messages", the criterion per
+  construct with cited moves marked, `downgraded`, `notAssessed`. Each citation is `#N` (the transcript's number)
+  + the judge's quote (or a snippet for older runs) + an "unverified" marker; clicking opens the transcript and
+  scrolls to/highlights `id="turn-N"`. Researcher transcript rows carry a "cited by: …" badge. Teachers get none of
+  it — the payload gate is unchanged (`teacher_view`).
+- **Several runs visible.** `GET /api/research/sessions/{id}/fidelity-runs` returns the run store's rows AND the
+  BigQuery mirror's full history, with `emissionsStatus: "unreadable"` kept apart from "no runs"; the UI's
+  "Compare every run" table shows each judgement as a column. Root cause of the three-in-a-minute judging: the
+  12 s live poll re-judged on every message-count increase. Fixed with the narrative's 5-minute debounce
+  (`RESCORE_MIN_INTERVAL_S`; Refresh still forces) and single-flight for concurrent reads.
+- **M4 — reviews.** `db/rubric_reviews.py` (create + list only), routes `POST|GET
+  /api/research/rubric-runs/{run_id}/reviews` in the new `protocols/rubric_review_routes.py`, BQ mirror
+  `aipla_rubric_review` (reviewer by uid only), explicit Firestore deny rule, sink filter extended in
+  `infrastructure/modules/chat-logs/variables.tf` and `scripts/bootstrap-aipla-dev.sh`. UI: "Correct this" per row,
+  AI's read and the correction side by side, history, "reviewed against an earlier judgement".
+- **M5 — criteria version.** `rubric_version = fidelity-r3+fw<version|yaml>` (`db.framework_overrides.criteria_version`,
+  custom approaches use their own row version); `_cached` looks up the current version, so an edit yields a new run
+  beside the old one. The report says which criteria it was judged against and flags `criteriaChanged`.
+
+**Deviations / not done:**
+- No "re-score against vM" button: the cache now misses on its own after a criteria edit, so the next report read
+  re-judges against the current criteria; a stale-criteria run is only reachable in the run history.
+- Criterion text is served from the framework *as it stands now* (no snapshot per version); the UI flags when the
+  run's version differs. Reverting an override and editing again restarts its `version` at 1, so `fw1` can name two
+  editions — a hash would not, but the doc asked for the editor's version number.
+- Researcher routes use the `auth` dispatcher + `assert_researcher` (the "Do not" list), so a real group token gets
+  **403**, not the 401 the Tests section mentions.
+- **Needs M:** `make tf-plan`/`tf-apply` per env for the sink filter (until then reviews reach Firestore but not
+  BigQuery); Firestore rules reach prod only via the dev/test deploy path (footgun table); open questions 3–5
+  (implemented as annotation-only, shared visibility among researchers, `MAX_TURNS` unchanged).
+
 ## Decision
 
 ### Options
@@ -270,18 +315,18 @@ banding rule stays code (changes bump the prompt version, as today).
 
 ## Acceptance criteria
 
-- [ ] For a session with tool events between messages, every cited id in the construct table equals a `#N`
+- [x] For a session with tool events between messages, every cited id in the construct table equals a `#N`
       visible in the report transcript, and clicking it scrolls to that exact message.
-- [ ] A cited id not in the scored window never renders as a link; it is listed as rejected.
-- [ ] Each cited turn shows a quote; a quote not found in that turn is marked unverified.
-- [ ] The construct row shows the criterion text the judge was given, including move ids, and `downgraded`.
-- [ ] A researcher can record a corrected band with a reason; the judge's original stays visible and
+- [x] A cited id not in the scored window never renders as a link; it is listed as rejected.
+- [x] Each cited turn shows a quote; a quote not found in that turn is marked unverified.
+- [x] The construct row shows the criterion text the judge was given, including move ids, and `downgraded`.
+- [x] A researcher can record a corrected band with a reason; the judge's original stays visible and
       unchanged in `rubric_runs` and BigQuery; there is no route that edits or deletes a review.
-- [ ] A teacher (non-researcher) receives neither bands, quotes, citations nor reviews (payload, not just UI).
-- [ ] After a framework structure edit, the next report read produces a new run with a new
+- [x] A teacher (non-researcher) receives neither bands, quotes, citations nor reviews (payload, not just UI).
+- [x] After a framework structure edit, the next report read produces a new run with a new
       `rubric_version`; the old run is still listable.
-- [ ] r2 runs render with translated ids, labelled as such.
-- [ ] `make check-client-api` passes with **no** new allowlist entry.
+- [x] r2 runs render with translated ids, labelled as such.
+- [x] `make check-client-api` passes with **no** new allowlist entry.
 
 ## Tests
 
