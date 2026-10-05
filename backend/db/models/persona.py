@@ -18,12 +18,14 @@ rather than a fourth mechanism.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from db.models import SkillVoiceConfig
 from db.models.activity_config import InteractionStyle
+from db.models.authorship import CreatedVia
 
 
 class Persona(BaseModel):
@@ -50,6 +52,14 @@ class Persona(BaseModel):
     # shared by definition and have no row to carry it.
     author_uid: str | None = Field(default=None, alias="authorUid", max_length=128)
     visibility: Literal["private", "shared"] | None = None
+
+    # 1.1.150 — who made it, in what role, by which route, and when. Stamped by
+    # ``save_custom_persona`` on create and never rewritten; None on the YAML
+    # personas and on rows written before the fields existed ("not recorded").
+    author_role: Literal["researcher", "teacher"] | None = Field(default=None, alias="authorRole")
+    created_by: str | None = Field(default=None, alias="createdBy", max_length=128)
+    created_via: CreatedVia | None = Field(default=None, alias="createdVia")
+    created_at: datetime | None = Field(default=None, alias="createdAt")
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
