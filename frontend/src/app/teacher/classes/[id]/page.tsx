@@ -42,6 +42,7 @@ import { ClassConceptsOverview } from "@/components/teacher/ClassConceptsOvervie
 import { ClassGroupPairings } from "@/components/teacher/ClassGroupPairings";
 import { SettingsSection } from "@/components/teacher/ui/SettingsSection";
 import { SettingsMap } from "@/components/teacher/SettingsMap";
+import { citedDocIds, FailedMaterialsWarning, useRagStatuses } from "@/components/teacher/FailedMaterialsWarning";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 
 import { handleExportSessions } from "./_exportHelpers";
@@ -160,6 +161,12 @@ export default function TeacherClassDetailPage() {
       .map((aid) => byId.get(aid))
       .filter((a): a is ActivityPayload => a !== undefined);
   }, [cls, libraryActivities]);
+  // 1.1.151 F1c — RAG status of every doc the assigned activities cite (one read).
+  const assignedCitedIds = useMemo(
+    () => assignedActivities.flatMap((a) => citedDocIds(a.materials)),
+    [assignedActivities],
+  );
+  const { statuses: ragStatuses, update: updateRagStatus } = useRagStatuses(assignedCitedIds);
 
   const addableActivities = useMemo<ActivityPayload[]>(() => {
     if (!cls) return libraryActivities;
@@ -654,6 +661,14 @@ export default function TeacherClassDetailPage() {
                         <span className="line-clamp-1 text-xs text-muted-foreground">{subtitle}</span>
                       ) : null}
                     </div>
+                  </div>
+                  {/* 1.1.151 F1c — warn here too: this is the list read before a lesson. */}
+                  <div className="w-full empty:hidden">
+                    <FailedMaterialsWarning
+                      materials={activity.materials}
+                      statuses={ragStatuses}
+                      onUpdated={updateRagStatus}
+                    />
                   </div>
                   <div className="flex items-center gap-1">
                     <Link

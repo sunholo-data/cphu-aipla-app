@@ -16,9 +16,12 @@ from fastapi.testclient import TestClient
 
 import protocols.curriculum_routes as routes
 from auth import User, build_access_context, get_current_user
+from db.rag_corpus import NOT_CONFIGURED_ERROR, RagOutcome
 from tools.documents.ailang_parse import ParseOutcome
 
 TEACHER_UID = "teacher-42"
+
+_NOT_CONFIGURED = RagOutcome(rag_file_name=None, error=NOT_CONFIGURED_ERROR, attempts=0)
 
 
 def _teacher_user(group_id: str = "", is_researcher: bool = False) -> User:
@@ -143,7 +146,7 @@ def test_ingest_teacher_owned_txt_no_corpus():
 
     with (
         patch.object(routes, "create_curriculum_doc") as mock_create,
-        patch.object(routes, "upload_text_as_rag_file", new_callable=AsyncMock, return_value=None),
+        patch.object(routes, "upload_with_retry", new_callable=AsyncMock, return_value=_NOT_CONFIGURED),
     ):
         resp = _client().post(url, **kw)
 
@@ -174,9 +177,9 @@ def test_ingest_with_rag_corpus():
         patch.object(routes, "create_curriculum_doc"),
         patch.object(
             routes,
-            "upload_text_as_rag_file",
+            "upload_with_retry",
             new_callable=AsyncMock,
-            return_value=fake_rag_name,
+            return_value=RagOutcome(rag_file_name=fake_rag_name, error=None, attempts=1),
         ),
     ):
         resp = _client().post(url, **kw)
@@ -200,7 +203,7 @@ def test_ingest_shared_cleared_ok():
 
     with (
         patch.object(routes, "create_curriculum_doc", side_effect=_capture),
-        patch.object(routes, "upload_text_as_rag_file", new_callable=AsyncMock, return_value=None),
+        patch.object(routes, "upload_with_retry", new_callable=AsyncMock, return_value=_NOT_CONFIGURED),
     ):
         resp = _client(is_researcher=True).post(
             "/api/curriculum/ingest",
@@ -239,7 +242,7 @@ def test_ingest_docx_via_ailang_parse():
             return_value=ParseOutcome(content=parsed_text, output_format="markdown"),
         ),
         patch.object(routes, "create_curriculum_doc"),
-        patch.object(routes, "upload_text_as_rag_file", new_callable=AsyncMock, return_value=None) as mock_rag,
+        patch.object(routes, "upload_with_retry", new_callable=AsyncMock, return_value=_NOT_CONFIGURED) as mock_rag,
     ):
         resp = _client().post(
             "/api/curriculum/ingest",

@@ -495,7 +495,13 @@ def create_agent(
     # below; the double read is acceptable at agent-build-time (once per session).
     _active_cfg = resolve_active_config(_activity_id, group_tags=user.group_tags)
     _materials = _active_cfg.materials if _active_cfg else []
-    _curriculum_tool = build_curriculum_retrieval_tool(_materials)
+    # 1.1.151 F1d — session_key lets a doc the tutor cannot read be logged once
+    # per (group/teacher, activity) rather than on every turn's rebuild.
+    _curriculum_tool = build_curriculum_retrieval_tool(
+        _materials,
+        activity_id=_activity_id,
+        session_key=f"{getattr(user, 'group_id', '') or user.uid}:{_activity_id}",
+    )
     if _curriculum_tool is not None:
         tools.append(_curriculum_tool)
     # CONCEPT-1 M3 — chat-native checkpoint tools, built per session like the

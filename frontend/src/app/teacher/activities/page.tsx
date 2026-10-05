@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ClipboardList, Copy, Lock, Plus, Share2, Sliders, Trash2, Users } from "lucide-react";
 
@@ -29,8 +29,8 @@ import {
 } from "@/components/teacher/ActivityFilterBar";
 import { ActivityFacetEditor } from "@/components/teacher/ActivityFacetEditor";
 import { InheritedChip } from "@/components/teacher/ui/FacetRow";
-import type { CurriculumFacets } from "@/lib/curriculumApi";
-import { EmptyState } from "@/components/teacher/ui/EmptyState";
+import type { CurriculumFacets, RagStatusEntry } from "@/lib/curriculumApi";
+import { citedDocIds, FailedMaterialsWarning, useRagStatuses } from "@/components/teacher/FailedMaterialsWarning";import { EmptyState } from "@/components/teacher/ui/EmptyState";
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
@@ -71,6 +71,10 @@ export default function TeacherActivitiesPage() {
   }, []);
   const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
   const [activities, setActivities] = useState<ActivityPayload[]>([]);
+  // 1.1.151 F1c — one batch status read for every doc the teacher's activities
+  // cite, so a card can say "the tutor cannot read this" before the lesson.
+  const citedIds = useMemo(() => activities.flatMap((a) => citedDocIds(a.materials)), [activities]);
+  const { statuses: ragStatuses, update: updateRagStatus } = useRagStatuses(citedIds);
   // The cross-teacher shared catalogue (published, others' activities) — shown
   // below "Your activities" (ALS-SHARE M3.4).
   const [shared, setShared] = useState<ActivityPayload[]>([]);
@@ -370,6 +374,8 @@ export default function TeacherActivitiesPage() {
                 onFacetsUpdated={(updated) =>
                   setActivities((prev) => prev.map((x) => (x.activityId === updated.activityId ? updated : x)))
                 }
+                ragStatuses={ragStatuses}
+                onRagStatusUpdated={updateRagStatus}
               />
             </li>
           ))}
@@ -626,6 +632,8 @@ function ActivityCard({
   onToggleFiling,
   facets,
   onFacetsUpdated,
+  ragStatuses,
+  onRagStatusUpdated,
 }: {
   activity: ActivityPayload;
   classes: ClassPayload[];
@@ -639,6 +647,8 @@ function ActivityCard({
   onToggleFiling: () => void;
   facets: CurriculumFacets | null;
   onFacetsUpdated: (updated: ActivityPayload) => void;
+  ragStatuses: Record<string, RagStatusEntry>;
+  onRagStatusUpdated: (docId: string, entry: RagStatusEntry) => void;
 }) {
   const editHref = `/teacher/activities/${encodeURIComponent(activity.activityId)}${
     activity.title ? `?title=${encodeURIComponent(activity.title)}` : ""
@@ -661,6 +671,12 @@ function ActivityCard({
       </div>
 
       <CompositionRow activity={activity} />
+
+      <FailedMaterialsWarning
+        materials={activity.materials}
+        statuses={ragStatuses}
+        onUpdated={onRagStatusUpdated}
+      />
 
       {activity.teachingGoal ? (
         <p className="line-clamp-2 text-xs text-muted-foreground">{activity.teachingGoal}</p>

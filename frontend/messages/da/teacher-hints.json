@@ -1,0 +1,30 @@
+{
+  "RagStatusLine": {
+    "ready": "Klar — tutoren kan læse den",
+    "pending": "Behandles…",
+    "failed": "Fejlede — tutoren kan ikke læse den",
+    "retry": "Prøv igen",
+    "retrying": "Prøver igen…",
+    "retryFailed": "Det lykkedes ikke. Prøv igen om lidt.",
+    "errorTitle": "Fejl: {error}",
+    "retryAria": "Prøv at sende »{title}« til tutoren igen"
+  },
+  "FailedMaterialsWarning": {
+    "heading": "{count, plural, one {Tutoren kan ikke læse # vedhæftet dokument} other {Tutoren kan ikke læse # vedhæftede dokumenter}}",
+    "help": "Eleverne får en tutor uden dette materiale. Prøv igen, eller upload filen igen under Materialer.",
+    "askOwner": "Bed dokumentets ejer om at prøve igen."
+  },
+  "StudentsLanguageBadge": {
+    "da": "Elever: dansk",
+    "en": "Elever: engelsk",
+    "title": "Det sprog, eleverne og tutoren bruger i denne aktivitet"
+  },
+  "BuilderHints": {
+    "heading": "Værd at tjekke",
+    "languageLooksDanish": "Titlen er på dansk, men eleverne får en engelsk tutor. Er det meningen?",
+    "languageLooksEnglish": "Teksten ser engelsk ud, men eleverne får en dansk tutor. Er det meningen?",
+    "duplicateColumns": "Tabellen »{table}« har flere kolonner med samme navn: {labels}.",
+    "untitledTables": "{count, plural, one {# tabel har ingen titel} other {# tabeller har ingen titel}}. Med flere tabeller kan eleverne og tutoren ikke skelne dem uden en titel.",
+    "untitledTable": "uden titel"
+  }
+}

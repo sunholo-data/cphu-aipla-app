@@ -46,6 +46,7 @@ from db.curriculum import (
     list_curriculum_for_teacher,
     set_curriculum_content,
 )
+from db.curriculum_reingest import NoStoredText, reingest_curriculum_doc
 from db.models.curriculum import (
     SHARED_SCOPE,
     CopyrightStatus,
@@ -55,7 +56,7 @@ from db.models.curriculum import (
     normalize_subject,
     normalize_tags,
 )
-from db.rag_corpus import delete_rag_file, query_rag_files, upload_text_as_rag_file
+from db.rag_corpus import delete_rag_file, query_rag_files, upload_with_retry
 from tools.documents.ai_extract import extract_pdf_text, summarise_curriculum_text
 from tools.documents.ailang_parse import DETERMINISTIC_EXTENSIONS, _parse_file_sync
 
@@ -401,8 +402,10 @@ async def ingest_curriculum(
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
-    # RAG upload (graceful: returns None when corpus not configured).
-    rag_file_name = await upload_text_as_rag_file(
+    # RAG upload, one automatic retry (1.1.151 F1b). Never raises: a failure
+    # comes back as an outcome that is STORED on the doc below, so the teacher
+    # sees it and can retry — it is no longer a log line nobody reads.
+    rag = await upload_with_retry(
         text,
         doc_id,
         title=title,
@@ -410,6 +413,7 @@ async def ingest_curriculum(
         topic=topic,
         owner_scope=owner_scope,
     )
+    rag_file_name = rag.rag_file_name
 
     # 1.1.52 — a catalogue summary the co-pilot + Materials browse read to judge
     # relevance without opening the doc. Best-effort ("" on failure — never blocks
@@ -434,21 +438,36 @@ async def ingest_curriculum(
         copyrightStatus=copyright_status,
         createdAt=now,
         updatedAt=now,
+        ragStatus=rag.status,
+        ragError=rag.error,
+        ragAttempts=rag.attempts,
+        ragUpdatedAt=now,
     )
     create_curriculum_doc(doc)
     # 1.1.33 M3 — persist the parsed text so a teacher/student can READ a shared
-    # doc later (not just see its name). Kept in a separate collection.
+    # doc later (not just see its name). Kept in a separate collection. Also the
+    # source a re-ingest (1.1.151 F1b) uploads from.
     set_curriculum_content(doc_id, text)
 
-    logger.info(
-        "Curriculum doc ingested: %s level=%s subject=%s folder=%s shared=%s rag=%s",
-        doc_id,
-        level,
-        doc.subject,
-        folder_id,
-        shared,
-        bool(rag_file_name),
-    )
+    if rag_file_name:
+        logger.info(
+            "Curriculum doc ingested: %s level=%s subject=%s folder=%s shared=%s rag=ready attempts=%d",
+            doc_id,
+            level,
+            doc.subject,
+            folder_id,
+            shared,
+            rag.attempts,
+        )
+    else:
+        # 1.1.151 F1a — never "ingested" for a document the tutor cannot read.
+        logger.warning(
+            "Curriculum doc rag_failed: %s shared=%s attempts=%d error=%s",
+            doc_id,
+            shared,
+            rag.attempts,
+            rag.error,
+        )
     # 1.1.33 M4 — return what AILANG Parse extracted so the teacher can VERIFY
     # the parse before it grounds the tutor (the text is already computed above
     # and uploaded to RAG; we were discarding the copy). Preview capped; the full
@@ -521,6 +540,80 @@ async def summarize_curriculum(
 
     logger.info("Curriculum summarize: %d updated, %d skipped (uid=%s)", len(updated), len(skipped), user.uid)
     return {"updated": updated, "skipped": skipped}
+
+
+# ---------------------------------------------------------------------------
+# 1.1.151 F1c — RAG status for a batch of docs (activity cards, class view)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/rag-status")
+async def curriculum_rag_status(
+    ids: Annotated[list[str] | None, Query(max_length=200)] = None,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """``{statuses: {docId: {ragStatus, ragError, title}}}`` for the given ids.
+
+    Lets an activity card or the class view warn about a cited document the
+    tutor cannot read — the teacher must find out BEFORE the lesson. Teacher-only.
+    ACL as browse: own docs and shared docs (a researcher sees any). Ids the
+    caller may not see, or that do not exist, are simply absent.
+    """
+    assert_teacher(user, detail="Curriculum status is teacher-only.")
+    statuses: dict[str, dict[str, Any]] = {}
+    for doc_id in dict.fromkeys(ids or []):
+        doc = get_curriculum_doc(doc_id)
+        if doc is None:
+            continue
+        if doc.owner_scope not in (SHARED_SCOPE, user.uid) and not user.is_researcher:
+            continue
+        statuses[doc_id] = {
+            "ragStatus": doc.rag_status,
+            "ragError": doc.rag_error,
+            "title": doc.title,
+            "canRetry": doc.owner_scope == user.uid or user.is_researcher,
+        }
+    return {"statuses": statuses}
+
+
+# ---------------------------------------------------------------------------
+# 1.1.151 F1b — re-run a document's RAG upload from its stored content
+# ---------------------------------------------------------------------------
+
+
+@router.post("/{doc_id}/reingest")
+async def reingest_curriculum(
+    doc_id: str,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """Re-run the RAG upload for one document from its stored parsed text.
+
+    The teacher's *Prøv igen* on a failed document. ACL: the document's OWNER,
+    or a researcher (who curates the shared library and is the person asked to
+    repair someone else's). Students are rejected by ``assert_teacher`` — they
+    never touch the corpus. Another teacher's private doc reads as 404, not 403
+    (ids are random UUIDs; no existence leak — mirrors PATCH).
+
+    Re-uploading a ``ready`` doc is allowed (a teacher may suspect it); the old
+    RagFile is deleted only AFTER the new one exists, so a failed retry never
+    takes away a copy the tutor could read.
+    """
+    assert_teacher(user, detail="Curriculum re-ingest is teacher-only.")
+    doc = get_curriculum_doc(doc_id)
+    if doc is None or (doc.owner_scope != user.uid and not user.is_researcher):
+        raise HTTPException(status_code=404, detail="Curriculum doc not found.")
+    # ACCESS-1 M1: a RAG upload is a paid embedding call.
+    assert_can_spend(user, detail="Uploading curriculum to the tutor is available to programme participants.")
+
+    try:
+        doc, _rag = await reingest_curriculum_doc(doc)
+    except NoStoredText as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="This document has no stored text to send to the tutor. Upload the file again.",
+        ) from exc
+    logger.info("Curriculum reingest requested: %s -> %s (uid=%s)", doc_id, doc.rag_status, user.uid)
+    return {"doc": doc.model_dump(by_alias=True, mode="json")}
 
 
 # ---------------------------------------------------------------------------

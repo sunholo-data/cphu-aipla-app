@@ -13,7 +13,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 # 1.1.61 — the organising vocabulary now lives in `taxonomy`, because activities
 # carry it too and a copy on each side would drift. Re-exported here so every
@@ -36,6 +36,8 @@ from db.models.taxonomy import (
 
 CurriculumSource = Literal["shared", "teacher_upload"]
 CopyrightStatus = Literal["cleared", "teacher_owned", "pending"]
+# 1.1.151 F1 — can the tutor read this document?
+RagStatus = Literal["pending", "ready", "failed"]
 
 # Sentinel owner_scope for the shared corpus (vs a teacher uid / class tag).
 SHARED_SCOPE = "shared"
@@ -55,7 +57,9 @@ __all__ = [
     "CurriculumDoc",
     "CurriculumFolder",
     "CurriculumSource",
+    "RagStatus",
     "StxLevel",
+    "derive_rag_status",
     "normalize_subject",
     "normalize_tags",
 ]
@@ -107,8 +111,32 @@ class CurriculumDoc(BaseModel):
     copyright_status: CopyrightStatus = Field(alias="copyrightStatus")
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
+    # 1.1.151 F1 — whether the tutor can actually read this document. A failed
+    # RAG upload used to leave only a log line behind (and a log line that said
+    # "ingested"); now it is a stored state every teacher surface shows in words.
+    #   pending — an upload/re-ingest is in flight
+    #   ready   — a RagFile exists (``docArtifactId`` set)
+    #   failed  — the tutor cannot read it; ``ragError`` says why
+    # Rows written before 1.1.151 carry no status; ``_derive_rag_status`` reads
+    # them as ``ready`` iff ``docArtifactId`` is set, else ``failed`` — the same
+    # rule the one-off backfill (`make backfill-rag-status`) persists.
+    rag_status: RagStatus | None = Field(default=None, alias="ragStatus")
+    rag_error: str | None = Field(default=None, alias="ragError", max_length=300)
+    rag_attempts: int = Field(default=0, alias="ragAttempts", ge=0)
+    rag_updated_at: datetime | None = Field(default=None, alias="ragUpdatedAt")
 
     model_config = ConfigDict(populate_by_name=True)
+
+    @model_validator(mode="after")
+    def _derive_rag_status(self) -> CurriculumDoc:
+        if self.rag_status is None:
+            self.rag_status = derive_rag_status(self.doc_artifact_id)
+        return self
+
+
+def derive_rag_status(doc_artifact_id: str | None) -> RagStatus:
+    """The status a row with no ``ragStatus`` field is in (1.1.151 F1a)."""
+    return "ready" if (doc_artifact_id or "").strip() else "failed"
 
 
 class CurriculumFolder(BaseModel):
