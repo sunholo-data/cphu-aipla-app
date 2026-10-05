@@ -47,7 +47,8 @@ import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 import { handleExportSessions } from "./_exportHelpers";
 import { ClassAnalyticsCopilot } from "./_ClassAnalyticsCopilot";
 import { LiveClassView } from "./_LiveClassView";
-import { ClassListSheet } from "./_ClassListSheet";
+import { ClassListSheet, loadClassList } from "./_ClassListSheet";
+import { activeGroupCodes, revokedGroupCodes } from "@/lib/classCodes";
 import { formatRelativeTime } from "@/lib/relativeTime";
 import { useLocaleMode, useT } from "@/i18n";
 import { useTeacherAuth } from "@/hooks/useTeacherAuth";
@@ -167,6 +168,21 @@ export default function TeacherClassDetailPage() {
     return libraryActivities.filter((a) => !taken.has(a.activityId));
   }, [cls, libraryActivities]);
 
+  // 1.1.146 — Revoke ends access, not evidence. Live codes get the join/reset/
+  // revoke controls; revoked codes keep their report link in their own list.
+  const liveCodes = useMemo(() => (cls ? activeGroupCodes(cls) : []), [cls]);
+  const retiredCodes = useMemo(() => (cls ? revokedGroupCodes(cls) : []), [cls]);
+  // The teacher's own names for a revoked group, from this device only
+  // (ADR-001) — what makes an old session readable as "whose was this".
+  const [retiredNames, setRetiredNames] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!cls || retiredCodes.length === 0) return;
+    const list = loadClassList(cls.classId) ?? {};
+    const names: Record<string, string> = {};
+    for (const code of retiredCodes) if (list[code]?.names) names[code] = list[code].names;
+    setRetiredNames(names);
+  }, [cls, retiredCodes]);
+
   // Most recent session per group code — for the per-row "last active" hint.
   const latestByGroup = useMemo<Map<string, SessionRow>>(() => {
     const map = new Map<string, SessionRow>();
@@ -285,11 +301,13 @@ export default function TeacherClassDetailPage() {
    *  not stop anyone rejoining with the same code. Found by the new
    *  check-client-api gate, not by anyone noticing.
    *
-   *  ⚠️ Harder than Reset, and the copy says so: `revoke_group_code` DELETES
-   *  the anon_groups doc, so the next token verification fails. A student
-   *  mid-lesson is cut off at their next message. The code string can never be
-   *  reissued — a replacement is a different code — and the group's existing
-   *  work is kept, not erased (erasure is 1.1.80's own thing).
+   *  ⚠️ Harder than Reset, and the copy says so: `revoke_group_code` writes a
+   *  TOMBSTONE on the anon_groups doc (1.1.146), so the next token verification
+   *  fails on any instance. A student mid-lesson is cut off at their next
+   *  message. The code string can never be reissued — a replacement is a
+   *  different code — and the group's work is kept AND still reachable: the
+   *  code moves to the "Revoked codes" list with its report link, and every
+   *  class analytic keeps counting it (erasure is 1.1.80's own thing).
    */
   async function handleRevokeCode(code: string) {
     setRevoking(true);
@@ -352,7 +370,7 @@ export default function TeacherClassDetailPage() {
         </Link>
       }
       title={cls.name}
-      subtitle={t("subtitle", { groups: cls.groupCodes.length, activities: (cls.activityIds ?? []).length })}
+      subtitle={t("subtitle", { groups: liveCodes.length, activities: (cls.activityIds ?? []).length })}
     >
       <ActingForOwnerBanner resource={cls} kind="class" />
       <SettingsMap highlight="class" classId={cls.classId} />
@@ -381,13 +399,13 @@ export default function TeacherClassDetailPage() {
           </button>
         }
       >
-        {cls.groupCodes.length === 0 ? (
+        {liveCodes.length === 0 ? (
           <p className="rounded border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
             {t("noCodes")}
           </p>
         ) : (
           <ul className="divide-y divide-border rounded border border-border">
-            {cls.groupCodes.map((code) => {
+            {liveCodes.map((code) => {
               const latest = latestByGroup.get(code);
               return (
                 <li
@@ -506,6 +524,53 @@ export default function TeacherClassDetailPage() {
             })}
           </ul>
         )}
+        {/* 1.1.146 — revoked codes stay reachable. Revoke ends access, never
+            evidence: no join link, Reset or Revoke here, but the report link
+            a teacher or researcher needs to review the group's sessions. */}
+        {retiredCodes.length > 0 ? (
+          <details className="mt-3 rounded border border-border" data-testid="revoked-codes">
+            <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
+              {t("revokedCodes", { n: retiredCodes.length })}
+            </summary>
+            <p className="px-3 pb-2 text-xs text-muted-foreground">{t("revokedCodesDescription")}</p>
+            <ul className="divide-y divide-border border-t border-border">
+              {retiredCodes.map((code) => {
+                const at = cls.revokedGroupCodesAt?.[code];
+                const latest = latestByGroup.get(code);
+                const names = retiredNames[code];
+                return (
+                  <li
+                    key={code}
+                    className="flex flex-wrap items-center justify-between gap-2 px-3 py-2"
+                  >
+                    <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                      <code className="w-fit rounded bg-muted px-1.5 py-0.5 font-mono text-sm text-muted-foreground line-through decoration-muted-foreground/50">
+                        {code}
+                      </code>
+                      <span className="text-xs text-muted-foreground">
+                        {at
+                          ? t("revokedOn", { when: formatRelativeTime(at, Date.now(), timeLocale) })
+                          : t("revokedUndated")}
+                        {latest
+                          ? ` · ${t("lastActive", { when: formatRelativeTime(latest.lastMessageAt, Date.now(), timeLocale), n: latest.turnCount })}`
+                          : ""}
+                        {names ? ` · ${names}` : ""}
+                      </span>
+                    </div>
+                    <Link
+                      href={`/teacher/reports/groups/${code}`}
+                      className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium hover:bg-accent"
+                      aria-label={t("reportAria", { code })}
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                      {t("report")}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </details>
+        ) : null}
       </SettingsSection>
 
       {/* 1.1.137 — names against codes, kept ONLY in this browser (ADR-001).
@@ -521,7 +586,8 @@ export default function TeacherClassDetailPage() {
         <ClassListSheet
           classId={cls.classId}
           className={cls.name}
-          codes={cls.groupCodes}
+          codes={liveCodes}
+          retainedCodes={retiredCodes}
           joinOrigin={joinOrigin}
         />
       </SettingsSection>
