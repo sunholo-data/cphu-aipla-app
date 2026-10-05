@@ -1,6 +1,6 @@
 # The tutor directs the student to the workbench — an affordances block, a referral rule, and a count
 
-**Status:** Design (OPEN) — **1.1.149**
+**Status:** **Implemented M1–M5 (2026-10-05), unreleased** — M6 (release + re-measure) open; O1–O5 still open — **1.1.149**
 **Priority:** **P1** — the 29 September meeting named the workbench↔tutor coupling as what makes the platform worth using instead of ChatGPT, and the first teacher seminar on prod saw no evidence of it. Un-gated
 **Estimated:** ~3–3.5d phased (M0 evidence ~0.25d, M runs the SQL · M1 shared referral matcher ~0.5d · M2 affordances block + per-turn referral nudge ~1d · M3 remove the "no simulator" contradiction and fix the opening pointer ~0.25d · M4 framework `workbench_use` field, unset everywhere ~0.5d · M5 referral probe in the bench + live smoke ~0.75d · M6 release + re-measure ~0.25d)
 **Scope:** Backend: a new `adk/workbench_affordances.py`, `adk/agent.py` (one more provider in `compose_instruction_providers`), `adk/proactive_greet.py` (`_first_element`), `db/models/teaching_framework.py` (one optional field), `skills/templates/concept-dialogue/SKILL.md` (two sentences), a new `analytics/workbench_referral.py`, `scripts/bench-tutor-discrimination.py` + `research/tutor-discrimination/scenarios.yaml`. No frontend, no schema change to activities, no new authoring surface
@@ -237,6 +237,8 @@ four result tables into this doc under *M0 results*.
 
 ```sql
 -- Shared: the generic referral lexicon (mirror of workbench_referral.GENERIC_PATTERN).
+-- As written before M0. The canonical, CI-checked copy (with the M0 additions)
+-- is research/workbench-referral/m0.sql — run that one.
 DECLARE ref_re STRING DEFAULT r'(?i)\b(arbejdsbord\w*|workbench|simulering\w*|simulation\w*|simmen|tabel\w*|table|graf\w*|chart|diagram\w*|lommeregner\w*|beregner\w*|calculator|tjekliste\w*|checklist\w*|skriveflade\w*|begrebskort\w*|concept map|mission\w*|boldkast|kinebot|planck|interferens|faseovergang\w*|elkedel\w*|bølgefart|sekantbænk\w*|sol, jord)\b';
 
 -- Q1 seminar day, per activity: how often do tutor turns refer to the bench?
@@ -416,6 +418,77 @@ position F2 describes); add a second "is this a referral" heuristic anywhere; re
 prod data or run M0 yourself; hand-edit `docs/design/aipla/tutors/*.md` or
 `frontend/content/project/tutors/*.md`; add a per-element authoring field (that is O3);
 open a PR — commit to `dev` per the repo's git policy.
+
+## Implementation notes (2026-10-05)
+
+Option B, M1–M5, in one change. Nothing set on any framework, nothing read from or
+written to a deployed environment, no seed run.
+
+- **M1** `backend/analytics/workbench_referral.py` — `GENERIC_PATTERN` (the doc's
+  lexicon **plus the six M0 words**: arbejdsflade, arbejdsfelt, skrivefelt,
+  simulator, elmåler, kurve), `referral_vocabulary(cfg)` (element titles, the sim's
+  `displayName`, its head before the dash, its first word when ≥ 4 chars, so "LED"
+  and "Sol" are not names), `is_referral(text, vocab, function_calls=)` (a
+  `control_sim` call counts), and `referral_probe(turns, vocab, stuck_student_turn=)`
+  for the bench. `research/workbench-referral/m0.sql` holds the four M0 queries with
+  the canonical lexicon; `test_the_sql_lexicon_equals_generic_pattern` fails on drift.
+- **M2** `backend/adk/workbench_affordances.py`, wired in `adk/agent.py` directly
+  after `make_element_state_wrapper` (before the A2UI surface wrapper, which is not
+  workbench text). Fill state is the fill-state block's own observation for the turn,
+  handed over through a `TurnFills` holder (`make_element_state_wrapper(observe=…)`;
+  `element_state.render_element_state` split out so the store is read once per turn).
+  A sim is *in use* once any `mcp_app_context.<artefact_id>.*` key exists. The nudge
+  is stateless: it fires when the run of non-referring tutor turns (grouped from
+  `ctx.session.events`, a tool call and its reply being one turn) is exactly K, 2K, …,
+  never on the `[session_start]` turn, and names the first *untouched* item (the sim
+  first). Logs `workbench_affordances: activity=… items=… policy=… streak=… nudged=…`.
+  **Deviation: the cap is 1,600, not 1,200.** At 1,200 the rule plus a nudge left
+  room for one inventory line, so the seminar's own shape (sim + checklist + untitled
+  table) lost two of its three items on exactly the turn the nudge fired.
+- **M3** `concept-dialogue/SKILL.md`: the denial sentence is replaced with the doc's
+  wording, and the description no longer says "NO simulator, chat-only". `:130`
+  (three sentences, end with a question) is unchanged. `proactive_greet._first_element`
+  names the sim first and the checklist only when nothing else is on the bench.
+  **The SKILL.md change reaches each environment through the deploy seed job**
+  (`aipla-seed-skills`, both pipelines) — not by this commit alone; `make seed
+  ENV=dev` pushes it to dev without a deploy.
+- **M4** `TeachingFramework.workbench_use` (alias `workbenchUse`), null default,
+  resolved by `resolve_workbench_use` (null/unknown/unreadable → `balanced`). Set on
+  no framework; `test_no_shipped_framework_sets_workbench_use` holds it. The doc
+  generator was **not** taught to render it, so `make tutor-docs` was not needed
+  (`make check-tutor-docs` is green).
+- **M5** `load_scenarios` accepts an inline `activity:` and `probe.stuckTurn`. The
+  three workbench scenarios (Boldkast, Elkedel, Interferens; sim + table + checklist,
+  stuck turn = student turn 3) are in **`research/workbench-referral/scenarios.yaml`,
+  not the BENCH-2 file** — deviation from the doc's file list, so BENCH-2's n = 8 per
+  cell and its dry-run counts stay comparable; run with `--scenarios`. For such a
+  scenario the bench composes each turn through the real `create_agent`
+  (`compose_activity_turn` in the script, pinning the activity and the approach),
+  and the report gains a *Workbench referral* section (first referral by turn 2,
+  referral within two tutor turns of the stuck turn, mean share, against criterion
+  4's targets). `--from-sessions --referral-only` counts referrals in real sessions
+  with zero model calls (generic lexicon; note the selection keeps only framework
+  sessions, so Q1 of `m0.sql` stays the all-sessions measure). The slow smoke is
+  `tests/eval/test_workbench_referral_smoke.py`; it could not be run here (no valid
+  model credentials in this checkout) — **not yet run against a model**.
+- **Tests:** `test_workbench_referral.py`, `test_workbench_affordances.py`,
+  `tests/api_tests/test_workbench_reaches_the_model.py` (real `create_agent`, a sim +
+  table activity in LOCAL_MODE Firestore, class tutor Mikkel assigned ESRU: the block
+  is present, names the sim, sits after the framework preamble and the fill-state
+  block, the denial is gone, the nudge reaches the model after K turns; the mirror
+  test proves a chat-only activity is byte-identical with the wrapper removed),
+  `test_bench_workbench_referral.py`, plus additions to `test_proactive_greet.py`,
+  `test_teaching_framework.py`, `test_concept_dialogue_skill_template.py`.
+
+**Not done, and why:**
+- **O3** (teacher-authored per-element purpose) — gated on M6 by the doc.
+- **O2** (setting `workbench_use` on any approach) — AR/JB's call.
+- **O4** (`{teacher_focus}` in the other three tutor templates) — out of scope.
+- **"+ base"** in criterion 4 — the bench has no framework-less arm; adding one is a
+  harness change beyond this doc.
+- **M6** and any `--go` bench run — need a release and M's go-ahead (cost).
+- **O1** — the block changes every workbench activity's prompt from the release
+  that carries it; the release note should say so.
 
 ## Open questions for M
 

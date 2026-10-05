@@ -269,6 +269,21 @@ class TeachingFramework(BaseModel):
     # for the people who own the pedagogy to make in the YAML — not a default.
     sim_control: Literal["none", "view", "scaffold", "restrict"] | None = Field(default=None, alias="simControl")
 
+    # 1.1.149 M4 — how early and how often a tutor teaching with this approach
+    # sends the student to the WORKBENCH (sim, table, checklist …). The platform
+    # owns THAT the tutor refers to the bench (``adk.workbench_affordances``);
+    # this tunes WHEN, where an approach has a view: ``dialogue_first`` names the
+    # bench once and lets the talk lead; ``workbench_first`` sends the student to
+    # it before discussing (POE's predict-then-run, 5E's explore-before-explain
+    # are the plausible candidates). None resolves to the platform default
+    # ``balanced``, so a framework that says nothing composes exactly as a tutor
+    # with no framework does — the passthrough guarantee.
+    # ⚠️ Set on NO published framework. Which approaches have a view on timing is
+    # AR/JB's call (design doc O2), made in the YAML — not a default.
+    workbench_use: Literal["dialogue_first", "balanced", "workbench_first"] | None = Field(
+        default=None, alias="workbenchUse"
+    )
+
     # ── custom approaches (1.1.110) ──────────────────────────────────────────
     #
     # A custom approach carries its instruction as prose instead of deriving it

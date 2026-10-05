@@ -91,6 +91,7 @@ from adk.tools import resolve_mcp_tools, resolve_tools
 from adk.tutor_framework import inject_framework_preamble
 from adk.tutor_identity import build_identity_block
 from adk.tutor_resolution import resolve_teaching_context
+from adk.workbench_affordances import TurnFills, make_workbench_affordances_wrapper, resolve_workbench_use
 from auth.access_context import AccessContext
 from auth.firebase_auth import User
 from db.models import SkillConfig
@@ -663,6 +664,9 @@ def create_agent(
             teaching=_teaching_ctx,
         )
     )
+    # 1.1.149 — whether the tutor can act on the sim, for the workbench block's
+    # inventory line. Read off the tools actually built, not re-derived.
+    _control_sim_available = any(getattr(t, "name", "") == "control_sim" for t in tools)
     # 1.1.133 M3 — assessment as a hidden tool call, on a sim that defines a
     # construct map, for a student session only. Empty list otherwise.
     tools.extend(build_assessment_tools(_active_cfg, user, skill_id=skill_config.skill_id, teaching=_teaching_ctx))
@@ -750,6 +754,8 @@ def create_agent(
         _handle_large_output,
         make_mcp_after_tool_callback(),
     )
+
+    _turn_fills = TurnFills()
 
     return LlmAgent(
         name=_safe_agent_name(skill_config.skill_id),
@@ -970,6 +976,25 @@ def create_agent(
             # passed here rather than left to a default.
             make_element_state_wrapper(
                 _active_cfg,
+                group_id=user.group_id,
+                activity_id=_activity_id,
+                observe=_turn_fills.observe,
+            ),
+            # 1.1.149 — the tutor SENDS the student to the workbench. Inventory
+            # (the sim first — the manifest never listed it), a referral rule
+            # with recognisable triggers, and a deterministic nudge after K
+            # tutor turns with no referral. After the fill-state block, so it is
+            # the last workbench text the model reads and comes after the
+            # framework preamble (later instruction wins). It reads that block's
+            # observation for this turn through `_turn_fills` rather than the
+            # store a second time. `""` for an activity with no sim and no
+            # element, so those compose byte-identically. NOT inside
+            # {teacher_focus}: that is the weak position 1.1.62 already lost in.
+            make_workbench_affordances_wrapper(
+                _active_cfg,
+                policy=resolve_workbench_use(_teaching_ctx.framework_id),
+                control_sim=_control_sim_available,
+                turn_fills=_turn_fills,
                 group_id=user.group_id,
                 activity_id=_activity_id,
             ),

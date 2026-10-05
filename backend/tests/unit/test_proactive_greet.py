@@ -177,3 +177,34 @@ def test_the_language_directive_precedes_the_opening():
     composed = inject_opening_guidance(body, proactive_greet=True, opening_template="Greet.", cfg=cfg)
 
     assert composed.index("Speak English with the student") < composed.index("Today's activity is not open-ended")
+
+
+# ---------------------------------------------------------------------------
+# 1.1.149 M3 — a simulation is the first thing on the bench
+# ---------------------------------------------------------------------------
+
+
+def test_a_sim_beats_the_checklist_as_the_first_thing():
+    """The kettle opening on 2026-10-05 pointed at a checklist label while the
+    sim sat untouched beside it; the sim was never considered at all."""
+    out = _open(
+        _activity(
+            title="Effekt og nyttevirkning",
+            artefactId="kettle-efficiency",
+            checklist=[ChecklistItem(id="a", label="Mål effekten")],
+        )
+    )
+    assert 'First thing on the workbench: the simulation "Elkedel — energi og nyttevirkning"' in out
+    assert "Mål effekten" not in out
+
+
+def test_the_checklist_is_named_only_when_nothing_else_is_on_the_bench():
+    out = _open(
+        _activity(
+            title="Bølger",
+            checklist=[ChecklistItem(id="a", label="Mål bølgelængden")],
+            note=[NoteElement(id="n", title="Sådan måler du", body="…")],
+        )
+    )
+    assert 'the note "Sådan måler du"' in out
+    assert "Mål bølgelængden" not in out

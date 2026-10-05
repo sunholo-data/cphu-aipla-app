@@ -829,6 +829,36 @@ class Scenario:
     language: str
     student_turns: list[str]
     probe: Probe | None = None
+    # 1.1.149 M5 — a scenario may carry a WORKBENCH: an inline ActivityConfig (a
+    # sim plus elements). Such a scenario's tutor is composed through the real
+    # agent build per turn, so the affordances block under test is the one a
+    # student gets, and the transcript is graded by the deterministic referral
+    # probe (``analytics.workbench_referral``). None for every BENCH-1/2 scenario.
+    activity: Any = None
+    # 0-based among STUDENT turns: the planted "I don't know" the referral probe
+    # checks the tutor answers by sending the student to the bench.
+    stuck_turn: int | None = None
+
+
+def _scenario_activity(sid: str, raw: Any) -> Any:
+    """The scenario's inline workbench as a validated ``ActivityConfig``, or None.
+
+    Validated at load so a malformed bench (an unknown sim, an element the model
+    rejects) fails before a single paid call.
+    """
+    if not raw:
+        return None
+    from datetime import UTC, datetime
+
+    from artefacts.loader import is_known_artefact
+    from db.models.activity_config import ActivityConfig
+
+    fields = {"activityId": f"bench-{sid}", "classId": "bench", "teacherUid": "bench", "updatedAt": datetime.now(UTC)}
+    fields.update(raw)
+    cfg = ActivityConfig(**fields)
+    if cfg.artefact_id and not is_known_artefact(cfg.artefact_id):
+        raise ValueError(f"scenario {sid!r}: unknown sim {cfg.artefact_id!r}")
+    return cfg
 
 
 def load_scenarios(path: Path) -> list[Scenario]:
@@ -847,12 +877,23 @@ def load_scenarios(path: Path) -> list[Scenario]:
         if not 4 <= len(turns) <= 6 or not all(turns):
             raise ValueError(f"scenario {sid!r} needs 4-6 non-empty student turns (has {len(turns)})")
         probe = None
+        stuck_turn: int | None = None
         if s.get("probe"):
             p = s["probe"]
-            probe = Probe(student_turn=int(p["studentTurn"]), claim=str(p["claim"]), correct=str(p["correct"]))
-            if not 0 <= probe.student_turn < len(turns) - 1:
-                raise ValueError(f"scenario {sid!r}: the probe turn needs at least one tutor reply after it")
-        out.append(Scenario(sid, str(s.get("title") or sid), str(s.get("language") or "da"), turns, probe))
+            if "claim" in p:
+                probe = Probe(student_turn=int(p["studentTurn"]), claim=str(p["claim"]), correct=str(p["correct"]))
+                if not 0 <= probe.student_turn < len(turns) - 1:
+                    raise ValueError(f"scenario {sid!r}: the probe turn needs at least one tutor reply after it")
+            if p.get("stuckTurn") is not None:
+                stuck_turn = int(p["stuckTurn"])
+                if not 0 <= stuck_turn < len(turns) - 1:
+                    raise ValueError(f"scenario {sid!r}: the stuck turn needs at least one tutor reply after it")
+        activity = _scenario_activity(sid, s.get("activity"))
+        if stuck_turn is not None and activity is None:
+            raise ValueError(f"scenario {sid!r}: a stuckTurn only means something with an activity")
+        title = str(s.get("title") or sid)
+        language = str(s.get("language") or "da")
+        out.append(Scenario(sid, title, language, turns, probe, activity=activity, stuck_turn=stuck_turn))
     if not out:
         raise ValueError(f"no scenarios in {path}")
     return out
