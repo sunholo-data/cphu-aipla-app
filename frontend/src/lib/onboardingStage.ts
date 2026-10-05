@@ -6,6 +6,7 @@
  */
 
 import type { Translate } from "@/i18n";
+import { activeGroupCodes } from "@/lib/classCodes";
 
 export type Stage = "invited" | "demo_only" | "no_code" | "no_activity" | "waiting" | "live";
 
@@ -57,11 +58,13 @@ export function classStage(cls: {
   demo?: boolean;
   name: string;
   groupCodes: string[];
+  revokedGroupCodes?: string[];
   activityIds?: string[];
 }, activity: { turns: number } | undefined): Exclude<Stage, "invited"> {
   if (cls.demo || cls.name === "Demo class") return "demo_only";
   if (activity && activity.turns > 0) return "live";
-  if (cls.groupCodes.length === 0) return "no_code";
+  // A code that still WORKS (1.1.146) — revoked codes stay on the roster.
+  if (activeGroupCodes(cls).length === 0) return "no_code";
   if ((cls.activityIds ?? []).length === 0) return "no_activity";
   return "waiting";
 }

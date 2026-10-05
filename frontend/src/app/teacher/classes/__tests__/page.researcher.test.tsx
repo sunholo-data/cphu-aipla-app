@@ -104,4 +104,30 @@ describe("/teacher/classes — Research view (1.1.5)", () => {
     expect(screen.getByRole("button", { name: /set up a class for a teacher/i })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "New class" })).not.toBeInTheDocument();
   });
+
+  it("marks a class its teacher deleted, and does not count revoked codes as joinable (1.1.146)", async () => {
+    vi.spyOn(researcherHook, "useIsResearcher").mockReturnValue(true);
+    vi.spyOn(teacherApi, "listClasses").mockImplementation(async (scope) =>
+      scope === "all"
+        ? [
+            makeClass({
+              classId: "gone",
+              name: "Deleted one",
+              ownerUid: "ar",
+              revoked: true,
+              groupCodes: ["busy-garden-11"],
+              revokedGroupCodes: ["busy-garden-11"],
+            }),
+          ]
+        : [],
+    );
+
+    render(<TeacherClassesPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Research view" }));
+
+    await waitFor(() => expect(screen.getByRole("link", { name: "Deleted one" })).toBeInTheDocument());
+    expect(screen.getByTestId("class-deleted")).toHaveTextContent("Deleted by teacher");
+    // Its only code is revoked: nothing to hand out, so the stage is "no code".
+    expect(screen.getByTestId("stage-chip").getAttribute("data-stage")).toBe("no_code");
+  });
 });

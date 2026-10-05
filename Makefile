@@ -481,6 +481,17 @@ backfill-authored-provenance:
 	@test -n "$(ENV)" || { echo "usage: make backfill-authored-provenance ENV=dev|test|prod [GO=1]"; exit 2; }
 	@cd backend && uv run python scripts/backfill_authored_provenance.py --env $(ENV) $(if $(filter 1,$(GO)),--go)
 
+# 1.1.146 M3: restore the class binding of join codes an old Revoke hard-deleted,
+# as tombstones (still revoked, reviewable again). Dry-run unless GO=1; ENV=prod
+# without CLASS= is refused unless FORCE=1. Idempotent. Never deletes anything.
+#   make repair-revoked-codes ENV=prod CLASS=0be138dda057
+#   make repair-revoked-codes ENV=prod CLASS=0be138dda057 GO=1
+.PHONY: repair-revoked-codes
+repair-revoked-codes:
+	@test -n "$(ENV)" || { echo "usage: make repair-revoked-codes ENV=dev|test|prod [CLASS=<id>] [GO=1] [FORCE=1]"; exit 2; }
+	@cd backend && uv run python -m scripts.repair_revoked_group_codes --env $(ENV) \
+		$(if $(CLASS),--class $(CLASS)) $(if $(filter 1,$(GO)),--go) $(if $(filter 1,$(FORCE)),--force)
+
 # What screen sizes are people using? Read-only distribution of the
 # `aipla_client_env` beacons (viewport width bucket x surface, DPR, pointer).
 #   make screen-sizes ENV=prod            # last 30 days

@@ -1,6 +1,6 @@
 # Research access survives code deletion — revoking a join code must not orphan the evidence
 
-**Status:** Design (OPEN) — **1.1.146**
+**Status:** **Implemented (M1–M5), not yet deployed; M3 repair NOT yet run on prod** — **1.1.146** (2026-10-05). Option A shipped as recommended. M's prod step is under [Implementation notes](#implementation-notes-2026-10-05)
 **Priority:** **P1** — a researcher on prod cannot review sessions that still exist, and every further Revoke by any teacher widens the gap. M0 (evidence) and M3 (repair) are the urgent half; M1–M2 stop it recurring
 **Estimated:** ~2.5–3d (M0 evidence queries, run by M ~0.25d · M1 Revoke becomes a tombstone ~0.5d · M2 evidence vs live consumers + "Revoked codes" UI ~0.75d · M3 repair script + Makefile target ~0.5d · M4 researcher sees deleted classes ~0.25d · M5 end-to-end test + guard ~0.5d)
 **Scope:** Backend: `db/classes.py` (`revoke_group_code`, `Class` roster semantics), `auth/group_id_auth.py` (tombstone check on verify, mint collision), `protocols/classes_routes.py`, `insights/aggregates.py`, `analytics/auth.py`, `protocols/progress_read_access.py`, `protocols/research_logs_routes.py`. New: `backend/scripts/repair_revoked_group_codes.py` + `make repair-revoked-codes`. Frontend: `app/teacher/classes/[id]/page.tsx` (a "Revoked codes" section), `messages/{da,en}/teacher-classes.json`
@@ -289,20 +289,87 @@ see her own deleted classes is an open question below.
 See Tests. Add the class roster to the footguns table in CLAUDE.md under a new row
 ("Revoke hard-deleted the binding; evidence disappeared from every class surface").
 
+## Implementation notes (2026-10-05)
+
+**What shipped** (worktree branch, not yet on `dev`):
+
+- **M1 — tombstone.** `db.classes.revoke_group_code(class_id, code, revoked_by=)`
+  writes `anon_groups/<code>` `{revoked, revokedAt, revokedBy, classId}` (merge),
+  keeps the code in `groupCodes`, appends it to the new `Class.revokedGroupCodes`
+  and records the time in `Class.revokedGroupCodesAt`. Idempotent. A code not
+  bound to the class now raises `GroupCodeNotInClass` → **404** (the old version
+  deleted whatever `anon_groups` doc it was handed — another class's included).
+  `auth.group_id_auth`: `_resolve_class_tags` and `_resolve_live_class_context`
+  raise `GroupRevoked` on a tombstone (token refused, join and refresh refused,
+  on every instance); `create_group` refuses any string whose `anon_groups` doc
+  exists (`_code_taken`, a read failure propagates rather than reading as
+  "free"); `upsert_group` refuses a tombstone (it would otherwise have re-persisted
+  it with `revoked: False`). The found-in-passing token bug is fixed by this.
+- **M2 — evidence vs live.** `Class.active_group_codes` (backend) and
+  `activeGroupCodes()` / `revokedGroupCodes()` in `frontend/src/lib/classCodes.ts`.
+  Live consumers filtered: class page code list + subtitle, `compute_group_signals`
+  (`/live`), `reset-session` (**409** on a revoked code), onboarding stage
+  (`onboarding/stage.py`, bootstrap `groupCodes`, client `classStage`), the
+  class-list count and delete-dialog count, and the `manage-class` tool brief
+  (adds `revoked_group_codes`). Every evidence consumer is unchanged and now
+  sees revoked codes. Class page: a collapsed **Revoked codes** list with the
+  revoke date, last activity, the teacher's local names and the report link; no
+  join/reset/revoke. The class list sheet keeps local names for revoked codes
+  (`retainedCodes`) but neither shows nor exports them. Copy da + en.
+- **M3 — repair.** `backend/scripts/repair_revoked_group_codes.py` +
+  `make repair-revoked-codes`. Witnesses: BigQuery `class_id × group_id` pairs on
+  no roster (`bq`), Cloud Logging revoke lines (`log`), and **on prod the M0
+  table itself (`m0`, `M0_PROD_EXPECTED`)** — added because the `_Default` log
+  bucket keeps 30 days, so after ~2026-10-30 the log witness for the 30 Sept
+  revokes is gone and `leafy-thicket-13` (all turns unattributed) would otherwise
+  fall to list-only. On prod the dry run states whether today's `bq`/`log`
+  discovery matches M0. Conflicting `classId` → refused and the run exits 1; a
+  live binding → skipped; unattributed codes with no witness → listed only.
+- **M4.** Researcher `GET /api/classes?scope=all`, `/api/classes/activity?scope=all`
+  and insights `scope=all` include deleted classes; the research view marks them
+  *"Deleted by teacher"*. Owner lists unchanged.
+- **M5.** Tests as specified (below), plus a footguns row and an automation row
+  in `CLAUDE.md`.
+
+**M's prod step** (after this is deployed to prod, and after open question 1 is
+answered for each class). Dry run first, one class at a time; read the table and
+the M0 comparison line, then repeat with `GO=1`:
+
+```bash
+make repair-revoked-codes ENV=prod CLASS=0be138dda057          # 4 codes (Fysik C – Energi)
+make repair-revoked-codes ENV=prod CLASS=0be138dda057 GO=1
+make repair-revoked-codes ENV=prod CLASS=399b198bbe21          # 3 codes
+make repair-revoked-codes ENV=prod CLASS=399b198bbe21 GO=1
+make repair-revoked-codes ENV=prod CLASS=59ad12cd997b          # 1 code (JB's)
+make repair-revoked-codes ENV=prod CLASS=59ad12cd997b GO=1
+```
+
+Needs ADC for `aipla-prod-2026` with Firestore write, BigQuery read and Logging
+read. A second run of each must report `0 tombstone(s)` / "already repaired".
+Deploy first: on the old code a repaired tombstone is harmless (the old verify
+path ignores it) but the class page would not show the revoked list.
+
+**Not built, by instruction or because it needs M:** Erase (1.1.80, gated on JB);
+any change to `/api/reports/*` authorisation (flagged above, separate); open
+questions 1–5 below are unanswered — in particular Q1 must be asked before
+`GO=1`, Q2 (privacy-notice wording) before deploy, and Q3 is why pre-2026-09-11
+codes with no log/M0 witness are listed, not written. A teacher still cannot see
+her own deleted classes (Q4).
+
 ## Acceptance criteria
 
-- [ ] After Revoke, the code cannot join, and an outstanding group token is
+- [x] After Revoke, the code cannot join, and an outstanding group token is
       refused at its next request (401), on any instance.
-- [ ] After Revoke, the class page lists the code under Revoked codes with a
+- [x] After Revoke, the class page lists the code under Revoked codes with a
       working report link, for the owner and for a researcher.
-- [ ] After Revoke, class KPIs, compare, recent sessions and all-groups progress
+- [x] After Revoke, class KPIs, compare, recent sessions and all-groups progress
       return the same counts for the revoked group's past window as before it.
-- [ ] A revoked code string is never minted again.
+- [x] A revoked code string is never minted again.
 - [ ] `make repair-revoked-codes ENV=prod CLASS=<Tabitha's class>` dry-run lists
       exactly the M0 set; with `GO=1` Aswin can open each session from the class
-      page; a second run writes nothing.
-- [ ] A class deleted by its teacher remains listed for researchers, marked.
-- [ ] No erasure behaviour changes. Nothing in this doc deletes data.
+      page; a second run writes nothing. *(Built and unit-tested; prod run is M's.)*
+- [x] A class deleted by its teacher remains listed for researchers, marked.
+- [x] No erasure behaviour changes. Nothing in this doc deletes data.
 
 ## Tests
 

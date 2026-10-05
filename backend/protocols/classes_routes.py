@@ -35,6 +35,7 @@ from auth.owner_labels import resolve_owner_labels
 from db.activities import copy_activity, create_activity, get_activity
 from db.checklist_progress import clear_progress_for_group as clear_checklist_progress
 from db.classes import (
+    GroupCodeNotInClass,
     add_activities,
     add_lessons,
     create_class,
@@ -402,7 +403,10 @@ async def list_classes(
         span = trace.get_current_span()
         if span.is_recording():
             span.set_attribute("auth.researcher_bypass", True)
-        classes = list_all_classes()
+        # 1.1.146 M4 — a class its teacher deleted is still evidence. It stays
+        # listed for researchers, carrying ``revoked: true`` so the page can
+        # mark it "deleted by teacher". Owner lists are unchanged.
+        classes = list_all_classes(include_revoked=True)
         # Friendly owner labels (display name / email) so the research view
         # doesn't show raw Firebase uids. Best-effort — unresolved owners carry
         # no label and the client falls back to the uid.
@@ -438,7 +442,7 @@ async def list_classes_activity(
     if scope == "all":
         if not user.is_researcher:
             raise HTTPException(status_code=403, detail="researcher access required")
-        classes = list_all_classes()
+        classes = list_all_classes(include_revoked=True)
     else:
         classes = list_classes_for_owner(user.uid)
 
@@ -602,10 +606,19 @@ async def delete_group(
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> dict:
     """Revoke a single group code. Idempotent — calling on an already-
-    revoked code is a no-op."""
+    revoked code is a no-op.
+
+    1.1.146 — Revoke ends ACCESS, not evidence: the code is tombstoned (it
+    cannot join, its outstanding tokens are refused on any instance, and the
+    string is never reissued) but stays on the class roster, so its sessions
+    remain reviewable by the owner and by researchers. A code not bound to
+    this class is a 404, never a write to another class's binding."""
     _assert_teacher(user)
     cls = _load_editable(class_id, user)
-    revoke_group_code(class_id, code)
+    try:
+        revoke_group_code(class_id, code, revoked_by=user.uid)
+    except GroupCodeNotInClass as exc:
+        raise HTTPException(status_code=404, detail="group code not found") from exc
     _stamp_if_on_behalf(cls, user)
     _tag_span(class_id, user.uid)
     log.info("classes_route: revoked code=%s class=%s teacher=%s", code, class_id, user.uid)
@@ -628,6 +641,10 @@ async def reset_group_session(
     cls = _load_editable(class_id, user)
     if code not in cls.group_codes:
         raise HTTPException(status_code=404, detail="group code not found")
+    if code in cls.revoked_group_codes:
+        # 1.1.146 — a revoked code's sessions are evidence now; "start over"
+        # would archive them and clear its progress for no live group.
+        raise HTTPException(status_code=409, detail="group code is revoked")
     archive_session_for_group(code)
     # PILOT-1 M0 (2026-08-10) — "reset" means start over, so the group's PROGRESS
     # goes with the conversation. Leaving it was the root cause of Aswin's
@@ -811,7 +828,8 @@ async def get_class_live(
     from analytics.live_class import compute_group_signals
     from analytics.live_class_summary import resolve_live_summary
 
-    signals = compute_group_signals(list(cls.group_codes))
+    # LIVE view: only codes that still work (1.1.146).
+    signals = compute_group_signals(cls.active_group_codes)
     groups = [
         LiveGroupRow(
             groupId=g.group_code,

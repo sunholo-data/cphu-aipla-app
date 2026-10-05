@@ -929,7 +929,16 @@ export interface ClassPayload {
   /** ALS-1 M0/M1 — the class-independent activities (act- ids) this class runs.
    *  Optional in the type (older fixtures omit it); the backend always sends it. */
   activityIds?: string[];
+  /** EVERY code ever minted under the class, revoked or not (1.1.146) — the
+   *  historical roster evidence surfaces read. For codes that still work use
+   *  `activeGroupCodes()` from `@/lib/classCodes`. */
   groupCodes: string[];
+  /** 1.1.146 — the subset of `groupCodes` that has been revoked: it no longer
+   *  joins, but its sessions stay reviewable. Optional for older fixtures. */
+  revokedGroupCodes?: string[];
+  /** 1.1.146 — ISO revoke time per revoked code (may be missing for a code
+   *  restored by the repair script). */
+  revokedGroupCodesAt?: Record<string, string>;
   voice?: ClassVoiceSettingsPayload | null;
   persona?: string | null;
   /** 1.1.91 M1 — the class's bundled tutor (persona + framework + style).
