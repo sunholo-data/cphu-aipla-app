@@ -33,6 +33,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from db.firestore import delete_document, get_document, query_documents, set_document
+from db.models.authorship import CreatedVia
 from db.models.persona import Persona
 
 log = logging.getLogger(__name__)
@@ -91,7 +92,14 @@ def list_custom_personas(for_uid: str | None = None, *, see_all: bool = False) -
     return sorted(out, key=lambda p: p.name.lower())
 
 
-def save_custom_persona(persona: Persona, *, author_uid: str, allowed_avatars: set[str]) -> Persona:
+def save_custom_persona(
+    persona: Persona,
+    *,
+    author_uid: str,
+    allowed_avatars: set[str],
+    author_role: str | None = None,
+    created_via: CreatedVia | None = None,
+) -> Persona:
     """Create or replace a custom persona.
 
     ``author_uid`` comes from the VERIFIED token, never the body — the rule the
@@ -110,6 +118,19 @@ def save_custom_persona(persona: Persona, *, author_uid: str, allowed_avatars: s
     row = persona.model_dump(by_alias=True, mode="json")
     row["source"] = "firestore"
     row["authorUid"] = existing.author_uid if existing else author_uid
+    # 1.1.150 — role and creation record, stamped on create from the verified
+    # caller and carried over untouched on every later save. A row that
+    # predates them keeps None ("not recorded"), never a guess.
+    if existing is not None:
+        row["authorRole"] = existing.author_role
+        row["createdBy"] = existing.created_by
+        row["createdVia"] = existing.created_via
+        row["createdAt"] = existing.created_at.isoformat() if existing.created_at else None
+    else:
+        row["authorRole"] = author_role
+        row["createdBy"] = author_uid
+        row["createdVia"] = created_via
+        row["createdAt"] = datetime.now(UTC).isoformat()
     # A new persona is private explicitly; an edit keeps what the author chose.
     # Sharing is its own act — an edit that could change who sees a thing is an
     # edit that shares it by accident.

@@ -22,11 +22,13 @@ co-pilot's* authoring pedagogy. Different concept, different layer.
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from db.models.activity_config import MaterialRef
+from db.models.authorship import CreatedVia
 
 # Which stack a framework belongs to. The 2026-09-08 literature set
 # (``docs/literature/tp-framework/README.md``) keeps these deliberately APART:
@@ -119,6 +121,63 @@ class Provenance(BaseModel):
     note: str | None = Field(default=None, max_length=800)
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+class ApproachSource(BaseModel):
+    """What a CUSTOM approach is derived from, as its author states it (1.1.150 M3).
+
+    ⚠️ Deliberately NOT ``Provenance``. A provenance entry is a *vouched*
+    citation — a programme member's initials stand behind it, it is rendered on
+    ``/project/tutors``, and ``find_source_passages`` treats it as the only
+    citations a co-pilot may cite. A source here is a teacher's or researcher's
+    own statement of "I built this from…", and folding it into ``provenance``
+    would feed unvouched citations into exactly the trusted list the
+    never-invent-a-citation rule protects.
+
+    A source is **metadata for the people who author and study approaches**. It
+    is never rendered into a tutor instruction (``frameworks/instruction.py``
+    reads neither this nor ``summary``), never returned by a group-token
+    endpoint, and never written by a model — ``added_by`` comes from the
+    verified token, never the body.
+
+    ``corpus_ref`` names a file in the literature corpus (initially one of the
+    seven ``<framework_id>`` tags). Researcher-only to set; the listing route
+    that would let a researcher PICK one is 1.1.150 M4 and not built yet.
+    """
+
+    citation: str = Field(min_length=1, max_length=500)
+    url: str | None = Field(default=None, max_length=1000)
+    corpus_ref: str | None = Field(default=None, alias="corpusRef", max_length=64)
+    note: str | None = Field(default=None, max_length=800)
+    # Server-stamped. A body that carries them is ignored by the route.
+    added_by: str | None = Field(default=None, alias="addedBy", max_length=128)
+    added_at: datetime | None = Field(default=None, alias="addedAt")
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("citation")
+    @classmethod
+    def _citation_not_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("a source needs a citation")
+        return value
+
+    @field_validator("url")
+    @classmethod
+    def _https_only(cls, value: str | None) -> str | None:
+        """https or nothing. A ``javascript:`` or ``http:`` link rendered as an
+        anchor on a researcher's screen is a link someone else chose for them."""
+        if value is None or not value.strip():
+            return None
+        value = value.strip()
+        if not value.lower().startswith("https://") or any(c.isspace() for c in value):
+            raise ValueError("a source URL must start with https://")
+        return value
+
+
+#: How many sources one custom approach may carry.
+MAX_APPROACH_SOURCES = 10
 
 
 class Behaviour(BaseModel):
@@ -242,7 +301,31 @@ class TeachingFramework(BaseModel):
     # Always None on the seven published frameworks: they are not in this store.
     visibility: Literal["private", "shared"] | None = None
 
+    # 1.1.150 M2 — provenance of the ROW, stamped by the store on create and
+    # never rewritten (``db/models/authorship.py``). None on the seven
+    # published frameworks: git records who wrote them.
+    created_by: str | None = Field(default=None, alias="createdBy", max_length=128)
+    created_via: CreatedVia | None = Field(default=None, alias="createdVia")
+    created_at: datetime | None = Field(default=None, alias="createdAt")
+
+    # 1.1.150 M3 — what a custom approach is derived from. Custom approaches
+    # ONLY: the seven keep ``provenance``, which is vouched; see ApproachSource
+    # for why the two must never be one field.
+    sources: list[ApproachSource] = Field(default_factory=list, max_length=MAX_APPROACH_SOURCES)
+
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @model_validator(mode="after")
+    def _sources_only_on_custom(self) -> TeachingFramework:
+        """A published framework cannot carry ``sources`` — it has provenance.
+
+        Checked on both axes: ``layer`` (a custom approach is ``custom``) and
+        ``source`` (it lives in Firestore). A YAML file claiming either would be
+        a git-authored framework smuggling unvouched citations past review.
+        """
+        if self.sources and (self.layer != "custom" or self.source != "firestore"):
+            raise ValueError("only a custom approach can carry sources; a published framework uses provenance")
+        return self
 
     @property
     def is_custom(self) -> bool:
@@ -285,6 +368,8 @@ class TeachingFramework(BaseModel):
 
 
 __all__ = [
+    "MAX_APPROACH_SOURCES",
+    "ApproachSource",
     "Behaviour",
     "Construct",
     "FrameworkLayer",

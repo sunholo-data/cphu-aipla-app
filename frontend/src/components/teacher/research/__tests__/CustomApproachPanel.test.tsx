@@ -74,6 +74,7 @@ describe("custom teaching approaches (1.1.110)", () => {
         summary: "",
         instructionText: "Be kind.",
         register: null,
+        sources: [],
       }),
     );
   });
@@ -167,5 +168,106 @@ describe("sharing a custom approach (TUTOR-2 M0/M1)", () => {
     render(<CustomApproachPanel />);
     await screen.findByText("Warm coach");
     expect(screen.queryByLabelText(/Share with other teachers/)).not.toBeInTheDocument();
+  });
+});
+
+
+describe("who made an approach, and what it draws on (1.1.150)", () => {
+  it("does not call a teacher's approach the researcher's own", async () => {
+    // The 2026-10-05 seminar: a pilot teacher's private "Didaktisk Tutor"
+    // showed in a researcher's list as "yours", because the label read
+    // `canEdit` — and a researcher may edit every approach. `isOwn` decides.
+    vi.spyOn(teacherApi, "listCustomApproaches").mockResolvedValue([
+      approach({
+        id: "custom-didaktisk-tutor",
+        label: "Didaktisk Tutor",
+        canEdit: true,
+        isOwn: false,
+        authorUid: "t-9",
+        authorRole: "teacher",
+        authorEmail: "pilot.teacher@example.dk",
+        createdVia: "ui",
+        createdAt: "2026-10-03T13:00:42Z",
+      }),
+    ]);
+    render(<CustomApproachPanel />);
+
+    const line = await screen.findByTestId("approach-author-custom-didaktisk-tutor");
+    expect(line).toHaveTextContent("Made by a teacher");
+    expect(line).toHaveTextContent("pilot.teacher@example.dk");
+    expect(line).toHaveTextContent(/created via the app on/);
+    expect(line).not.toHaveTextContent("Made by you");
+  });
+
+  it("names your own as yours, and says when a creation record was not kept", async () => {
+    vi.spyOn(teacherApi, "listCustomApproaches").mockResolvedValue([approach({ isOwn: true, createdAt: null })]);
+    render(<CustomApproachPanel />);
+    const line = await screen.findByTestId("approach-author-custom-warm-coach");
+    expect(line).toHaveTextContent("Made by you");
+    expect(line).toHaveTextContent("not recorded");
+  });
+
+  it("shows the sources an approach draws on, as links only when they are links", async () => {
+    vi.spyOn(teacherApi, "listCustomApproaches").mockResolvedValue([
+      approach({
+        sources: [
+          { citation: "Brousseau (1997)", url: "https://example.org/tds", note: "Devolution." },
+          { citation: "Artigue (2009)" },
+        ],
+      }),
+    ]);
+    render(<CustomApproachPanel />);
+    expect(await screen.findByRole("link", { name: "Brousseau (1997)" })).toHaveAttribute("href", "https://example.org/tds");
+    expect(screen.getByText("Artigue (2009)")).toBeInTheDocument();
+    expect(screen.getByText(/Devolution\./)).toBeInTheDocument();
+  });
+
+  it("round-trips sources through the editor without inventing who added them", async () => {
+    const user = userEvent.setup();
+    const update = vi.spyOn(teacherApi, "updateCustomApproach").mockResolvedValue(approach());
+    vi.spyOn(teacherApi, "listCustomApproaches").mockResolvedValue([
+      approach({
+        sources: [{ citation: "Brousseau (1997)", url: "https://example.org/tds", addedBy: "t-1", addedAt: "2026-10-03T00:00:00Z" }],
+      }),
+    ]);
+    render(<CustomApproachPanel />);
+
+    await user.click(await screen.findByRole("button", { name: /^Edit Warm coach/i }));
+    expect(screen.getByLabelText("Reference 1")).toHaveValue("Brousseau (1997)");
+    await user.click(screen.getByRole("button", { name: "Add a source" }));
+    await user.type(screen.getByLabelText("Reference 2"), "Artigue (2009)");
+    await user.type(screen.getByLabelText("Note (optional) 2"), "Design.");
+    await user.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(update).toHaveBeenCalled());
+    const sent = update.mock.calls[0][1].sources;
+    expect(sent).toEqual([
+      { citation: "Brousseau (1997)", url: "https://example.org/tds", note: null, corpusRef: null },
+      { citation: "Artigue (2009)", url: null, note: "Design.", corpusRef: null },
+    ]);
+    // Server-stamped fields are never sent back as if the client decided them.
+    expect(JSON.stringify(sent)).not.toContain("addedBy");
+  });
+
+  it("drops a blank source row rather than sending it", async () => {
+    const user = userEvent.setup();
+    const create = vi.spyOn(teacherApi, "createCustomApproach").mockResolvedValue(approach());
+    render(<CustomApproachPanel />);
+    await user.click(await screen.findByRole("button", { name: /New approach/i }));
+    await user.type(screen.getByLabelText(/^Name$/i), "Warm coach");
+    await user.type(screen.getByLabelText(/What the tutor is told/i), "Be kind.");
+    await user.click(screen.getByRole("button", { name: "Add a source" }));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(create).toHaveBeenCalledWith(expect.objectContaining({ sources: [] })));
+  });
+
+  it("speaks Danish by default", async () => {
+    vi.spyOn(teacherApi, "listCustomApproaches").mockResolvedValue([
+      approach({ isOwn: false, authorRole: "researcher", createdVia: "copilot", createdAt: "2026-10-03T13:00:42Z" }),
+    ]);
+    rtlRender(<CustomApproachPanel />);
+    const line = await screen.findByTestId("approach-author-custom-warm-coach");
+    expect(line).toHaveTextContent("Lavet af en forsker");
+    expect(line).toHaveTextContent("co-piloten");
   });
 });

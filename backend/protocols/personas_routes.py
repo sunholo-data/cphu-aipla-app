@@ -34,6 +34,7 @@ from db.models import SkillVoiceConfig
 from db.models.activity_config import InteractionStyle
 from db.models.persona import Persona
 from personas.loader import DEFAULT_PERSONA_ID, allowed_avatars, load_persona, load_personas
+from protocols.authorship import author_emails_for, authorship_fields
 
 log = logging.getLogger(__name__)
 
@@ -116,6 +117,21 @@ def _may_edit(p: Persona, user: User) -> bool:
     return bool(user.is_researcher or (p.author_uid and p.author_uid == user.uid))
 
 
+def _custom_row(p: Persona, user: User, emails: dict[str, str] | None = None) -> dict:
+    """A custom persona as THIS viewer may see it (1.1.150): ``canEdit`` and
+    ``isOwn`` side by side, because a researcher may edit every persona and the
+    UI must not read that as "you made it"."""
+    return {**_serialize(p), "canEdit": _may_edit(p, user), **authorship_fields(p.author_uid, user, emails)}
+
+
+async def _one_row(p: Persona, user: User) -> dict:
+    return _custom_row(p, user, await author_emails_for(user, [p.author_uid]))
+
+
+def _role(user: User) -> str:
+    return "researcher" if user.is_researcher else "teacher"
+
+
 @router.get("/custom/list")
 async def list_custom_personas_route(user: User = Depends(get_current_user)) -> dict:  # noqa: B008
     """The custom personas this caller may see, with ``canEdit`` per row.
@@ -129,8 +145,9 @@ async def list_custom_personas_route(user: User = Depends(get_current_user)) -> 
     if user.is_researcher:
         log.info("personas: unfiltered custom read by researcher uid=%s", user.uid)
     rows = list_custom_personas(user.uid, see_all=user.is_researcher)
+    emails = await author_emails_for(user, (p.author_uid for p in rows))
     return {
-        "personas": [{**_serialize(p), "canEdit": _may_edit(p, user)} for p in rows],
+        "personas": [_custom_row(p, user, emails) for p in rows],
         # The set a picker may offer. Sent with the list so the client never
         # has to hold its own copy of what is allowed.
         "avatars": sorted(allowed_avatars()),
@@ -151,12 +168,18 @@ async def create_custom_persona_route(
         {**body.model_dump(by_alias=True, exclude={"id"}), "id": persona_id, "source": "firestore"}
     )
     try:
-        saved = save_custom_persona(persona, author_uid=user.uid, allowed_avatars=set(allowed_avatars()))
+        saved = save_custom_persona(
+            persona,
+            author_uid=user.uid,
+            allowed_avatars=set(allowed_avatars()),
+            author_role=_role(user),
+            created_via="ui",
+        )
     except ValueError as exc:
         # The avatar is chosen from a shipped set, and the STORE enforces it —
         # a UI-only rule is one fetch away from being bypassed.
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {**_serialize(saved), "canEdit": True}
+    return await _one_row(saved, user)
 
 
 @router.put("/custom/{persona_id}")
@@ -175,10 +198,15 @@ async def update_custom_persona_route(
         {**body.model_dump(by_alias=True, exclude={"id"}), "id": persona_id, "source": "firestore"}
     )
     try:
-        saved = save_custom_persona(persona, author_uid=user.uid, allowed_avatars=set(allowed_avatars()))
+        saved = save_custom_persona(
+            persona,
+            author_uid=user.uid,
+            allowed_avatars=set(allowed_avatars()),
+            author_role=_role(user),
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
-    return {**_serialize(saved), "canEdit": True}
+    return await _one_row(saved, user)
 
 
 @router.put("/custom/{persona_id}/visibility")
@@ -192,7 +220,7 @@ async def set_custom_persona_visibility_route(
     if existing is None or not _may_edit(existing, user):
         raise HTTPException(status_code=404, detail="persona not found")
     saved = set_persona_visibility(persona_id, body.visibility)
-    return {**_serialize(saved), "canEdit": True} if saved else {}
+    return await _one_row(saved, user) if saved else {}
 
 
 @router.delete("/custom/{persona_id}", status_code=204)

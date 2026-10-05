@@ -719,3 +719,307 @@ def test_reading_the_catalogue_still_does_not_let_a_teacher_edit():
 
 def test_a_student_gets_no_catalogue():
     assert _client(STUDENTISH).get("/api/research/frameworks/catalogue").status_code == 403
+
+
+# ── 1.1.150 — sources on a custom approach, and who wrote it ─────────────────
+#
+# A source is what an approach is DERIVED from, as its author states it. It is
+# metadata for the people who author and study approaches: never a vouched
+# citation (that is `provenance`), never in the tutor's prompt, never on a
+# student's wire.
+
+_SOURCE = {"citation": "Brousseau (1997). Theory of Didactical Situations.", "url": "https://example.org/tds"}
+
+
+def test_sources_rejected_on_a_published_framework():
+    """The seven keep `provenance`, which is vouched. A published framework that
+    could carry `sources` would be unvouched citations past review."""
+    from db.models.teaching_framework import TeachingFramework
+
+    with pytest.raises(ValueError, match="only a custom approach"):
+        TeachingFramework(id="esru-2", label="ESRU", sources=[{"citation": "x"}])
+    # Not even one whose YAML claims layer: custom — it is still not in Firestore.
+    with pytest.raises(ValueError, match="only a custom approach"):
+        TeachingFramework(id="x", label="X", layer="custom", source="yaml", sources=[{"citation": "x"}])
+    # And every published framework, as loaded, carries none.
+    from frameworks.loader import load_frameworks
+
+    assert all(fw.sources == [] for fw in load_frameworks())
+
+
+def test_source_fields_server_stamped(monkeypatch):
+    """`addedBy` comes from the token, never the body — and survives a re-save
+    by someone else, so a researcher's edit does not make a teacher's sources
+    the researcher's."""
+    forged = {**_SOURCE, "addedBy": "someone-else", "addedAt": "2001-01-01T00:00:00Z"}
+    created = _create(TEACHER, sources=[forged])
+    assert created["sources"][0]["addedBy"] == "t-1"
+    assert created["sources"][0]["addedAt"] != "2001-01-01T00:00:00Z"
+    first_added_at = created["sources"][0]["addedAt"]
+
+    # A researcher re-saves it with the same source and one new one.
+    second = {"citation": "Artigue (2009). Didactical design in mathematics education."}
+    edited = (
+        _client(RESEARCHER)
+        .put(
+            "/api/research/frameworks/custom/custom-warm-coach",
+            json={**_BODY, "sources": [created["sources"][0], second]},
+        )
+        .json()
+    )
+    by_citation = {s["citation"]: s for s in edited["sources"]}
+    assert by_citation[_SOURCE["citation"]]["addedBy"] == "t-1"
+    assert by_citation[_SOURCE["citation"]]["addedAt"] == first_added_at
+    assert by_citation[second["citation"]]["addedBy"] == "r-1"
+
+
+def test_sources_round_trip_and_an_old_client_cannot_wipe_them():
+    _create(TEACHER, sources=[_SOURCE])
+    c = _client(TEACHER)
+    # A save that predates the field (no `sources` key) keeps them.
+    c.put("/api/research/frameworks/custom/custom-warm-coach", json={**_BODY, "summary": "Changed."})
+    row = next(a for a in c.get("/api/research/frameworks/custom/list").json()["approaches"])
+    assert [s["citation"] for s in row["sources"]] == [_SOURCE["citation"]]
+    assert row["summary"] == "Changed."
+    # An explicit empty list clears them.
+    c.put("/api/research/frameworks/custom/custom-warm-coach", json={**_BODY, "sources": []})
+    row = next(a for a in c.get("/api/research/frameworks/custom/list").json()["approaches"])
+    assert row["sources"] == []
+
+
+def test_sources_are_bounded_and_links_are_https_only():
+    c = _client(TEACHER)
+    too_many = [{"citation": f"Paper {i}"} for i in range(11)]
+    assert c.post("/api/research/frameworks/custom", json={**_BODY, "sources": too_many}).status_code == 422
+    for bad in ("http://example.org/x", "javascript:alert(1)"):
+        r = c.post("/api/research/frameworks/custom", json={**_BODY, "sources": [{"citation": "x", "url": bad}]})
+        assert r.status_code == 422, bad
+    assert c.post("/api/research/frameworks/custom", json={**_BODY, "sources": [{"citation": "  "}]}).status_code == 422
+
+
+def test_a_corpus_ref_is_a_researcher_act():
+    """`corpusRef` points into the LITERATURE corpus, which is researcher-only.
+    A teacher may not set one — but may re-save an approach a researcher
+    annotated without being refused for it."""
+    linked = {**_SOURCE, "corpusRef": "esru"}
+    assert (
+        _client(TEACHER).post("/api/research/frameworks/custom", json={**_BODY, "sources": [linked]}).status_code == 403
+    )
+
+    _create(TEACHER, sources=[_SOURCE])
+    r = _client(RESEARCHER).put(
+        "/api/research/frameworks/custom/custom-warm-coach", json={**_BODY, "sources": [linked]}
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["sources"][0]["corpusRef"] == "esru"
+    bogus = _client(RESEARCHER).put(
+        "/api/research/frameworks/custom/custom-warm-coach",
+        json={**_BODY, "sources": [{**_SOURCE, "corpusRef": "not-ingested"}]},
+    )
+    assert bogus.status_code == 400
+
+    again = _client(TEACHER).put(
+        "/api/research/frameworks/custom/custom-warm-coach", json={**_BODY, "sources": [linked]}
+    )
+    assert again.status_code == 200, again.text
+    other = {**linked, "corpusRef": "cer"}
+    assert (
+        _client(TEACHER)
+        .put("/api/research/frameworks/custom/custom-warm-coach", json={**_BODY, "sources": [other]})
+        .status_code
+        == 403
+    )
+
+
+def test_researcher_sees_others_approaches_as_not_own(monkeypatch):
+    """The row that confused the seminar was an APPROACH. A researcher may edit
+    it; it is not theirs; the row says whose it is."""
+    monkeypatch.setattr(
+        "protocols.authorship.resolve_owner_emails",
+        lambda uids: {u: f"{u}@example.dk" for u in uids},
+    )
+    _create(TEACHER, label="Didaktisk Tutor")
+    row = _client(RESEARCHER).get("/api/research/frameworks/custom/list").json()["approaches"][0]
+    assert (row["canEdit"], row["isOwn"], row["authorRole"]) == (True, False, "teacher")
+    assert row["authorEmail"] == "t-1@example.dk"
+
+    own = _client(TEACHER).get("/api/research/frameworks/custom/list").json()["approaches"][0]
+    assert own["isOwn"] is True
+    assert "authorEmail" not in own
+
+
+def test_approach_provenance_is_stamped_on_create_and_never_rewritten():
+    created = _create(TEACHER)
+    assert (created["createdBy"], created["createdVia"]) == ("t-1", "ui")
+    assert created["createdAt"]
+    copilot = _create(RESEARCHER, label="From the copilot", createdVia="copilot")
+    assert copilot["createdVia"] == "copilot"
+
+    c = _client(RESEARCHER)
+    c.put("/api/research/frameworks/custom/custom-warm-coach", json={**_BODY, "summary": "x"})
+    c.put("/api/research/frameworks/custom/custom-warm-coach/visibility", json={"visibility": "shared"})
+    row = next(
+        a for a in c.get("/api/research/frameworks/custom/list").json()["approaches"] if a["id"] == "custom-warm-coach"
+    )
+    assert (row["createdBy"], row["createdVia"], row["createdAt"]) == ("t-1", "ui", created["createdAt"])
+    assert row["authorUid"] == "t-1"
+
+    for via in ("seed", "sync", "adopt"):
+        r = _client(TEACHER).post(
+            "/api/research/frameworks/custom", json={**_BODY, "label": f"x {via}", "createdVia": via}
+        )
+        assert r.status_code == 422, via
+
+
+# ── THE isolation test (1.1.150 acceptance criterion 5) ──────────────────────
+
+_SENTINEL_CITATION = "ZZ-SOURCE-CITATION-7f3a"
+_SENTINEL_URL = "https://example.org/ZZ-SOURCE-URL-9c1e"
+_SENTINEL_NOTE = "ZZ-SOURCE-NOTE-4b2d"
+_SENTINELS = (_SENTINEL_CITATION, "ZZ-SOURCE-URL-9c1e", _SENTINEL_NOTE)
+
+
+def test_approach_sources_never_reach_the_student_turn(monkeypatch):
+    """No source text, URL or note in the composed student instruction, and none
+    on any response a real group token can obtain.
+
+    Through the REAL agent path — ``create_agent`` and its instruction provider,
+    for a class whose tutor teaches with the approach — not through
+    ``resolve_framework_instruction`` alone: that would pass even if a callback
+    later appended the sources. "Ask first." is asserted present so the test
+    cannot pass by the approach simply not being wired.
+    """
+    import asyncio
+    from types import SimpleNamespace
+
+    from adk.agent import create_agent
+    from auth import get_current_user as dispatcher_get_current_user
+    from auth.group_id_auth import AnonymousGroupAuth, create_group, join_group
+    from db.firestore import get_document, set_document
+    from db.models import SkillConfig, SkillMetadata
+    from protocols.activity_config_routes import router as activity_config_router
+    from protocols.personas_routes import router as personas_router
+    from protocols.tutors_routes import router as tutors_router
+
+    monkeypatch.setenv("GROUP_AUTH_SIGNING_SECRET", "test-secret-32-chars-long-enough-x")
+    AnonymousGroupAuth.reset_for_tests()
+
+    teacher_uid, class_id, activity = TEACHER.uid, "cls-sources", "act-sources"
+    tag = f"class:{teacher_uid}:{class_id}"
+
+    # 1. The teacher writes the approach, with sources carrying sentinels.
+    teacher_app = FastAPI()
+    teacher_app.include_router(router)
+    teacher_app.include_router(tutors_router)
+
+    async def _as_teacher(request: Request) -> User:
+        request.state.access = build_access_context(TEACHER)
+        return TEACHER
+
+    teacher_app.dependency_overrides[get_current_user] = _as_teacher
+    tc = TestClient(teacher_app)
+    approach = tc.post(
+        "/api/research/frameworks/custom",
+        json={
+            "label": "Didaktisk Tutor",
+            "summary": "",
+            "instructionText": "Ask first.",
+            "sources": [{"citation": _SENTINEL_CITATION, "url": _SENTINEL_URL, "note": _SENTINEL_NOTE}],
+        },
+    )
+    assert approach.status_code == 200, approach.text
+    assert approach.json()["sources"][0]["citation"] == _SENTINEL_CITATION, "fixture did not store the source"
+
+    # 2. A tutor teaching with it, on the teacher's class.
+    tutor = tc.post(
+        "/api/research/tutors",
+        json={"id": "didaktisk", "displayName": "Didaktisk", "frameworkId": approach.json()["id"]},
+    )
+    assert tutor.status_code == 200, tutor.text
+    set_document(
+        "classes",
+        class_id,
+        {
+            "classId": class_id,
+            "ownerUid": teacher_uid,
+            "name": "Fysik B",
+            "tagNamespace": tag,
+            "tutorId": "didaktisk",
+            "createdAt": "2026-10-01T00:00:00+00:00",
+            "updatedAt": "2026-10-05T00:00:00+00:00",
+        },
+    )
+
+    # 3. A REAL group token, minted the way production does, bound to the class.
+    record = create_group(title="Fysik B", skill_ids=["concept-dialogue"], creator_uid=teacher_uid)
+    set_document(
+        "anon_groups", record.group_id, {**(get_document("anon_groups", record.group_id) or {}), "classId": class_id}
+    )
+    token = join_group(record.group_id, client_ip="203.0.113.7").token
+
+    student_app = FastAPI()
+    for r in (activity_config_router, tutors_router, router, personas_router):
+        student_app.include_router(r)
+    sc = TestClient(student_app)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # The student surface accepts the token — so what follows is about content,
+    # not about a token that was never valid.
+    active = sc.get(f"/api/activity-configs/active/{activity}", headers=headers)
+    assert active.status_code == 200, active.text
+
+    # 4. The full student instruction, through the real agent build.
+    from fastapi import Depends
+
+    probe = FastAPI()
+
+    @probe.get("/whoami")
+    async def _whoami(user: User = Depends(dispatcher_get_current_user)) -> dict:  # noqa: B008
+        return {"uid": user.uid, "group_id": user.group_id, "tags": sorted(user.group_tags or [])}
+
+    who = TestClient(probe).get("/whoami", headers=headers).json()
+    assert tag in who["tags"], "the minted token is not bound to the class"
+    student = User(
+        uid=who["uid"],
+        email="",
+        domain="",
+        group_id=who["group_id"],
+        group_tags=who["tags"],
+        auth_mode="anonymous_group",
+    )
+    skill = SkillConfig(
+        name="concept-dialogue",
+        description="t",
+        instructions="You are a tutor.",
+        skillId="22222222-2222-2222-2222-222222222222",
+        skillMetadata=SkillMetadata(model="gemini-2.5-flash"),
+    )
+    agent = create_agent(skill, student, activity_id=activity)
+    ctx = SimpleNamespace(state={}, user_content=None, session=SimpleNamespace(events=[], id="s"), user_id="u")
+    instruction = asyncio.run(agent.instruction(ctx))
+
+    assert "Ask first." in instruction, "the approach is not wired into the student turn — the test proves nothing"
+    for sentinel in _SENTINELS:
+        assert sentinel not in instruction, f"a source reached the student's instruction: {sentinel}"
+
+    # 5. Every student-reachable response for this token, and the staff routes it
+    #    must be refused — none may carry a source.
+    bodies = [active.text]
+    for path in (
+        f"/api/activity-configs/active/{activity}",
+        "/api/tutors",
+        "/api/tutors/didaktisk",
+        "/api/personas",
+        "/api/research/frameworks/custom/list",
+        "/api/research/frameworks/catalogue",
+        f"/api/research/frameworks/{approach.json()['id']}",
+    ):
+        resp = sc.get(path, headers=headers)
+        bodies.append(resp.text)
+        if path.startswith(("/api/tutors", "/api/research")):
+            assert resp.status_code in (401, 403), f"{path} answered a student token with {resp.status_code}"
+    for body in bodies:
+        for sentinel in _SENTINELS:
+            assert sentinel not in body, f"a source reached a group-token response: {sentinel}"
+
+    AnonymousGroupAuth.reset_for_tests()

@@ -37,7 +37,8 @@ from datetime import UTC, datetime
 from typing import Any
 
 from db.firestore import delete_document, get_document, query_documents, set_document
-from db.models.teaching_framework import TeachingFramework
+from db.models.authorship import CreatedVia
+from db.models.teaching_framework import ApproachSource, TeachingFramework
 
 log = logging.getLogger(__name__)
 
@@ -112,6 +113,7 @@ def save_authored_framework(
     author_uid: str,
     author_role: str,
     set_visibility: str | None = None,
+    created_via: CreatedVia | None = None,
 ) -> TeachingFramework:
     """Create or replace a custom approach.
 
@@ -122,6 +124,11 @@ def save_authored_framework(
 
     The author of an EXISTING row is preserved: an edit by a researcher must not
     quietly reassign a teacher's approach to the researcher.
+
+    1.1.150 M2 — so is its creation record. ``createdBy`` / ``createdVia`` /
+    ``createdAt`` are stamped HERE on create, from the verified caller, and an
+    existing row's values are carried over untouched (None included: a row that
+    predates them is the backfill's to fill, never a later save's to guess).
     """
     existing = get_authored_framework(framework.id)
     row = framework.model_dump(by_alias=True, mode="json")
@@ -129,6 +136,14 @@ def save_authored_framework(
     row["source"] = "firestore"
     row["authorUid"] = existing.author_uid if existing else author_uid
     row["authorRole"] = existing.author_role if existing else author_role
+    if existing is not None:
+        row["createdBy"] = existing.created_by
+        row["createdVia"] = existing.created_via
+        row["createdAt"] = existing.created_at.isoformat() if existing.created_at else None
+    else:
+        row["createdBy"] = author_uid
+        row["createdVia"] = created_via
+        row["createdAt"] = datetime.now(UTC).isoformat()
     # TUTOR-2 M0 — a NEW approach is private explicitly; an edit keeps whatever
     # the author chose. Never re-derived from the incoming body: sharing is its
     # own deliberate act, not something a save can do by accident.
@@ -152,6 +167,40 @@ def save_authored_framework(
         # own object would report success for a write that is unreadable.
         raise ValueError(f"authored_frameworks: {framework.id} was written but cannot be read back")
     return saved
+
+
+def stamp_sources(
+    incoming: list[ApproachSource],
+    existing: list[ApproachSource] | None,
+    *,
+    uid: str,
+) -> list[ApproachSource]:
+    """Server-stamp ``addedBy`` / ``addedAt`` on a custom approach's sources (1.1.150 M3).
+
+    Whatever the body said about who added a source is discarded. A source the
+    approach already carried — same citation, ignoring case and spacing — keeps
+    its original ``addedBy`` / ``addedAt``, so a teacher re-saving their
+    approach does not make every source look freshly added by them, and a
+    researcher's edit does not make a teacher's sources the researcher's.
+    """
+
+    def _key(src: ApproachSource) -> str:
+        return " ".join(src.citation.split()).casefold()
+
+    prior = {_key(s): s for s in (existing or [])}
+    now = datetime.now(UTC)
+    out: list[ApproachSource] = []
+    for src in incoming:
+        before = prior.get(_key(src))
+        out.append(
+            src.model_copy(
+                update={
+                    "added_by": before.added_by if before else uid,
+                    "added_at": before.added_at if before else now,
+                }
+            )
+        )
+    return out
 
 
 def delete_authored_framework(framework_id: str) -> None:
@@ -183,4 +232,5 @@ __all__ = [
     "make_framework_id",
     "may_edit",
     "save_authored_framework",
+    "stamp_sources",
 ]

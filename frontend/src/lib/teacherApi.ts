@@ -1331,7 +1331,30 @@ export async function previewFrameworkStructure(
  *  (ESRU)"). Never re-derive it in the UI: a teacher should not have to know
  *  what an acronym stands for, and the mapping belongs in one place.          */
 
-export interface TutorPayload {
+/** 1.1.150 — how a record came to exist. Server-set; a client may only ever
+ *  claim `ui` or `copilot`. */
+export type CreatedVia = "ui" | "copilot" | "seed" | "sync" | "adopt";
+
+/** 1.1.150 — who made an authored row, as THIS viewer may see it. Shared by
+ *  tutors, custom approaches and custom personas so the three lists cannot
+ *  drift. Every field is computed server-side:
+ *   - `isOwn` — did I make it. NOT `canEdit`: a researcher may edit every row,
+ *     and reading that as "mine" is what put a pilot teacher's approach under
+ *     a researcher's "Yours" at the 2026-10-05 seminar.
+ *   - `authorEmail` — sent to researchers only; a teacher's payload has no key.
+ *   - `createdBy`/`createdVia`/`createdAt` — stamped on create, never rewritten.
+ *     Null means "not recorded" and is shown as such, never guessed. */
+export interface AuthorshipFields {
+  isOwn?: boolean;
+  isBuiltIn?: boolean;
+  authorRole?: "researcher" | "teacher" | null;
+  authorEmail?: string | null;
+  createdBy?: string | null;
+  createdVia?: CreatedVia | null;
+  createdAt?: string | null;
+}
+
+export interface TutorPayload extends AuthorshipFields {
   id: string;
   displayName: string;
   summary?: string | null;
@@ -1373,7 +1396,16 @@ export interface TutorCatalogue {
   skillBoundTutors?: TutorPayload[];
   /** The seven published approaches, then the custom ones this caller may see
    *  (their own + shared), flagged `isCustom`. */
-  frameworks: { id: string; name: string; summary: string; isPlaceholder: boolean; isCustom?: boolean }[];
+  frameworks: {
+    id: string;
+    name: string;
+    summary: string;
+    isPlaceholder: boolean;
+    isCustom?: boolean;
+    /** 1.1.150 M3 — what a CUSTOM approach is derived from, as its author
+     *  states it. Never present on the seven (they carry vouched provenance). */
+    sources?: ApproachSource[];
+  }[];
 }
 
 /** Every pickable tutor, bases before variants, plus the framework list. */
@@ -1473,7 +1505,7 @@ export async function deleteTutor(tutorId: string): Promise<void> {
 // Firestore layer as "a v1.2 follow-up". A teacher cannot write a file in git,
 // so without this "give your tutor a face" was not a thing a teacher could do.
 
-export interface CustomPersona {
+export interface CustomPersona extends AuthorshipFields {
   id: string;
   name: string;
   title?: string | null;
@@ -1816,7 +1848,26 @@ export async function fetchChatLogExport(
 // no claim to either. It replaces the hand-written-instruction editor that used
 // to sit on the seven published frameworks and made exactly that false claim.
 
-export interface CustomApproach {
+/** 1.1.150 M3 — one thing a custom approach is derived from.
+ *
+ *  ⚠️ Not `provenance`: that is a VOUCHED citation on the seven published
+ *  frameworks. A source is the author's own statement, metadata for the people
+ *  who author and study approaches — never in the tutor's prompt, never on a
+ *  student's wire. `addedBy`/`addedAt` are stamped by the server. */
+export interface ApproachSource {
+  citation: string;
+  url?: string | null;
+  /** A literature-corpus file; researchers only (1.1.150 M4 adds the picker). */
+  corpusRef?: string | null;
+  note?: string | null;
+  addedBy?: string | null;
+  addedAt?: string | null;
+}
+
+/** A source as a client sends it — the server stamps who added it. */
+export type ApproachSourceInput = Pick<ApproachSource, "citation" | "url" | "note" | "corpusRef">;
+
+export interface CustomApproach extends AuthorshipFields {
   id: string;
   label: string;
   summary: string;
@@ -1827,6 +1878,8 @@ export interface CustomApproach {
   authorUid: string | null;
   authorRole: "researcher" | "teacher" | null;
   materialRefs: { docId?: string; title?: string | null; origin?: string | null }[];
+  /** 1.1.150 M3. Absent on a server that predates the field. */
+  sources?: ApproachSource[];
   /** Computed SERVER-side per row. Never re-derive it here: a second copy of an
    *  access rule disagrees with the first the moment one changes. */
   canEdit: boolean;
@@ -1841,6 +1894,8 @@ export interface CustomApproachInput {
   instructionText: string;
   register?: FrameworkRegister | null;
   materialRefs?: { docId?: string; title?: string | null; origin?: string | null }[];
+  /** Omit to keep the stored sources; `[]` clears them. */
+  sources?: ApproachSourceInput[];
 }
 
 /** One published approach as a TEACHER reads it (TUTOR-2 M1).

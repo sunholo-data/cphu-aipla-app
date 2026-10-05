@@ -1,6 +1,6 @@
 # Where a tutor came from, and what an approach is derived from — provenance and sources
 
-**Status:** Design (OPEN) — **1.1.150**
+**Status:** **M0 done (M, 2026-10-05) · M1–M3 implemented 2026-10-05, not yet deployed** — M4/M5 open — **1.1.150**. ⚠️ M2 has a deploy-order step and a prod backfill for M; see **Implementation notes** at the end
 **Priority:** **P1** for M0–M2 (a researcher could not tell whose tutor was in their own list during a live seminar, and the cause is a labelling defect, not a mystery) · **P2** for M3–M5 (sources on custom approaches, a requested capability with no incident behind it)
 **Estimated:** ~3.5–4d phased (M0 identify the record on prod ~0.25h, M only · M1 ownership labelling + create-route collision ~0.5d · M2 `createdBy`/`createdVia`/`createdAt` on three stores + backfill ~1d · M3 sources on custom approaches ~1d · M4 links to the literature corpus ~0.75d · M5 guides + researcher cross-view ~0.25d)
 **Scope:** Backend: `db/models/teaching_framework.py`, `db/models/tutor.py`, `db/models/persona.py`, `db/authored_frameworks.py`, `db/tutors.py`, `db/custom_personas.py`, `protocols/frameworks_routes.py`, `protocols/tutors_routes.py`, `protocols/personas_routes.py`, `admin/tutor_migration.py`, `adk/tutor_authoring_tools.py`, a backfill script under `backend/scripts/`. Frontend: `components/teacher/research/CustomApproachPanel.tsx`, `MyTutorsPanel.tsx`, `lib/teacherApi.ts`, `messages/{da,en}/teacher-research.json`. **Not** `backend/frameworks/*.yaml` and **not** the generated tutor docs
@@ -313,3 +313,72 @@ make check-i18n && make check-auth-dispatcher && make audit-trust-cards
    a cloud service, approved per paper on 2026-09-11)?
 5. If M0 shows F4 overwrote a teacher's tutor at the seminar, **restore it** (the earlier row is
    gone; only the log line remains) or tell the teacher and let them re-create it?
+
+## Implementation notes — 2026-10-05
+
+**Open question 1 is answered by M's requirement** ("labelling who is making the tutor for
+researchers"): researchers see the author's **email**; teachers never receive an
+`authorEmail` key at all. Open question 5 is moot — M0 found version 1, no overwrite.
+
+### What shipped (M1–M3)
+
+| | Where |
+|---|---|
+| `isOwn` per row, beside `canEdit`, on tutors, custom approaches **and custom personas**; `authorEmail` for researchers only (Firebase lookup off the event loop) | `protocols/authorship.py`, `auth/owner_labels.resolve_owner_emails`, the three route files |
+| `isBuiltIn` on tutors — a YAML base or a `platform-seed` row reads "Built in", not "Made by a researcher" (the model's `authorRole` default) | `protocols/tutors_routes._serialize` |
+| One `AuthorLine` on every row of all three panels: who, email (researchers), "created via {channel} on {date}", or "not recorded". `MyTutorsPanel` groups "Yours" on `isOwn` | `frontend/src/components/teacher/research/AuthorLine.tsx` |
+| `POST /api/research/tutors` 409s on any id `resolve_tutor` resolves (authored **or** base, any visibility); the panel says "name taken" and keeps the draft | `tutors_routes.create_tutor_route` |
+| `save_tutor` preserves `author_uid`/`author_role`; who last wrote it is the new `updatedBy`. The deploy seed now checks both, so it still never reverts a human edit of a seeded row | `db/tutors.py`, `admin/tutor_migration.py` |
+| `createdBy`/`createdVia`/`createdAt` on `Tutor`, `TeachingFramework`, `Persona` (+ `Persona.authorRole`), stamped by the store on create, carried over untouched on every save and visibility change. A body may claim only `ui`/`copilot` (422 otherwise); persona bodies are `extra="forbid"` | `db/models/authorship.py`, the three stores |
+| `sources` on custom approaches: `ApproachSource` (≤10, https-only URL, `extra="forbid"`), model-validated to `layer=custom` **and** `source=firestore`. `addedBy`/`addedAt` stamped from the token and preserved per citation across re-saves. An edit body without `sources` keeps them (no full-overwrite wipe) | `teaching_framework.py`, `authored_frameworks.stamp_sources`, `frameworks_routes._sources_for_save` |
+| `corpusRef`: researcher-only, must name one of the seven ingested tags; a teacher may carry back a ref a researcher set on the same citation but not add or change one (403) | same |
+| Sources editor + display on `CustomApproachPanel`; "Its approach draws on: …" on the tutor row in `MyTutorsPanel` (via `/api/tutors`, teacher-gated) | panels |
+| `propose_approach` returns `sources: []`; it declares no parameter a source could travel in | `adk/tutor_authoring_tools.py` |
+
+**Isolation, verified by test:** `test_approach_sources_never_reach_the_student_turn` builds the
+student agent with `create_agent` for a class whose tutor teaches with the approach, asserts
+"Ask first." is in the composed instruction and no citation/URL/note sentinel is, then sends a
+REAL minted group token to the activity-config, tutor, persona and framework routes and finds
+no sentinel in any body. `frameworks/instruction.py` was not touched.
+
+### ⚠️ Deploy order (M2) — read before tagging
+
+The model fields and the writes are in **separate commits** on purpose. `Tutor`,
+`TeachingFramework` and `Persona` are `extra="forbid"`, and an older revision silently drops
+a row it cannot validate — from every list and from tutor resolution. So:
+
+1. Release the commit **`feat(1.1.150): models accept provenance + sources`** on its own and
+   let it serve all traffic on prod (`make deploy-status`). It changes no behaviour.
+2. Then release the rest. A rollback from step 2 to step 1 is safe; a rollback to anything
+   before step 1 is not, once any new row exists.
+
+### Backfill — for M, after step 2 is serving
+
+Never run against any project during implementation. Dev, then test, then prod:
+
+```bash
+make backfill-authored-provenance ENV=dev            # dry run: prints each row it would touch
+make backfill-authored-provenance ENV=dev GO=1
+make backfill-authored-provenance ENV=test           # then GO=1
+make backfill-authored-provenance ENV=prod           # dry run first — M only
+make backfill-authored-provenance ENV=prod GO=1
+```
+
+Writes only missing/null fields with a merge: `createdAt` ← Firestore `create_time`,
+`createdBy` ← `authorUid`, `createdVia` ← `seed` for `platform-seed` rows only. Human rows keep
+`createdVia` unset ("not recorded"). Re-running is a no-op. The `custom-didaktisk-tutor` row
+will get `createdBy` = the pilot teacher and `createdAt` 2026-10-03 13:00:42 UTC.
+
+### Not done, and why
+
+- **M4** (`GET /api/research/literature/documents`, the researcher `corpusRef` picker,
+  `find_source_passages` over a custom approach's refs) — not in this pass. The model and the
+  route already accept and gate `corpusRef`, so M4 is UI + the listing route + the tool
+  extension, with no schema change.
+- **M5** (researcher guide note, cross-view "sources" column, release note) — not in this pass.
+- **Gated on M:** open questions 2 (tell a teacher when a researcher edits their work),
+  3 (publish shared custom approaches on `/project/tutors` — the generator is unchanged),
+  4 (paywalled URLs; ingesting teacher-cited papers). Nothing here pre-empts them: URLs are
+  allowed for teachers today, as the design specified.
+- `createdVia: "copilot"` is accepted from the client but no client sends it yet — the tutor
+  co-pilot's Apply only sets a note (F3). The value is there for the first path that does.
