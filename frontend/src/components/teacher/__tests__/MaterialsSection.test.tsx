@@ -166,6 +166,32 @@ describe("MaterialsSection", () => {
     ]);
   });
 
+  // 1.1.147 M3 — at the 10-05 seminar seven activities shared nothing and
+  // nothing on screen said so. The state is words on every row, and the
+  // document students land on is marked.
+  it("says in words whether students can open each material, and which opens first", async () => {
+    browseCurriculum.mockResolvedValue(page([]));
+    render(
+      <MaterialsSection
+        materials={[
+          { docId: "d1", origin: "Fysik C læreplan", studentVisible: false },
+          { docId: "d2", origin: "Vejledning til Fysik C", studentVisible: true },
+          { docId: "d3", origin: "Haka Fysik", studentVisible: true },
+        ]}
+        onChange={vi.fn()}
+      />,
+    );
+    const cited = await screen.findByRole("list", { name: /cited/i });
+    const rows = within(cited).getAllByRole("listitem");
+    expect(rows[0]).toHaveTextContent("Tutor only");
+    expect(rows[1]).toHaveTextContent("Students can open it");
+    expect(rows[2]).toHaveTextContent("Students can open it");
+    // The FIRST shared one, in the order added — not the first row.
+    expect(within(rows[1]).getByText("Opens first for students")).toBeInTheDocument();
+    expect(within(rows[0]).queryByText("Opens first for students")).toBeNull();
+    expect(within(rows[2]).queryByText("Opens first for students")).toBeNull();
+  });
+
   // 1.1.87 — reference ⟷ context. The half that makes the 21-August failure
   // impossible to repeat SILENTLY: before this, a teacher had no way to know
   // which mechanism their upload got, because there was only one and it was

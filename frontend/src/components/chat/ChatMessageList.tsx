@@ -3,12 +3,13 @@
 // StreamingBubble. All state transitions are driven by TEXT_MESSAGE_START /
 // CONTENT / END events — no custom event types, no polling.
 // Auto-scroll tracks whether the user is near the bottom; if they've scrolled
-// up, a "↓ New message" badge appears instead of forcing them back down.
+// up, a "new message" badge appears instead of forcing them back down.
 // See: docs/talks/workshop.md §W5
 
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ArrowDown } from "lucide-react";
 import type { StreamError, SkillMessage, ToolCallState } from "@/hooks/useSkillAgent";
 import type { ActiveDocumentContext } from "@/components/chat/ContextBanner";
 import { ContextBanner } from "@/components/chat/ContextBanner";
@@ -133,42 +134,114 @@ export function ChatMessageList({
   }, []);
   const navigate = navigateToBlock ?? noopNavigate;
 
-  const isNearBottom = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return true;
-    return el.scrollTop + el.clientHeight >= el.scrollHeight - SCROLL_THRESHOLD;
+  // 1.1.147 M1 — STICK STATE RECORDED BEFORE GROWTH. The old rule measured
+  // "near bottom" inside the ResizeObserver callback, i.e. AFTER the content
+  // had grown, so any single growth over the threshold (a finished turn, a
+  // table, an SVG, a restored history) read as "the student scrolled up" and
+  // the chat stopped following. Now only the student's own scrolling changes
+  // whether we follow; growth just obeys it.
+  const stickRef = useRef(true);
+  // Our own scrolls fire scroll events too; while this is set, onScroll does
+  // not re-derive the stick state from them (a smooth scroll mid-animation, or
+  // one overtaken by more growth, would otherwise read as "scrolled up").
+  const programmaticRef = useRef(false);
+  const programmaticTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const distanceFromBottom = useCallback((el: HTMLElement) => el.scrollHeight - el.scrollTop - el.clientHeight, []);
+
+  const markProgrammatic = useCallback((ms: number) => {
+    programmaticRef.current = true;
+    if (programmaticTimer.current) clearTimeout(programmaticTimer.current);
+    programmaticTimer.current = setTimeout(() => {
+      programmaticRef.current = false;
+      programmaticTimer.current = null;
+    }, ms);
   }, []);
 
-  const scrollToBottom = useCallback(() => {
+  useEffect(
+    () => () => {
+      if (programmaticTimer.current) clearTimeout(programmaticTimer.current);
+    },
+    [],
+  );
+
+  /** Jump (not animate) to the bottom: a smooth scroll during streaming is
+   *  overtaken by the next token and never arrives. */
+  const pinToBottom = useCallback(() => {
     const el = scrollRef.current;
-    if (el && typeof el.scrollTo === "function") {
-      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    if (!el) return;
+    const target = el.scrollHeight;
+    if (el.scrollTop !== target) {
+      markProgrammatic(150);
+      el.scrollTop = target;
     }
     setShowScrollBadge(false);
-  }, []);
+  }, [markProgrammatic]);
 
-  // ResizeObserver: auto-scroll whenever the inner content grows (streaming
-  // tokens, new messages, thinking content) without depending on message count.
+  /** The badge: the one place a smooth scroll is right. */
+  const scrollToBottom = useCallback(() => {
+    const el = scrollRef.current;
+    stickRef.current = true;
+    if (el) {
+      markProgrammatic(800);
+      if (typeof el.scrollTo === "function") {
+        el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+      } else {
+        el.scrollTop = el.scrollHeight;
+      }
+    }
+    setShowScrollBadge(false);
+  }, [markProgrammatic]);
+
+  // Observe BOTH the content (streaming tokens, new messages, cards) and the
+  // scroll container (the pinned welcome expanding, the phone keyboard).
   useEffect(() => {
     const inner = innerRef.current;
-    if (!inner) return;
+    const outer = scrollRef.current;
+    if (!inner || !outer) return;
     const observer = new ResizeObserver(() => {
-      if (isNearBottom()) {
-        scrollToBottom();
-      } else {
+      if (stickRef.current) {
+        pinToBottom();
+      } else if (distanceFromBottom(outer) > SCROLL_THRESHOLD) {
         setShowScrollBadge(true);
       }
     });
     observer.observe(inner);
+    observer.observe(outer);
     return () => observer.disconnect();
-  }, [isNearBottom, scrollToBottom]);
+  }, [pinToBottom, distanceFromBottom]);
 
   const handleScroll = useCallback(() => {
-    if (isNearBottom()) setShowScrollBadge(false);
-  }, [isNearBottom]);
+    const el = scrollRef.current;
+    if (!el) return;
+    const near = distanceFromBottom(el) <= SCROLL_THRESHOLD;
+    if (programmaticRef.current) {
+      // Ours. Once it has arrived, the guard has done its job.
+      if (near) programmaticRef.current = false;
+      return;
+    }
+    stickRef.current = near;
+    if (near) setShowScrollBadge(false);
+  }, [distanceFromBottom]);
+
+  // A new session (and the first mount — a resumed one restores its history
+  // here) opens at the latest message.
+  useLayoutEffect(() => {
+    stickRef.current = true;
+    pinToBottom();
+  }, [sessionId, pinToBottom]);
 
   // Determine what to render as the last item
   const lastMessage = messages[messages.length - 1];
+
+  // Sending is an explicit "I am here": a new student message at the tail
+  // re-attaches the view to the bottom, wherever the student had scrolled.
+  const lastUserTailId = lastMessage?.role === "user" ? lastMessage.id : null;
+  useLayoutEffect(() => {
+    if (!lastUserTailId) return;
+    stickRef.current = true;
+    pinToBottom();
+  }, [lastUserTailId, pinToBottom]);
   const isStreaming =
     isLoading && lastMessage?.role === "assistant" && lastMessage.content.length > 0;
   const isTyping =
@@ -346,9 +419,10 @@ export function ChatMessageList({
         <button
           type="button"
           onClick={scrollToBottom}
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-border bg-background px-3 py-1 text-xs font-medium shadow-md hover:bg-muted"
+          className="absolute bottom-4 left-1/2 inline-flex -translate-x-1/2 items-center gap-1 rounded-full border border-border bg-background px-3 py-1 text-xs font-medium shadow-md hover:bg-muted"
         >
-          ↓ New message
+          <ArrowDown className="h-3 w-3" aria-hidden="true" />
+          {t("newMessage")}
         </button>
       )}
     </div>

@@ -1,6 +1,6 @@
 # Seminar chat-surface fixes — LaTeX, auto-scroll, a misspelt heading, opening documents
 
-**Status:** Design (OPEN) — **1.1.147**
+**Status:** **Implemented** (M0, M1, M3 + M3a + M3b, 2026-10-05) — **1.1.147**. M2 is a data fix (owner corrects the activity), M3c awaits a decision. See *Implementation notes* at the end.
 **Priority:** **P1** for M0 (LaTeX) and M1 (auto-scroll): visible on every tutor turn in a live class · **P2** for M2 (spelling) and M3 (document click-through)
 **Estimated:** ~2d phased (M0 LaTeX ~0.75d · M1 auto-scroll ~0.5d · M2 opsamling ~0.1d once located · M3 document click-through ~0.5d, plus a decision)
 **Scope:** Frontend only, unless M2 turns out to be data. `components/chat/ChatMarkdown.tsx`, `components/chat/StreamingBubble.tsx`, `components/chat/ChatMessageList.tsx`, a new `lib/mathDelimiters.ts`, `components/workspace/DocumentsPanel.tsx`, `app/chat/[...path]/page.tsx` (the `navigateToBlock` prop), `messages/{da,en}/chat.json` + `workspace.json`. Optionally one line in `backend/skills/preambles/math_notation.md` (reaches prod by **deploy**, not seed).
@@ -418,3 +418,70 @@ Then check the dev build went green (`gcloud builds list --project=aipla-dev-202
 4. **M2:** a screenshot or the activity name would make the lookup unnecessary.
 5. Which `app_version` was prod on during the seminar — before or after `2a1d0619` (13:33), which mounts the privacy box above every student chat?
 6. The streaming bubble's byline shows the raw `skillId` (`StreamingBubble.tsx:27`), while the finished bubble shows the persona name — a visible flicker of a technical id at every turn. Fold into M0, or leave?
+
+## Implementation notes (2026-10-05)
+
+Shipped on a worktree branch, one commit per milestone. Not deployed; nothing read from or
+written to any deployed environment.
+
+**M0 — LaTeX.** `frontend/src/lib/mathDelimiters.ts` holds the three repairs
+(`unwrapCodedMath` → `normalizeMathDelimiters` → `repairTextModeMaths`, composed as
+`prepareChatMaths`) and the streaming guard `holdOpenMath`. All four share one small
+tokenizer (fences line-based, then CommonMark code spans: a run closes only on a run of the
+same length), so "never touch a fence" and "only a span that is wholly maths" are the same
+code path for every function. `ChatMarkdown` applies `prepareChatMaths` after
+`stripCitationMarkers` and before SVG extraction, and passes `rehypeKatex`
+`{ throwOnError: false, errorColor: "inherit", macros: { \celsius, \degree } }` — the plugin
+lists are now module constants. Note that `rehype-katex` 7 forces `throwOnError: true` on its
+first attempt and only honours our setting on the retry, so a parse error renders as
+`.katex-error` in the body colour, and an *unknown command* renders inline in the body colour
+without that class. `StreamingBubble` renders `ChatMarkdown(holdOpenMath(content))`; a
+streaming chip has no navigation (it becomes live when the turn finalises). The fixture of
+real 10-05 turns (six, anonymised — the five the doc named plus the `\(…\)` turn) and the
+synthetic table rows live in `frontend/src/test/fixtures/tutor-math-shapes.ts` rather than
+`__fixtures__/` beside the test: the i18n guard scans `src/components/chat` and the turns are
+Danish, and `src/test/` is test infrastructure outside its scope (a file inside `__tests__/`
+would be collected by Vitest as an empty suite). The prompt lines (6) and (7) are in
+`backend/skills/preambles/math_notation.md`, guarded by
+`test_preamble_forbids_maths_in_backticks_and_text_mode_degrees`; they reach prod by
+**deploy**. Open question 6 (the raw `skillId` byline on the streaming bubble) is not folded in.
+
+**M1 — auto-scroll.** `ChatMessageList` keeps `stickRef` (true on mount and on a session
+change) and only the student's own scroll changes it; growth obeys it. Our own scrolls set a
+short programmatic guard (150 ms for the instant pin, 800 ms for the smooth badge scroll,
+cleared early once the scroll lands at the bottom), so a late scroll event measured after more
+content arrived cannot read as "scrolled up". Both the content and the scroll container are
+observed. A new `role: "user"` message at the tail re-attaches (a `useLayoutEffect` on its
+id), so no new prop on the page was needed. The badge reads `ChatMessageList.newMessage` with
+a lucide `ArrowDown`. Tests: `ChatMessageList.scroll.test.tsx`, which fakes
+`scrollHeight`/`clientHeight`/`scrollTop` and a controllable `ResizeObserver` and asserts on
+`scrollTop`.
+
+**M3 — reader-first documents, M3a, M3b.** `DocumentsPanel` opens the remembered choice (if
+still shared) or the first shared document in `materials[]` order; a `DocumentSwitcher`
+(`role="tablist"`, arrows/Home/End, title as `aria-label`; a `<select>` below 400 px) appears
+for two or more; one document shows just its title. The close button is gone — the reader is
+the surface. Not-shared materials sit below in a `<details>` with the M3a line
+(`DocumentsPanel.notShared`), open by default when nothing is shared. Telemetry: the automatic
+open emits `document.default_shown` (with `detail.remembered`) once per chat session across
+remounts; a tab, select or chat chip emits `document.open`. The choice is remembered in
+`localStorage` under `aipla.documents.selected:<activityId>`, every access in try/catch.
+Caveat: `default_shown` fires when the panel *mounts*; on a phone the workspace column is
+mounted but CSS-hidden behind the chat tab, so there it means "opened in the reader", not
+"seen". Teacher side: each cited document says *Eleverne kan åbne den* / *Kun tutoren*, and
+the first shared one carries *Åbnes først for eleverne* (images keep their existing
+Synlig/Skjult toggle — they are not opened in the reader).
+
+M3b goes through `components/workspace/documentRequest.tsx`, a tiny external store the chat
+page owns (`useState(createDocumentRequestStore)`). The page passes `navigateToBlock` to
+`ChatMessageList` (request + switch the mobile tab to the workspace) and wraps the workspace
+children in `DocumentRequestProvider` — three small edits to `app/chat/[...path]/page.tsx`.
+`WorkbenchTabs` (now controlled) brings *Documents* forward on a pending request;
+`DocumentsPanel` opens a shared doc or shows the not-shared notice (`role="status"`, nothing
+fetched) and **consumes** the request, so a remount does not replay it. Tests:
+`DocumentsPanel.test.tsx` (extended; the click-to-open tests became open-by-default),
+`chatDocumentNavigation.test.tsx`, and a `MaterialsSection` row-state test.
+
+**Not done.** M2 (data; owner fixes the table). M3c (tutor writes `aitana://` links — open
+question 2). Browser verification on dev (the doc's *Browser verification* step) is left for
+after merge.

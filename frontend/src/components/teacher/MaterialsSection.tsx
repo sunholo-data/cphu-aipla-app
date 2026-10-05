@@ -370,6 +370,10 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
     }
   }
 
+  // 1.1.147 M3 — the document students land on (DocumentsPanel opens the first
+  // shared one, in the order the materials were added).
+  const firstSharedDocId = materials.find((x) => x.kind !== "image" && x.studentVisible)?.docId;
+
   return (
     <fieldset className="flex flex-col gap-4">
       <legend className="flex items-center gap-1.5 text-sm font-medium">
@@ -449,6 +453,9 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
             const label = m.title || m.origin || m.docId;
             const visible = Boolean(m.studentVisible);
             const inContext = m.kind === "context";
+            // 1.1.147 M3 — students land on the first shared document, in the
+            // order materials were added; say so where the teacher sets it.
+            const opensFirst = visible && m.docId === firstSharedDocId;
             return (
               <li
                 key={m.docId}
@@ -462,6 +469,14 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
                 >
                   {label}
                 </button>
+                {opensFirst ? (
+                  <span
+                    title={t("opensFirstTitle")}
+                    className="rounded bg-emerald-50 px-1 text-emerald-800"
+                  >
+                    {t("opensFirst")}
+                  </span>
+                ) : null}
                 <button
                   type="button"
                   aria-pressed={inContext}
@@ -504,7 +519,9 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
                   ) : (
                     <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
                   )}
-                  <span>{visible ? t("visible") : t("hidden")}</span>
+                  {/* State in words, not an icon: at the 10-05 seminar seven
+                      activities shared nothing and nothing on screen said so. */}
+                  <span>{visible ? t("studentsCanOpen") : t("tutorOnly")}</span>
                 </button>
                 <button
                   type="button"

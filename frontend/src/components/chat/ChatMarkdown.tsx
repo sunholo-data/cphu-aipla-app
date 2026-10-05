@@ -17,8 +17,9 @@ import {
 } from "@/components/chat/media/SVGBlock";
 import { InlineImage } from "@/components/chat/media/InlineImage";
 import { PDFCard } from "@/components/chat/media/PDFCard";
-import type { Components } from "react-markdown";
+import type { Components, Options as MarkdownOptions } from "react-markdown";
 import { stripCitationMarkers } from "@/lib/citationMarkers";
+import { prepareChatMaths } from "@/lib/mathDelimiters";
 
 interface ChatMarkdownProps {
   content: string;
@@ -67,6 +68,22 @@ const SVG_RAW_RE = /(^|\n)\s*(<svg[\s\S]*?<\/svg>)\s*(?=\n|$)/gi;
 const SVG_STREAMING_TAIL_RE = /(^|\n)\s*(<svg\b[\s\S]*)$/i;
 const SVG_STREAMING_SENTINEL = "AITANASVGSTREAMING";
 
+// 1.1.147 M0. `throwOnError: false` + `errorColor: "inherit"`: a formula KaTeX
+// still cannot parse shows as its source in the body colour, not red — red
+// source reads as "the app is broken". The macros are the belt for a siunitx
+// habit the model brings (`\celsius` reached prod on 2026-10-05); a `^` inside
+// `\text{}` cannot be a macro, which is why mathDelimiters repairs it.
+const KATEX_OPTIONS = {
+  throwOnError: false,
+  errorColor: "inherit",
+  macros: { "\\celsius": "^\\circ\\text{C}", "\\degree": "^\\circ" },
+};
+const REMARK_PLUGINS: NonNullable<MarkdownOptions["remarkPlugins"]> = [remarkGfm, remarkMath];
+const REHYPE_PLUGINS: NonNullable<MarkdownOptions["rehypePlugins"]> = [
+  [rehypeHighlight, { ignoreMissing: true }],
+  [rehypeKatex, KATEX_OPTIONS],
+];
+
 // memo + the useMemo'd `components` object below are load-bearing, not an
 // optimisation: react-markdown uses each override function as a React element
 // TYPE, so a fresh `components` object per render makes React see new
@@ -84,7 +101,10 @@ export const ChatMarkdown = memo(function ChatMarkdown({ content, navigateToBloc
     let idx = 0;
     // 1. ```svg fenced blocks
     // 0. Vertex RAG chunk labels never reach a student (1.1.122).
-    let processed = stripCitationMarkers(content).replace(SVG_FENCE_RE, (_match, svgCode: string) => {
+    // 0b. Tutor maths the parser would otherwise show as source — maths in
+    // backticks, \(…\) / \[…\], `\text{ ^\circ C}` (1.1.147 M0). Runs before
+    // SVG extraction; fenced blocks are never touched.
+    let processed = prepareChatMaths(stripCitationMarkers(content)).replace(SVG_FENCE_RE, (_match, svgCode: string) => {
       blocks.set(idx, svgCode.trim());
       return `${SVG_SENTINEL_PREFIX}${idx++}${SVG_SENTINEL_SUFFIX}`;
     });
@@ -239,11 +259,8 @@ export const ChatMarkdown = memo(function ChatMarkdown({ content, navigateToBloc
 
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm, remarkMath]}
-      rehypePlugins={[
-        [rehypeHighlight, { ignoreMissing: true }],
-        rehypeKatex,
-      ]}
+      remarkPlugins={REMARK_PLUGINS}
+      rehypePlugins={REHYPE_PLUGINS}
       components={components}
       urlTransform={(url) => {
         // Allow aitana://, https://, http://, mailto: — block everything else
