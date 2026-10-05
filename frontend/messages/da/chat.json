@@ -73,7 +73,8 @@
   "ChatMessageList": {
     "olderHidden": "Tidligere interaktioner er skjult",
     "earlier": "Tidligere i samtalen",
-    "emptyPrompt": "Skriv en besked for at starte samtalen."
+    "emptyPrompt": "Skriv en besked for at starte samtalen.",
+    "newMessage": "Ny besked"
   },
   "ContextBanner": {
     "analyzing": "Analyserer <b>{count}</b> {count, plural, one {dokument} other {dokumenter}} fra <b>{folder}</b>"
