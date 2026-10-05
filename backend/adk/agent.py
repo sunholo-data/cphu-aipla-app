@@ -62,6 +62,7 @@ from adk.callbacks import (
 from adk.checklist_tools import build_checklist_tools
 from adk.checkpoint_tools import build_checkpoint_tools
 from adk.citation_markers import make_marker_strip_callback
+from adk.classroom_authority import build_classroom_authority_block
 from adk.concept_steering import build_concept_steering_block
 from adk.curriculum_retrieval import (
     build_curriculum_grounding_preamble,
@@ -923,7 +924,10 @@ def create_agent(
                                 # only: the persona renders in the anonymous-group
                                 # chat, and a teacher co-pilot must not be told
                                 # it is "Sofie".
-                                + (build_identity_block(_teaching_ctx.persona_id) if user.group_id else ""),
+                                + (build_identity_block(_teaching_ctx.persona_id) if user.group_id else "")
+                                # 1.1.151 F5 — breaks, leaving, deadlines and
+                                # grades are the teacher's; students only.
+                                + (build_classroom_authority_block() if user.group_id else ""),
                                 skill_config.multimodal_input,
                             ),
                             _activity_id,

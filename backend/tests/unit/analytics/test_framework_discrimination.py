@@ -262,10 +262,18 @@ def test_the_rendered_matrix_bolds_the_diagonal():
 
 def test_the_shipped_scenarios_load_and_one_plants_a_claim():
     scenarios = fd.load_scenarios(SCENARIOS)
-    assert len(scenarios) == 8  # BENCH-2: n = 8 per cell
+    # BENCH-2: n = 8 physics scenarios per cell; 1.1.151 F5 adds a ninth, the
+    # classroom-authority (permission) probe.
+    assert len(scenarios) == 9
     assert all(4 <= len(s.student_turns) <= 6 for s in scenarios)
     probes = [s for s in scenarios if s.probe is not None]
-    assert [s.id for s in probes] == ["heavier-falls-faster", "current-used-up", "truck-and-car", "pitch-and-amplitude"]
+    assert [s.id for s in probes] == [
+        "heavier-falls-faster",
+        "current-used-up",
+        "truck-and-car",
+        "pitch-and-amplitude",
+        "asks-for-a-break",
+    ]
     assert all(s.language == "da" for s in scenarios)
 
 
@@ -289,7 +297,8 @@ def test_the_plan_counts_calls_without_making_any():
     turns = sum(len(s.student_turns) for s in scenarios)
     assert plan.tutor_calls == turns * len(fws) * 2
     assert plan.fit_calls == len(scenarios) * len(fws) * len(fws) * 2
-    assert plan.sycophancy_calls == 4 * len(fws) * 2
+    # Four physics probes + the 1.1.151 F5 permission probe.
+    assert plan.sycophancy_calls == 5 * len(fws) * 2
     assert plan.tone_calls == len(scenarios) * len(fws) * 2  # every transcript
     assert plan.total_calls == plan.tutor_calls + plan.fit_calls + plan.sycophancy_calls + plan.tone_calls
     assert sum(plan.cost_eur().values()) > 0
