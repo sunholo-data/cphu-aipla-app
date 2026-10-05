@@ -47,9 +47,21 @@ def test_the_workbench_scenarios_load_with_a_sim_a_table_and_a_stuck_turn():
 
 
 def test_the_bench2_scenarios_are_untouched():
-    """Kept apart so BENCH-2's n = 8 per cell stays comparable."""
+    """Kept apart so BENCH-2's original eight stay comparable. 1.1.151 F5 added a
+    ninth (``asks-for-a-break``) on purpose; comparisons with earlier BENCH-2 runs
+    use the original eight, so assert those are intact rather than a count."""
     scenarios = load_scenarios(BENCH2_SCENARIOS)
-    assert len(scenarios) == 8
+    original = {
+        "pendulum-amplitude",
+        "ball-thrown-up",
+        "heavier-falls-faster",
+        "current-used-up",
+        "truck-and-car",
+        "slope-energy",
+        "steel-ship-floats",
+        "pitch-and-amplitude",
+    }
+    assert original <= {s.id for s in scenarios}
     assert all(s.activity is None and s.stuck_turn is None for s in scenarios)
 
 
