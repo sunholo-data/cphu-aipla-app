@@ -33,6 +33,14 @@
 #     that holds starlette on 0.x (installed fastapi 0.136.1 → starlette
 #     0.52.1, no 0.x backport exists). Same low reachability rationale as
 #     PYSEC-2026-161. Revisit together when we move to FastAPI 1.x.
+#   PYSEC-2026-4066 (litellm, CVE-2026-84377 / GHSA-3cv6-jpf6-8222) — SSRF
+#     and credential exfiltration in the LiteLLM *proxy server*'s request
+#     validation. Fixed in 1.88.6+, but every google-cloud-aiplatform
+#     [evaluation] release (pulled by google-adk[eval]) caps litellm<1.86.0,
+#     so no fixed version resolves. Reachability: none — we use litellm only
+#     as a client library through ADK's LiteLlm wrapper (adk/agent.py) and
+#     never run the proxy. Added 2026-10-05; revisit when aiplatform lifts
+#     the cap (`uv lock -P 'litellm>=1.88.6' --dry-run`).
 #
 set -euo pipefail
 
@@ -77,7 +85,8 @@ audit_python() {
   echo
   echo "${C_BOLD}[$label] pip-audit (uv export --frozen --no-dev, OSV)${C_RESET}"
   # --no-emit-project drops the local "-e ." line which pip-audit can't hash.
-  # --ignore-vuln: starlette CVEs blocked by fastapi<1.0.0 — documented above.
+  # --ignore-vuln: starlette CVEs blocked by fastapi<1.0.0, and the litellm
+  # proxy-only CVE blocked by aiplatform's cap — all documented above.
   if (cd "$dir" && uvx pip-audit \
        --requirement <(uv export --frozen --no-dev --no-emit-project) \
        --strict \
@@ -86,6 +95,7 @@ audit_python() {
        --ignore-vuln CVE-2026-48818 \
        --ignore-vuln CVE-2026-54282 \
        --ignore-vuln CVE-2026-54283 \
+       --ignore-vuln PYSEC-2026-4066 \
        --vulnerability-service osv); then
     echo "${C_GREEN}PASS${C_RESET} $label"
   else
