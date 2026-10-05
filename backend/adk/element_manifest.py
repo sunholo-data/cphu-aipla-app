@@ -59,6 +59,25 @@ _HEADER = (
 _FOOTER = "The student's current entries are not shown here; you receive them as they work."
 
 
+def name_element(noun: str, title: str | None, ordinal: int = 1) -> str:
+    """How the tutor's prompt names one workbench element.
+
+    A titled element is quoted, so the tutor can repeat the name the student
+    reads above it. An untitled one used to be quoted as ``"untitled"``, and the
+    model repeated that verbatim to Danish students on 2026-10-05 (*"datatabellen
+    'untitled (1)' på din arbejdsbænk"*): an English word naming a heading that
+    does not exist on the student's screen. There is no title to quote, so none
+    is invented; the tutor is told to describe the element by what it holds.
+    """
+    title = (title or "").strip()
+    if title:
+        return f'{noun} "{title}"'
+    return (
+        f"{noun} no. {ordinal} (no heading on the student's screen — refer to it by what it "
+        f'holds, never as "untitled")'
+    )
+
+
 def _describe_checklist(items: list, spec: ElementSpec) -> list[str]:
     lines = ["Checklist — the steps the teacher set for this activity:"]
     lines.extend(f"  - {getattr(item, 'label', '')}" for item in items)
@@ -67,13 +86,13 @@ def _describe_checklist(items: list, spec: ElementSpec) -> list[str]:
 
 def _describe_table(items: list, spec: ElementSpec) -> list[str]:
     lines = []
-    for tbl in items:
+    for n, tbl in enumerate(items, 1):
         cols = ", ".join(
             f"{c.label} ({c.unit})" if getattr(c, "unit", "") else str(c.label) for c in getattr(tbl, "columns", [])
         )
-        title = getattr(tbl, "title", "") or "untitled"
+        name = name_element("Data table", getattr(tbl, "title", ""), n)
         rows = getattr(tbl, "rows", 0)
-        lines.append(f'Data table "{title}" — columns: {cols}. {rows} empty rows for the student to fill in.')
+        lines.append(f"{name} — columns: {cols}. {rows} empty rows for the student to fill in.")
     return lines
 
 
@@ -82,33 +101,35 @@ def _describe_chart(items: list, spec: ElementSpec) -> list[str]:
     # the activity's data table. Read the axis fields defensively so this
     # describer keeps working either side of that change.
     lines = []
-    for ch in items:
-        title = getattr(ch, "title", "") or "untitled"
+    for n, ch in enumerate(items, 1):
         kind = getattr(ch, "chart_kind", "scatter")
+        name = name_element("Chart", getattr(ch, "title", ""), n)
         x = getattr(ch, "x_column", None)
         y = getattr(ch, "y_column", None)
         if x and y:
-            lines.append(f'Chart "{title}" ({kind}) — plots {x} against {y} from the data table.')
+            lines.append(f"{name} ({kind}) — plots {x} against {y} from the data table.")
         else:
-            lines.append(f'Chart "{title}" ({kind}) — plots the data table as the student fills it in.')
+            lines.append(f"{name} ({kind}) — plots the data table as the student fills it in.")
     return lines
 
 
 def _describe_calculator(items: list, spec: ElementSpec) -> list[str]:
     lines = []
-    for calc in items:
+    for n, calc in enumerate(items, 1):
         inputs = ", ".join(
             f"{i.label} ({i.unit})" if getattr(i, "unit", "") else str(i.label) for i in getattr(calc, "inputs", [])
         )
-        title = getattr(calc, "title", "") or "untitled"
-        lines.append(f'Calculator "{title}" — inputs: {inputs}.')
+        lines.append(f"{name_element('Calculator', getattr(calc, 'title', ''), n)} — inputs: {inputs}.")
     return lines
 
 
 def _describe_note(items: list, spec: ElementSpec) -> list[str]:
     # Name it, never inline it: a note body runs to 4,000 characters and would
     # consume the whole manifest budget on its own.
-    return [f'Note "{getattr(n, "title", "") or "untitled"}" — reference text the student can read.' for n in items]
+    return [
+        f"{name_element('Note', getattr(n, 'title', ''), i)} — reference text the student can read."
+        for i, n in enumerate(items, 1)
+    ]
 
 
 def _describe_writing(items: list, spec: ElementSpec) -> list[str]:
@@ -124,11 +145,10 @@ def _describe_writing(items: list, spec: ElementSpec) -> list[str]:
     path into the document by construction; this says so in words as well.
     """
     lines = []
-    for w in items:
-        title = getattr(w, "title", "") or "untitled"
+    for n, w in enumerate(items, 1):
         prompt = (getattr(w, "prompt", "") or "").strip()
         target = int(getattr(w, "min_words", 0) or 0)
-        head = f'Writing surface "{title}" — the student writes their own text here'
+        head = f"{name_element('Writing surface', getattr(w, 'title', ''), n)} — the student writes their own text here"
         if prompt:
             head += f". Task: {prompt}"
         if target:
@@ -171,9 +191,9 @@ def _describe_concept_map(items: list, spec: ElementSpec) -> list[str]:
     # compose_teacher_focus (nodes, prerequisites, the checkpoint contract).
     # One orienting line here keeps the registry complete without duplicating it.
     return [
-        f'Concept map "{getattr(m, "title", "") or "untitled"}" — '
+        f"{name_element('Concept map', getattr(m, 'title', ''), i)} — "
         f"{len(getattr(m, 'nodes', []))} concepts, described in detail below."
-        for m in items
+        for i, m in enumerate(items, 1)
     ]
 
 

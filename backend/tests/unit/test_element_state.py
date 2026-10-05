@@ -210,9 +210,22 @@ def test_untitled_tables_are_disambiguated_by_position() -> None:
     could not say which one it meant, and neither could the student."""
     cfg = _cfg(table=[_table("t1", title=""), _table("t2", title=""), _table("t3", title="")])
     block = describe_element_state(cfg, {})
-    assert 'Data table "untitled (1)"' in block
-    assert 'Data table "untitled (2)"' in block
-    assert 'Data table "untitled (3)"' in block
+    assert "Data table no. 1 (no heading" in block
+    assert "Data table no. 2 (no heading" in block
+    assert "Data table no. 3 (no heading" in block
+
+
+def test_an_untitled_element_is_never_given_an_invented_english_name() -> None:
+    """2026-10-05, prod: the tutor told Danish students to open *"datatabellen
+    'untitled (1)'"* — a quoted English word for a heading their screen does
+    not show. The prompt may only quote a title the teacher actually wrote."""
+    from adk.element_manifest import describe_elements
+
+    cfg = _cfg(table=[_table("t1", title="")])
+    for block in (describe_element_state(cfg, {}), describe_elements(cfg)):
+        assert 'table "untitled' not in block.lower()
+        assert "untitled (" not in block
+        assert "Data table no. 1" in block
 
 
 def test_duplicate_titles_are_disambiguated_too() -> None:
