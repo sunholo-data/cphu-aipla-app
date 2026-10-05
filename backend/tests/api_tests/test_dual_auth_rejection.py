@@ -40,6 +40,8 @@ OBSERVED current behaviour (the thing this test pins):
 
 from __future__ import annotations
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -51,6 +53,7 @@ from protocols.activity_routes import router as activity_router
 from protocols.checklist_progress_routes import router as checklist_progress_router
 from protocols.classes_routes import router as classes_router
 from protocols.concept_progress_routes import router as concept_progress_router
+from protocols.reports_routes import router as reports_router
 from protocols.table_progress_routes import router as table_progress_router
 from protocols.writing_progress_routes import router as writing_progress_router
 
@@ -88,6 +91,7 @@ def app() -> FastAPI:
     app.include_router(checklist_progress_router)
     app.include_router(concept_progress_router)
     app.include_router(table_progress_router)
+    app.include_router(reports_router)
     return app
 
 
@@ -328,3 +332,27 @@ def test_rejection_is_role_based_not_token_invalid(client):
     assert create_class.status_code == 403, create_class.text
     assert create_activity.status_code == 403, create_activity.text
     assert student_read.status_code == 200, student_read.text
+
+
+def test_real_group_token_cannot_read_any_group_report(client):
+    """A real student token reading a session report — another group's, or its
+    own — gets 404 before a single lookup runs.
+
+    Until 2026-10-05 ``/api/reports/*`` checked authentication only, so this
+    exact token read any group's transcript by code. The route tests override
+    ``get_current_user``; this one goes through the real dispatcher, which is
+    where a group token is turned into a ``User``.
+    """
+    own = create_group(title="T3 class", skill_ids=["concept-dialogue"], creator_uid=TEACHER_UID)
+    token = join_group(own.group_id, client_ip="203.0.113.7").token
+    other = create_group(title="Another class", skill_ids=["concept-dialogue"], creator_uid=TEACHER_UID)
+
+    with (
+        patch("protocols.reports_routes.find_latest_session_id_for_group_bq") as bq,
+        patch("protocols.reports_routes.resolve_session_summary", new=AsyncMock()) as summ,
+    ):
+        for code in (other.group_id, own.group_id):
+            resp = client.get(f"/api/reports/groups/{code}", headers=_auth_headers(token))
+            assert resp.status_code == 404, (code, resp.text)
+    bq.assert_not_called()
+    summ.assert_not_called()

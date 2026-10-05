@@ -182,6 +182,9 @@ async def test_group_report_does_not_block_the_loop(monkeypatch, caplog):
     from unittest.mock import AsyncMock
 
     # The route makes three queries (latest session, turns, workbench events).
+    # Ownership is not under test here (test_reports_routes.py owns it); this
+    # teacher owns no class, so admit them and time only the report's queries.
+    monkeypatch.setattr("protocols.reports_routes._can_read_group", lambda _u, _g: True)
     monkeypatch.setattr(bigquery, "run_query", _blocking_run_query_for_reports(SLOW_S / 2))
     monkeypatch.setattr("protocols.reports_routes.resolve_narrative", AsyncMock(return_value=None))
     monkeypatch.setattr("protocols.reports_routes._fidelity_for", AsyncMock(return_value=None))
@@ -196,6 +199,9 @@ async def test_group_report_does_not_block_the_loop(monkeypatch, caplog):
 
 async def test_session_report_bq_does_not_block_the_loop(monkeypatch, caplog):
     """``?source=bq`` (``aiplatform logs verify``) reads the same two transcript queries."""
+    # Ownership is not under test here (test_reports_routes.py owns it); this
+    # teacher owns no class, so admit them and time only the report's queries.
+    monkeypatch.setattr("protocols.reports_routes._can_read_group", lambda _u, _g: True)
     monkeypatch.setattr(bigquery, "run_query", _blocking_run_query_for_reports(SLOW_S / 2))
 
     with caplog.at_level(logging.ERROR, logger="db.bigquery"):

@@ -5,10 +5,23 @@ Phase 2 (1.G-Ph2) scope:
   GET /api/reports/groups/{group_code}     — most-recent session for an
                                               anonymous group
 
-Both endpoints return a 404 when no session matches. Phase 3 layers
-on teacher ownership of the parent Class entity (today every
-authenticated user can read every report — fine for LOCAL_MODE's
-single-teacher world).
+Both endpoints return a 404 when no session matches.
+
+Who may read a report: the teacher who OWNS the group's class, or a researcher
+(``role:researcher``, the same cross-class read bypass as
+``analytics.auth.assert_can_read_class``). Everyone else — another teacher, a
+visitor, an anonymous-group student holding a valid token — gets the same 404
+as a missing report, so a group code cannot be probed for existence.
+
+Until 2026-10-05 there was no such check: the module said "every authenticated
+user can read every report — fine for LOCAL_MODE's single-teacher world", and
+prod is not that world. A student's group token passed ``get_current_user`` and
+could read any other group's transcript by code.
+
+A researcher may also read a group whose class can no longer be resolved (its
+``anon_groups`` record was deleted by Revoke — 1.1.146); that evidence must not
+become unreachable. A teacher cannot: without a class there is no ownership to
+prove.
 """
 
 from __future__ import annotations
@@ -18,9 +31,11 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 
+from analytics.auth import assert_can_read_class
 from analytics.framework_fidelity import resolve_fidelity
 from auth import User, get_current_user
 from config.models import analysis_model
+from db.classes import get_class_for_group
 from reports.narrative import resolve_narrative
 from reports.session_summary import (
     SessionSummary,
@@ -33,6 +48,31 @@ from reports.session_summary import (
 log = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/reports", tags=["reports"])
+
+#: One message for "no such report" and "not yours", so a 404 says nothing about
+#: whether the group or session exists.
+_NOT_FOUND = "report not found"
+
+
+def _can_read_group(user: User, group_code: str | None) -> bool:
+    """True when ``user`` may read reports for ``group_code``. Synchronous
+    Firestore reads — call through ``asyncio.to_thread``."""
+    if not group_code:
+        # No group (a teacher's own chat, not a student session): researcher only.
+        return bool(getattr(user, "is_researcher", False))
+    cls = get_class_for_group(group_code)
+    if cls is None:
+        return bool(getattr(user, "is_researcher", False))
+    try:
+        assert_can_read_class(user, cls.class_id)
+    except PermissionError:
+        return False
+    return True
+
+
+async def _assert_can_read_group(user: User, group_code: str | None) -> None:
+    if not await asyncio.to_thread(_can_read_group, user, group_code):
+        raise HTTPException(status_code=404, detail=_NOT_FOUND)
 
 
 def _report_labels(summary: SessionSummary) -> dict:
@@ -139,6 +179,14 @@ async def get_session_report(
         summary = await resolve_session_summary(session_id)
     if summary is None:
         raise HTTPException(status_code=404, detail="session not found")
+    # Before the narrative/fidelity calls: a refused caller must not spend an LLM call.
+    # One exception: a group reading its OWN session through the BigQuery-only
+    # verify path — what `aiplatform logs verify` (`make verify-chat-logs`) does
+    # with the token it just joined with. That path carries no narrative or
+    # fidelity read, only the group's own turns.
+    own_group_verify = source == "bq" and bool(_user.group_id) and summary.group_code == _user.group_id
+    if not own_group_verify:
+        await _assert_can_read_group(_user, summary.group_code)
     fidelity = None
     if narrative and source != "bq":
         await resolve_narrative(summary)
@@ -166,13 +214,16 @@ async def get_group_latest_report(
 
     404 when the group has no sessions yet (frontend renders an empty state).
     """
+    await _assert_can_read_group(_user, group_code)
     if session_id:
         summary = await resolve_session_summary(session_id)
         if summary is None:
             raise HTTPException(status_code=404, detail="session not found")
         # Confirm the session actually belongs to this group code — prevents
-        # cross-group enumeration by guessing session ids.
-        if summary.group_code and summary.group_code != group_code:
+        # cross-group enumeration by guessing session ids. A session with NO
+        # group code is refused too: the ownership check above was on
+        # ``group_code``, so it says nothing about a session outside it.
+        if summary.group_code != group_code:
             raise HTTPException(status_code=404, detail="session not found for this group")
         await resolve_narrative(summary, force=refresh)
         fidelity = await _fidelity_for(summary, _user, force=refresh)

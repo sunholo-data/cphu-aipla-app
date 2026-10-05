@@ -16,11 +16,28 @@ from db.models.access import AccessControl
 from db.models.chat_session import ChatSessionIndex
 from protocols.reports_routes import router
 
+#: The default client's teacher OWNS the class that ``bold-kazoo-87`` was minted
+#: under — a report is readable only by its class owner or a researcher.
+_OWNER_UID = "teacher-1"
+_OWNED_CODE = "bold-kazoo-87"
+
+
+def _seed_class(owner_uid: str, *codes: str) -> str:
+    from db.classes import create_class
+    from db.models.class_ import Class
+
+    cls = Class.create_for_teacher(owner_uid=owner_uid, name="Fysik 1a")
+    create_class(cls)
+    for code in codes:
+        set_document("anon_groups", code, {"groupId": code, "classId": cls.class_id})
+    return cls.class_id
+
 
 @pytest.fixture(autouse=True)
 def _local_mode(monkeypatch):
     monkeypatch.setenv("LOCAL_MODE", "1")
     fs_module._reset_client_for_testing()
+    _seed_class(_OWNER_UID, _OWNED_CODE)
     yield
     fs_module._reset_client_for_testing()
 
@@ -31,7 +48,7 @@ def app():
     app.include_router(router)
 
     async def _override(request: Request) -> User:
-        u = User(uid="teacher-1", email="teacher@example.test")
+        u = User(uid=_OWNER_UID, email="teacher@example.test", is_teacher=True)
         request.state.access = build_access_context(u)
         return u
 
@@ -76,7 +93,10 @@ def test_session_report_404_when_missing(client):
     assert resp.status_code == 404
 
 
-def test_session_report_returns_summary(client):
+def test_session_report_returns_summary():
+    """Read as a researcher: the session-state fallback yields the hyphen-stripped
+    code, which resolves to no class, so only the researcher bypass admits it."""
+    client = _client_as(_RESEARCHER)
     _seed_session(
         session_id="s1",
         owner_uid="anon-boldkazoo87-aaa",
@@ -243,6 +263,9 @@ def _summary_for_fidelity():
     )
 
 
+_RESEARCHER = User(uid="r-1", email="r@x.dk", is_teacher=True, is_researcher=True)
+
+
 def _client_as(user: User) -> TestClient:
     app = FastAPI()
     app.include_router(router)
@@ -267,7 +290,7 @@ def test_teacher_gets_the_prose_but_no_bands():
         patch("protocols.reports_routes.resolve_narrative", new=AsyncMock()),
         patch("protocols.reports_routes.resolve_fidelity", new=AsyncMock(return_value=_fidelity_result())),
     ):
-        resp = _client_as(User(uid="t-1", email="t@x.dk", is_teacher=True)).get("/api/reports/sessions/s-9")
+        resp = _client_as(User(uid=_OWNER_UID, email="t@x.dk", is_teacher=True)).get("/api/reports/sessions/s-9")
     assert resp.status_code == 200, resp.text
     fid = resp.json()["fidelity"]
     assert fid["frameworkLabel"] == "Question-and-use cycle (ESRU)"
@@ -325,3 +348,156 @@ def test_a_failed_fidelity_read_never_breaks_the_report(client):
         resp = client.get("/api/reports/sessions/s-9")
     assert resp.status_code == 200
     assert resp.json()["fidelity"] is None
+
+
+# ── 2026-10-05: a report is readable by its class owner or a researcher only ──
+# Before this, `/api/reports/*` checked authentication and nothing else: any
+# signed-in identity — another teacher, a visitor, a student holding a group
+# token — could read any group's transcript by code.
+
+_OTHER_TEACHER = User(uid="teacher-2", email="other@example.test", is_teacher=True)
+_STUDENT = User(
+    uid="anon-boldkazoo87",
+    email="",
+    domain="",
+    group_id="bold-kazoo-87",
+    auth_mode="anonymous_group_id",
+)
+
+
+@pytest.mark.parametrize("caller", [_OTHER_TEACHER, _STUDENT], ids=["other-teacher", "student"])
+def test_group_report_refused_to_anyone_but_owner_or_researcher(caller):
+    """Refused BEFORE any lookup: no BigQuery read, no narrative LLM call."""
+    with (
+        patch("protocols.reports_routes.find_latest_session_id_for_group_bq") as bq,
+        patch("protocols.reports_routes.resolve_session_summary", new=AsyncMock()) as summ,
+        patch("protocols.reports_routes.resolve_narrative", new=AsyncMock()) as narr,
+    ):
+        resp = _client_as(caller).get(f"/api/reports/groups/{_OWNED_CODE}")
+    assert resp.status_code == 404
+    bq.assert_not_called()
+    summ.assert_not_called()
+    narr.assert_not_called()
+
+
+def test_refusal_is_indistinguishable_from_a_missing_group():
+    """Same status and body for 'not yours' as for 'no such group', so a code
+    cannot be probed for existence."""
+    other = _client_as(_OTHER_TEACHER)
+    owned = other.get(f"/api/reports/groups/{_OWNED_CODE}")
+    missing = other.get("/api/reports/groups/no-such-code-1")
+    assert (owned.status_code, owned.json()) == (missing.status_code, missing.json())
+
+
+@pytest.mark.parametrize("caller", [_OTHER_TEACHER, _STUDENT], ids=["other-teacher", "student"])
+def test_session_report_refused_before_the_llm_runs(caller):
+    async def _resolve(session_id: str):
+        return _summary_for_fidelity()  # groupCode bold-kazoo-87, owned by teacher-1
+
+    with (
+        patch("protocols.reports_routes.resolve_session_summary", side_effect=_resolve),
+        patch("protocols.reports_routes.resolve_narrative", new=AsyncMock()) as narr,
+        patch("protocols.reports_routes.resolve_fidelity", new=AsyncMock()) as fid,
+    ):
+        resp = _client_as(caller).get("/api/reports/sessions/s-9")
+    assert resp.status_code == 404
+    narr.assert_not_called()
+    fid.assert_not_called()
+
+
+def test_researcher_reads_any_class():
+    async def _resolve(session_id: str):
+        return _summary_for_fidelity()
+
+    with (
+        patch("protocols.reports_routes.find_latest_session_id_for_group_bq", return_value="s-9"),
+        patch("protocols.reports_routes.resolve_session_summary", side_effect=_resolve),
+        patch("protocols.reports_routes.resolve_narrative", new=AsyncMock()),
+        patch("protocols.reports_routes.resolve_fidelity", new=AsyncMock(return_value=None)),
+    ):
+        resp = _client_as(_RESEARCHER).get(f"/api/reports/groups/{_OWNED_CODE}")
+    assert resp.status_code == 200, resp.text
+
+
+def test_orphaned_code_stays_readable_by_a_researcher_only():
+    """A code whose anon_groups record was deleted (Revoke is a hard delete —
+    1.1.146) resolves to no class. The evidence must stay reachable for a
+    researcher; a teacher has no ownership left to prove."""
+    orphan = "lost-otter-12"
+
+    async def _resolve(session_id: str):
+        s = _summary_for_fidelity()
+        s.group_code = orphan
+        return s
+
+    with (
+        patch("protocols.reports_routes.find_latest_session_id_for_group_bq", return_value="s-9"),
+        patch("protocols.reports_routes.resolve_session_summary", side_effect=_resolve),
+        patch("protocols.reports_routes.resolve_narrative", new=AsyncMock()),
+        patch("protocols.reports_routes.resolve_fidelity", new=AsyncMock(return_value=None)),
+    ):
+        assert _client_as(_RESEARCHER).get(f"/api/reports/groups/{orphan}").status_code == 200
+        assert (
+            _client_as(User(uid=_OWNER_UID, email="t@x.dk", is_teacher=True))
+            .get(f"/api/reports/groups/{orphan}")
+            .status_code
+            == 404
+        )
+
+
+def test_owner_cannot_pull_a_session_outside_the_group_by_id(client):
+    """The ownership check is on the URL's group code, so `?session_id=` must
+    belong to that code — including a session that carries NO group code."""
+
+    async def _resolve(session_id: str):
+        s = _summary_for_fidelity()
+        s.group_code = None
+        return s
+
+    with (
+        patch("protocols.reports_routes.resolve_session_summary", side_effect=_resolve),
+        patch("protocols.reports_routes.resolve_narrative", new=AsyncMock()) as narr,
+    ):
+        resp = client.get(f"/api/reports/groups/{_OWNED_CODE}?session_id=someone-elses")
+    assert resp.status_code == 404
+    narr.assert_not_called()
+
+
+def test_session_without_a_group_is_researcher_only():
+    async def _resolve(session_id: str):
+        s = _summary_for_fidelity()
+        s.group_code = None
+        return s
+
+    with (
+        patch("protocols.reports_routes.resolve_session_summary", side_effect=_resolve),
+        patch("protocols.reports_routes.resolve_narrative", new=AsyncMock()),
+        patch("protocols.reports_routes.resolve_fidelity", new=AsyncMock(return_value=None)),
+    ):
+        teacher = _client_as(User(uid=_OWNER_UID, email="t@x.dk", is_teacher=True))
+        assert teacher.get("/api/reports/sessions/s-9").status_code == 404
+        assert _client_as(_RESEARCHER).get("/api/reports/sessions/s-9").status_code == 200
+
+
+def test_a_group_may_verify_its_own_session_on_the_bq_path_only():
+    """`aiplatform logs verify` joins a group and reads that group's session with
+    the token it just got, via `?source=bq` (no narrative, no fidelity). That
+    stays open; the full report and every other group's session do not."""
+
+    async def _bq(session_id: str):
+        return _summary_for_fidelity()  # groupCode bold-kazoo-87
+
+    async def _auto(session_id: str):
+        return _summary_for_fidelity()
+
+    other_student = User(uid="anon-quietfern3", email="", domain="", group_id="quiet-fern-3")
+    with (
+        patch("protocols.reports_routes.summarize_session_bq", side_effect=_bq),
+        patch("protocols.reports_routes.resolve_session_summary", side_effect=_auto),
+        patch("protocols.reports_routes.resolve_narrative", new=AsyncMock()) as narr,
+    ):
+        own = _client_as(_STUDENT)
+        assert own.get("/api/reports/sessions/s-9?source=bq").status_code == 200
+        assert own.get("/api/reports/sessions/s-9").status_code == 404  # full report: no
+        assert _client_as(other_student).get("/api/reports/sessions/s-9?source=bq").status_code == 404
+    narr.assert_not_called()
