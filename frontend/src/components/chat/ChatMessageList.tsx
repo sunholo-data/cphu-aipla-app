@@ -12,7 +12,8 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import type { StreamError, SkillMessage, ToolCallState } from "@/hooks/useSkillAgent";
 import type { ActiveDocumentContext } from "@/components/chat/ContextBanner";
 import { ContextBanner } from "@/components/chat/ContextBanner";
-import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
+import { useHumanToolEvents, type HumanToolEvent } from "@/hooks/useHumanToolEvents";
+import { buildSharedTranscript } from "./sharedTranscript";
 
 import { HumanToolUseCard } from "./HumanToolUseCard";
 import { MessageBubble, type PersonaSummary } from "./MessageBubble";
@@ -86,9 +87,40 @@ interface ChatMessageListProps {
    * is false during it — without this the chat looks empty/broken while
    * the (slower) opening turn is produced. Shows the typing indicator. */
   greetLoading?: boolean;
+  /** 1.1.145 M2 — a group's shared session: render `initialMessages` (the
+   *  refetched transcript the tutor reads) and this device's live `messages` as
+   *  ONE transcript, folding each live message into its persisted copy instead
+   *  of listing both. `syncedFrom` is the history length at first load; a user
+   *  turn after it that is not this device's is labelled as a groupmate's.
+   *  Absent → the two-block render every other surface uses, unchanged. */
+  sharedTranscript?: { syncedFrom: number };
 }
 
 const SCROLL_THRESHOLD = 100;
+
+const NO_HIDDEN: ReadonlySet<string> = new Set();
+
+/** Restored interaction cards that duplicate one of this device's live cards.
+ *  In a shared transcript the live card (still pending/confirmed on screen) and
+ *  its persisted copy (restored by the refetch) are the same push; keep the live
+ *  one. Matched by label as a multiset — each live card hides at most one. */
+function duplicateRestoredCards(events: HumanToolEvent[]): ReadonlySet<string> {
+  const liveLabels = new Map<string, number>();
+  for (const e of events) {
+    if (!e.restored) liveLabels.set(e.label, (liveLabels.get(e.label) ?? 0) + 1);
+  }
+  if (liveLabels.size === 0) return NO_HIDDEN;
+  const hidden = new Set<string>();
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i];
+    const n = liveLabels.get(e.label) ?? 0;
+    if (e.restored && n > 0) {
+      hidden.add(e.id);
+      liveLabels.set(e.label, n - 1);
+    }
+  }
+  return hidden;
+}
 
 // Shared empty array so bubbles without tool calls receive the SAME reference
 // every render — a fresh `[]` per render defeats MessageBubble's React.memo,
@@ -122,8 +154,10 @@ export function ChatMessageList({
   onChatMessage,
   sessionId,
   greetLoading,
+  sharedTranscript,
 }: ChatMessageListProps) {
   const t = useT("ChatMessageList");
+  const { events: humanToolEvents } = useHumanToolEvents();
   const scrollRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const [showScrollBadge, setShowScrollBadge] = useState(false);
@@ -213,6 +247,19 @@ export function ChatMessageList({
     ...stableMessages,
   ]);
 
+  // 1.1.145 M2 — the folded shared transcript (null outside a group session).
+  const sharedItems = useMemo(
+    () =>
+      sharedTranscript
+        ? buildSharedTranscript(initialMessages ?? [], stableMessages, sharedTranscript.syncedFrom)
+        : null,
+    [sharedTranscript, initialMessages, stableMessages],
+  );
+  const hiddenRestored = useMemo(
+    () => (sharedTranscript ? duplicateRestoredCards(humanToolEvents) : NO_HIDDEN),
+    [sharedTranscript, humanToolEvents],
+  );
+
   // Show the most recent running tool name in the TypingIndicator
   const activeToolName = toolCalls.find((tc) => tc.status === "running")?.name ?? null;
 
@@ -242,7 +289,61 @@ export function ChatMessageList({
             <p className="text-xs text-muted-foreground italic">{historyError}</p>
           )}
 
-          {initialMessages && initialMessages.length > 0 && (
+          {sharedItems && (
+            <>
+              {interactionsTruncated && (
+                <p className="text-center text-[11px] text-muted-foreground italic">
+                  {t("olderHidden")}
+                </p>
+              )}
+              {sharedItems.map((item) => (
+                <Fragment key={item.kind === "live" ? `live-${item.message.id}` : item.message.id}>
+                  {/* Restored cards sit in history's index space, live cards in
+                      the live one — each rendered before the message it
+                      preceded, wherever that message now sits. */}
+                  {item.historyIndex !== null && (
+                    <HumanToolEventsAt index={item.historyIndex} restored hidden={hiddenRestored} />
+                  )}
+                  {item.kind === "live" && <HumanToolEventsAt index={item.liveIndex} />}
+                  {item.kind === "history" && item.fromGroup && (
+                    <p
+                      className="text-right text-[11px] text-muted-foreground"
+                      data-testid="from-group-device"
+                    >
+                      {t("fromGroupDevice")}
+                    </p>
+                  )}
+                  <MessageBubble
+                    message={item.message}
+                    skillId={skillId}
+                    activityId={activityId}
+                    skillDisplayName={item.kind === "live" ? skillDisplayName : undefined}
+                    persona={persona}
+                    userInitial={userInitial}
+                    userDisplayName={userDisplayName}
+                    toolCalls={
+                      item.kind === "live"
+                        ? (toolCallsByParent[item.message.id] ?? NO_TOOL_CALLS)
+                        : NO_TOOL_CALLS
+                    }
+                    navigateToBlock={navigate}
+                    onAction={onAction}
+                    mcpServerIds={mcpServerIds}
+                    onChatMessage={onChatMessage}
+                    sessionId={sessionId}
+                    autoSpeakAllowed={item.message.id === autoReadAssistantId}
+                  />
+                </Fragment>
+              ))}
+              <HumanToolEventsAt
+                index={initialMessages?.length ?? 0}
+                restored
+                hidden={hiddenRestored}
+              />
+            </>
+          )}
+
+          {!sharedItems && initialMessages && initialMessages.length > 0 && (
             <>
               {/* 1.1.34: a quiet note when older interactions were dropped by
                   the backend cap — never a silent truncation. */}
@@ -292,7 +393,7 @@ export function ChatMessageList({
             <p className="text-sm text-muted-foreground">{t("emptyPrompt")}</p>
           )}
 
-          {stableMessages.map((m, i) => (
+          {!sharedItems && stableMessages.map((m, i) => (
             <Fragment key={m.id}>
               {/* Cards dispatched BEFORE this message landed (i.e.
                   while message count was still i). Renders at the top
@@ -361,13 +462,24 @@ export function ChatMessageList({
 // the chronologically correct point in the transcript, not always at
 // the bottom. See `HumanToolEvent.afterMessageIndex` in
 // useHumanToolEvents.ts for the dispatch-time snapshot.
-function HumanToolEventsAt({ index, restored = false }: { index: number; restored?: boolean }) {
+function HumanToolEventsAt({
+  index,
+  restored = false,
+  hidden = NO_HIDDEN,
+}: {
+  index: number;
+  restored?: boolean;
+  /** Restored cards to skip because a live card already shows them (1.1.145). */
+  hidden?: ReadonlySet<string>;
+}) {
   const { events } = useHumanToolEvents();
   // Two separate index spaces (1.1.34): restored cards index into the
   // RESTORED history loop; live cards index into the live `messages` loop.
   // Filtering by `restored` keeps a card with afterMessageIndex===2 from
   // rendering in BOTH loops.
-  const here = events.filter((e) => e.afterMessageIndex === index && Boolean(e.restored) === restored);
+  const here = events.filter(
+    (e) => e.afterMessageIndex === index && Boolean(e.restored) === restored && !hidden.has(e.id),
+  );
   if (here.length === 0) return null;
   return (
     <div

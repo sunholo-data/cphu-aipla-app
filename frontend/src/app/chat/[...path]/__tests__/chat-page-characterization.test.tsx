@@ -59,6 +59,11 @@ const authMock = vi.hoisted(() => ({
 // Per-test fetch responder. Keyed by URL substring → JSON body.
 const fetchMock = vi.hoisted(() => ({
   responder: (_url: string): unknown => ({}),
+  // 1.1.145 M1 — what POST /api/auth/group/session answers (anon-group mode
+  // waits for it before building the agent). Kept apart from `responder` so
+  // every test's custom responder does not have to know about it.
+  groupSession: { sessionId: "server-sess-1", created: true } as unknown,
+  groupSessionCalls: [] as string[],
 }));
 
 // ---------------------------------------------------------------------------
@@ -153,6 +158,8 @@ function makeAgentReturn(
     clearError: vi.fn(),
     stop: vi.fn(),
     stall: null,
+    turnRefused: null,
+    clearTurnRefused: vi.fn(),
     retryStalled: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
@@ -264,7 +271,9 @@ async function renderChatPage() {
 function installFetchStub() {
   global.fetch = vi.fn(async (input: RequestInfo | URL) => {
     const url = typeof input === "string" ? input : input.toString();
-    const body = fetchMock.responder(url);
+    const isGroupSession = url.includes("/api/auth/group/session");
+    if (isGroupSession) fetchMock.groupSessionCalls.push(url);
+    const body = isGroupSession ? fetchMock.groupSession : fetchMock.responder(url);
     return {
       ok: true,
       status: 200,
@@ -283,6 +292,8 @@ beforeEach(() => {
   }
   vi.clearAllMocks();
   fetchMock.responder = () => ({});
+  fetchMock.groupSession = { sessionId: "server-sess-1", created: true };
+  fetchMock.groupSessionCalls = [];
   searchParamsState.params = {};
   installFetchStub();
 });
@@ -603,48 +614,13 @@ describe("session resume / threadId wiring (reachable in jsdom)", () => {
     expect(routerReplace).not.toHaveBeenCalled();
   });
 
-  it("anon-group with a stored resumedSessionId and no ?session=: writes the stored session into the URL on mount", async () => {
-    // The 1.F fast-path: in anon-group mode, with a fresh stored group session
-    // carrying a resumedSessionId and no ?session= yet, the mount effect
-    // (page.tsx:231-237) writes ?session=<resumedSessionId> via router.replace.
-    vi.stubEnv("NEXT_PUBLIC_AUTH_MODE", "anonymous_group_id");
-    searchParamsState.params = {}; // no ?session=, no activity_id (group scope)
-
-    // Seed a stored group session with a resumedSessionId (sessionStorage is
-    // jsdom-backed). expires_at must be in the future to survive the freshness
-    // gate in readStoredGroupSession.
-    window.sessionStorage.setItem(
-      "aitana:anon_group_session",
-      JSON.stringify({
-        token: authMock.groupToken,
-        uid: "group-uid-1",
-        expires_at: Math.floor(Date.now() / 1000) + 3600,
-        resumedSessionId: "stored-resume-77",
-        skill_ids: [],
-      }),
-    );
-
-    try {
-      await renderChatPage();
-      await waitFor(() => {
-        expect(routerReplace).toHaveBeenCalled();
-      });
-      // The replace target carries ?session=stored-resume-77.
-      const calledWith = routerReplace.mock.calls.map((c) => String(c[0]));
-      expect(calledWith.some((u) => u.includes("session=stored-resume-77"))).toBe(true);
-    } finally {
-      window.sessionStorage.clear();
-    }
-  });
-
-  it("an activity_id (act-) chat suppresses the group-level resume fast-path", async () => {
-    // page.tsx:223 — for an ALS-1 activity chat (activity_id starts with 'act-')
-    // the group-level resumedSessionId is suppressed (it's the wrong scope); the
-    // per-activity active-session fetch is authoritative instead. So even with a
-    // stored resumedSessionId, NO ?session= writeback from the group fast-path.
+  it("anon-group: the SERVER decides the session — the agent's threadId is it and the URL follows (1.1.145 M1)", async () => {
+    // A stored join-time resumedSessionId used to be written into the URL on
+    // mount (the group-level fast path), racing a client-minted UUID. Now the
+    // page asks POST /api/auth/group/session and uses ONLY what it returns.
     vi.stubEnv("NEXT_PUBLIC_AUTH_MODE", "anonymous_group_id");
     searchParamsState.params = { activity_id: "act-physics-1" };
-
+    fetchMock.groupSession = { sessionId: "server-sess-77", created: false };
     window.sessionStorage.setItem(
       "aitana:anon_group_session",
       JSON.stringify({
@@ -655,29 +631,72 @@ describe("session resume / threadId wiring (reachable in jsdom)", () => {
         skill_ids: [],
       }),
     );
-
-    // The per-activity active-session fetch returns null (no live session) so
-    // it doesn't write either — isolating the group fast-path suppression.
-    fetchMock.responder = (url) => {
-      if (url.includes("/auth/group/active-session")) return { sessionId: null };
-      return {};
-    };
+    httpAgentCtor.mockClear();
 
     try {
       await renderChatPage();
       await waitFor(() => {
-        expect(screen.getByPlaceholderText(COMPOSER)).toBeTruthy();
+        const withThread = httpAgentCtor.mock.calls.find(
+          ([cfg]) => cfg?.threadId === "server-sess-77",
+        );
+        expect(withThread).toBeDefined();
       });
-      // Give the async active-session fetch a tick to (not) write.
-      await act(async () => {
-        await new Promise((r) => setTimeout(r, 0));
+      // No agent was ever built on any other id — no client-minted UUID.
+      const otherThreads = httpAgentCtor.mock.calls.filter(
+        ([cfg]) => cfg?.threadId && cfg.threadId !== "server-sess-77",
+      );
+      expect(otherThreads).toHaveLength(0);
+      expect(fetchMock.groupSessionCalls.length).toBeGreaterThan(0);
+      await waitFor(() => {
+        const calledWith = routerReplace.mock.calls.map((c) => String(c[0]));
+        expect(calledWith.some((u) => u.includes("session=server-sess-77"))).toBe(true);
       });
       const calledWith = routerReplace.mock.calls.map((c) => String(c[0]));
-      expect(
-        calledWith.some((u) => u.includes("stored-resume-should-be-ignored")),
-      ).toBe(false);
+      expect(calledWith.some((u) => u.includes("stored-resume-should-be-ignored"))).toBe(false);
     } finally {
       window.sessionStorage.clear();
+    }
+  });
+
+  it("anon-group: a stale ?session= in the URL is replaced by the server's session, not adopted", async () => {
+    // A teacher reset, or another activity's shared link (H4), leaves a stale id
+    // in the URL. The server's answer wins.
+    vi.stubEnv("NEXT_PUBLIC_AUTH_MODE", "anonymous_group_id");
+    searchParamsState.params = { activity_id: "act-physics-1", session: "stale-from-a-link" };
+    fetchMock.groupSession = { sessionId: "server-sess-88", created: false };
+    httpAgentCtor.mockClear();
+
+    await renderChatPage();
+    await waitFor(() => {
+      expect(
+        httpAgentCtor.mock.calls.find(([cfg]) => cfg?.threadId === "server-sess-88"),
+      ).toBeDefined();
+    });
+    expect(
+      httpAgentCtor.mock.calls.find(([cfg]) => cfg?.threadId === "stale-from-a-link"),
+    ).toBeUndefined();
+    await waitFor(() => {
+      const calledWith = routerReplace.mock.calls.map((c) => String(c[0]));
+      expect(calledWith.some((u) => u.includes("session=server-sess-88"))).toBe(true);
+    });
+  });
+
+  it("anon-group: when the session cannot be resolved, the chat says so and offers a retry (no private fallback)", async () => {
+    vi.stubEnv("NEXT_PUBLIC_AUTH_MODE", "anonymous_group_id");
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    fetchMock.groupSession = {}; // no sessionId → resolveGroupSession throws
+    httpAgentCtor.mockClear();
+    try {
+      await renderChatPage();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(6000);
+      });
+      await waitFor(() => {
+        expect(screen.getByRole("button", { name: /try again|prøv igen/i })).toBeTruthy();
+      });
+      expect(httpAgentCtor).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
     }
   });
 

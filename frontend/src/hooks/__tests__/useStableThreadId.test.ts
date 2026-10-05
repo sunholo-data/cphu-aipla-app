@@ -107,3 +107,35 @@ describe("useStableThreadId — session persistence (1.F M5)", () => {
     expect(result.current).toMatch(/^mock-uuid-\d+$/);
   });
 });
+
+describe("useStableThreadId — 1.1.145 M1: anonymous-group users never mint", () => {
+  it("returns the server's session id without calling randomUUID", () => {
+    const spy = vi.spyOn(globalThis.crypto, "randomUUID");
+    const { result } = renderHook(() =>
+      useStableThreadId(null, { serverSessionId: "server-sess-1" }),
+    );
+    expect(result.current).toBe("server-sess-1");
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it("the server's id beats a stale ?session= in the URL (teacher reset, shared link)", () => {
+    const { result } = renderHook(() =>
+      useStableThreadId("stale-url-sess", { serverSessionId: "server-sess-1" }),
+    );
+    expect(result.current).toBe("server-sess-1");
+  });
+
+  it("does not mint when the URL clears — students have no new-conversation button", () => {
+    const spy = vi.spyOn(globalThis.crypto, "randomUUID");
+    const { result, rerender } = renderHook(
+      ({ url }: { url: string | null }) =>
+        useStableThreadId(url, { serverSessionId: "server-sess-1" }),
+      { initialProps: { url: "server-sess-1" as string | null } },
+    );
+    rerender({ url: null });
+    expect(result.current).toBe("server-sess-1");
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+});

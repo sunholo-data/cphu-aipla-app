@@ -73,7 +73,8 @@
   "ChatMessageList": {
     "olderHidden": "Earlier interactions are hidden",
     "earlier": "Earlier in this conversation",
-    "emptyPrompt": "Send a message to start the conversation."
+    "emptyPrompt": "Send a message to start the conversation.",
+    "fromGroupDevice": "Sent from another device in your group"
   },
   "ContextBanner": {
     "analyzing": "Analyzing <b>{count}</b> {count, plural, one {document} other {documents}} from <b>{folder}</b>"
