@@ -226,6 +226,11 @@ def _resolve_class_tags(group_id: str) -> frozenset[str]:
          class, every JWT under it stops working on the next verify
          regardless of when it was minted.
 
+      4. anon_groups doc is a TOMBSTONE (``revoked: true``, 1.1.146): raise
+         ``GroupRevoked``. Revoking a code keeps its document — and its
+         ``classId`` — so research can still attribute the group's work;
+         the flag is what ends access.
+
     Case 3 only fires when there's an explicit class binding to check.
     Cases 1 and 2 fall through cleanly to the pre-v1 zero-tags
     behaviour, so this addition is non-breaking for any code that
@@ -239,6 +244,15 @@ def _resolve_class_tags(group_id: str) -> frozenset[str]:
     anon_doc = get_document("anon_groups", group_id)
     if anon_doc is None:
         return frozenset()
+
+    # 1.1.146 — a tombstone. Revoke keeps the document (and its classId, so the
+    # evidence stays attributable) and marks it; the token must stop working on
+    # EVERY instance, not only the one whose in-memory set saw the revoke. This
+    # is the read verification already pays for, so it costs nothing extra.
+    if anon_doc.get("revoked"):
+        _state.revoked_group_ids.add(group_id)
+        _state.groups.pop(group_id, None)
+        raise GroupRevoked(f"group {group_id!r} has been revoked")
 
     class_id = anon_doc.get("classId")
     if not class_id:
@@ -427,6 +441,43 @@ def _persist_group(record: GroupRecord) -> None:
         logger.exception("group_auth: failed to persist group=%s", record.group_id)
 
 
+_MAX_MINT_ATTEMPTS = 50
+
+
+def _code_taken(code: str) -> bool:
+    """True when ``code`` may not be minted: known to this instance, or its
+    ``anon_groups`` document exists in Firestore, revoked or not (1.1.146).
+
+    A Firestore read failure PROPAGATES. Minting has to know the string is
+    unused; "could not read" answered as "free" is how a revoked cohort's
+    sessions would reach a new one.
+    """
+    if code in _state.groups or code in _state.revoked_group_ids:
+        return True
+    from db import firestore as fs
+
+    return fs.get_document(_GROUPS_COLLECTION, code) is not None
+
+
+def _is_tombstoned(code: str) -> bool:
+    """True when the code's ``anon_groups`` document is a revoked tombstone."""
+    from db import firestore as fs
+
+    doc = fs.get_document(_GROUPS_COLLECTION, code)
+    return bool(doc and doc.get("revoked"))
+
+
+def forget_revoked_group(group_id: str) -> None:
+    """Drop a revoked code from THIS instance's fast path (1.1.146).
+
+    Called by ``db.classes.revoke_group_code`` after it writes the tombstone, so
+    the instance that handled the revoke refuses the code at once — the others
+    learn it from the tombstone at their next verification.
+    """
+    _state.groups.pop(group_id, None)
+    _state.revoked_group_ids.add(group_id)
+
+
 def _load_group_from_firestore(group_id: str) -> GroupRecord | None:
     """Read a group from Firestore. Returns None for missing or revoked."""
     try:
@@ -486,8 +537,15 @@ def create_group(
 
     now = AnonymousGroupAuth.time_provider()
     code = code_prefix + _generate_code()
-    # Defensive: regenerate if collision (vanishingly rare; loop bounded).
-    while code in _state.groups or code in _state.revoked_group_ids:
+    # Regenerate on collision. 1.1.146: DURABLE, not only in-memory — a code
+    # string whose anon_groups document exists (live OR a revoked tombstone) is
+    # never minted again. The uid is deterministic per code (ADR-001), so a
+    # reissued string would hand a new cohort the old one's sessions.
+    attempts = 0
+    while _code_taken(code):
+        attempts += 1
+        if attempts > _MAX_MINT_ATTEMPTS:
+            raise RuntimeError("could not find an unused group code")
         code = code_prefix + _generate_code()
 
     record = GroupRecord(
@@ -548,7 +606,10 @@ def upsert_group(
     """
     if not isinstance(code, str) or not code.strip():
         raise ValueError("code must be a non-empty string")
-    if code in _state.revoked_group_ids:
+    if code in _state.revoked_group_ids or _is_tombstoned(code):
+        # 1.1.146 — the Firestore half matters: get_group() treats a tombstone
+        # as absent, so without it the create branch below would re-persist the
+        # code with ``revoked: False`` and silently un-revoke it.
         raise GroupRevoked(f"code {code} was previously revoked")
 
     # Verify the signing secret early — same boundary as create_group.
@@ -691,6 +752,12 @@ def _resolve_live_class_context(group_id: str, record: GroupRecord) -> tuple[tup
     from db.firestore import get_document
 
     anon_doc = get_document("anon_groups", group_id)
+    if anon_doc and anon_doc.get("revoked"):
+        # 1.1.146 — another instance may still hold the record in its cache;
+        # the tombstone is the cross-instance truth.
+        _state.revoked_group_ids.add(group_id)
+        _state.groups.pop(group_id, None)
+        raise GroupRevoked(f"group {group_id} has been revoked")
     if anon_doc:
         bound_class_id = anon_doc.get("classId")
         if bound_class_id:
@@ -763,6 +830,10 @@ def join_group(group_id: str, *, client_ip: str) -> JoinResult:
     if current >= record.max_concurrent_sessions:
         raise GroupSessionCapExceeded(f"group {group_id} reached daily session cap ({record.max_concurrent_sessions})")
 
+    # Class context first (1.1.146): it is also where a tombstone written by
+    # ANOTHER instance is seen, and a refused join must not count a session.
+    live_skill_ids, resolved_class_name, resolved_class_id = _resolve_live_class_context(group_id, record)
+
     # Gate 7: happy path — mint token + count the session against the daily cap.
     now = AnonymousGroupAuth.time_provider()
     uid = _synthesize_uid(group_id)
@@ -775,7 +846,6 @@ def join_group(group_id: str, *, client_ip: str) -> JoinResult:
         current + 1,
     )
 
-    live_skill_ids, resolved_class_name, resolved_class_id = _resolve_live_class_context(group_id, record)
     return JoinResult(
         token=token,
         uid=uid,

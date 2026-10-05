@@ -88,6 +88,23 @@ class Class(BaseModel):
     The student lesson list resolves from here; the running skill is derived from
     each activity's content (artefact → sim skill, else concept-dialogue)."""
     group_codes: list[str] = Field(alias="groupCodes", default_factory=list)
+    """EVERY code ever minted under this class, revoked or not (1.1.146).
+
+    This is the class's historical roster and the input to every EVIDENCE
+    surface (insights, recent sessions, progress, reports). A revoked code
+    stays here and is additionally listed in ``revoked_group_codes``; LIVE
+    surfaces (the joinable-code list, reset, live signals, onboarding) read
+    ``active_group_codes`` instead. Deliberately not the other way round: a
+    live surface that forgets to filter shows a revoked code a teacher can
+    see, whereas an evidence surface that forgot to widen would silently
+    under-count a research table."""
+    revoked_group_codes: list[str] = Field(alias="revokedGroupCodes", default_factory=list)
+    """1.1.146 — the subset of ``group_codes`` that has been revoked. Revoke
+    ends ACCESS (the code cannot join, its tokens stop verifying) and never
+    touches evidence; the ``anon_groups/<code>`` tombstone keeps ``classId``."""
+    revoked_group_codes_at: dict[str, str] = Field(alias="revokedGroupCodesAt", default_factory=dict)
+    """1.1.146 — ISO timestamp per revoked code, for the class page's "Revoked
+    codes" list. A code repaired from evidence alone may have no entry."""
     voice: ClassVoiceSettings | None = Field(default=None)
     """1.1.11 — teacher's per-class voice override. None means the class
     inherits skill defaults / env. See ClassVoiceSettings."""
@@ -132,6 +149,15 @@ class Class(BaseModel):
     nobody but the owner has touched it."""
 
     model_config = ConfigDict(populate_by_name=True)
+
+    @property
+    def active_group_codes(self) -> list[str]:
+        """The codes that still work — ``group_codes`` minus the revoked ones.
+
+        For LIVE consumers only (1.1.146). Anything that reads history — a
+        KPI, a session list, a report — wants ``group_codes``."""
+        revoked = set(self.revoked_group_codes)
+        return [c for c in self.group_codes if c not in revoked]
 
     @field_validator("tag_namespace")
     @classmethod

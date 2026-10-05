@@ -211,17 +211,80 @@ class TestGroupBinding:
         with pytest.raises(ValueError, match="revoked"):
             classes_db.mint_group_codes_under_class(cls.class_id, count=1)
 
-    def test_revoke_group_code_marks_anon_group_revoked(self) -> None:
+    def test_revoke_group_code_writes_a_tombstone_and_keeps_the_binding(self) -> None:
+        """1.1.146 — Revoke ends access, never evidence. The anon_groups doc is
+        kept with ``revoked`` set AND ``classId`` intact (the only code → class
+        binding), and the code stays on the roster every evidence surface reads.
+
+        Until 1.1.146 this test was named ``…_marks_anon_group_revoked`` while
+        asserting the code was REMOVED — and the function hard-deleted the doc,
+        which is how a researcher lost a whole class's sessions on prod."""
         cls = _create()
-        codes = classes_db.mint_group_codes_under_class(cls.class_id, count=1)
-        code = codes[0]
+        codes = classes_db.mint_group_codes_under_class(cls.class_id, count=2)
+        code, other = codes
 
-        classes_db.revoke_group_code(cls.class_id, code)
+        classes_db.revoke_group_code(cls.class_id, code, revoked_by="teacher-1")
 
-        # The code is removed from Class.groupCodes.
+        anon = fs_module.get_document("anon_groups", code)
+        assert anon is not None, "the binding document must survive a revoke"
+        assert anon["revoked"] is True
+        assert anon["classId"] == cls.class_id
+        assert anon["revokedBy"] == "teacher-1"
+        assert anon["revokedAt"]
+
         reloaded = classes_db.get_class(cls.class_id)
         assert reloaded is not None
-        assert code not in reloaded.group_codes
+        assert code in reloaded.group_codes, "the historical roster keeps the code"
+        assert reloaded.revoked_group_codes == [code]
+        assert reloaded.active_group_codes == [other]
+        assert reloaded.revoked_group_codes_at[code] == anon["revokedAt"]
+        # Ownership still resolves through the tombstone.
+        bound = classes_db.get_class_for_group(code)
+        assert bound is not None and bound.class_id == cls.class_id
+
+    def test_revoke_group_code_is_idempotent(self) -> None:
+        cls = _create()
+        code = classes_db.mint_group_codes_under_class(cls.class_id, count=1)[0]
+
+        classes_db.revoke_group_code(cls.class_id, code)
+        first = fs_module.get_document("anon_groups", code)["revokedAt"]
+        classes_db.revoke_group_code(cls.class_id, code)
+
+        assert fs_module.get_document("anon_groups", code)["revokedAt"] == first
+        reloaded = classes_db.get_class(cls.class_id)
+        assert reloaded is not None
+        assert reloaded.group_codes.count(code) == 1
+        assert reloaded.revoked_group_codes == [code]
+
+    def test_revoke_refuses_a_code_bound_to_another_class(self) -> None:
+        """The old version deleted whatever anon_groups doc it was handed, so an
+        owner could unbind ANOTHER class's code by naming it."""
+        mine = _create(owner="teacher-1", name="Mine")
+        theirs = _create(owner="teacher-2", name="Theirs")
+        their_code = classes_db.mint_group_codes_under_class(theirs.class_id, count=1)[0]
+
+        with pytest.raises(classes_db.GroupCodeNotInClass):
+            classes_db.revoke_group_code(mine.class_id, their_code)
+
+        anon = fs_module.get_document("anon_groups", their_code)
+        assert anon is not None and not anon.get("revoked")
+        assert anon["classId"] == theirs.class_id
+
+    def test_a_revoked_code_string_is_never_minted_again(self, monkeypatch) -> None:
+        """The uid is deterministic per code (ADR-001): a reissued string would
+        hand a new cohort the old one's sessions."""
+        import auth.group_id_auth as gid
+
+        cls = _create()
+        code = classes_db.mint_group_codes_under_class(cls.class_id, count=1)[0]
+        classes_db.revoke_group_code(cls.class_id, code)
+        # A different instance: nothing in memory, only the tombstone.
+        gid.AnonymousGroupAuth.reset_for_tests()
+
+        draws = iter([code, code, "fresh-otter-01"])
+        monkeypatch.setattr(gid, "_generate_code", lambda: next(draws))
+        minted = classes_db.mint_group_codes_under_class(cls.class_id, count=1)
+        assert minted == ["fresh-otter-01"]
 
 
 class TestLiveSkillIdsForClass:

@@ -649,3 +649,59 @@ def test_refresh_does_not_consume_a_session_cap_slot():
 
     with pytest.raises(GroupSessionCapExceeded):
         join_group(rec.group_id, client_ip="5.6.7.8")
+
+
+# ─── 1.1.146 — a revoked code is a tombstone, not a deleted document ───────
+
+
+def _tombstone_store(monkeypatch, docs: dict[str, dict]) -> None:
+    """Serve ``anon_groups`` reads from ``docs`` — the shape another instance
+    sees after ``db.classes.revoke_group_code`` ran somewhere else."""
+    import db.firestore as fs
+
+    def _get(collection: str, doc_id: str):
+        return docs.get(doc_id) if collection == "anon_groups" else None
+
+    monkeypatch.setattr(fs, "get_document", _get)
+
+
+def test_tombstoned_code_refuses_an_outstanding_token_on_any_instance(monkeypatch):
+    """Revoke used to hard-delete the doc, and a missing doc resolves to EMPTY
+    tags, not an error — so an 8-hour token kept authenticating everywhere but
+    the one instance whose in-memory set saw the revoke."""
+    from auth.group_id_auth import _state
+
+    rec = create_group(title="x", skill_ids=["s"], creator_uid="u")
+    token = join_group(rec.group_id, client_ip="1.2.3.4").token
+    _tombstone_store(monkeypatch, {rec.group_id: {"revoked": True, "classId": "cls-1"}})
+    # Not this instance's revoke: the in-memory set knows nothing.
+    assert rec.group_id not in _state.revoked_group_ids
+
+    with pytest.raises(GroupRevoked):
+        AnonymousGroupAuth.user_from_token(token)
+
+
+def test_tombstoned_code_cannot_join_even_from_a_warm_cache(monkeypatch):
+    rec = create_group(title="x", skill_ids=["s"], creator_uid="u")
+    _tombstone_store(monkeypatch, {rec.group_id: {"revoked": True, "classId": "cls-1"}})
+    with pytest.raises(GroupRevoked):
+        join_group(rec.group_id, client_ip="1.2.3.4")
+
+
+def test_mint_never_reissues_a_tombstoned_string(monkeypatch):
+    import auth.group_id_auth as gid
+
+    _tombstone_store(monkeypatch, {"old-otter-01": {"revoked": True, "classId": "cls-1"}})
+    draws = iter(["old-otter-01", "new-otter-02"])
+    monkeypatch.setattr(gid, "_generate_code", lambda: next(draws))
+
+    rec = create_group(title="x", skill_ids=["s"], creator_uid="u")
+    assert rec.group_id == "new-otter-02"
+
+
+def test_upsert_refuses_to_resurrect_a_tombstone(monkeypatch):
+    """get_group() treats a tombstone as absent, so without the durable check
+    upsert would re-persist the code with ``revoked: False``."""
+    _tombstone_store(monkeypatch, {"aipla-demo-9": {"revoked": True, "classId": "cls-1"}})
+    with pytest.raises(GroupRevoked):
+        upsert_group(code="aipla-demo-9", title="x", skill_ids=["s"], creator_uid="u")
