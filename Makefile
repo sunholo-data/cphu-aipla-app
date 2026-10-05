@@ -467,6 +467,20 @@ sync-tutor-assignments:
 	@cd backend && uv run python scripts/sync_tutor_assignments.py --from $(FROM) --to $(TO) \
 		$(if $(filter 1,$(GO)),--go) $(if $(filter 1,$(PRUNE)),--prune) $(if $(filter 1,$(FORCE)),--force)
 
+# 1.1.150 M2 — stamp createdBy/createdVia/createdAt onto tutors, custom approaches
+# and custom personas written before those fields existed. Only certain values:
+# createdAt from Firestore's create_time, createdBy from authorUid, createdVia=seed
+# for platform-seed rows (else left "not recorded"). Never overwrites. Dry-run
+# unless GO=1. ⚠️ Only once the release whose models carry the fields serves
+# ALL of that env's traffic — an older revision drops a row it cannot validate.
+# dev, then test; prod is M's to run.
+#   make backfill-authored-provenance ENV=dev
+#   make backfill-authored-provenance ENV=dev GO=1
+.PHONY: backfill-authored-provenance
+backfill-authored-provenance:
+	@test -n "$(ENV)" || { echo "usage: make backfill-authored-provenance ENV=dev|test|prod [GO=1]"; exit 2; }
+	@cd backend && uv run python scripts/backfill_authored_provenance.py --env $(ENV) $(if $(filter 1,$(GO)),--go)
+
 # What screen sizes are people using? Read-only distribution of the
 # `aipla_client_env` beacons (viewport width bucket x surface, DPR, pointer).
 #   make screen-sizes ENV=prod            # last 30 days
