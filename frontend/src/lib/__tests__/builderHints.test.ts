@@ -1,6 +1,37 @@
 import { describe, expect, it } from "vitest";
 
-import { languageHint } from "@/lib/builderHints";
+import { languageHint, tableHints } from "@/lib/builderHints";
+
+// 1.1.151 F9 — "hvorfor står der forsøg to gange under slip A?"
+describe("tableHints", () => {
+  const col = (label: string) => ({ label });
+
+  it("flags a duplicate column label within one table (trimmed, case-insensitive)", () => {
+    expect(tableHints([{ title: "Slip A", columns: [col("Forsøg 1"), col(" forsøg 1"), col("Højde")] }])).toEqual([
+      { kind: "duplicateColumns", table: "Slip A", labels: ["Forsøg 1"] },
+    ]);
+  });
+
+  it("does not compare labels ACROSS tables, and ignores blank labels", () => {
+    expect(
+      tableHints([
+        { title: "A", columns: [col("Tid"), col(""), col("")] },
+        { title: "B", columns: [col("Tid")] },
+      ]),
+    ).toEqual([]);
+  });
+
+  it("flags untitled tables only when there is more than one table", () => {
+    expect(tableHints([{ title: "", columns: [col("x")] }])).toEqual([]);
+    expect(
+      tableHints([
+        { title: "", columns: [col("x")] },
+        { title: " ", columns: [col("y")] },
+        { title: "Målinger", columns: [col("z")] },
+      ]),
+    ).toEqual([{ kind: "untitledTables", count: 2 }]);
+  });
+});
 
 // 1.1.151 F2c — two activities of a Danish class were set to English. The
 // students wrote Danish; the tutor answered English every turn, as told. A hint,

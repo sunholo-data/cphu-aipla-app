@@ -19,6 +19,13 @@ export function BuilderHints({ hints }: { hints: BuilderHint[] }) {
         return t("languageLooksDanish");
       case "languageLooksEnglish":
         return t("languageLooksEnglish");
+      case "duplicateColumns":
+        return t("duplicateColumns", {
+          table: hint.table || t("untitledTable"),
+          labels: hint.labels.join(", "),
+        });
+      case "untitledTables":
+        return t("untitledTables", { count: hint.count });
     }
   }
 

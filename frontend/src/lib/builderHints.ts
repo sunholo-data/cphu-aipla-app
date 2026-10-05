@@ -9,7 +9,47 @@ import type { Language } from "@/lib/teacherApi";
 /** A hint the builder renders. `key` names the copy in `BuilderHints`. */
 export type BuilderHint =
   | { kind: "languageLooksDanish" }
-  | { kind: "languageLooksEnglish" };
+  | { kind: "languageLooksEnglish" }
+  /** F9 — one table has two or more columns with the same label. `table` is
+   *  its title ("" when it has none). */
+  | { kind: "duplicateColumns"; table: string; labels: string[] }
+  /** F9 — `count` tables have no title while the activity has more than one. */
+  | { kind: "untitledTables"; count: number };
+
+/** The slice of a table the F9 checks read. */
+export interface TableHintInput {
+  title: string;
+  columns: { label: string }[];
+}
+
+/**
+ * F9 — "hvorfor står der forsøg to gange under slip A?": a table had
+ * "Forsøg 1" twice. Duplicate column labels within one table (compared
+ * trimmed and case-insensitively; blanks ignored), and untitled tables when
+ * there is more than one — the students' screen, and the tutor, cannot tell
+ * them apart. Deterministic; no spellchecking.
+ */
+export function tableHints(tables: TableHintInput[]): BuilderHint[] {
+  const hints: BuilderHint[] = [];
+  for (const table of tables) {
+    const seen = new Map<string, { label: string; n: number }>();
+    for (const col of table.columns) {
+      const label = col.label.trim();
+      if (!label) continue;
+      const key = label.toLocaleLowerCase();
+      const entry = seen.get(key);
+      if (entry) entry.n += 1;
+      else seen.set(key, { label, n: 1 });
+    }
+    const dupes = Array.from(seen.values()).filter((e) => e.n > 1).map((e) => e.label);
+    if (dupes.length) hints.push({ kind: "duplicateColumns", table: table.title.trim(), labels: dupes });
+  }
+  if (tables.length > 1) {
+    const untitled = tables.filter((t) => !t.title.trim()).length;
+    if (untitled) hints.push({ kind: "untitledTables", count: untitled });
+  }
+  return hints;
+}
 
 /** What the language check reads. Kept structural so a test can pass a literal. */
 export interface LanguageHintInput {

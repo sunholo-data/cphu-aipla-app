@@ -19,7 +19,7 @@ import { TableEditor } from "@/components/teacher/TableEditor";
 import { useCopilotEntry } from "@/components/teacher/copilot";
 import type { ActivityBuilder } from "@/hooks/useActivityBuilder";
 import { useT } from "@/i18n";
-import { languageHint, type BuilderHint } from "@/lib/builderHints";
+import { languageHint, tableHints, type BuilderHint } from "@/lib/builderHints";
 
 // Living concept map (CONCEPT-1 M1) — dark-flagged like the authoring co-pilot;
 // bakes at build time (cloudbuild `_CONCEPT_MAP`), on for dev.
@@ -274,6 +274,8 @@ function collectBuilderHints(b: ActivityBuilder): BuilderHint[] {
   const hints: BuilderHint[] = [];
   const lang = languageHint({ language: b.language, title: b.title, teachingGoal: b.teachingGoal, labels });
   if (lang) hints.push(lang);
+  // 1.1.151 F9 — duplicate column labels, untitled tables among several.
+  hints.push(...tableHints(b.table));
   return hints;
 }
 
