@@ -632,7 +632,17 @@ def describe_element_state(
         The block, or ``""`` when the activity authors no element with an
         observable fill channel.
     """
-    fills = read_element_fills(cfg, state, table_cells=table_cells)
+    return render_element_state(read_element_fills(cfg, state, table_cells=table_cells))
+
+
+def render_element_state(fills: list[ElementFill]) -> str:
+    """Format already-read fills as the per-turn block (``""`` for none).
+
+    Split out of ``describe_element_state`` (1.1.149) so the wrapper reads the
+    fills ONCE per turn and can hand the same observation to the workbench
+    affordances block — two reads of the table store per turn would cost a
+    second Firestore round-trip and could disagree about the same table.
+    """
     if not fills:
         return ""
 
@@ -816,8 +826,13 @@ def make_element_state_wrapper(
     *,
     group_id: str | None = None,
     activity_id: str | None = None,
+    observe: Callable[[ReadonlyContext, list[ElementFill]], None] | None = None,
 ) -> Callable[[str | Callable[[ReadonlyContext], Awaitable[str]]], Callable[[ReadonlyContext], Awaitable[str]]]:
     """An ``InstructionProvider`` wrapper for ``compose_instruction_providers``.
+
+    ``observe`` (1.1.149) receives this turn's fills, so a LATER provider in the
+    chain (``workbench_affordances``) can say *untouched* / *in use* from the
+    same observation this block reports, rather than reading the store again.
 
     Captures the resolved activity (fixed for the session) and reads the session
     state fresh on every turn — the whole point of being a provider rather than
@@ -838,11 +853,14 @@ def make_element_state_wrapper(
     ) -> Callable[[ReadonlyContext], Awaitable[str]]:
         async def _provider(ctx: ReadonlyContext) -> str:
             base_text = await base(ctx) if callable(base) else base
-            block = describe_element_state(
+            fills = read_element_fills(
                 cfg,
                 dict(ctx.state) if ctx.state else {},
                 table_cells=read_table_cells(group_id, activity_id),
             )
+            if observe is not None:
+                observe(ctx, fills)
+            block = render_element_state(fills)
             if not block:
                 return base_text
             return f"{base_text.rstrip()}\n\n{block}"
@@ -864,4 +882,5 @@ __all__ = [
     "read_element_fills",
     "read_table_cells",
     "refusal_for",
+    "render_element_state",
 ]

@@ -123,19 +123,40 @@ def _activity_facts(cfg: ActivityConfig | None) -> str:
 def _first_element(cfg: ActivityConfig) -> str:
     """A short pointer at the first thing the student should touch.
 
-    Registry order, so a new element kind is reachable here without a second
-    edit — the same inversion ``element_manifest`` made for the same reason.
+    **A simulation comes first** (1.1.149). It is ``ActivityConfig.artefact_id``,
+    not a registry element, so walking the registry alone never considered it
+    and the checklist won whenever there was one — the kettle opening on
+    2026-10-05 pointed at a checklist label while the sim sat untouched beside it.
+
+    Otherwise registry order, so a new element kind is reachable here without a
+    second edit — the same inversion ``element_manifest`` made for the same
+    reason — except that the checklist is named only when nothing else is on
+    the bench: it lists the steps, it is not where the work happens.
     """
+    artefact_id = getattr(cfg, "artefact_id", None)
+    if artefact_id:
+        display = ""
+        try:
+            from artefacts.loader import load_artefact
+
+            meta = load_artefact(artefact_id)
+            display = (meta.display_name if meta is not None else "").strip()
+        except Exception:  # pragma: no cover — a catalogue read must never break the greet
+            log.exception("opening pointer: artefact %s unreadable", artefact_id)
+        return f'the simulation "{display}"' if display else "the simulation"
+
+    checklist = ""
     for kind, spec in ELEMENT_REGISTRY.items():
         items = getattr(cfg, spec.field, None) or []
         if not items:
             continue
         first = items[0]
         if kind == "checklist":
-            return f'the checklist, starting with "{getattr(first, "label", "")}"'
+            checklist = f'the checklist, starting with "{getattr(first, "label", "")}"'
+            continue
         title = (getattr(first, "title", "") or "").strip()
         return f'the {kind} "{title}"' if title else f"the {kind}"
-    return ""
+    return checklist
 
 
 def inject_opening_guidance(

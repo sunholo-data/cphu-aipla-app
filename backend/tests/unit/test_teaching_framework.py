@@ -267,3 +267,22 @@ def test_render_groups_by_dimension_and_ends_each_move_with_its_avoid_list():
     assert "Avoid:" in out
     # The dimension headings must appear ONLY under eliciting.
     assert out.count("Questions about how the student knows") == 1
+
+
+# --- 1.1.149 M4: workbench_use -------------------------------------------------------
+
+
+def test_workbench_use_defaults_null_and_round_trips_its_alias():
+    assert TeachingFramework(id="x", label="X").workbench_use is None
+    fw = TeachingFramework(id="x", label="X", workbenchUse="workbench_first")
+    assert fw.workbench_use == "workbench_first"
+    assert fw.model_dump(by_alias=True)["workbenchUse"] == "workbench_first"
+    with pytest.raises(ValidationError):
+        TeachingFramework(id="x", label="X", workbenchUse="always")
+
+
+def test_no_shipped_framework_sets_workbench_use():
+    """Which approaches have a view on timing is AR/JB's call (design doc O2).
+    Until they make it, every shipped YAML leaves it null — the passthrough."""
+    for fw in load_frameworks():
+        assert fw.workbench_use is None, fw.id
