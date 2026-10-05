@@ -1,6 +1,6 @@
 # Seminar log follow-ups — what the 2026-10-05 prod logs showed that the notes did not
 
-**Status:** Design (OPEN) — **1.1.151** · F3 **SHIPPED** 2026-10-05
+**Status:** **1.1.151** · F3 **SHIPPED** 2026-10-05 · F1, F2b, F2c, F4, F5, F9 **IMPLEMENTED** 2026-10-05 (not yet deployed; prod steps below are M's) · F2a, F6, F7, F8 **OPEN** (need M / data / research)
 **Priority:** **P1** for F1 (a teacher's document silently never reached the tutor) and F2 (English tutor for a Danish class) · **P2** for the rest
 **Estimated:** ~3.5d phased (F1 ~1.25d · F2 ~0.5d · F4 ~0.5d · F5 ~0.25d · F6 ~0.5d · F7–F9 recorded, not built)
 **Scope:** Backend `db/rag_corpus.py`, `protocols/curriculum_routes.py`, `auth/group_routes.py`, `auth/group_id_auth.py`, `adk/teacher_focus.py` / preambles; frontend `components/teacher/MaterialsSection.tsx`, the curriculum library, `components/teacher/ActivityBuilderBody.tsx`, `app/group/page.tsx`; `messages/{da,en}/`.
@@ -215,6 +215,87 @@ when the activity has more than one table. Deterministic; no spellchecking.
 
 **Do not:** read or write prod (`aipla-prod-2026`) — F1's re-ingest and F2a are M's; change the
 activity-language precedence (1.1.63); auto-join a suggested code; correct digits.
+
+## Implementation notes (2026-10-05)
+
+**F1 — failed RAG upload is a state.**
+- `db/rag_corpus.upload_with_retry` replaces the error-swallowing helper: one
+  automatic retry (backoff `CURRICULUM_RAG_RETRY_BACKOFF_S`, default 2 s), never
+  raises, returns a `RagOutcome` the caller stores. An unconfigured corpus is
+  reported as `failed` with a plain reason (the tutor genuinely cannot read it).
+- `curriculum_docs` gain `ragStatus` / `ragError` / `ragAttempts` /
+  `ragUpdatedAt`. A row without `ragStatus` is DERIVED on read (`ready` iff
+  `docArtifactId`, else `failed`), so the UI is right from the first deploy,
+  before the backfill. The upload route logs `Curriculum doc rag_failed` at
+  WARNING for a failure and never "ingested".
+- `POST /api/curriculum/{id}/reingest` (owner or researcher; another teacher's
+  private doc is 404; a real group token is 403) re-uploads from the stored
+  `curriculum_content` text via `db/curriculum_reingest.py` — the same code the
+  backfill's `REINGEST=` uses. A failed retry keeps a previously working RagFile.
+- `GET /api/curriculum/rag-status?ids=…` — batch status for the activity cards
+  and the class view (one read per page, ACL as browse).
+- UI: `RagStatusLine` in `MaterialsSection` (the builder's materials list AND the
+  `/teacher/materials` library — one component serves both); the change there is
+  a single additive mount. `FailedMaterialsWarning` on the activity card and in
+  the class view's assigned-activities list, with *Prøv igen* for the owner and
+  "ask the owner" for anyone else. Copy in `messages/{da,en}/teacher-hints.json`.
+- Retrieval: a failed cited doc is logged once per (group|teacher, activity) per
+  3 h as `curriculum_rag_failed … activity=…` at WARNING — a log-based alert can
+  key on that string. The false "(pending ingest)" line is gone.
+- `make backfill-curriculum-content` was checked first: it only fills the
+  viewer's stored text and explicitly does no RAG re-upload, so it could not be
+  reused. New: `make backfill-rag-status`.
+
+**F2b/F2c.** `StudentsLanguageBadge` on every activity card (replacing the bare
+"Dansk"/"English") and in the builder header; the language select now sits
+beside the title. `lib/builderHints.languageHint` drives a soft `BuilderHints`
+panel beside save: `en` + Danish words (æ/ø/å, or ≥ 2 Danish function words) →
+*"Titlen er på dansk, men eleverne får en engelsk tutor. Er det meningen?"*; `da`
++ plainly English text → the reverse. Language precedence (1.1.63) untouched.
+
+**F4.** `auth/join_code_typos.py`. `normalize_join_code` silently reshapes
+(separators, missing hyphen before digits, O→0 in the digit slot — only on
+word-list-shaped codes, so legacy/preview/demo codes are untouched). On a 401
+the route tries ONE word correction (edit distance 1, or 2 for ≥ 6 letters;
+exactly one candidate or nothing; digits never), spends a token from the same
+per-IP bucket, and returns `{"detail": …, "suggestion": "kind-kettle-86"}` only
+if that code is live, unrevoked and unexpired. Revoked and unknown answer
+identically. `/group` shows *"Mente du **kind-kettle-86**?"* + *Ja, deltag*; no
+auto-join.
+
+**F5.** `skills/preambles/classroom_authority.md` + `adk/classroom_authority.py`,
+appended to every student turn after the identity block (its own file, not an
+edit to `praise.md`). Bench: scenario `asks-for-a-break` in
+`research/tutor-discrimination/scenarios.yaml`, a permission probe scored by the
+wrong-claim judge — **not run** (costs money; M's go-ahead). n is now 9 per cell
+and the probe set 5; compare with BENCH-2 on the four physics probes only.
+
+**F9.** `lib/builderHints.tableHints`: duplicate column labels within a table
+(trimmed, case-insensitive) and untitled tables when there are several, in the
+same `BuilderHints` panel. Shown live beside save rather than as a save-time
+dialog — non-blocking either way.
+
+**Not done here:** F2a (prod data, AR's activities — M), F6 (decisions), F7
+(browser verification of the phase-change sim), F8 (stx-bench input).
+
+### Prod steps for M (after this reaches prod by `make promote`)
+
+```bash
+# 1. See which docs have no RAG file (dry run; reads Firestore only)
+make backfill-rag-status ENV=prod
+# 2. Persist ragStatus on every legacy row
+make backfill-rag-status ENV=prod GO=1
+# 3. Re-ingest the seminar's document (reads CURRICULUM_RAG_CORPUS_NAME from
+#    prod's Secret Manager; one paid embedding call)
+make backfill-rag-status ENV=prod REINGEST=b594d415-54b6-428a-a8ca-485a5f728eec        # dry run
+make backfill-rag-status ENV=prod REINGEST=b594d415-54b6-428a-a8ca-485a5f728eec GO=1
+```
+
+Order matters: run step 1 BEFORE re-ingesting, so the backfill records the
+evidence (the doc is `failed` until step 3). Alternatively AR can press *Prøv
+igen* on the document in her materials list — the same code path. Either way,
+then tell AR that *Den hoppende bold* ran without it until now. Dev/test: the
+same three commands with `ENV=dev|test`.
 
 ## Open questions for M
 
