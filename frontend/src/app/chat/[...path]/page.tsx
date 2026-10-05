@@ -81,6 +81,7 @@ import type { DocumentElementDef } from "@/components/workspace/DocumentElementM
 import type { ConceptMapElementDef } from "@/components/workspace/ConceptMapView";
 import type { ConceptNodeStatus } from "@/components/workspace/ConceptMapGraph";
 import { DocumentsPanel, type ActivityMaterial } from "@/components/workspace/DocumentsPanel";
+import { createDocumentRequestStore, DocumentRequestProvider } from "@/components/workspace/documentRequest";
 import { reportDocumentEvent } from "@/lib/documentApi";
 import { workspaceContentKind } from "./workspaceContent";
 import { useResizableWorkspaceRatio } from "@/hooks/useResizableWorkspaceRatio";
@@ -695,6 +696,16 @@ function ChatShell({
     if (typeof window === "undefined") return;
     window.sessionStorage.setItem(`aipla.mobileTab:${skillId}`, mobileTab);
   }, [skillId, mobileTab]);
+  // 1.1.147 M3b — a document the tutor names in the chat opens in the
+  // workspace's reader (and brings the workspace tab forward on a phone).
+  const [docRequests] = useState(createDocumentRequestStore);
+  const openNamedDocument = useCallback(
+    (docId: string) => {
+      docRequests.request(docId);
+      setMobileTab("workspace");
+    },
+    [docRequests],
+  );
   // Bootstrap the ChatSessionIndex doc as soon as we have a session id —
   // closes the 2026-05-21 iframe-context 404 race where workspace POSTs
   // fire before the first chat turn creates the index via
@@ -1341,6 +1352,7 @@ function ChatShell({
             mcpServerIds={mcpServerIds}
             sessionId={sessionId ?? agentSessionId}
             onChatMessage={handleIframeChatMessage}
+            navigateToBlock={openNamedDocument}
             errorBanner={
               error ? (
                 <StreamErrorBanner
@@ -1531,7 +1543,7 @@ function ChatShell({
             ratio={workspaceRatio}
             onRatioChange={setWorkspaceRatio}
           >
-            <>
+            <DocumentRequestProvider value={docRequests}>
             {workspaceKind !== "none" && (
               // USR-1 (2026-06-25): ONE sim render path. Every workspace surface
               // — a vetted sim artefact, the 1.1.38 element tools, and the
@@ -1575,7 +1587,7 @@ function ChatShell({
                 activityId={activityId}
               />
             )}
-              </>
+            </DocumentRequestProvider>
           </WorkspaceShell>
         )}
       </div>

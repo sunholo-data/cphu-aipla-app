@@ -1,10 +1,11 @@
 "use client";
 
-import { type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import * as Tabs from "@radix-ui/react-tabs";
 import { FileText, Wrench } from "lucide-react";
 
 import { useT } from "@/i18n";
+import { useDocumentRequest } from "./documentRequest";
 
 /**
  * The two-surface workbench shell (1.1.45 M1). Used ONLY when an activity has
@@ -22,12 +23,19 @@ export function WorkbenchTabs({
   docCount: number;
 }) {
   const t = useT("WorkbenchTabs");
+  const [tab, setTab] = useState("work");
+  // 1.1.147 M3b — a document named in the chat brings the Documents tab
+  // forward; DocumentsPanel (mounted by that switch) then opens it.
+  const { request } = useDocumentRequest();
+  useEffect(() => {
+    if (request) setTab("documents");
+  }, [request]);
   const triggerClass =
     "flex items-center gap-1.5 border-b-2 border-transparent px-3 py-2 text-sm font-medium text-muted-foreground " +
     "hover:text-foreground data-[state=active]:border-primary data-[state=active]:text-foreground";
 
   return (
-    <Tabs.Root defaultValue="work" className="flex min-h-0 flex-col">
+    <Tabs.Root value={tab} onValueChange={setTab} className="flex min-h-0 flex-col">
       <Tabs.List className="flex gap-1 border-b border-border px-2" aria-label={t("label")}>
         <Tabs.Trigger value="work" className={triggerClass}>
           <Wrench className="h-4 w-4" aria-hidden="true" />

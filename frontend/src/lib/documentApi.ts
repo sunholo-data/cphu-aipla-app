@@ -29,6 +29,10 @@ export class DocumentApiError extends Error {
 export interface DocumentEvent {
   kind:
     | "document.open"
+    // 1.1.147 M3 — the reader opened a document by itself (first shared, or
+    // the student's remembered choice). NOT a `document.open`: the student did
+    // not choose it. Once per session.
+    | "document.default_shown"
     | "document.page"
     | "document.scroll"
     | "document.select"
