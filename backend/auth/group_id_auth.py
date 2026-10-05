@@ -302,7 +302,11 @@ def normalize_join_code(raw: str) -> str:
     code = raw.strip().lower()
     if "code=" in code:
         code = code.split("code=", 1)[1].split("&", 1)[0].split("#", 1)[0].strip()
-    return code
+    # 1.1.151 F4 — silent reshaping: spaces/underscores/dots for hyphens, a
+    # missing hyphen before the digits, letter O for zero in the digits.
+    from auth.join_code_typos import canonicalise_code_shape
+
+    return canonicalise_code_shape(code)
 
 
 def _generate_code() -> str:

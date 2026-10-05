@@ -1,4 +1,4 @@
-.PHONY: sync-tutor-assignments tf-plan tf-apply tf-local tf-fmt check-iam-posture check-spend-ceiling spend-ceiling check-eu-log-routing eu-log-routing list-privacy-acks check-domains deploy-status dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes check-role list-roles list-unregistered grant-researcher revoke-researcher register-demo-teacher force-seed-demo bind-demo-code reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content backfill-document-skill-ids seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check smoke-sim guides guides-pdf check-guides guide-screens seed-guide-corpus guide-staleness
+.PHONY: backfill-rag-status sync-tutor-assignments tf-plan tf-apply tf-local tf-fmt check-iam-posture check-spend-ceiling spend-ceiling check-eu-log-routing eu-log-routing list-privacy-acks check-domains deploy-status dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes check-role list-roles list-unregistered grant-researcher revoke-researcher register-demo-teacher force-seed-demo bind-demo-code reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content backfill-document-skill-ids seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check smoke-sim guides guides-pdf check-guides guide-screens seed-guide-corpus guide-staleness
 
 # Seed SKILL.md templates -> Firestore. Since P1.3 the Cloud Build deploy runs
 # this automatically via the `aipla-seed-skills` Cloud Run job (see
@@ -158,6 +158,16 @@ backfill-curriculum-content:
 #   make backfill-document-skill-ids ENV=prod ARGS="--uid anon-busygarden11 --skill-id <id> --go"
 backfill-document-skill-ids:
 	@scripts/backfill-document-skill-ids.sh $(ENV) $(ARGS)
+
+# 1.1.151 F1 — stamp ragStatus (ready/failed) on curriculum docs written before
+# it existed, and re-ingest a named doc via the same code as the teacher's
+# "Prøv igen". Dry-run unless GO=1. `make backfill-curriculum-content` does NOT
+# re-upload to RAG (it only fills the viewer's stored text), hence this target.
+#   make backfill-rag-status ENV=dev
+#   make backfill-rag-status ENV=dev GO=1
+#   make backfill-rag-status ENV=prod REINGEST=<doc_id> GO=1
+backfill-rag-status:
+	@scripts/backfill-rag-status.sh $(ENV) $(if $(filter 1,$(GO)),--go) $(if $(REINGEST),--reingest $(REINGEST))
 
 # 1.1.60 migration: seed the nine Danish stx physics areas as SHARED curriculum
 # folders and relocate docs still carrying a physics area in `subject` (subject

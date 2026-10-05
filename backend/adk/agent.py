@@ -62,6 +62,7 @@ from adk.callbacks import (
 from adk.checklist_tools import build_checklist_tools
 from adk.checkpoint_tools import build_checkpoint_tools
 from adk.citation_markers import make_marker_strip_callback
+from adk.classroom_authority import build_classroom_authority_block
 from adk.concept_steering import build_concept_steering_block
 from adk.curriculum_retrieval import (
     build_curriculum_grounding_preamble,
@@ -498,7 +499,13 @@ def create_agent(
     # below; the double read is acceptable at agent-build-time (once per session).
     _active_cfg = resolve_active_config(_activity_id, group_tags=user.group_tags)
     _materials = _active_cfg.materials if _active_cfg else []
-    _curriculum_tool = build_curriculum_retrieval_tool(_materials)
+    # 1.1.151 F1d — session_key lets a doc the tutor cannot read be logged once
+    # per (group/teacher, activity) rather than on every turn's rebuild.
+    _curriculum_tool = build_curriculum_retrieval_tool(
+        _materials,
+        activity_id=_activity_id,
+        session_key=f"{getattr(user, 'group_id', '') or user.uid}:{_activity_id}",
+    )
     if _curriculum_tool is not None:
         tools.append(_curriculum_tool)
     # CONCEPT-1 M3 — chat-native checkpoint tools, built per session like the
@@ -932,7 +939,10 @@ def create_agent(
                                 # seminar student it could "only see what you
                                 # write". Empty for one device and for anyone
                                 # not on a group code (byte-identical prompt).
-                                + (build_shared_conversation_block(devices_present) if user.group_id else ""),
+                                + (build_shared_conversation_block(devices_present) if user.group_id else "")
+                                # 1.1.151 F5 — breaks, leaving, deadlines and
+                                # grades are the teacher's; students only.
+                                + (build_classroom_authority_block() if user.group_id else ""),
                                 skill_config.multimodal_input,
                             ),
                             _activity_id,

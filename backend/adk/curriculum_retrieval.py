@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 
 from google.adk.tools.retrieval import VertexAiRagRetrieval
 from vertexai import rag
@@ -92,12 +93,65 @@ def _rag_file_id(resource_name: str) -> str:
     return resource_name.rstrip("/").rsplit("/", 1)[-1] if "/" in resource_name else resource_name
 
 
-def build_curriculum_retrieval_tool(materials: list[MaterialRef]) -> object | None:
+# 1.1.151 F1d — a cited document the tutor cannot read is logged at WARNING
+# ONCE per session, not once per turn. On 2026-10-05 the same line ("has no RAG
+# file yet (pending ingest)") fired 143 times for one document, and it was false
+# besides: nothing was pending and nothing would retry. One line per session, with
+# the activity id and the stored reason, is something a log-based alert can fire
+# on and a person can read. The agent is rebuilt per turn, so "session" is
+# approximated by (session_key, doc) inside a TTL window the length of a lesson.
+_UNREADABLE_LOG_TTL_S = float(os.getenv("CURRICULUM_UNREADABLE_LOG_TTL_S", str(3 * 3600)))
+_UNREADABLE_LOG_MAX = 5000
+_unreadable_logged: dict[tuple[str, str], float] = {}
+
+
+def _monotonic() -> float:
+    """Indirection so tests can advance the clock."""
+    return time.monotonic()
+
+
+def _log_unreadable_doc(
+    doc_id: str,
+    rag_status: str | None,
+    rag_error: str | None,
+    activity_id: str | None,
+    session_key: str | None,
+) -> None:
+    if rag_status == "pending":
+        # Genuinely in flight (a re-ingest is running) — informational, per turn.
+        log.info("Cited curriculum doc %r is being re-ingested (pending) — skipping this turn", doc_id)
+        return
+    if session_key:
+        now = _monotonic()
+        key = (session_key, doc_id)
+        seen_at = _unreadable_logged.get(key)
+        if seen_at is not None and now - seen_at < _UNREADABLE_LOG_TTL_S:
+            return
+        if len(_unreadable_logged) >= _UNREADABLE_LOG_MAX:
+            _unreadable_logged.clear()
+        _unreadable_logged[key] = now
+    log.warning(
+        "curriculum_rag_failed: cited doc %s cannot be read by the tutor "
+        "(ragStatus=%s activity=%s error=%s) — the teacher can retry it from the materials list",
+        doc_id,
+        rag_status or "failed",
+        activity_id or "-",
+        rag_error or "no RAG file recorded",
+    )
+
+
+def build_curriculum_retrieval_tool(
+    materials: list[MaterialRef],
+    *,
+    activity_id: str | None = None,
+    session_key: str | None = None,
+) -> object | None:
     """Build a VertexAiRagRetrieval tool scoped to cited doc file IDs.
 
     Reads ``CurriculumDoc.doc_artifact_id`` from Firestore for each cited
-    material.  Docs not yet RAG-ingested (empty ``doc_artifact_id``) are
-    skipped with a warning.
+    material.  Docs the tutor cannot read (empty ``doc_artifact_id``) are
+    skipped; a ``failed`` one is logged at WARNING once per ``session_key``
+    with ``activity_id`` (1.1.151 F1d).
 
     Returns:
         A ``VertexAiRagRetrieval`` instance or ``None`` (graceful degradation).
@@ -123,7 +177,7 @@ def build_curriculum_retrieval_tool(materials: list[MaterialRef]) -> object | No
             log.warning("Cited curriculum doc %r not found in Firestore — skipping", mat.doc_id)
             continue
         if not doc.doc_artifact_id:
-            log.warning("Cited curriculum doc %r has no RAG file yet (pending ingest) — skipping", mat.doc_id)
+            _log_unreadable_doc(doc.doc_id, doc.rag_status, doc.rag_error, activity_id, session_key)
             continue
         file_ids.append(_rag_file_id(doc.doc_artifact_id))
 

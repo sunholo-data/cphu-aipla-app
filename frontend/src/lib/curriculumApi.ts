@@ -42,6 +42,23 @@ export interface CurriculumDoc {
   copyrightStatus: "cleared" | "teacher_owned" | "pending";
   createdAt: string;
   updatedAt: string;
+  /** 1.1.151 F1 — can the tutor read this document? The backend derives it for
+   *  rows written before the field existed (ready iff `docArtifactId` is set). */
+  ragStatus?: RagStatus | null;
+  /** Why the last upload failed — short, no stack. */
+  ragError?: string | null;
+  ragAttempts?: number;
+  ragUpdatedAt?: string | null;
+}
+
+/** 1.1.151 F1 — "pending" (upload in flight) · "ready" (the tutor can read it)
+ *  · "failed" (it cannot; retry with `reingestCurriculumDoc`). */
+export type RagStatus = "pending" | "ready" | "failed";
+
+/** The status to show for a doc: the stored one, else derived the same way the
+ *  backend derives it for legacy rows. */
+export function ragStatusOf(doc: Pick<CurriculumDoc, "ragStatus" | "docArtifactId">): RagStatus {
+  return doc.ragStatus ?? (doc.docArtifactId ? "ready" : "failed");
 }
 
 export class CurriculumApiError extends Error {
@@ -300,6 +317,39 @@ export async function deleteCurriculumDoc(docId: string): Promise<void> {
   if (!resp.ok && resp.status !== 404) {
     throw new CurriculumApiError("Couldn't delete this document.", resp.status);
   }
+}
+
+/** 1.1.151 F1b — re-run a document's RAG upload from its stored text (the
+ *  teacher's "Prøv igen"). Owner or researcher; returns the updated doc, whose
+ *  `ragStatus` says whether it worked. */
+export async function reingestCurriculumDoc(docId: string): Promise<CurriculumDoc> {
+  const resp = await fetchWithTeacherAuth(
+    `/api/proxy/api/curriculum/${encodeURIComponent(docId)}/reingest`,
+    { method: "POST" },
+  );
+  const body = await readJson<{ doc: CurriculumDoc }>(resp, "reingest curriculum doc");
+  return body.doc;
+}
+
+/** One doc's tutor-readability, as the batch status endpoint reports it. */
+export interface RagStatusEntry {
+  ragStatus: RagStatus;
+  ragError: string | null;
+  title: string;
+  /** True when the caller may press "Prøv igen" (owner or researcher). */
+  canRetry: boolean;
+}
+
+/** 1.1.151 F1c — RAG status for the docs an activity cites, so a card can warn
+ *  before the lesson. Ids the caller may not see are absent from the result. */
+export async function fetchCurriculumRagStatus(docIds: string[]): Promise<Record<string, RagStatusEntry>> {
+  const ids = Array.from(new Set(docIds.filter(Boolean)));
+  if (ids.length === 0) return {};
+  const qs = new URLSearchParams();
+  for (const id of ids) qs.append("ids", id);
+  const resp = await fetchWithTeacherAuth(`/api/proxy/api/curriculum/rag-status?${qs.toString()}`);
+  const body = await readJson<{ statuses: Record<string, RagStatusEntry> }>(resp, "curriculum rag status");
+  return body.statuses ?? {};
 }
 
 /** A doc's parsed content for display (1.1.33 M3). `available` is false when no

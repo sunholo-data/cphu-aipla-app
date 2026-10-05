@@ -1,0 +1,30 @@
+{
+  "RagStatusLine": {
+    "ready": "Ready — the tutor can read it",
+    "pending": "Processing…",
+    "failed": "Failed — the tutor cannot read it",
+    "retry": "Try again",
+    "retrying": "Trying again…",
+    "retryFailed": "That didn't work. Try again in a moment.",
+    "errorTitle": "Error: {error}",
+    "retryAria": "Try sending “{title}” to the tutor again"
+  },
+  "FailedMaterialsWarning": {
+    "heading": "{count, plural, one {The tutor cannot read # attached document} other {The tutor cannot read # attached documents}}",
+    "help": "Students get a tutor without this material. Try again, or upload the file again under Materials.",
+    "askOwner": "Ask the document's owner to try again."
+  },
+  "StudentsLanguageBadge": {
+    "da": "Students: Danish",
+    "en": "Students: English",
+    "title": "The language the students and the tutor use in this activity"
+  },
+  "BuilderHints": {
+    "heading": "Worth checking",
+    "languageLooksDanish": "The title is in Danish, but the students get an English tutor. Is that intended?",
+    "languageLooksEnglish": "The text looks English, but the students get a Danish tutor. Is that intended?",
+    "duplicateColumns": "The table “{table}” has more than one column with the same name: {labels}.",
+    "untitledTables": "{count, plural, one {# table has no title} other {# tables have no title}}. With several tables, students and the tutor cannot tell them apart without one.",
+    "untitledTable": "untitled"
+  }
+}

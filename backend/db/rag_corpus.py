@@ -3,9 +3,11 @@
 The corpus resource name is injected via the CURRICULUM_RAG_CORPUS_NAME env var
 (set by bootstrap_rag_corpus.py → Secret Manager → Cloud Run).
 
-When the env var is absent (local dev without a live corpus), upload_text_as_rag_file
-returns None and the caller stores "" for doc_artifact_id — the doc is still
-browseable and metadata-complete; retrieval degrades gracefully (Axiom 5).
+When the env var is absent (local dev without a live corpus), upload_with_retry
+returns a failed outcome and the caller stores "" for doc_artifact_id with
+``ragStatus: "failed"`` — the doc is still browseable and metadata-complete;
+retrieval degrades gracefully (Axiom 5), and the teacher is told the tutor
+cannot read it (1.1.151 F1).
 """
 
 from __future__ import annotations
@@ -16,6 +18,7 @@ import logging
 import os
 import re
 import tempfile
+from dataclasses import dataclass
 
 log = logging.getLogger(__name__)
 
@@ -45,29 +48,50 @@ def _corpus_location(corpus_name: str) -> str:
     return loc if loc and loc not in {"global", "eu", "us"} else "europe-west1"
 
 
-async def upload_text_as_rag_file(
-    text: str,
-    doc_id: str,
-    *,
-    title: str,
-    level: str | None,
-    topic: str | None,
-    owner_scope: str,
-) -> str | None:
-    """Upload parsed text into the curriculum RAG corpus as a tagged RagFile.
+# 1.1.151 F1 — a failed RAG upload is a STATE, not a log line.
+#
+# Until 2026-10-05 the upload helper swallowed every error and
+# returned None; the ingest route then logged "Curriculum doc ingested" and
+# returned 200. One teacher's document (``b594d415…``) failed that way on
+# 2026-09-07 and the tutor ran four weeks of lessons without it while every
+# surface said it had succeeded. ``upload_with_retry`` keeps the reason, retries
+# once (the observed error, ``Expecting value``, is a non-JSON reply from the
+# RAG API — the transient shape), and hands the caller an outcome it must store.
 
-    The RagFile's description carries JSON metadata {doc_id, level, topic,
-    owner_scope} so the retrieval layer can filter by these fields (M3).
+#: Seconds before the single automatic retry. Env-tunable; tests set it to 0.
+RETRY_BACKOFF_S = float(os.getenv("CURRICULUM_RAG_RETRY_BACKOFF_S", "2"))
+#: Total attempts per upload call (the first try + one retry).
+MAX_ATTEMPTS = 2
+#: ``ragError`` is shown to a teacher and stored on the doc — short, no stack.
+_ERROR_CAP = 240
 
-    Returns:
-        The RagFile resource name (stored as CurriculumDoc.doc_artifact_id) on
-        success, or None when the corpus is not configured / upload fails.
-    """
-    corpus_name = get_corpus_name()
-    if not corpus_name:
-        log.info("CURRICULUM_RAG_CORPUS_NAME not set — skipping RAG upload for %s", doc_id)
-        return None
+NOT_CONFIGURED_ERROR = "RAG corpus not configured on this environment"
 
+
+@dataclass(frozen=True)
+class RagOutcome:
+    """What one upload call achieved. ``rag_file_name`` is set iff it worked."""
+
+    rag_file_name: str | None
+    error: str | None
+    attempts: int
+
+    @property
+    def status(self) -> str:
+        return "ready" if self.rag_file_name else "failed"
+
+
+def short_error(exc: BaseException) -> str:
+    """One line a teacher can be shown: the exception type and its message."""
+    msg = " ".join(str(exc).split())
+    text = f"{type(exc).__name__}: {msg}" if msg else type(exc).__name__
+    return text[:_ERROR_CAP]
+
+
+async def _upload_once(
+    text: str, doc_id: str, *, corpus_name: str, level: str | None, topic: str | None, owner_scope: str
+) -> str:
+    """One upload attempt. RAISES on failure — the caller decides what it means."""
     description = json.dumps({"doc_id": doc_id, "level": level, "topic": topic, "owner_scope": owner_scope})
 
     def _upload_sync() -> str:
@@ -78,8 +102,7 @@ async def upload_text_as_rag_file(
         # Init with the CORPUS's region (the SDK routes RAG ops by init
         # location, not the resource name) — not GOOGLE_CLOUD_LOCATION=global.
         vertexai.init(project=project, location=_corpus_location(corpus_name))
-
-        # Write text to a temp .txt file — rag.upload_file takes a local path.
+        # rag.upload_file takes a local path, so write the text to a temp file.
         tmp = tempfile.NamedTemporaryFile(
             suffix=".txt", mode="w", encoding="utf-8", delete=False, prefix=f"curriculum_{doc_id}_"
         )
@@ -89,7 +112,6 @@ async def upload_text_as_rag_file(
             tmp_path = tmp.name
         finally:
             tmp.close()
-
         try:
             rag_file = rag.upload_file(
                 corpus_name=corpus_name,
@@ -97,22 +119,52 @@ async def upload_text_as_rag_file(
                 display_name=f"{doc_id}.txt",
                 description=description,
             )
-            log.info("RAG upload ok for %s: %s", doc_id, rag_file.name)
             return rag_file.name
-        except Exception as exc:
-            log.warning("RAG upload failed for %s: %s", doc_id, exc)
-            raise
         finally:
             try:
                 os.unlink(tmp_path)
             except OSError:
                 pass
 
-    try:
-        return await asyncio.to_thread(_upload_sync)
-    except Exception as exc:
-        log.warning("RAG upload error for %s (returning None): %s", doc_id, exc)
-        return None
+    return await asyncio.to_thread(_upload_sync)
+
+
+async def upload_with_retry(
+    text: str,
+    doc_id: str,
+    *,
+    title: str,
+    level: str | None,
+    topic: str | None,
+    owner_scope: str,
+) -> RagOutcome:
+    """Upload ``text`` as a RagFile, retrying once with backoff. Never raises.
+
+    Returns a ``RagOutcome`` the caller MUST persist (``ragStatus`` /
+    ``ragError`` / ``ragAttempts``) — the whole point is that a failure stays
+    visible. An unconfigured corpus is reported as a failure with a plain
+    reason: the tutor genuinely cannot read the document, so saying "ready"
+    would be the same lie in a smaller place.
+    """
+    corpus_name = get_corpus_name()
+    if not corpus_name:
+        log.info("CURRICULUM_RAG_CORPUS_NAME not set — skipping RAG upload for %s", doc_id)
+        return RagOutcome(rag_file_name=None, error=NOT_CONFIGURED_ERROR, attempts=0)
+
+    last_error = ""
+    for attempt in range(1, MAX_ATTEMPTS + 1):
+        try:
+            name = await _upload_once(
+                text, doc_id, corpus_name=corpus_name, level=level, topic=topic, owner_scope=owner_scope
+            )
+            log.info("RAG upload ok for %s (attempt %d): %s", doc_id, attempt, name)
+            return RagOutcome(rag_file_name=name, error=None, attempts=attempt)
+        except Exception as exc:
+            last_error = short_error(exc)
+            log.warning("RAG upload attempt %d/%d failed for %s: %s", attempt, MAX_ATTEMPTS, doc_id, last_error)
+            if attempt < MAX_ATTEMPTS and RETRY_BACKOFF_S > 0:
+                await asyncio.sleep(RETRY_BACKOFF_S * attempt)
+    return RagOutcome(rag_file_name=None, error=last_error, attempts=MAX_ATTEMPTS)
 
 
 async def delete_rag_file(rag_file_name: str) -> bool:

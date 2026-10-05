@@ -30,6 +30,7 @@ import type { MaterialRef } from "@/lib/teacherApi";
 // rather than growing a lookalike. Behaviour here is unchanged.
 import { ALL, ActiveChip, FacetRow } from "@/components/teacher/ui/FacetRow";
 import { SpendDeniedNotice } from "@/components/teacher/SpendDeniedNotice";
+import { RagStatusLine } from "@/components/teacher/RagStatusLine";
 import { useT } from "@/i18n";
 import { isSpendDenied } from "@/lib/accessTier";
 
@@ -739,6 +740,12 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
                       {doc.subject ? ` · ${doc.subject}` : ""}
                       {doc.topic ? ` · ${doc.topic}` : ""}
                     </span>
+                    {/* 1.1.151 F1c — can the tutor read it? Failed carries "Prøv igen". */}
+                    <RagStatusLine
+                      doc={doc}
+                      canRetry={doc.ownerScope !== "shared" || isResearcher}
+                      onUpdated={(u) => setDocs((prev) => (prev ? prev.map((d) => (d.docId === u.docId ? u : d)) : prev))}
+                    />
                     {doc.summary ? (
                       <span className="line-clamp-2 text-xs text-muted-foreground/80">{doc.summary}</span>
                     ) : null}

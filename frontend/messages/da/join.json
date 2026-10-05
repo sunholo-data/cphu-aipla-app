@@ -11,6 +11,8 @@
     "rateLimited": "For mange forsøg. Prøv igen om {seconds} sekunder.",
     "atCapacity": "Gruppen er fuld for i dag. Prøv igen i morgen, eller spørg din lærer.",
     "unknownCode": "Koden findes ikke, er udløbet eller er trukket tilbage. Bed din lærer om en ny kode.",
+    "didYouMean": "Mente du <strong>{code}</strong>?",
+    "yesJoin": "Ja, deltag",
     "network": "Kunne ikke få forbindelse til serveren. {detail}",
     "wrongSite": "Koder virker kun på den udgave af siden, de er lavet på. Du er på <strong>{where}</strong> ({host}). Tjek med din lærer, at det er den rigtige adresse."
   }

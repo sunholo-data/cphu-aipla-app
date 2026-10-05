@@ -620,13 +620,19 @@ def test_no_activity_composes_exactly_as_before(_activity_env):
     import asyncio
     from unittest.mock import MagicMock
 
+    from adk.classroom_authority import build_classroom_authority_block
     from adk.tutor_identity import build_identity_block
 
     agent = create_agent(_skill(), _student())
     ctx = MagicMock()
     ctx.state = {}
     assert asyncio.run(agent.instruction(ctx)) == (
-        "Do the thing." + build_math_notation_block() + build_praise_block() + build_identity_block(None)
+        "Do the thing."
+        + build_math_notation_block()
+        + build_praise_block()
+        + build_identity_block(None)
+        # 1.1.151 F5 — a student turn also carries the classroom-authority rule.
+        + build_classroom_authority_block()
     )
 
 
