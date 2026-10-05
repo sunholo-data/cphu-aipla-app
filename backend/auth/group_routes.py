@@ -31,6 +31,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from auth.group_id_auth import (
@@ -48,6 +49,7 @@ from auth.group_id_auth import (
     refresh_group_token,
 )
 from auth.group_rate_limit import RateLimitExceeded
+from auth.join_code_typos import suggest_join_code
 from db.group_sessions import get_active_session_for_group
 
 if TYPE_CHECKING:
@@ -206,11 +208,17 @@ async def join_group_endpoint(
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except GroupExpired as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
-    except GroupRevoked as exc:
-        # Privacy: don't distinguish revoked from unknown in client message
-        raise HTTPException(status_code=401, detail="group not found or no longer active") from exc
-    except GroupNotFound as exc:
-        raise HTTPException(status_code=401, detail="group not found or no longer active") from exc
+    except (GroupRevoked, GroupNotFound):
+        # Privacy: revoked and unknown get the SAME answer — including the same
+        # chance of a suggestion. 1.1.151 F4: one deterministic word correction
+        # of what was typed, offered only if it is a live code, costing a token
+        # from the same per-IP bucket. The client asks "Mente du …?" and the
+        # student confirms; it never auto-joins.
+        suggestion = suggest_join_code(body.group_id, client_ip=ip)
+        content: dict[str, str] = {"detail": "group not found or no longer active"}
+        if suggestion:
+            content["suggestion"] = suggestion
+        return JSONResponse(status_code=401, content=content)  # type: ignore[return-value]
     except ValueError as exc:
         # Gate 1 fallback if Pydantic didn't catch — defensive
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -219,7 +227,9 @@ async def join_group_endpoint(
         uid=result.uid,
         expires_at=result.expires_at,
         skill_ids=list(result.skill_ids),
-        resumedSessionId=get_active_session_for_group(body.group_id),
+        # The NORMALISED code (1.1.151 F4) — "Kind-Kettle 86" resumes the same
+        # session as "kind-kettle-86".
+        resumedSessionId=get_active_session_for_group(result.group_id or body.group_id),
         class_name=result.class_name,
         class_id=result.class_id,
     )
@@ -252,7 +262,7 @@ async def refresh_group_endpoint(body: RefreshGroupRequest) -> JoinGroupResponse
         uid=result.uid,
         expires_at=result.expires_at,
         skill_ids=list(result.skill_ids),
-        resumedSessionId=get_active_session_for_group(result.group_id),
+        resumedSessionId=get_active_session_for_group(result.group_id or body.group_id),
         class_name=result.class_name,
         class_id=result.class_id,
     )
