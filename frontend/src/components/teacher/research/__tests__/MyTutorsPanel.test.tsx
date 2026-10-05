@@ -4,7 +4,7 @@
 // days; zero variants exist on any environment as a result. The first test here
 // is therefore about the thing that was actually missing: can a person open it.
 
-import { render as rtlRender, screen, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor, within } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { LocaleProvider } from "@/i18n";
 import userEvent from "@testing-library/user-event";
@@ -154,5 +154,81 @@ describe("a tutor can wear a face someone made (TUTOR-2 M3)", () => {
     await waitFor(() =>
       expect(create).toHaveBeenCalledWith(expect.objectContaining({ personaId: "persona-fru-hansen" })),
     );
+  });
+});
+
+
+describe("whose tutor it is (1.1.150)", () => {
+  it("puts another author's tutor outside Yours for a researcher, and names the author", async () => {
+    // The seminar finding. A researcher may edit every authored tutor
+    // (`canEdit` true), so grouping on canEdit put every teacher's tutor under
+    // the researcher's "Yours". The panel groups on `isOwn`.
+    vi.spyOn(teacherApi, "fetchTutorCatalogue").mockResolvedValue(
+      catalogue([
+        tutor({ id: "mine", displayName: "Mine", canEdit: true, isOwn: true }),
+        tutor({
+          id: "didaktisk",
+          displayName: "Didaktisk",
+          canEdit: true,
+          isOwn: false,
+          authorRole: "teacher",
+          authorEmail: "pilot.teacher@example.dk",
+          createdVia: "ui",
+          createdAt: "2026-10-03T13:00:42Z",
+        }),
+      ]),
+    );
+    render(<MyTutorsPanel />);
+
+    const yours = (await screen.findByRole("heading", { name: "Yours" })).parentElement as HTMLElement;
+    const others = screen.getByRole("heading", { name: "Available to you" }).parentElement as HTMLElement;
+    expect(within(yours).getByText("Mine")).toBeInTheDocument();
+    expect(within(yours).queryByText("Didaktisk")).not.toBeInTheDocument();
+    expect(within(others).getByText("Didaktisk")).toBeInTheDocument();
+
+    const line = screen.getByTestId("tutor-author-didaktisk");
+    expect(line).toHaveTextContent("Made by a teacher");
+    expect(line).toHaveTextContent("pilot.teacher@example.dk");
+    // Still editable — the researcher's right is unchanged, only the label is.
+    expect(within(others).getByLabelText("Delete Didaktisk")).toBeInTheDocument();
+  });
+
+  it("calls a built-in tutor built in, not somebody's", async () => {
+    vi.spyOn(teacherApi, "fetchTutorCatalogue").mockResolvedValue(
+      catalogue([tutor({ canEdit: false, isOwn: false, isBuiltIn: true, authorRole: "researcher" })]),
+    );
+    render(<MyTutorsPanel />);
+    const line = await screen.findByTestId("tutor-author-sofie");
+    expect(line).toHaveTextContent("Built in");
+    expect(line).not.toHaveTextContent("researcher");
+  });
+
+  it("says a name is taken instead of a generic failure", async () => {
+    // 1.1.150 F4: the server refuses a taken id (someone else's tutor, or a
+    // built-in like Sofie) instead of silently overwriting it.
+    vi.spyOn(teacherApi, "createTutor").mockRejectedValue(new teacherApi.ConflictError("taken"));
+    render(<MyTutorsPanel />);
+    await userEvent.click(await screen.findByRole("button", { name: "New tutor" }));
+    await userEvent.type(screen.getByLabelText("Name"), "Sofie");
+    await userEvent.selectOptions(screen.getByLabelText("Teaching approach"), "esru");
+    await userEvent.click(screen.getByRole("button", { name: "Create tutor" }));
+
+    expect(await screen.findByText(/already exists/)).toBeInTheDocument();
+    expect(screen.getByLabelText("Name")).toHaveValue("Sofie");
+  });
+
+  it("shows what a tutor's own approach draws on", async () => {
+    const cat = catalogue([tutor({ frameworkId: "custom-didaktisk", frameworkName: "Didaktisk" })]);
+    cat.frameworks.push({
+      id: "custom-didaktisk",
+      name: "Didaktisk",
+      summary: "",
+      isPlaceholder: false,
+      isCustom: true,
+      sources: [{ citation: "Brousseau (1997)" }, { citation: "Artigue (2009)" }],
+    });
+    vi.spyOn(teacherApi, "fetchTutorCatalogue").mockResolvedValue(cat);
+    render(<MyTutorsPanel />);
+    expect(await screen.findByText("Its approach draws on: Brousseau (1997); Artigue (2009)")).toBeInTheDocument();
   });
 });

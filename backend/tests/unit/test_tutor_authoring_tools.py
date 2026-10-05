@@ -48,6 +48,30 @@ def test_a_proposal_cannot_carry_a_citation_the_model_wrote():
     assert "cannot carry a reference" in out["proposal"]["needsVouching"]
 
 
+def test_a_proposal_naming_sources_yields_one_with_none():
+    """1.1.150 M3 — a custom approach's ``sources`` are a person's statement of
+    what it is derived from, so a model must not be able to write one either.
+
+    Two halves: the tool DECLARES no parameter a model could put a source in
+    (ADK builds the function declaration from the signature, so an undeclared
+    argument never reaches the call), and whatever the model names in the
+    summary, the proposal's ``sources`` is empty."""
+    import inspect
+
+    params = set(inspect.signature(t.propose_approach).parameters)
+    assert not params & {"sources", "source", "citations", "citation", "provenance"}
+
+    out = t.propose_approach(
+        label="Didaktisk tutor",
+        summary="Derived from Brousseau (1997), Theory of Didactical Situations.",
+        construct_names=[{"name": "x", "sources": ["Brousseau 1997"]}, "devolution"],  # type: ignore[list-item]
+        tool_context=_Ctx(),
+    )
+    assert out["ok"] is True
+    assert out["proposal"]["sources"] == []
+    assert "Brousseau 1997" not in repr(out["proposal"]["constructs"])
+
+
 def test_citation_fields_are_stripped_from_constructs():
     """Whatever shape a model invents them in, they do not survive."""
     dirty = [

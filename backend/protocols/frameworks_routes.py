@@ -39,6 +39,7 @@ from db.authored_frameworks import (
     make_framework_id,
     may_edit,
     save_authored_framework,
+    stamp_sources,
 )
 from db.framework_overrides import (
     clear_framework_override,
@@ -48,9 +49,18 @@ from db.framework_overrides import (
     resolve_framework_instruction,
     save_framework_structure,
 )
-from db.models.teaching_framework import Construct, FrameworkRegister, Provenance, TeachingFramework
+from db.models.authorship import ClientCreatedVia
+from db.models.teaching_framework import (
+    MAX_APPROACH_SOURCES,
+    ApproachSource,
+    Construct,
+    FrameworkRegister,
+    Provenance,
+    TeachingFramework,
+)
 from frameworks.instruction import build_framework_instruction
-from frameworks.loader import load_framework, load_frameworks
+from frameworks.loader import framework_ids, load_framework, load_frameworks
+from protocols.authorship import author_emails_for, authorship_fields
 
 log = logging.getLogger(__name__)
 
@@ -353,12 +363,28 @@ async def preview_framework_structure_route(
 # M1's "teachers get variants, not blank frameworks".
 
 
+class ApproachSourceInput(BaseModel):
+    """One source as the client sends it (1.1.150 M3).
+
+    ``addedBy`` / ``addedAt`` are not fields here: they are stamped from the
+    verified token by ``stamp_sources``. A client that round-trips a stored row
+    sends them back, so they are IGNORED rather than refused — never consulted.
+    """
+
+    citation: str = Field(min_length=1, max_length=500)
+    url: str | None = Field(default=None, max_length=1000)
+    corpus_ref: str | None = Field(default=None, alias="corpusRef", max_length=64)
+    note: str | None = Field(default=None, max_length=800)
+
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+
 class CustomApproachBody(BaseModel):
     """A custom approach as the client sends it.
 
     ``authorUid``/``authorRole`` are deliberately absent: they come from the
     verified token. A body that supplies them is not rejected, it is simply
-    never consulted.
+    never consulted. So are ``createdBy``/``createdAt`` (1.1.150 M2).
     """
 
     label: str = Field(min_length=1, max_length=120)
@@ -368,8 +394,75 @@ class CustomApproachBody(BaseModel):
     # attribute and warns at import; the wire name is unaffected.
     register_: FrameworkRegister | None = Field(default=None, alias="register")
     material_refs: list[dict] = Field(default_factory=list, alias="materialRefs", max_length=20)
+    # 1.1.150 M3 — what the approach is derived from. ``None`` (absent) on an
+    # edit KEEPS the stored sources: an older client that predates the field
+    # must not wipe them by saving — the full-overwrite footgun.
+    sources: list[ApproachSourceInput] | None = Field(default=None, max_length=MAX_APPROACH_SOURCES)
+    # 1.1.150 M2 — the only channels a client may claim, honoured on create.
+    created_via: ClientCreatedVia = Field(default="ui", alias="createdVia")
 
     model_config = ConfigDict(populate_by_name=True)
+
+
+def _source_key(citation: str) -> str:
+    return " ".join(citation.split()).casefold()
+
+
+def _sources_for_save(
+    body: CustomApproachBody,
+    existing: TeachingFramework | None,
+    user: User,
+) -> list[ApproachSource]:
+    """Validate and stamp the sources a save carries (1.1.150 M3).
+
+    * absent -> the stored ones, unchanged;
+    * every ``addedBy``/``addedAt`` comes from the token (``stamp_sources``);
+    * a ``corpusRef`` names a file in the LITERATURE corpus, which is
+      researcher-only (CLAUDE.md, "a second RAG corpus reachable from the wrong
+      audience"). A researcher may set one, and only to an ingested tag. A
+      teacher may only carry back one a researcher already set on the same
+      citation — re-saving their own approach must not be a 403 because a
+      researcher annotated it.
+    """
+    prior = list(existing.sources) if existing is not None else []
+    if body.sources is None:
+        return prior
+    known = set(framework_ids())
+    prior_refs = {_source_key(s.citation): s.corpus_ref for s in prior}
+    parsed: list[ApproachSource] = []
+    for item in body.sources:
+        ref = (item.corpus_ref or "").strip() or None
+        if ref is not None:
+            if user.is_researcher:
+                if ref not in known:
+                    raise HTTPException(status_code=400, detail=f"unknown literature corpus file: {ref}")
+            elif prior_refs.get(_source_key(item.citation)) != ref:
+                raise HTTPException(
+                    status_code=403, detail="only a researcher can link a source to the literature corpus"
+                )
+        try:
+            parsed.append(
+                ApproachSource(
+                    citation=item.citation, url=item.url, corpusRef=ref, note=(item.note or "").strip() or None
+                )
+            )
+        except Exception as exc:
+            raise HTTPException(status_code=422, detail=f"invalid source: {exc}") from exc
+    return stamp_sources(parsed, prior, uid=user.uid)
+
+
+def _approach_row(fw: TeachingFramework, user: User, emails: dict[str, str] | None = None) -> dict:
+    """One custom approach as THIS viewer may see it: ``canEdit`` and
+    ``isOwn`` computed here, the author's email for researchers only."""
+    return {
+        **fw.model_dump(by_alias=True, mode="json"),
+        "canEdit": may_edit(fw, uid=user.uid, is_researcher=user.is_researcher),
+        **authorship_fields(fw.author_uid, user, emails),
+    }
+
+
+async def _one_row(fw: TeachingFramework, user: User) -> dict:
+    return _approach_row(fw, user, await author_emails_for(user, [fw.author_uid]))
 
 
 def _custom_or_404(framework_id: str) -> TeachingFramework:
@@ -399,15 +492,8 @@ async def list_custom_approaches_route(
     if user.is_researcher:
         log.info("frameworks: unfiltered custom-approach read by researcher uid=%s", user.uid)
     rows = list_authored_frameworks(user.uid, see_all=user.is_researcher)
-    return {
-        "approaches": [
-            {
-                **fw.model_dump(by_alias=True, mode="json"),
-                "canEdit": may_edit(fw, uid=user.uid, is_researcher=user.is_researcher),
-            }
-            for fw in rows
-        ]
-    }
+    emails = await author_emails_for(user, (fw.author_uid for fw in rows))
+    return {"approaches": [_approach_row(fw, user, emails) for fw in rows]}
 
 
 @router.post("/custom")
@@ -433,14 +519,16 @@ async def create_custom_approach_route(
         material_refs=body.material_refs,
         teaching_register=body.register_,
         source="firestore",
+        sources=_sources_for_save(body, None, user),
     )
     saved = save_authored_framework(
         fw,
         author_uid=user.uid,
         author_role="researcher" if user.is_researcher else "teacher",
+        created_via=body.created_via,
     )
-    log.info("custom approach created: %s by %s", saved.id, user.uid)
-    return {**saved.model_dump(by_alias=True, mode="json"), "canEdit": True}
+    log.info("custom approach created: %s by %s via %s", saved.id, user.uid, body.created_via)
+    return await _one_row(saved, user)
 
 
 class ApproachVisibilityBody(BaseModel):
@@ -475,7 +563,7 @@ async def set_custom_approach_visibility_route(
         set_visibility=body.visibility,
     )
     log.info("custom approach visibility: %s -> %s by %s", framework_id, body.visibility, user.uid)
-    return {**saved.model_dump(by_alias=True, mode="json"), "canEdit": True}
+    return await _one_row(saved, user)
 
 
 @router.put("/custom/{framework_id}")
@@ -496,6 +584,7 @@ async def update_custom_approach_route(
             "instruction_text": body.instruction_text,
             "material_refs": body.material_refs,
             "teaching_register": body.register_,
+            "sources": _sources_for_save(body, existing, user),
         }
     )
     saved = save_authored_framework(
@@ -503,7 +592,7 @@ async def update_custom_approach_route(
         author_uid=user.uid,
         author_role="researcher" if user.is_researcher else "teacher",
     )
-    return {**saved.model_dump(by_alias=True, mode="json"), "canEdit": True}
+    return await _one_row(saved, user)
 
 
 @router.delete("/custom/{framework_id}")

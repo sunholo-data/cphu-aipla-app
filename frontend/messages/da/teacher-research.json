@@ -140,7 +140,9 @@
     "teachesNone": "Ingen undervisningstilgang valgt",
     "variantBadge": "variant",
     "failedSave": "Det kunne ikke gemmes. Prøv igen.",
-    "shareAria": "{action}: {name}"
+    "shareAria": "{action}: {name}",
+    "nameTaken": "Der findes allerede en tutor med det navn. Vælg et andet navn.",
+    "derivedFrom": "Tilgangen bygger på: {list}"
   },
   "PersonaEditorPanel": {
     "title": "Ansigter og stemmer",
@@ -266,15 +268,21 @@
     "editAria": "Redigér {label}",
     "removeAria": "Slet {label}",
     "confirmRemove": "Slet „{label}“? Klasser, der bruger den, mister deres tilgang.",
-    "byYou": "din",
     "readOnly": "Du kan læse denne tilgang, men ikke ændre den — den tilhører en anden.",
     "failed": "Det kunne ikke gemmes. Din tekst er her stadig — prøv igen.",
     "loadFailed": "Egne tilgange kunne ikke indlæses.",
     "researchersCanSee": "Forskerne i projektet kan se de tilgange, du skriver her, inklusive dit navn ved dem, og hvor meget de bruges. De kan ikke ændre dem. Det er den samme adgang, de har til klassedata.",
     "deleteWarning": "Intet tjekker, om en klasse stadig bruger en tilgang, før den slettes. En klasse, der mister sin tilgang, underviser videre uden en.",
-    "byOther_teacher": "skrevet af en lærer",
-    "byOther_researcher": "skrevet af en forsker",
-    "byOther_colleague": "skrevet af en kollega"
+    "sourcesLabel": "Hvad tilgangen bygger på (valgfrit)",
+    "sourcesHelp": "Artikler, bøger eller materialer, du har bygget tilgangen på. Lærere og forskere, der læser tilgangen, kan se dem. Tutoren får dem aldrig at vide, og elever ser dem aldrig.",
+    "sourcesMax": "Op til {max} kilder.",
+    "sourceCitation": "Henvisning",
+    "sourceCitationPlaceholder": "fx Brousseau (1997), Theory of Didactical Situations",
+    "sourceUrl": "Link (https, valgfrit)",
+    "sourceNote": "Note (valgfri)",
+    "addSource": "Tilføj en kilde",
+    "removeSource": "Fjern kilde {n}",
+    "sourcesHeading": "Bygger på"
   },
   "FrameworkStructureEditor": {
     "itemAria": "{label} {n}",
@@ -534,5 +542,20 @@
     "statusDemonstrated": "vist",
     "statusPartial": "delvist",
     "photosNotKept": "Fotos delt med tutoren gemmes ikke."
+  },
+  "AuthorLine": {
+    "byYou": "Lavet af dig",
+    "byTeacher": "Lavet af en lærer",
+    "byResearcher": "Lavet af en forsker",
+    "byColleague": "Lavet af en kollega",
+    "builtIn": "Indbygget",
+    "createdVia": "oprettet via {channel} den {date, date, medium}",
+    "createdOn": "oprettet den {date, date, medium}",
+    "notRecorded": "hvornår og hvordan den blev oprettet, er ikke registreret",
+    "via_ui": "appen",
+    "via_copilot": "co-piloten",
+    "via_seed": "platformens egen opsætning",
+    "via_sync": "en kopi mellem miljøer",
+    "via_adopt": "overtagelse"
   }
 }

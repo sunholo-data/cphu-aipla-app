@@ -127,3 +127,20 @@ describe("PersonaEditorPanel", () => {
     await waitFor(() => expect(screen.getAllByText(/visible to the research team/).length).toBeGreaterThan(0));
   });
 });
+
+
+describe("who made a face (1.1.150)", () => {
+  it("names another author's persona for a researcher, never as yours", async () => {
+    vi.spyOn(teacherApi, "listCustomPersonas").mockResolvedValue({
+      personas: [
+        persona({ canEdit: true, isOwn: false, authorRole: "teacher", authorEmail: "pilot.teacher@example.dk" }),
+      ],
+      avatars: [],
+    });
+    render(<PersonaEditorPanel />);
+    const line = await screen.findByTestId("persona-author-persona-fru-hansen");
+    expect(line).toHaveTextContent("Made by a teacher");
+    expect(line).toHaveTextContent("pilot.teacher@example.dk");
+    expect(line).not.toHaveTextContent("Made by you");
+  });
+});
