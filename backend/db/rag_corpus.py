@@ -58,10 +58,15 @@ def _corpus_location(corpus_name: str) -> str:
 # once (the observed error, ``Expecting value``, is a non-JSON reply from the
 # RAG API — the transient shape), and hands the caller an outcome it must store.
 
-#: Seconds before the single automatic retry. Env-tunable; tests set it to 0.
+#: Base seconds between in-request attempts. Env-tunable; tests set it to 0.
 RETRY_BACKOFF_S = float(os.getenv("CURRICULUM_RAG_RETRY_BACKOFF_S", "2"))
-#: Total attempts per upload call (the first try + one retry).
-MAX_ATTEMPTS = 2
+#: Total attempts per upload call. Three, waiting ~2 s then ~6 s: long enough to
+#: ride out a blip, short enough that a teacher's upload request still returns.
+#: An outage longer than that (2026-10-06: Vertex RAG indexing returned code 13
+#: for several minutes) is the scheduled retry's job — db/curriculum_auto_retry.py.
+MAX_ATTEMPTS = 3
+#: Multiplier on RETRY_BACKOFF_S before attempt N+1 (index N-1).
+_BACKOFF_STEPS = (1, 3)
 #: ``ragError`` is shown to a teacher and stored on the doc — short, no stack.
 _ERROR_CAP = 240
 
@@ -138,7 +143,7 @@ async def upload_with_retry(
     topic: str | None,
     owner_scope: str,
 ) -> RagOutcome:
-    """Upload ``text`` as a RagFile, retrying once with backoff. Never raises.
+    """Upload ``text`` as a RagFile, up to ``MAX_ATTEMPTS`` times. Never raises.
 
     Returns a ``RagOutcome`` the caller MUST persist (``ragStatus`` /
     ``ragError`` / ``ragAttempts``) — the whole point is that a failure stays
@@ -163,7 +168,7 @@ async def upload_with_retry(
             last_error = short_error(exc)
             log.warning("RAG upload attempt %d/%d failed for %s: %s", attempt, MAX_ATTEMPTS, doc_id, last_error)
             if attempt < MAX_ATTEMPTS and RETRY_BACKOFF_S > 0:
-                await asyncio.sleep(RETRY_BACKOFF_S * attempt)
+                await asyncio.sleep(RETRY_BACKOFF_S * _BACKOFF_STEPS[min(attempt, len(_BACKOFF_STEPS)) - 1])
     return RagOutcome(rag_file_name=None, error=last_error, attempts=MAX_ATTEMPTS)
 
 

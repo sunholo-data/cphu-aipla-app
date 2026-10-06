@@ -97,7 +97,12 @@ describe("RagStatusLine", () => {
 
 describe("FailedMaterialsWarning", () => {
   const materials = [
-    { docId: "b594", origin: "AR", title: "Prompt for Energi", studentVisible: false },
+    {
+      docId: "b594",
+      origin: "AR",
+      title: "Prompt for Energi",
+      studentVisible: false,
+    },
     { docId: "ok", origin: "uvm", title: "Fine", studentVisible: false },
     { kind: "image" as const, docId: "", origin: "", studentVisible: true },
   ];
@@ -110,8 +115,18 @@ describe("FailedMaterialsWarning", () => {
       <FailedMaterialsWarning
         materials={materials}
         statuses={{
-          b594: { ragStatus: "failed", ragError: "x", title: "Prompt for Energi", canRetry: true },
-          ok: { ragStatus: "ready", ragError: null, title: "Fine", canRetry: true },
+          b594: {
+            ragStatus: "failed",
+            ragError: "x",
+            title: "Prompt for Energi",
+            canRetry: true,
+          },
+          ok: {
+            ragStatus: "ready",
+            ragError: null,
+            title: "Fine",
+            canRetry: true,
+          },
         }}
         onUpdated={onUpdated}
       />,
@@ -120,7 +135,9 @@ describe("FailedMaterialsWarning", () => {
     expect(screen.getByText("Prompt for Energi")).toBeInTheDocument();
     expect(screen.queryByText("Fine")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Prøv at sende/ }));
-    await waitFor(() => expect(onUpdated).toHaveBeenCalledWith("b594", expect.objectContaining({ ragStatus: "ready" })));
+    await waitFor(() =>
+      expect(onUpdated).toHaveBeenCalledWith("b594", expect.objectContaining({ ragStatus: "ready" })),
+    );
   });
 
   it("renders nothing when every cited doc is readable", () => {
@@ -128,7 +145,14 @@ describe("FailedMaterialsWarning", () => {
       "en",
       <FailedMaterialsWarning
         materials={materials}
-        statuses={{ ok: { ragStatus: "ready", ragError: null, title: "Fine", canRetry: true } }}
+        statuses={{
+          ok: {
+            ragStatus: "ready",
+            ragError: null,
+            title: "Fine",
+            canRetry: true,
+          },
+        }}
         onUpdated={() => {}}
       />,
     );
@@ -140,11 +164,125 @@ describe("FailedMaterialsWarning", () => {
       "en",
       <FailedMaterialsWarning
         materials={materials}
-        statuses={{ b594: { ragStatus: "failed", ragError: null, title: "Prompt for Energi", canRetry: false } }}
+        statuses={{
+          b594: {
+            ragStatus: "failed",
+            ragError: null,
+            title: "Prompt for Energi",
+            canRetry: false,
+          },
+        }}
         onUpdated={() => {}}
       />,
     );
     expect(screen.getByText("Ask the document's owner to try again.")).toBeInTheDocument();
     expect(screen.queryByRole("button")).toBeNull();
+  });
+});
+
+/**
+ * 2026-10-06 — a failed upload is retried automatically. The teacher is told
+ * a retry is coming and when, and an open page picks up the result without a
+ * reload. Times are compared against "now" so the test does not care about
+ * the runner's timezone.
+ */
+describe("automatic retries", () => {
+  const inMinutes = (m: number) => new Date(Date.now() + m * 60_000).toISOString();
+
+  it.each([
+    ["da" as Locale, /Prøver igen automatisk kl\. \d{2}[.:]\d{2} · 2 automatiske forsøg indtil nu/],
+    ["en" as Locale, /Trying again automatically at \d{2}:\d{2} · 2 automatic attempts so far/],
+  ])("[%s] says a retry is scheduled, when, and how many have run", (locale, text) => {
+    inLocale(
+      locale,
+      <RagStatusLine
+        doc={doc({
+          ragStatus: "failed",
+          ragNextRetryAt: inMinutes(10),
+          ragAutoRetries: 2,
+        })}
+      />,
+    );
+    expect(screen.getByText(text)).toBeInTheDocument();
+    // The manual way out stays.
+    expect(screen.getByRole("button")).toBeInTheDocument();
+  });
+
+  it("says when the automatic retries have run out", () => {
+    inLocale(
+      "da",
+      <RagStatusLine
+        doc={doc({
+          ragStatus: "failed",
+          ragNextRetryAt: null,
+          ragAutoRetries: 5,
+        })}
+      />,
+    );
+    expect(screen.getByText("Holdt op efter 5 automatiske forsøg")).toBeInTheDocument();
+  });
+
+  it("says nothing extra for a failure with no schedule (a legacy row)", () => {
+    const { container } = inLocale("en", <RagStatusLine doc={doc({ ragStatus: "failed" })} />);
+    expect(container.querySelector("[data-rag-auto-retry]")).toBeNull();
+  });
+
+  it("re-asks once the retry is due and shows the result without a reload", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      fetchCurriculumRagStatus.mockResolvedValue({
+        b594: {
+          ragStatus: "ready",
+          ragError: null,
+          title: "Prompt for Energi",
+          canRetry: true,
+          ragNextRetryAt: null,
+        },
+      });
+      inLocale(
+        "da",
+        <RagStatusLine
+          doc={doc({
+            ragStatus: "failed",
+            ragNextRetryAt: inMinutes(2),
+            ragAutoRetries: 0,
+          })}
+        />,
+      );
+      expect(fetchCurriculumRagStatus).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(2 * 60_000 + 3_000);
+      expect(fetchCurriculumRagStatus).toHaveBeenCalledWith(["b594"]);
+      expect(await screen.findByText("Klar — tutoren kan læse den")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("the activity-card warning shows the schedule too", () => {
+    inLocale(
+      "en",
+      <FailedMaterialsWarning
+        materials={[
+          {
+            docId: "b594",
+            origin: "AR",
+            title: "Prompt for Energi",
+            studentVisible: false,
+          },
+        ]}
+        statuses={{
+          b594: {
+            ragStatus: "failed",
+            ragError: "code 13",
+            title: "Prompt for Energi",
+            canRetry: true,
+            ragNextRetryAt: inMinutes(30),
+            ragAutoRetries: 1,
+          },
+        }}
+        onUpdated={() => {}}
+      />,
+    );
+    expect(screen.getByText(/Trying again automatically at .* · 1 automatic attempt so far/)).toBeInTheDocument();
   });
 });

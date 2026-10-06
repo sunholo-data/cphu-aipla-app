@@ -11,7 +11,7 @@ from __future__ import annotations
 import io
 import json
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -19,6 +19,7 @@ from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 
 import adk.curriculum_retrieval as cretr
+import db.curriculum_auto_retry as auto_retry
 import db.curriculum_reingest as reingest_mod
 import db.rag_corpus as rag_corpus
 import protocols.curriculum_routes as routes
@@ -87,9 +88,10 @@ def _no_backoff_no_summary(monkeypatch):
 
 
 def test_curriculum_upload_rag_failure_is_failed_not_ingested(monkeypatch, caplog):
-    """The RAG client raising JSONDecodeError (the 2026-09-07 shape) on BOTH
-    attempts leaves ragStatus == "failed", says so in the response, and no log
-    line calls the document "ingested"."""
+    """The RAG client raising JSONDecodeError (the 2026-09-07 shape) on EVERY
+    in-request attempt leaves ragStatus == "failed", says so in the response,
+    schedules the first automatic retry, and no log line calls the document
+    "ingested"."""
     monkeypatch.setenv("CURRICULUM_RAG_CORPUS_NAME", CORPUS)
     saved: list[CurriculumDoc] = []
     calls = {"n": 0}
@@ -113,9 +115,13 @@ def test_curriculum_upload_rag_failure_is_failed_not_ingested(monkeypatch, caplo
     doc = resp.json()["doc"]
     assert doc["ragStatus"] == "failed"
     assert doc["docArtifactId"] == ""
-    assert doc["ragAttempts"] == 2
+    assert doc["ragAttempts"] == rag_corpus.MAX_ATTEMPTS == 3
     assert "JSONDecodeError" in doc["ragError"]
-    assert calls["n"] == 2, "one automatic retry"
+    assert calls["n"] == rag_corpus.MAX_ATTEMPTS
+    # 2026-10-06 — an outage outlasts the in-request retries; one is scheduled.
+    nxt = datetime.fromisoformat(doc["ragNextRetryAt"])
+    assert timedelta(minutes=1) < nxt - datetime.now(UTC) <= auto_retry.AUTO_RETRY_DELAYS[0]
+    assert doc["ragAutoRetries"] == 0
     assert saved[0].rag_status == "failed"
     messages = [r.getMessage() for r in caplog.records]
     assert not any("ingested" in m for m in messages), messages
@@ -338,3 +344,95 @@ def test_rag_status_batch_is_acl_scoped(store):
     assert set(statuses) == {"mine"}
     assert statuses["mine"]["ragStatus"] == "failed"
     assert statuses["mine"]["canRetry"] is True
+
+
+# ---------------------------------------------------------------------------
+# 2026-10-06 — automatic retries on a schedule, visible to the teacher
+# ---------------------------------------------------------------------------
+
+
+def test_the_schedule_backs_off_then_stops():
+    now = datetime(2026, 10, 6, 11, 0, tzinfo=UTC)
+    doc = _doc(status="failed")
+    seen = []
+    for n in range(auto_retry.AUTO_RETRY_MAX + 1):
+        doc.rag_auto_retries = n
+        auto_retry.schedule_next(doc, now)
+        seen.append(doc.rag_next_retry_at)
+    assert [s - now for s in seen[:-1]] == list(auto_retry.AUTO_RETRY_DELAYS)
+    assert seen[-1] is None, "after the last automatic retry, the teacher's button is the only way"
+
+
+def test_due_means_failed_unread_and_past_its_time():
+    now = datetime.now(UTC)
+    past, future = now - timedelta(seconds=1), now + timedelta(minutes=5)
+    failed_due = _doc(status="failed")
+    failed_due.rag_next_retry_at = past
+    failed_later = _doc(status="failed")
+    failed_later.rag_next_retry_at = future
+    unscheduled = _doc(status="failed")
+    ready = _doc(artifact="rag/x", status="ready")
+    ready.rag_next_retry_at = past
+    stuck = _doc(status="pending")
+    stuck.rag_updated_at = now - auto_retry.STALE_PENDING - timedelta(seconds=1)
+    in_flight = _doc(status="pending")
+    in_flight.rag_updated_at = now
+    assert auto_retry.is_due(failed_due, now)
+    assert not auto_retry.is_due(failed_later, now)
+    assert not auto_retry.is_due(unscheduled, now)
+    assert not auto_retry.is_due(ready, now)
+    assert auto_retry.is_due(stuck, now), "an upload lost mid-flight must not stay 'pending' forever"
+    assert not auto_retry.is_due(in_flight, now)
+
+
+def test_a_failed_retry_schedules_the_next_and_a_good_one_ends_it(store):
+    docs, _ = store
+    docs["doc-1"] = _doc(status="failed")
+    with patch.object(
+        reingest_mod, "upload_with_retry", new_callable=AsyncMock, return_value=RagOutcome(None, "code 13", 3)
+    ):
+        resp = _client(_user()).post("/api/curriculum/doc-1/reingest")
+    body = resp.json()["doc"]
+    assert body["ragStatus"] == "failed"
+    assert body["ragNextRetryAt"] is not None, "a teacher's failed Prøv igen keeps the automatic ones going"
+    with patch.object(
+        reingest_mod, "upload_with_retry", new_callable=AsyncMock, return_value=RagOutcome("rag/ok", None, 1)
+    ):
+        body = _client(_user()).post("/api/curriculum/doc-1/reingest").json()["doc"]
+    assert body["ragStatus"] == "ready"
+    assert body["ragNextRetryAt"] is None
+
+
+async def test_a_due_doc_is_retried_in_the_background_and_counted(store):
+    import asyncio
+
+    docs, _ = store
+    doc = _doc(status="failed")
+    doc.rag_next_retry_at = datetime.now(UTC) - timedelta(seconds=1)
+    docs["doc-1"] = doc
+    with patch.object(
+        reingest_mod, "upload_with_retry", new_callable=AsyncMock, return_value=RagOutcome("rag/ok", None, 1)
+    ):
+        assert auto_retry.kick_due([doc.model_copy(deep=True)]) == 1
+        assert auto_retry.kick_due([doc.model_copy(deep=True)]) == 0, "one retry per doc at a time"
+        for _ in range(20):
+            await asyncio.sleep(0)
+    assert docs["doc-1"].rag_status == "ready"
+    assert docs["doc-1"].rag_auto_retries == 1
+    assert docs["doc-1"].rag_next_retry_at is None
+
+
+def test_rag_status_says_when_the_next_retry_is_and_starts_a_due_one(store, monkeypatch):
+    docs, _ = store
+    later = datetime.now(UTC) + timedelta(minutes=10)
+    doc = _doc("mine", status="failed")
+    doc.rag_next_retry_at = later
+    doc.rag_auto_retries = 2
+    docs["mine"] = doc
+    docs["theirs"] = _doc("theirs", owner=OTHER, status="failed")
+    kicked: list[str] = []
+    monkeypatch.setattr(routes, "kick_due", lambda ds: kicked.extend(d.doc_id for d in ds))
+    statuses = _client(_user()).get("/api/curriculum/rag-status", params=[("ids", "mine")]).json()["statuses"]
+    assert datetime.fromisoformat(statuses["mine"]["ragNextRetryAt"]) == later
+    assert statuses["mine"]["ragAutoRetries"] == 2
+    assert kicked == ["mine"], "only a doc the caller may retry is kicked"

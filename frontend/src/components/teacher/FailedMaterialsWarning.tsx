@@ -9,13 +9,10 @@ import { AlertTriangle, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useT } from "@/i18n";
-import {
-  fetchCurriculumRagStatus,
-  reingestCurriculumDoc,
-  ragStatusOf,
-  type RagStatusEntry,
-} from "@/lib/curriculumApi";
+import { fetchCurriculumRagStatus, reingestCurriculumDoc, ragStatusOf, type RagStatusEntry } from "@/lib/curriculumApi";
 import type { MaterialRef } from "@/lib/teacherApi";
+
+import { AutoRetryNote, AutoRetryWatch } from "./RagStatusLine";
 
 /** The curriculum doc ids an activity cites (images carry no doc). */
 export function citedDocIds(materials: MaterialRef[] | undefined | null): string[] {
@@ -70,7 +67,13 @@ export function FailedMaterialsWarning({ materials, statuses, onUpdated }: Props
     setBusy(docId);
     try {
       const doc = await reingestCurriculumDoc(docId);
-      onUpdated(docId, { ...entry, ragStatus: ragStatusOf(doc), ragError: doc.ragError ?? null });
+      onUpdated(docId, {
+        ...entry,
+        ragStatus: ragStatusOf(doc),
+        ragError: doc.ragError ?? null,
+        ragNextRetryAt: doc.ragNextRetryAt ?? null,
+        ragAutoRetries: doc.ragAutoRetries ?? entry.ragAutoRetries,
+      });
     } catch {
       // The entry stays failed; the warning stays up — the honest state.
     } finally {
@@ -106,6 +109,10 @@ export function FailedMaterialsWarning({ materials, statuses, onUpdated }: Props
             ) : (
               <span className="text-muted-foreground">{t("askOwner")}</span>
             )}
+            <AutoRetryNote nextRetryAt={entry.ragNextRetryAt} autoRetries={entry.ragAutoRetries} />
+            {entry.canRetry ? (
+              <AutoRetryWatch docId={id} nextRetryAt={entry.ragNextRetryAt} onFresh={(e) => onUpdated(id, e)} />
+            ) : null}
           </li>
         ))}
       </ul>

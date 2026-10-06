@@ -49,6 +49,10 @@ export interface CurriculumDoc {
   ragError?: string | null;
   ragAttempts?: number;
   ragUpdatedAt?: string | null;
+  /** 2026-10-06 — when the next automatic retry of a failed upload is due
+   *  (null when none is scheduled), and how many have already run. */
+  ragNextRetryAt?: string | null;
+  ragAutoRetries?: number;
 }
 
 /** 1.1.151 F1 — "pending" (upload in flight) · "ready" (the tutor can read it)
@@ -338,6 +342,8 @@ export interface RagStatusEntry {
   title: string;
   /** True when the caller may press "Prøv igen" (owner or researcher). */
   canRetry: boolean;
+  ragNextRetryAt?: string | null;
+  ragAutoRetries?: number;
 }
 
 /** 1.1.151 F1c — RAG status for the docs an activity cites, so a card can warn

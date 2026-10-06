@@ -7,7 +7,11 @@
     "retrying": "Trying again…",
     "retryFailed": "That didn't work. Try again in a moment.",
     "errorTitle": "Error: {error}",
-    "retryAria": "Try sending “{title}” to the tutor again"
+    "retryAria": "Try sending “{title}” to the tutor again",
+    "autoNext": "Trying again automatically at {time}",
+    "autoNow": "Trying again automatically now…",
+    "autoCount": "{n, plural, one {# automatic attempt so far} other {# automatic attempts so far}}",
+    "autoGaveUp": "{n, plural, one {Stopped after # automatic attempt} other {Stopped after # automatic attempts}}"
   },
   "FailedMaterialsWarning": {
     "heading": "{count, plural, one {The tutor cannot read # attached document} other {The tutor cannot read # attached documents}}",

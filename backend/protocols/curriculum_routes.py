@@ -46,6 +46,7 @@ from db.curriculum import (
     list_curriculum_for_teacher,
     set_curriculum_content,
 )
+from db.curriculum_auto_retry import kick_due, schedule_next
 from db.curriculum_reingest import NoStoredText, reingest_curriculum_doc
 from db.models.curriculum import (
     SHARED_SCOPE,
@@ -122,6 +123,9 @@ async def browse_curriculum(
         user.uid, level=level, topic=topic, tags=tags, subject=subject, folder_id=folder, scope=scope
     )
     page = docs[offset : offset + limit]
+    # A failed doc whose retry is due is retried in the background while the
+    # teacher looks at it (db/curriculum_auto_retry.py) — never blocks the list.
+    kick_due(d for d in page if d.owner_scope == user.uid or user.is_researcher)
     return {
         "docs": [d.model_dump(by_alias=True, mode="json") for d in page],
         "total": len(docs),
@@ -402,7 +406,8 @@ async def ingest_curriculum(
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
 
-    # RAG upload, one automatic retry (1.1.151 F1b). Never raises: a failure
+    # RAG upload, retried in-request (1.1.151 F1b; 3 attempts since 2026-10-06),
+    # then on a schedule (db/curriculum_auto_retry.py). Never raises: a failure
     # comes back as an outcome that is STORED on the doc below, so the teacher
     # sees it and can retry — it is no longer a log line nobody reads.
     rag = await upload_with_retry(
@@ -443,6 +448,8 @@ async def ingest_curriculum(
         ragAttempts=rag.attempts,
         ragUpdatedAt=now,
     )
+    if not rag_file_name:
+        schedule_next(doc, now)
     create_curriculum_doc(doc)
     # 1.1.33 M3 — persist the parsed text so a teacher/student can READ a shared
     # doc later (not just see its name). Kept in a separate collection. Also the
@@ -567,11 +574,17 @@ async def curriculum_rag_status(
             continue
         if doc.owner_scope not in (SHARED_SCOPE, user.uid) and not user.is_researcher:
             continue
+        can_retry = doc.owner_scope == user.uid or user.is_researcher
+        if can_retry:
+            kick_due([doc])
         statuses[doc_id] = {
             "ragStatus": doc.rag_status,
             "ragError": doc.rag_error,
             "title": doc.title,
-            "canRetry": doc.owner_scope == user.uid or user.is_researcher,
+            "canRetry": can_retry,
+            # 2026-10-06 — so the card can say a retry is coming, and when.
+            "ragNextRetryAt": doc.rag_next_retry_at.isoformat() if doc.rag_next_retry_at else None,
+            "ragAutoRetries": doc.rag_auto_retries,
         }
     return {"statuses": statuses}
 

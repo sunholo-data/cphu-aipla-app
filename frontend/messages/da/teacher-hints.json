@@ -7,7 +7,11 @@
     "retrying": "Prøver igen…",
     "retryFailed": "Det lykkedes ikke. Prøv igen om lidt.",
     "errorTitle": "Fejl: {error}",
-    "retryAria": "Prøv at sende »{title}« til tutoren igen"
+    "retryAria": "Prøv at sende »{title}« til tutoren igen",
+    "autoNext": "Prøver igen automatisk kl. {time}",
+    "autoNow": "Prøver igen automatisk nu…",
+    "autoCount": "{n, plural, one {# automatisk forsøg indtil nu} other {# automatiske forsøg indtil nu}}",
+    "autoGaveUp": "{n, plural, one {Holdt op efter # automatisk forsøg} other {Holdt op efter # automatiske forsøg}}"
   },
   "FailedMaterialsWarning": {
     "heading": "{count, plural, one {Tutoren kan ikke læse # vedhæftet dokument} other {Tutoren kan ikke læse # vedhæftede dokumenter}}",

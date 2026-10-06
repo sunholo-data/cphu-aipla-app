@@ -124,6 +124,12 @@ class CurriculumDoc(BaseModel):
     rag_error: str | None = Field(default=None, alias="ragError", max_length=300)
     rag_attempts: int = Field(default=0, alias="ragAttempts", ge=0)
     rag_updated_at: datetime | None = Field(default=None, alias="ragUpdatedAt")
+    # 2026-10-06 — automatic retries after a failed upload, so a teacher is not
+    # the retry loop. The status stays "failed" (no new RagStatus value: an older
+    # revision would reject it mid-deploy); these say a retry is coming and how
+    # many have run. Schedule + kick: ``db/curriculum_auto_retry.py``.
+    rag_next_retry_at: datetime | None = Field(default=None, alias="ragNextRetryAt")
+    rag_auto_retries: int = Field(default=0, alias="ragAutoRetries", ge=0)
 
     model_config = ConfigDict(populate_by_name=True)
 

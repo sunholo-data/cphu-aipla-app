@@ -178,6 +178,10 @@ def build_curriculum_retrieval_tool(
             continue
         if not doc.doc_artifact_id:
             _log_unreadable_doc(doc.doc_id, doc.rag_status, doc.rag_error, activity_id, session_key)
+            # A lesson is using it right now: if a retry is due, start it.
+            from db.curriculum_auto_retry import kick_due
+
+            kick_due([doc])
             continue
         file_ids.append(_rag_file_id(doc.doc_artifact_id))
 
