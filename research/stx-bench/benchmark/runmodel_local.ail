@@ -28,7 +28,7 @@ import benchmark/grader (Expected, gradeNumeric, verdictLabel)
 import benchmark/keyparse (Numeric, Symbolic, NeedsReview, extractFacit)
 import benchmark/solver (systemPrompt, userMessage)
 import std/ai (Message, StepResult, AIError, step)
-import std/clock (sleep)
+import std/clock (sleep, now)
 import std/env (getEnvOr)
 import std/fs (readFile, readFileResult)
 import std/json (decode, getString, getBool, getNumber, getArray, getObject, asString, Json)
@@ -154,16 +154,21 @@ pure func quoteJoin(xs: [string]) -> string =
     x :: rest => match rest { [] => "\"${x}\"", _ => "\"${x}\",${quoteJoin(rest)}" }
   }
 
-pure func line(it: Item, model: string, verdict: string, ins: int, outs: int) -> string =
-  "{\"item_id\":\"${it.item_id}\",\"set\":\"${it.set}\",\"subq\":\"${it.subq}\",\"topics\":[${quoteJoin(it.topics)}],\"model\":\"${model}\",\"verdict\":\"${verdict}\",\"in_tokens\":${show(ins)},\"out_tokens\":${show(outs)}}"
+-- solve_ms: wall time of the answer (retries included) — with out_tokens it
+-- gives this host's tokens/s, the number a hardware decision needs.
+pure func line(it: Item, model: string, verdict: string, ins: int, outs: int, ms: int) -> string =
+  "{\"item_id\":\"${it.item_id}\",\"set\":\"${it.set}\",\"subq\":\"${it.subq}\",\"topics\":[${quoteJoin(it.topics)}],\"model\":\"${model}\",\"verdict\":\"${verdict}\",\"solve_ms\":${show(ms)},\"in_tokens\":${show(ins)},\"out_tokens\":${show(outs)}}"
 
 func run(model: string, items: [Item]) -> () ! {AI, IO, Clock} {
   match items {
     [] => (),
     it :: rest => {
-      match solveRetry(it.question, 1) {
-        Ok(r)  => println(line(it, model, gradeFacit(it, r.message.content), r.input_tokens, r.output_tokens)),
-        Err(e) => println(line(it, model, "error", 0, 0))
+      let t0 = now();
+      let res = solveRetry(it.question, 1);
+      let ms = now() - t0;
+      match res {
+        Ok(r)  => println(line(it, model, gradeFacit(it, r.message.content), r.input_tokens, r.output_tokens, ms)),
+        Err(e) => println(line(it, model, "error", 0, 0, ms))
       };
       run(model, rest)
     }

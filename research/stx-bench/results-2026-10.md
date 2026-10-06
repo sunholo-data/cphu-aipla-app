@@ -3,7 +3,7 @@
 **Run:** 2026-10-05 on studio, `./run-snapshot.sh 5` → `runs/stage2-2026-10/`
 (gitignored). **Scored:** `python3 score-snapshot.py`, the July method,
 verified by reproducing July's published table from its own raw files.
-**Not yet published** — the public page
+**Published 2026-10-06** — the public page
 [`/project/evaluation/capability-floor`](../../frontend/content/project/evaluation/capability-floor.md)
 still shows the July 2026 snapshot; per its own rule a new snapshot replaces it
 rather than amending it.
@@ -100,8 +100,35 @@ counting as a miss. Bar = 80%.
 5. **Variance is still the story at the small end** — ±6–13 on the models near
    the bar, so their single runs would mislead, as in July.
 
+## Time to answer (added 2026-10-06)
+
+One timed run per model (`SNAP=stage2-2026-10-timing ./run-snapshot.sh 1`,
+seven models concurrently), every item. `solve_ms` = wall time of the model's
+answer, retries included, the grading judge not. Via OpenRouter / Vertex — the
+provider's hardware, not ours. Median (90th percentile), seconds:
+
+| Model | Text | Figures |
+|---|---|---|
+| gemini-3.5-flash-lite | 2 (3) | 2 (3) |
+| ministral-8b | 5 (14) | 3 (12) |
+| glm-5.3-flash | 6 (27) | 18 (113) |
+| gemma-4-26b-a4b | 9 (29) | 11 (32) |
+| gemini-3.8-flash | 9 (28) | 8 (15) |
+| deepseek-v4.1-flash | 10 (64) | 17 (175) |
+| gemma-4-31b | 11 (25) | 13 (16) |
+| gemini-3.5-flash | 18 (351) | 14 (31) |
+| qwen3.8-27b | 29 (137) | 23 (135) |
+| qwen3.7-plus | 41 (140) | 10 (50) |
+| qwen3.5-9b | 59 (199) | 70 (127) |
+| qwen3.7-flash | 70 (97) | 60 (68) |
+| qwen3.6-35b-a3b | 107 (250) | 29 (38) |
+
+The Qwen models ran in their default reasoning mode; a reasoning-limited
+configuration is the obvious next measurement. gemini-3.5-flash's 351 s tail
+is almost certainly rate-limit retries under concurrency.
+
 ## Not yet done
 
 - The same Qwen 3.8-27B on studio's own GPU (`./run-local-gpu.sh`), to test
   whether OpenRouter's numbers hold self-hosted. Deferred while the GPU is shared.
-- The public page update.
+- ~~The public page update~~ — done 2026-10-06; July archived at `/project/evaluation/capability-floor-2026-07`.

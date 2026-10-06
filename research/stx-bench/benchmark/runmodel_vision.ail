@@ -23,7 +23,7 @@ module benchmark/runmodel_vision
 import benchmark/grader (Expected, gradeNumeric, verdictLabel)
 import benchmark/solver (solveVisionInput, judgeInput, judgeSchema)
 import std/ai (AIError, ImagePart, Message, StepResult, step, callJsonResult)
-import std/clock (sleep)
+import std/clock (sleep, now)
 import std/fs (readFile, readFileBytes)
 import std/env (getEnvOr)
 import std/json (decode, getString, getBool, getNumber, getArray, getObject, asString, Json)
@@ -180,8 +180,9 @@ pure func quoteJoin(xs: [string]) -> string =
     x :: rest => match rest { [] => "\"${x}\"", _ => "\"${x}\",${quoteJoin(rest)}" }
   }
 
-pure func line(it: VItem, model: string, verdict: string, nfig: int) -> string =
-  "{\"item_id\":\"${it.item_id}\",\"set\":\"${it.set}\",\"subq\":\"${it.subq}\",\"topics\":[${quoteJoin(it.topics)}],\"model\":\"${model}\",\"verdict\":\"${verdict}\",\"figures\":${show(nfig)},\"in_tokens\":0,\"out_tokens\":0}"
+-- solve_ms: wall time of the model's answer (retries included, the judge NOT).
+pure func line(it: VItem, model: string, verdict: string, nfig: int, ms: int) -> string =
+  "{\"item_id\":\"${it.item_id}\",\"set\":\"${it.set}\",\"subq\":\"${it.subq}\",\"topics\":[${quoteJoin(it.topics)}],\"model\":\"${model}\",\"verdict\":\"${verdict}\",\"figures\":${show(nfig)},\"solve_ms\":${show(ms)},\"in_tokens\":0,\"out_tokens\":0}"
 
 func run(model: string, items: [VItem]) -> () ! {AI, IO, FS, Clock} {
   match items {
@@ -189,10 +190,15 @@ func run(model: string, items: [VItem]) -> () ! {AI, IO, FS, Clock} {
     it :: rest => {
       let imgs = loadImages(it.figures);
       match imgs {
-        [] => println(line(it, model, "no-figure", 0)),
-        _  => match solveVision(model, it.question, imgs, 1) {
-          Ok(txt) => { let verdict = gradeItem(it, txt); println(line(it, model, verdict, length(imgs))) },
-          Err(e)  => println(line(it, model, "error", length(imgs)))
+        [] => println(line(it, model, "no-figure", 0, 0)),
+        _  => {
+          let t0 = now();
+          let res = solveVision(model, it.question, imgs, 1);
+          let ms = now() - t0;
+          match res {
+            Ok(txt) => { let verdict = gradeItem(it, txt); println(line(it, model, verdict, length(imgs), ms)) },
+            Err(e)  => println(line(it, model, "error", length(imgs), ms))
+          }
         }
       };
       run(model, rest)

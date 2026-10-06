@@ -100,7 +100,7 @@ Classroom evidence is still required to understand how those behaviours are expe
 
 Results are published as **dated snapshots** rather than as a running leaderboard, so that an older result stays readable as historical evidence instead of silently becoming a claim about the current market.
 
-- **[Capability floor: July 2026 snapshot](/project/evaluation/capability-floor)** — eleven models on text and nine on figure-reading, measured against Danish stx *Fysik A* exam tasks and separated by deployment tier. Reports where the 80% threshold is cleared, why a self-hosted tier needs two models rather than one, and why public benchmarks mis-rank the cheapest viable candidates.
+- **[Capability floor: October 2026 snapshot](/project/evaluation/capability-floor)** — thirteen models on text and figure-reading, measured against Danish stx *Fysik A* exam tasks, separated by deployment tier, and timed. Reports where the 80% threshold is cleared, why passing is not the same as being quick enough for a lesson, and that a single open model can now serve a self-hosted tier. The [July 2026 snapshot](/project/evaluation/capability-floor-2026-07) stays published unchanged.
 
 The exam items underlying that snapshot are used under the research-organisation exception for text and data mining in section 11 c of the Danish Copyright Act. Aggregate results are published; the items and answer keys are not reproduced or redistributed. The rights position is set out in full on the snapshot page.
 
