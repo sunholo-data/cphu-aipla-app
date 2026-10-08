@@ -417,7 +417,17 @@ Then check the dev build went green (`gcloud builds list --project=aipla-dev-202
 3. **M3a:** was the seminar question about *not-shared* materials (a teacher-side visibility issue), or about something else — e.g. a phone, where documents sit behind the workspace tab?
 4. **M2:** a screenshot or the activity name would make the lookup unnecessary.
 5. Which `app_version` was prod on during the seminar — before or after `2a1d0619` (13:33), which mounts the privacy box above every student chat?
-6. The streaming bubble's byline shows the raw `skillId` (`StreamingBubble.tsx:27`), while the finished bubble shows the persona name — a visible flicker of a technical id at every turn. Fold into M0, or leave?
+6. ~~The streaming bubble's byline shows the raw `skillId` (`StreamingBubble.tsx:27`), while the finished bubble shows the persona name — a visible flicker of a technical id at every turn. Fold into M0, or leave?~~
+   **Answered 2026-10-08 — fixed, not left.** The byline and avatar now come from one source,
+   `components/chat/BotByline.tsx` (`botBylineName`: persona → skill display name → `skillId`;
+   `BotAvatar`: persona image/initial → brand mark), used by both `MessageBubble` and
+   `StreamingBubble`, and `ChatMessageList` hands the streaming bubble the same `persona` +
+   `skillDisplayName` it hands the finished one. The avatar had the same flicker (brand mark
+   while streaming, persona face once finished) and is fixed by the same change. Tests:
+   `StreamingBubble.test.tsx` (persona name + face, display-name fallback, raw id only when
+   nothing else exists) and a two-ended `ChatMessageList.test.tsx` case asserting the SAME name
+   while streaming and after the turn finishes — the wiring a test on either bubble alone
+   cannot see.
 
 ## Implementation notes (2026-10-05)
 
@@ -444,7 +454,8 @@ Danish, and `src/test/` is test infrastructure outside its scope (a file inside 
 would be collected by Vitest as an empty suite). The prompt lines (6) and (7) are in
 `backend/skills/preambles/math_notation.md`, guarded by
 `test_preamble_forbids_maths_in_backticks_and_text_mode_degrees`; they reach prod by
-**deploy**. Open question 6 (the raw `skillId` byline on the streaming bubble) is not folded in.
+**deploy**. Open question 6 (the raw `skillId` byline on the streaming bubble) was not folded in
+here; it was fixed on 2026-10-08 — see the answer under *Open questions*.
 
 **M1 — auto-scroll.** `ChatMessageList` keeps `stickRef` (true on mount and on a session
 change) and only the student's own scroll changes it; growth obeys it. Our own scrolls set a

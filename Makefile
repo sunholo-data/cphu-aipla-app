@@ -477,6 +477,22 @@ sync-tutor-assignments:
 	@cd backend && uv run python scripts/sync_tutor_assignments.py --from $(FROM) --to $(TO) \
 		$(if $(filter 1,$(GO)),--go) $(if $(filter 1,$(PRUNE)),--prune) $(if $(filter 1,$(FORCE)),--force)
 
+# 1.1.148 — researcher corrections of the fidelity judge as a calibration set
+# (decided by M 2026-10-08: shared + calibration set). READ-ONLY on the env:
+# reads rubric_reviews + rubric_runs, writes a LOCAL JSONL (default
+# backend/exports/calibration-<env>.jsonl, gitignored) and prints agreement per
+# framework and construct. Same rows as GET /api/research/calibration-set.
+#   make calibration-set ENV=prod
+#   make calibration-set ENV=prod FRAMEWORK=toulmin OUT=/tmp/cal.jsonl
+.PHONY: calibration-set test-calibration-set
+calibration-set:
+	@test -n "$(ENV)" || { echo "usage: make calibration-set ENV=dev|test|prod [FRAMEWORK=<id>] [OUT=<path>]"; exit 2; }
+	@cd backend && uv run python scripts/export_calibration_set.py --env $(ENV) \
+		$(if $(FRAMEWORK),--framework $(FRAMEWORK)) $(if $(OUT),--out $(abspath $(OUT)))
+
+test-calibration-set:
+	@cd backend && uv run pytest tests/unit/test_calibration_set.py -q
+
 # 1.1.150 M2 — stamp createdBy/createdVia/createdAt onto tutors, custom approaches
 # and custom personas written before those fields existed. Only certain values:
 # createdAt from Firestore's create_time, createdBy from authorUid, createdVia=seed

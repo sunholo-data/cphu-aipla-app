@@ -15,7 +15,6 @@
 import React, { useEffect } from "react";
 import { A2UIRenderer } from "@/components/protocols/A2UIRenderer";
 import { MCPAppToolCallRouter } from "@/components/protocols/MCPAppToolCallRouter";
-import { BrandAvatar } from "@/components/chat/BrandAvatar";
 import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
 import { ZoomableImage } from "@/components/chat/media/ZoomableImage";
 import { InlineCitation } from "@/components/chat/InlineCitation";
@@ -33,14 +32,10 @@ import { SimCommandCard, parseSimCommandResult } from "@/components/chat/SimComm
 import { useSurfaceRegistry } from "@/providers/SurfaceRegistry";
 import type { SkillMessage, ToolCallState } from "@/hooks/useSkillAgent";
 
-/** A persona resolved for the running activity (1.1.12). When present the bot
- *  bubble shows the persona's avatar + name instead of the skill byline. */
-export interface PersonaSummary {
-  id: string;
-  name: string;
-  title: string | null;
-  avatar: string;
-}
+// The byline + avatar live in BotByline so the streaming bubble signs a turn
+// exactly as this one does (1.1.147 open question 6).
+import { BotAvatar, botBylineName, type PersonaSummary } from "@/components/chat/BotByline";
+export type { PersonaSummary };
 
 interface MessageBubbleProps {
   message: SkillMessage;
@@ -137,27 +132,6 @@ export function parseA2UIResult(
   }
 }
 
-
-function PersonaBubbleAvatar({ persona }: { persona: PersonaSummary }) {
-  if (persona.avatar) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={persona.avatar}
-        alt={persona.name}
-        className="h-8 w-8 shrink-0 rounded-full object-cover"
-      />
-    );
-  }
-  return (
-    <span
-      aria-hidden="true"
-      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-100 text-xs font-bold text-orange-700"
-    >
-      {persona.name[0]?.toUpperCase() ?? "?"}
-    </span>
-  );
-}
 
 export const MessageBubble = React.memo(function MessageBubble({
   message,
@@ -272,11 +246,11 @@ export const MessageBubble = React.memo(function MessageBubble({
 
     return (
       <div className="flex items-start gap-3">
-        {persona ? <PersonaBubbleAvatar persona={persona} /> : <BrandAvatar />}
+        <BotAvatar persona={persona} />
         <div className="flex max-w-[80%] flex-col gap-1">
           <div className="flex items-baseline gap-2">
             <span className="text-xs font-medium text-orange-600">
-              {persona ? persona.name : (skillDisplayName ?? skillId)}
+              {botBylineName({ skillId, skillDisplayName, persona })}
             </span>
             <span className="text-xs text-muted-foreground" title={timeFull}>
               {time}

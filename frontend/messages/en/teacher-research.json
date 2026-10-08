@@ -397,7 +397,8 @@
     "revertFailed": "Could not revert. Try again.",
     "loading": "Loading frameworks…",
     "errorTitle": "Could not load frameworks",
-    "errorBody": "Something went wrong reading the framework catalogue. Reload to try again."
+    "errorBody": "Something went wrong reading the framework catalogue. Reload to try again.",
+    "tabCalibration": "Calibration"
   },
   "TutorProposal": {
     "approachTitle": "New approach: {label} — {n, plural, one {# construct} other {# constructs}}",
@@ -558,5 +559,22 @@
     "via_seed": "the platform's own setup",
     "via_sync": "a copy between environments",
     "via_adopt": "adoption"
+  },
+  "CalibrationSetPanel": {
+    "title": "Corrections as a calibration set",
+    "blurb": "Every researcher's current correction of the fidelity judge, shared with all researchers. A correction never changes a judgement or what the judge reads; together they are the labelled examples a new version of the judge is measured against.",
+    "loading": "Loading…",
+    "failed": "Could not read the corrections. This is a failed read, not an empty set.",
+    "empty": "No researcher has reviewed a judgement yet. Corrections are made per construct in a group report (“Correct this”).",
+    "overall": "{n, plural, one {# review} other {# reviews}} by {reviewers, plural, one {# researcher} other {# researchers}} — the researcher agreed with the AI in {agreement}.",
+    "multiRated": "{n, plural, one {# construct was} other {# constructs were}} reviewed by more than one researcher — the sample for inter-rater agreement.",
+    "colFramework": "Approach",
+    "colConstruct": "Construct",
+    "colReviews": "Reviews",
+    "colAgreement": "Agrees with AI",
+    "colHigher": "Researcher higher",
+    "colLower": "Researcher lower",
+    "readOnly": "A blank agreement means nothing was comparable (for example a judge that abstained) — not 0%. A review superseded by a later one is left out.",
+    "download": "Download the calibration set ({n, plural, one {# example} other {# examples}}, JSONL)"
   }
 }

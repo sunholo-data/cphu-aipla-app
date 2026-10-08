@@ -48,14 +48,27 @@ class ReviewError(ValueError):
 
 
 def _judged_snapshot(run: dict[str, Any], construct_key: str) -> dict[str, Any]:
-    """What the judge said about ``construct_key`` in ``run``, right now."""
+    """What the judge said about ``construct_key`` in ``run``, right now.
+
+    Carries the judge's provenance too (model, prompt and criteria version,
+    framework): the run document is overwritten in place on a re-score, so the
+    snapshot is the only record of WHICH judge the reviewer was correcting —
+    and the calibration set (``analytics.calibration_set``) needs exactly that.
+    """
     profile = run.get("profile") or {}
+    provenance = {
+        "scoredAt": profile.get("scoredAt"),
+        "model": profile.get("model") or run.get("model") or None,
+        "promptVersion": profile.get("promptVersion"),
+        "criteriaVersion": profile.get("criteriaVersion"),
+        "frameworkId": profile.get("frameworkId") or run.get("framework_id"),
+    }
     if construct_key == OVERALL:
         return {
             "band": profile.get("overallBand"),
             "summary": profile.get("summary") or "",
             "drift": list(profile.get("drift") or []),
-            "scoredAt": profile.get("scoredAt"),
+            **provenance,
         }
     c = (profile.get("constructs") or {}).get(construct_key) or {}
     return {
@@ -63,7 +76,7 @@ def _judged_snapshot(run: dict[str, Any], construct_key: str) -> dict[str, Any]:
         "rationale": c.get("rationale") or "",
         "evidence": list(c.get("evidence") or []),
         "moves": list(c.get("moves") or []),
-        "scoredAt": profile.get("scoredAt"),
+        **provenance,
     }
 
 
