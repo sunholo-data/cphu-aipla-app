@@ -39,7 +39,7 @@ holding half a paper says so; one that does not comments confidently on the half
 has, which is the failure this whole doc exists to remove.
 
 State key:
-  ``app:activity_docs_loaded`` — list[str] of doc_ids copied into this session.
+  ``activity_docs_loaded`` — list[str] of doc_ids copied into this session.
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-_STATE_DOCS_IN_CONTEXT = "app:activity_docs_loaded"
+_STATE_DOCS_IN_CONTEXT = "activity_docs_loaded"
 
 # Per-material character cap. A context material is re-inlined on EVERY turn, so
 # this is a per-turn prompt cost multiplied by the length of the session, not a

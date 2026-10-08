@@ -433,9 +433,12 @@ async def _run_skill_turn(
         # round-tripped state value (see fast_api_app.py:298).
         initial_state["document_ids"] = list(document_ids)
     if resumed_session:
-        # Read by make_document_injector — eager-inject loaded docs into
-        # the first LLM request of every turn for resumed sessions.
-        initial_state["app:resumed_session"] = True
+        # Session-scoped flag (never ``app:`` — that prefix is application-
+        # global in ADK, shared by every user and session; see
+        # adk/callbacks/session.py). Nothing reads it today.
+        from adk.callbacks.document import _STATE_RESUMED_SESSION
+
+        initial_state[_STATE_RESUMED_SESSION] = True
     if a2ui_surface_state:
         # Sprint 2.10 — per-turn snapshot of every active A2UI surface's
         # dataModel + catalogId. The wrap_with_a2ui_surface_context

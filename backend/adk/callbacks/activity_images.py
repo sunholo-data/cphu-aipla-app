@@ -17,7 +17,7 @@ the image a normal session artifact (observable in the ADK web UI / eval) and le
 the injector use the plain ``callback_context.load_artifact`` (session-scoped).
 
 State key:
-  ``app:activity_images_loaded`` — list[str] of material_ids copied into this session.
+  ``activity_images_loaded`` — list[str] of material_ids copied into this session.
 """
 
 from __future__ import annotations
@@ -29,7 +29,7 @@ from adk.activity_images import load_activity_image
 
 logger = logging.getLogger(__name__)
 
-_STATE_IMAGES_LOADED = "app:activity_images_loaded"
+_STATE_IMAGES_LOADED = "activity_images_loaded"
 
 
 def _image_materials(active_cfg: Any) -> list[Any]:

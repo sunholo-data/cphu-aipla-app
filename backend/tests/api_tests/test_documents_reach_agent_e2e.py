@@ -164,7 +164,7 @@ async def test_attached_documents_reach_session_state_and_save_artifacts():
         "doc-volunteers",
     ], (
         "make_document_loader must run on the first turn for newly "
-        "attached docs and record them in app:docs_loaded — got "
+        "attached docs and record them in docs_loaded — got "
         f"{session.state.get(_STATE_DOCS_LOADED)!r}"
     )
 

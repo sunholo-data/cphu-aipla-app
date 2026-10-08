@@ -194,7 +194,7 @@ def test_stream_skill_passes_resumed_session_flag_into_state(client):
             },
         )
     assert resp.status_code == 200, resp.text
-    assert captured["state"].get("app:resumed_session") is True
+    assert captured["state"].get("doc_resumed_session") is True
 
 
 def _authorised_to_spend():
@@ -283,7 +283,7 @@ def test_stream_skill_teacher_bypasses_turn_lock(client):
 
 def test_stream_skill_omits_resumed_flag_for_fresh_chats(client):
     """Fresh chats (no resumed_session flag) must not have
-    app:resumed_session in state — keeps eager injection scoped to the
+    doc_resumed_session in state — keeps eager injection scoped to the
     user's explicit thread-click intent."""
     captured: dict[str, object] = {}
 
@@ -302,7 +302,7 @@ def test_stream_skill_omits_resumed_flag_for_fresh_chats(client):
             json={"message": "hi", "forwardedProps": {"document_ids": ["docA"]}},
         )
     assert resp.status_code == 200
-    assert "app:resumed_session" not in captured["state"]
+    assert "doc_resumed_session" not in captured["state"]
 
 
 def test_stream_skill_passes_all_document_ids_through_to_agent(client):

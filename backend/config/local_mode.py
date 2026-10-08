@@ -79,7 +79,7 @@ def warn_on_session_artifact_pairing() -> None:
     ``ADK_ARTIFACT_BUCKET`` is set.
 
     Mixed configs strand sessions across restarts: the session's
-    ``app:docs_loaded`` list survives but the ``doc:{id}.json`` artifacts
+    ``docs_loaded`` list survives but the ``doc:{id}.json`` artifacts
     don't, and the document injector then loads nothing. The orphan-probe
     in adk/callbacks.py self-heals on the next user message, but the
     cleanest answer is parity — set both or neither. LOCAL_MODE always
