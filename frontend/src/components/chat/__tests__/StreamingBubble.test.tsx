@@ -21,9 +21,32 @@ describe("StreamingBubble", () => {
     expect(container.querySelector(".animate-pulse")).toBeInTheDocument();
   });
 
-  it("shows the skill name", () => {
+  it("falls back to the skill id only when there is no persona or display name", () => {
     render(<StreamingBubble message={makeMsg("hi")} skillId="my-skill" />);
     expect(screen.getByText("my-skill")).toBeInTheDocument();
+  });
+
+  // 1.1.147 open question 6 — the streaming byline used to print the raw
+  // skillId while the finished bubble showed the persona: a technical id
+  // flickered on every turn.
+  it("signs a streaming turn with the persona's name and face, not the skill id", () => {
+    render(
+      <StreamingBubble
+        message={makeMsg("hi")}
+        skillId="concept-dialogue"
+        skillDisplayName="Concept dialogue"
+        persona={{ id: "sofie", name: "Sofie", title: null, avatar: "/personas/sofie.png" }}
+      />,
+    );
+    expect(screen.getByText("Sofie")).toBeInTheDocument();
+    expect(screen.queryByText("concept-dialogue")).not.toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Sofie" })).toBeInTheDocument();
+  });
+
+  it("uses the skill display name when there is no persona", () => {
+    render(<StreamingBubble message={makeMsg("hi")} skillId="concept-dialogue" skillDisplayName="Concept dialogue" />);
+    expect(screen.getByText("Concept dialogue")).toBeInTheDocument();
+    expect(screen.queryByText("concept-dialogue")).not.toBeInTheDocument();
   });
 
   it("renders the bot avatar with branded alt text", () => {

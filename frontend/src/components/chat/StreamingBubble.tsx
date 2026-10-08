@@ -8,7 +8,7 @@
 "use client";
 
 import type { SkillMessage } from "@/hooks/useSkillAgent";
-import { BrandAvatar } from "@/components/chat/BrandAvatar";
+import { BotAvatar, botBylineName, type PersonaSummary } from "@/components/chat/BotByline";
 import { ThinkingPanel } from "@/components/chat/ThinkingPanel";
 import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
 import { holdOpenMath } from "@/lib/mathDelimiters";
@@ -20,17 +20,30 @@ const noNavigate = () => {};
 interface StreamingBubbleProps {
   message: SkillMessage;
   skillId: string;
+  /** The same identity the finished MessageBubble is given — the byline and
+   *  avatar must not change when the turn stops streaming (1.1.147 OQ6). */
+  skillDisplayName?: string;
+  persona?: PersonaSummary | null;
   thinkingContent?: string;
   isThinking?: boolean;
 }
 
-export function StreamingBubble({ message, skillId, thinkingContent, isThinking }: StreamingBubbleProps) {
+export function StreamingBubble({
+  message,
+  skillId,
+  skillDisplayName,
+  persona,
+  thinkingContent,
+  isThinking,
+}: StreamingBubbleProps) {
   return (
     <div className="flex items-start gap-3">
-      <BrandAvatar />
+      <BotAvatar persona={persona} />
       <div className="flex max-w-[80%] flex-col gap-1">
         <div className="flex items-baseline gap-2">
-          <span className="text-xs font-medium text-orange-600">{skillId}</span>
+          <span className="text-xs font-medium text-orange-600">
+            {botBylineName({ skillId, skillDisplayName, persona })}
+          </span>
         </div>
         <div className="rounded-[2px_8px_8px_8px] border-l-[3px] border-orange-400 bg-[hsl(0,0%,98%)] px-3 py-2 text-sm">
           {thinkingContent && (

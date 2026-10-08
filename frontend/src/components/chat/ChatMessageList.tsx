@@ -503,6 +503,8 @@ export function ChatMessageList({
             <StreamingBubble
               message={lastMessage}
               skillId={skillId}
+              skillDisplayName={skillDisplayName}
+              persona={persona}
               thinkingContent={thinkingContent}
               isThinking={isThinking}
             />

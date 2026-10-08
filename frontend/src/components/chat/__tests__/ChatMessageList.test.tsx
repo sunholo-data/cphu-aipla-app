@@ -99,6 +99,24 @@ describe("ChatMessageList", () => {
     expect(container.querySelector(".animate-pulse")).toBeInTheDocument();
   });
 
+  // 1.1.147 open question 6 — both ends of the wiring: the list must hand the
+  // streaming bubble the same identity it hands the finished one, so the
+  // byline does not change when the turn stops streaming.
+  it("signs a turn with the same name while streaming and once finished", () => {
+    const persona = { id: "sofie", name: "Sofie", title: null, avatar: "" };
+    const messages = [msg("u1", "user", "Hello"), msg("a1", "assistant", "I am typing...")];
+    const { container, rerender } = render(
+      <ChatMessageList messages={messages} {...baseProps} persona={persona} isLoading={true} />,
+    );
+    expect(container.querySelector(".animate-pulse")).toBeInTheDocument(); // streaming
+    expect(screen.getByText("Sofie")).toBeInTheDocument();
+    expect(screen.queryByText("my-skill")).not.toBeInTheDocument();
+
+    rerender(<ChatMessageList messages={messages} {...baseProps} persona={persona} isLoading={false} />);
+    expect(screen.getByText("Sofie")).toBeInTheDocument();
+    expect(screen.queryByText("my-skill")).not.toBeInTheDocument();
+  });
+
   it("shows ContextBanner when activeDocumentContext is provided", () => {
     render(
       <ChatMessageList
