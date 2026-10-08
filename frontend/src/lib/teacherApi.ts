@@ -451,6 +451,67 @@ export async function listRubricReviews(runId: string): Promise<RubricReviews> {
 }
 
 /** Record a correction. Create-only: there is no edit or delete. */
+/** One labelled example in the judge's calibration set (1.1.148, M 2026-10-08). */
+export interface CalibrationRow {
+  reviewId: string;
+  runId: string;
+  sessionId: string;
+  frameworkId: string | null;
+  construct: string;
+  aiBand: string | null;
+  researcherBand: string;
+  agrees: boolean;
+  direction: "agree" | "researcher_higher" | "researcher_lower" | "unknown";
+  aiRationale: string;
+  aiCitations: { turn: number | string; quote: string | null; verified: boolean | null }[];
+  aiMoves: string[];
+  researcherEvidence: number[];
+  researcherRationale: string;
+  rubricVersion: string | null;
+  promptVersion: string | null;
+  criteriaVersion: string | null;
+  model: string | null;
+  modelSource: "judged-snapshot" | "run-current" | null;
+  judgedAt: string | null;
+  reviewedAt: string | null;
+  reviewerUid: string | null;
+  supersedes: string | null;
+  [key: string]: unknown;
+}
+
+export interface AgreementCell {
+  n: number;
+  agree: number;
+  researcherHigher: number;
+  researcherLower: number;
+  unknown: number;
+  /** agree / (n − unknown); null when nothing is comparable — never 0. */
+  agreement: number | null;
+  confusion: Record<string, number>;
+}
+
+export interface CalibrationSet {
+  format: string;
+  generatedAt: string;
+  frameworkId: string | null;
+  rows: CalibrationRow[];
+  stats: {
+    overall: AgreementCell;
+    byFramework: Record<string, AgreementCell>;
+    byConstruct: Record<string, Record<string, AgreementCell>>;
+    reviewers: number;
+    multiRated: number;
+  };
+}
+
+/** Every current researcher correction as a calibration example, with
+ *  agreement stats — researcher-only, read-only (1.1.148). */
+export async function fetchCalibrationSet(frameworkId?: string | null): Promise<CalibrationSet> {
+  const q = frameworkId ? `?framework=${encodeURIComponent(frameworkId)}` : "";
+  const resp = await fetchWithAuth(`/api/proxy/api/research/calibration-set${q}`);
+  return readJson<CalibrationSet>(resp, "read calibration set");
+}
+
 export async function postRubricReview(
   runId: string,
   body: RubricReviewInput,

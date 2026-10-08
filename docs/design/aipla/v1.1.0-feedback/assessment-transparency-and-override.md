@@ -1,6 +1,6 @@
 # Assessment transparency and researcher override — what a cited turn is, why the band, and how a researcher corrects it
 
-**Status:** Implemented M1–M5 on branch (2026-10-05), not yet deployed — **1.1.148**. Gated on M: open questions 3–5, the Terraform sink-filter apply. See "Implementation notes"
+**Status:** Implemented M1–M5 on branch (2026-10-05), not yet deployed — **1.1.148**. Open questions 3–4 answered by M 2026-10-08 (shared + calibration set, built — see "Calibration set (2026-10-08)"). Gated on M: open question 5, the Terraform sink-filter apply. See "Implementation notes"
 **Priority:** **P1** for M0–M2 (a researcher-visible defect: the cited turn numbers do not match the transcript's numbers) · **P2** for M3–M5
 **Estimated:** ~5d phased (M0 prod evidence ~0.25d, M's queries · M1 one turn identity ~1d · M2 transparent construct detail ~1d · M3 turn references in the transcript ~0.5d · M4 researcher review, append-only ~1.5d · M5 criteria version on every run ~0.75d). At 2.5 days/week, **~2 weeks of calendar**
 **Scope:** Backend: `analytics/framework_fidelity.py`, `reports/session_summary.py` (`SessionTurn`), `analytics/rubric_runs.py`, a new `db/rubric_reviews.py`, `protocols/reports_routes.py` (or `research_lens_routes.py`), `observability/chat_log.py`, `infrastructure/modules/chat-logs/variables.tf` (sink filter). Frontend: `components/teacher/TeachingApproachSection.tsx`, `components/teacher/research/ChatLogTranscript.tsx`, `app/teacher/reports/groups/[groupId]/page.tsx`, `lib/teacherApi.ts`, `messages/{da,en}/teacher-classes.json`
@@ -181,8 +181,42 @@ Built M1–M5 plus the M0-results UI requirements. Not deployed; nothing read or
 - Researcher routes use the `auth` dispatcher + `assert_researcher` (the "Do not" list), so a real group token gets
   **403**, not the 401 the Tests section mentions.
 - **Needs M:** `make tf-plan`/`tf-apply` per env for the sink filter (until then reviews reach Firestore but not
-  BigQuery); Firestore rules reach prod only via the dev/test deploy path (footgun table); open questions 3–5
-  (implemented as annotation-only, shared visibility among researchers, `MAX_TURNS` unchanged).
+  BigQuery); Firestore rules reach prod only via the dev/test deploy path (footgun table); open question 5
+  (`MAX_TURNS` unchanged). Questions 3–4 were answered 2026-10-08 — see "Calibration set (2026-10-08)".
+
+### Calibration set (2026-10-08)
+
+Decision: **shared + calibration set** (M, 2026-10-08; open questions 3 and 4). Built, not deployed.
+
+- **What a row is.** `backend/analytics/calibration_set.py` turns `rubric_reviews` into one row per *current*
+  review: `sessionId`, `frameworkId`, `construct`, the judge's `aiCitations` (`{turn, quote, verified}`; r2 bare
+  ids come through with `quote: null`), `aiBand`, `aiRationale`, `aiMoves`, `researcherBand`,
+  `researcherEvidence`, `researcherRationale` (the review's reason), `rubricVersion`, `promptVersion`,
+  `criteriaVersion`, `model`, `reviewerUid` (uid only, as in the BigQuery mirror), `agrees`, `direction`. Format
+  tag `aipla-calibration-r1`.
+- **The AI band is the snapshot the reviewer saw**, not the run doc as it stands now — a run is overwritten in place
+  on re-score. Prompt + criteria version are parsed from the review's `rubric_version` (exact). `_judged_snapshot`
+  now also records `model`, `promptVersion`, `criteriaVersion` and `frameworkId`, so a review written from today
+  carries its judge's provenance; an older review takes the model from the run doc and says so
+  (`modelSource: "run-current"`).
+- **Which reviews count.** A review a later review `supersedes` is dropped (a changed mind). Two researchers labelling
+  the same construct without superseding each other are two rows. A review that *agrees* with the AI is kept: a
+  confirmation is a calibration label too, and without it there is no agreement rate.
+- **Agreement stats** — overall, per framework, per construct: `n`, `agree`, `agreement` = agree / (n − unknown),
+  `researcherHigher` / `researcherLower`, a confusion map (`partial->strong`), plus `reviewers` and `multiRated`.
+  A cell with nothing comparable (an abstained judge's `overall`) is `null`, never 0%.
+- **Two read-only ways out, one function.** `GET /api/research/calibration-set[?framework=]` (dispatcher +
+  `assert_researcher`; a real minted group token is refused 403, tested through the real dispatcher) is mounted as
+  the researcher-only **Calibration** tab on `/teacher/research/frameworks` (agreement table + "Download the
+  calibration set (JSONL)"). `make calibration-set ENV=<env> [FRAMEWORK=] [OUT=]`
+  (`backend/scripts/export_calibration_set.py`) reads one env's Firestore with its own client and writes a local
+  JSONL (default `backend/exports/`, gitignored, anchored) plus a stats table. No write path in either.
+- **No BigQuery view.** `aipla_rubric_review` is created by the sink only on the first review written *after* the
+  sink-filter apply, and `create_views` is one flag for every view in the module, so a view over it would fail the
+  next `tf-apply` on any env where no review has landed. The calibration set reads Firestore, which is the store of
+  record anyway; a view can follow once the table exists on every env.
+- **Not done:** the judge does not read the set (that would make the prompt differ per run — the reviewability
+  argument in the CLAUDE.md literature-corpus row applies equally); BENCH-3 consumes the JSONL when it is built.
 
 ## Decision
 
@@ -377,9 +411,15 @@ the principle (append-only human records, model judgement preserved) and should 
 
 1. Was "19.43.47" read off the construct table's Turns column (rendered "19, 43, 47"), or another screen?
 2. "43 appears too often": within one session's table (A), on the overall-row turn counts (B), or across groups?
-3. Should a researcher's correction feed back into anything (e.g. a calibration set for the judge, BENCH-3), or
-   stay annotation only? This doc assumes annotation only.
-4. Should corrections be visible to other researchers by default (shared adjudication), or per reviewer with
-   inter-rater agreement computed later?
+3. ~~Should a researcher's correction feed back into anything (e.g. a calibration set for the judge, BENCH-3), or
+   stay annotation only? This doc assumes annotation only.~~
+   **Answered by M, 2026-10-08: a calibration set.** Corrections stay annotation-only *in effect* — a review never
+   changes a stored judgement, the run store or what the live judge reads — and they are exported as the labelled
+   examples a later judge revision is measured against. See "Calibration set (2026-10-08)" below.
+4. ~~Should corrections be visible to other researchers by default (shared adjudication), or per reviewer with
+   inter-rater agreement computed later?~~
+   **Answered by M, 2026-10-08: shared.** Every researcher sees every review (as shipped in M4). Inter-rater
+   agreement is still computable later: each calibration row carries `reviewerUid`, and the stats count the
+   constructs more than one researcher labelled (`multiRated`).
 5. Is the judge's 80-turn window acceptable for seminar-length sessions, or should long sessions be scored in
    segments (which would change what "overall" means)?

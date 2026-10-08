@@ -397,7 +397,8 @@
     "revertFailed": "Det kunne ikke gendannes. Prøv igen.",
     "loading": "Indlæser tilgange…",
     "errorTitle": "Tilgangene kunne ikke indlæses",
-    "errorBody": "Noget gik galt, da tilgangskataloget skulle læses. Genindlæs for at prøve igen."
+    "errorBody": "Noget gik galt, da tilgangskataloget skulle læses. Genindlæs for at prøve igen.",
+    "tabCalibration": "Kalibrering"
   },
   "TutorProposal": {
     "approachTitle": "Ny tilgang: {label} — {n, plural, one {# begreb} other {# begreber}}",
@@ -558,5 +559,22 @@
     "via_seed": "platformens egen opsætning",
     "via_sync": "en kopi mellem miljøer",
     "via_adopt": "overtagelse"
+  },
+  "CalibrationSetPanel": {
+    "title": "Rettelser som kalibreringssæt",
+    "blurb": "Alle forskeres aktuelle rettelser af troskabsvurderingen, delt med alle forskere. En rettelse ændrer aldrig en vurdering eller hvad vurderingsmodellen læser; samlet er de de mærkede eksempler, en ny version af vurderingen måles op imod.",
+    "loading": "Indlæser…",
+    "failed": "Rettelserne kunne ikke læses. Det er en fejlet læsning, ikke et tomt sæt.",
+    "empty": "Ingen forsker har gennemgået en vurdering endnu. Rettelser laves pr. konstrukt i en grupperapport (“Ret dette”).",
+    "overall": "{n, plural, one {# gennemgang} other {# gennemgange}} af {reviewers, plural, one {# forsker} other {# forskere}} — forskeren var enig med AI'en i {agreement}.",
+    "multiRated": "{n, plural, one {# konstrukt blev} other {# konstrukter blev}} gennemgået af mere end én forsker — stikprøven til enighed mellem bedømmere.",
+    "colFramework": "Tilgang",
+    "colConstruct": "Konstrukt",
+    "colReviews": "Gennemgange",
+    "colAgreement": "Enig med AI",
+    "colHigher": "Forsker højere",
+    "colLower": "Forsker lavere",
+    "readOnly": "En tom enighed betyder, at intet kunne sammenlignes (fx en vurdering, der afstod) — ikke 0 %. En gennemgang, som en senere erstatter, er udeladt.",
+    "download": "Hent kalibreringssættet ({n, plural, one {# eksempel} other {# eksempler}}, JSONL)"
   }
 }

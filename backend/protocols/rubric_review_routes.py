@@ -15,6 +15,13 @@ teachers (fit is not quality, 1.1.65 R1), and a student has no business here.
        Record a correction. CREATE-ONLY: there is no route that edits or
        deletes a review, by design — a change of mind is another review that
        ``supersedes`` the first.
+  GET  /api/research/calibration-set?framework=<id>
+       Every current review as a calibration example for the judge (session,
+       construct, cited turns + quotes, AI band, researcher band, the
+       researcher's reason, criteria/prompt version, model) plus agreement
+       stats per construct and framework. READ-ONLY: it changes no judgement
+       and the judge does not read it (M, 2026-10-08 — shared + calibration
+       set). ``make calibration-set ENV=<env>`` is the same export as a file.
 
 Auth goes through the ``auth`` dispatcher (never ``auth.firebase_auth`` — the
 footgun table), then ``assert_researcher``: a teacher and an anonymous-group
@@ -27,7 +34,7 @@ import asyncio
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from auth import User, get_current_user
@@ -122,3 +129,16 @@ async def post_review(
         raise HTTPException(status_code=status, detail=str(exc)) from exc
     payload = await asyncio.to_thread(_reviews_payload, run_id)
     return {"review": review, **payload}
+
+
+@router.get("/calibration-set")
+async def get_calibration_set(
+    framework: str | None = Query(default=None, max_length=128),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """Researcher corrections as a calibration set, with agreement stats."""
+    assert_researcher(user)
+    from analytics.calibration_set import load_calibration_set
+
+    # Firestore, synchronous, one read per reviewed run — a worker thread (1.1.131).
+    return await asyncio.to_thread(load_calibration_set, framework or None)
