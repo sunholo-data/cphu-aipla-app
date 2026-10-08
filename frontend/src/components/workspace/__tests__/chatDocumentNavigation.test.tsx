@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LocaleProvider } from "@/i18n";
 import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
+import { MessageBubble } from "@/components/chat/MessageBubble";
 import { DocumentsPanel, type ActivityMaterial } from "@/components/workspace/DocumentsPanel";
 import { WorkbenchTabs } from "@/components/workspace/WorkbenchTabs";
 import {
@@ -87,6 +88,41 @@ describe("a document named in the chat", () => {
     expect(notice).toHaveTextContent(/your teacher has not shared the contents/i);
     expect(fetchCurriculumContent).not.toHaveBeenCalled();
     expect(store.get()).toBeNull();
+  });
+
+  // 1.1.147 M3c — the tutor writes these links itself now. The backend teaches
+  // exactly `[Title](aitana://doc/{docId}/block/0)` (adk/document_links.py) and
+  // reduces a link to a not-shared document to its words before it is streamed
+  // or stored. Both shapes, as a finished tutor turn renders them:
+  it("M3c: the link the tutor is taught opens the document from a finished tutor turn", async () => {
+    const store = createDocumentRequestStore();
+    const navigate = vi.fn((docId: string) => store.request(docId));
+    rtlRender(
+      <LocaleProvider locale="en">
+        <MessageBubble
+          message={{
+            id: "t1",
+            role: "assistant",
+            content: "Læs i [Vejledning til Fysik C](aitana://doc/d2/block/0) — og se også lærerens egen prompt.",
+          }}
+          skillId="s"
+          userInitial="A"
+          userDisplayName="Gruppe"
+          toolCalls={[]}
+          navigateToBlock={navigate}
+          onAction={vi.fn()}
+        />
+        <DocumentRequestProvider value={store}>
+          <DocumentsPanel materials={materials} images={[]} activityId="act-1" sessionId="sess-nav" />
+        </DocumentRequestProvider>
+      </LocaleProvider>,
+    );
+    await waitFor(() => expect(screen.getByText("Body of d1.")).toBeInTheDocument());
+    // The guard's output — the not-shared document's words — is text, not a control.
+    expect(screen.queryByRole("button", { name: /lærerens egen prompt/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Vejledning til Fysik C/ }));
+    expect(navigate).toHaveBeenCalledWith("d2", "0");
+    await waitFor(() => expect(screen.getByText("Body of d2.")).toBeInTheDocument());
   });
 
   it("brings the Documents tab forward when the workbench is on its tools", async () => {
