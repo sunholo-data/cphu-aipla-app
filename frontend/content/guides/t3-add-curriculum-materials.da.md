@@ -7,7 +7,7 @@ order: "3"
 lang: "da"
 status: "Current"
 owner: "AIPLA project team"
-reviewed: "2026-10-05"
+reviewed: "2026-10-08"
 reviewBy: "2027-01-05"
 ---
 ::: callout-note
@@ -32,8 +32,8 @@ forankre sine svar i din kilde frem for i almen viden. Du kan vedhæfte:
   tilgængeligt for dig, og
 - dine **egne uploads** — en PDF, slides, et opgaveark, noter eller et billede.
 
-Hvert vedhæftet dokument er enten **synligt** for elever eller **skjult** (bruges
-kun til at forankre tutoren), og enten **Opslag** (tutoren slår det op, når det
+Hvert vedhæftet dokument er enten **Eleverne kan åbne den** eller **Kun tutoren**
+(bruges kun til at forankre tutoren), og enten **Opslag** (tutoren slår det op, når det
 er relevant) eller **I kontekst** (tutoren får hele teksten ved hver besked). Du
 vælger per dokument.
 
@@ -96,10 +96,15 @@ dokumentet fra biblioteket.
 
 Hvert henvist dokument har to omskiftere:
 
-- **Synlig / Skjult** — skjulte dokumenter forankrer stadig tutorens svar;
-  synlige dokumenter vises også for elever i aktiviteten. Nyligt henviste
-  dokumenter starter som **Skjult** — gør kun et dokument synligt, når du vil
-  have eleverne til at læse kilden direkte.
+- **Eleverne kan åbne den / Kun tutoren** — et dokument, der er *Kun tutoren*,
+  forankrer stadig tutorens svar; et dokument, eleverne kan åbne, vises også i
+  deres arbejdsflade. Nyligt henviste dokumenter starter som **Kun tutoren** —
+  del kun et dokument, når du vil have eleverne til at læse kilden direkte. Det
+  første dokument, eleverne kan åbne, er markeret **Åbnes først for eleverne**:
+  det er allerede åbent, når de kommer ind, og faneblade skifter til de andre.
+  Rækkefølgen er den, du har tilføjet dem i. Når tutoren nævner et delt
+  dokument, er navnet et link, der åbner det; den linker aldrig til et, der er
+  *Kun tutoren*. (Billeder bruger stadig **Synlig / Skjult**.)
 - **Opslag / I kontekst** — **Opslag** (standard) lader tutoren slå dokumentet
   op, når det er relevant, hvilket passer til en lærebog. **I kontekst** giver
   tutoren hele teksten ved hver besked: brug det til den opgave, eleverne
@@ -107,7 +112,7 @@ Hvert henvist dokument har to omskiftere:
   den.
 
 ::: callout-tip
-Forankring virker, uanset om et dokument er synligt eller skjult. Brug *skjult*
+Forankring virker, uanset om eleverne kan åbne et dokument eller ej. Brug *Kun tutoren*
 til kildemateriale, der skal forme tutorens svar uden at blive udleveret ordret
 til eleverne.
 :::

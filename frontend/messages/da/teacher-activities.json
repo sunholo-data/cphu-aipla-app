@@ -299,7 +299,7 @@
     "docLoadFailed": "Dokumentet kunne ikke hentes.",
     "legend": "Materialer",
     "libraryIntro": "Det fælles dokumentbibliotek. Upload dokumenter, og sortér dem efter fag, mappe og tag, så de er nemme at finde, når du bygger en aktivitet. Alle lærere kan se — og sortere — det fælles materiale.",
-    "citeIntro": "Henvis til undervisningsmateriale, så tutoren kan underbygge sine svar med en kilde. Hvert dokument er enten <b>Opslag</b> — tutoren slår det op, når det er relevant; det passer til en lærebog — eller <b>I kontekst</b>, hvor tutoren får hele teksten ved hver besked. Brug I kontekst til den opgave, eleverne arbejder med, så tutoren aldrig skal lede efter den eller bede dem indsætte den. Eleverne ser kun de dokumenter, du markerer som <b>synlige</b>.",
+    "citeIntro": "Henvis til undervisningsmateriale, så tutoren kan underbygge sine svar med en kilde. Hvert dokument er enten <b>Opslag</b> — tutoren slår det op, når det er relevant; det passer til en lærebog — eller <b>I kontekst</b>, hvor tutoren får hele teksten ved hver besked. Brug I kontekst til den opgave, eleverne arbejder med, så tutoren aldrig skal lede efter den eller bede dem indsætte den. Eleverne kan kun åbne de dokumenter, du markerer som <b>Eleverne kan åbne den</b>; resten er <b>Kun tutoren</b>.",
     "cited": "Henviste materialer",
     "image": "Billede",
     "hideFromStudents": "Skjul {label} for eleverne",

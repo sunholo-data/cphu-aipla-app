@@ -7,7 +7,7 @@ order: "3"
 lang: "en"
 status: "Current"
 owner: "AIPLA project team"
-reviewed: "2026-10-05"
+reviewed: "2026-10-08"
 reviewBy: "2027-01-05"
 ---
 ::: callout-note
@@ -31,8 +31,8 @@ its answers in your source rather than in general knowledge. You can attach:
 - documents from the **shared corpus** — material already available to you, and
 - your **own uploads** — a PDF, slides, a worksheet, notes, or an image.
 
-Each attached document is either **visible** to students or **hidden** (used
-only to ground the tutor), and either **Reference** (the tutor looks it up when
+Each attached document is either **Students can open it** or **Tutor only**
+(used only to ground the tutor), and either **Reference** (the tutor looks it up when
 relevant) or **In context** (the tutor is given the full text on every turn).
 You choose per document.
 
@@ -91,10 +91,15 @@ shared library. The bin icon on a row deletes a document from the library.
 
 Each cited document has two toggles:
 
-- **Visible / Hidden** — hidden documents still ground the tutor's answers;
-  visible documents also appear to students in the activity. Newly cited
-  documents start **Hidden** — make one visible only when you want students to
-  read the source directly.
+- **Students can open it / Tutor only** — a *Tutor only* document still
+  grounds the tutor's answers; one students can open also appears in their
+  workspace. Newly cited documents start as **Tutor only** — share one only
+  when you want students to read the source directly. The first document
+  students can open is marked **Opens first for students**: it is already open
+  when they arrive, and tabs switch to the others. The order is the order you
+  added them in. When the tutor names a shared document, the name is a link
+  that opens it; it never links a *Tutor only* one. (Images still use
+  **Visible / Hidden**.)
 - **Reference / In context** — **Reference** (the default) lets the tutor look
   the document up when it is relevant, which suits a textbook. **In context**
   gives the tutor the full text on every turn: use it for the task your
@@ -102,7 +107,7 @@ Each cited document has two toggles:
   to paste it in.
 
 ::: callout-tip
-Grounding works whether a document is visible or hidden. Use *hidden* for
+Grounding works whether students can open a document or not. Use *Tutor only* for
 source material that should shape the tutor's answers without being handed to
 students verbatim.
 :::

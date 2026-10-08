@@ -299,7 +299,7 @@
     "docLoadFailed": "Couldn't load this document.",
     "legend": "Materials",
     "libraryIntro": "The shared document library. Upload documents, and file them by subject, folder and tag so they are findable when you build an activity. Every teacher sees — and can organise — the shared corpus.",
-    "citeIntro": "Cite curriculum documents so the tutor can ground its answers with a source. Each cited document is either <b>Reference</b> — the tutor looks it up when relevant, right for a textbook — or <b>In context</b>, where the tutor is given the full text on every turn. Use In context for the task your students are working on, so the tutor never has to search for it or ask them to paste it in. Students only see the documents you mark <b>visible</b>.",
+    "citeIntro": "Cite curriculum documents so the tutor can ground its answers with a source. Each cited document is either <b>Reference</b> — the tutor looks it up when relevant, right for a textbook — or <b>In context</b>, where the tutor is given the full text on every turn. Use In context for the task your students are working on, so the tutor never has to search for it or ask them to paste it in. Students can open only the documents you mark <b>Students can open it</b>; the rest are <b>Tutor only</b>.",
     "cited": "Cited materials",
     "image": "Image",
     "hideFromStudents": "Hide {label} from students",
