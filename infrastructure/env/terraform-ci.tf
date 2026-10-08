@@ -48,6 +48,11 @@ locals {
     # enumerated-roles tradeoff working as intended: a clean permission error in
     # a build log rather than a silent over-grant.
     "roles/cloudbuild.connectionAdmin",
+    # event_loop_alert.tf (1.1.131 M4): the email channel and the alert policy.
+    # Missing when that file landed, so its first prod apply (build d392d84c,
+    # 2026-10-08) 403'd creating the channel after the sink and metric applied.
+    "roles/monitoring.notificationChannelEditor",
+    "roles/monitoring.alertPolicyEditor",
   ])
 }
 
