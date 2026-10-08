@@ -57,12 +57,22 @@ interface TableSnapshot {
 }
 
 /** Window event fired (same-document) after a table cell commits, so siblings
- *  like WorkbenchChart can re-read the grid. `detail.skillId` scopes it. */
+ *  like WorkbenchChart can re-read the grid. `detail.storageKey` scopes it. */
 export const TABLE_CHANGE_EVENT = "aipla:table-change";
 
-/** sessionStorage key holding a skill's table cell values. */
-export function tableStorageKey(skillId: string): string {
-  return `aipla.table:${skillId}`;
+/** sessionStorage key holding one activity's table cell values.
+ *
+ *  Scoped by ACTIVITY, not just skill. Every activity in a class runs on the same
+ *  base skill, and teacher-authored element ids are minted from a per-builder
+ *  counter (`table-k1`, `col-k3`, …), so two activities routinely share cell keys.
+ *  Keyed by skill alone, a tab that moved from one activity to the next seeded
+ *  the second activity's grid with the first one's readings and pushed them to
+ *  that activity's tutor (prod, 2026-10-05: late-lynx-27's "Forsøg 2 = 72 cm" from
+ *  *Den hoppende bold* arrived in *Faseovergange* as "Vandets starttemperatur =
+ *  72 °C", with no commit of its own). A bare-skill mount (no activity) keeps the
+ *  old key — there the skill IS the lesson. */
+export function tableStorageKey(skillId: string, activityId?: string | null): string {
+  return activityId ? `aipla.table:${skillId}:${activityId}` : `aipla.table:${skillId}`;
 }
 
 function cellKey(tableId: string, row: number, colId: string): string {
@@ -91,7 +101,7 @@ function isUnreadableNumber(raw: string | undefined): boolean {
  * the entered values is the offline-lab (1.1.24) extension, NOT done here.
  */
 export function WorkbenchTable({ skillId, tables, sessionId, activityId }: WorkbenchTableProps) {
-  const storageKey = tableStorageKey(skillId);
+  const storageKey = tableStorageKey(skillId, activityId);
   const [values, setValues] = useState<Record<string, string>>({});
   // 1.1.88 — the group's store is the source of truth. `revisionRef` is the last
   // revision this client has seen; the store bumps it on every write, so a jump
@@ -239,7 +249,7 @@ export function WorkbenchTable({ skillId, tables, sessionId, activityId }: Workb
       // read path is untouched.
       window.sessionStorage.setItem(storageKey, JSON.stringify(values));
       // Let a sibling chart (1.1.38 M2) re-read the grid.
-      window.dispatchEvent(new CustomEvent(TABLE_CHANGE_EVENT, { detail: { skillId } }));
+      window.dispatchEvent(new CustomEvent(TABLE_CHANGE_EVENT, { detail: { skillId, storageKey } }));
     }
 
     if (!activityId) {
@@ -266,7 +276,7 @@ export function WorkbenchTable({ skillId, tables, sessionId, activityId }: Workb
           committedRef.current = { ...committedRef.current, ...state.cells };
           if (typeof window !== "undefined") {
             window.sessionStorage.setItem(storageKey, JSON.stringify(merged));
-            window.dispatchEvent(new CustomEvent(TABLE_CHANGE_EVENT, { detail: { skillId } }));
+            window.dispatchEvent(new CustomEvent(TABLE_CHANGE_EVENT, { detail: { skillId, storageKey } }));
           }
           pushAndCard(merged, "table.commit", table.title ?? "");
           return merged;

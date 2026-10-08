@@ -432,3 +432,75 @@ together — anything resembling per-device or per-student identity (item 27).
    students explicitly (M2's label), or is that a teacher-only concept?
 5. Does item 27 (individual codes composable into groups) now move up, given a code is
    evidently being treated as personal by teachers themselves?
+
+## Cross-activity investigation (2026-10-08)
+
+**Question (M):** *"are shared chat histories being done between activities? sounds like a
+bug if so."* Every path by which one activity's conversation, history or anything the
+tutor reads could reach another activity's session on the same group code was checked on
+the code that ran at the seminar (`v0.1.79`–`v0.1.81`, 2026-10-05, before this doc's M1–M3)
+and on current `dev` (1.1.145 is in `v0.1.84`+; prod runs `v0.1.85`). Prod was read only
+(BigQuery `chat_logs`, Cloud Logging); nothing was written anywhere.
+
+**Answer: the chat itself was never shared between activities — and one other thing was.**
+No session on prod has ever carried turns from two `act-…` activities; the conversation, its
+history and the tutor's context were per activity on 10-05 and still are. What did cross,
+once, was a **workbench table reading**, through the browser tab, not through the chat.
+
+| # | Path | Verdict | Evidence |
+|---|---|---|---|
+| 1 | **Session / transcript** (which ADK session a device's turn runs in) | **Does not leak — and never did on prod.** On 10-05 the client resolved a per-activity pointer (`group_sessions/{group}:{activity}`, `GET /active-session?activityId=`); the group-level join-time `resumedSessionId` fast path was suppressed for `act-…` chats (`v0.1.81 page.tsx:242-247`, `isActivityChat`). It *could* cross for **legacy lessons** (group-level pointer) and via a shared `?session=` URL — closed by M1 (server-decided session) and M3 (422 `session_activity_mismatch`) | All-time BigQuery: every session spanning two `activity_id`s is a 2026-09-11 `v0.1.43` session whose greet row is stamped with the **skill id** and whose other rows carry one `act-…` id (a stamping artefact, same activity). Zero sessions span two `act-…` activities, ever. |
+| 2 | **`app:`-scoped ADK state** (`app:docs_loaded`, `app:doc_load_error`, `app:doc_image_labels`, `app:activity_docs_loaded`, `app:activity_images_loaded`, `app:resumed_session`) | **No tutor-visible content leaked; bookkeeping was app-global. Re-scoped now.** In ADK an `app:` key is shared by every user and session (verified on `InMemorySessionService`; on deployed Vertex the 2026-06-23 turn-counter "odometer" across four owners is the same behaviour). But every injector loads the material from a **session-scoped artifact** (`doc:{id}.json`, `activity-doc:{id}.json`, `activity-image:{id}`), which another session does not have — the orphan probe drops a foreign id before anything is inlined. What did reach other sessions: the id lists themselves (doc ids, a student upload's **original filename**, load errors) on every AG-UI `STATE_SNAPSHOT` to every client, and `analytics/rubric_evidence.py`, which loaded a rubric judge's activity images from whatever the global list held, from the durable slot, with no session check. Latent: all 45 prod rubric runs have `evidence_count = 0`. `app:resumed_session` was write-only. | `adk/callbacks/document.py`, `activity_documents.py`, `activity_images.py`, `analytics/rubric_evidence.py:30,64`; ag_ui_adk `adk_agent.py:2307-2326` (final STATE_SNAPSHOT = full session state, not filtered by our SSE redaction). |
+| 3 | **`user:`-scoped state** (all of a group's devices and activities are one ADK user) | **Does not leak.** No production code writes a `user:` key; `user:id` is only *read* (`adk/tools.py:60`, `analytics/auth.py:75`). | grep; tripwire added. |
+| 4 | **ADK memory** | **Not read by any student agent; was being WRITTEN.** Memory tools are off by default (`adk/agent.py`) and no template opts in. But ag_ui_adk's idle-session sweep defaults `save_session_to_memory_on_cleanup=True`, and on deployed envs `get_memory_service()` is the Vertex Memory Bank, keyed by `user_id` = the **group** across all its activities — so `agent.py`'s "never populated, no write path" was wrong. Nothing reached a tutor, but it was an unagreed copy of student transcripts and one opt-in away from activity A's chat in activity B's prompt. **Turned off now.** | `ag_ui_adk/session_manager.py:747-749`; `adk/agui.py` kwargs. |
+| 5 | **Workbench state** (`mcp_app_context.*`, server progress stores) | **Server side does not leak**: iframe-context is an unprefixed key on the session named in the URL; checklist/concept/writing/table stores are `{group}:{activity}`. **Browser side LEAKED — see below.** | `protocols/iframe_context_routes.py:296-366`; `db/*_progress.py` `_doc_id`. |
+| 6 | **Frontend storage** | **The table's offline buffer leaked across activities (live until this fix).** `WorkbenchTable` seeded its grid from `sessionStorage["aipla.table:<skillId>"]` and pushed it to the tutor on session arrival and on the next commit. Every activity in a class runs on the **same base skill**, and builder-minted ids repeat (`table-k1`, `col-k4`), so a tab moving from one activity to the next carried readings across. The checklist buffer is skill-keyed too but only used when there is no activity (bare-skill lesson = one lesson), so it does not cross. No chat transcript, thread id or resume state is cached in browser storage. `sol-jord-maane` keeps mission progress in its own iframe `sessionStorage` (per tab); it is in no `act-…` activity on prod, so not exercised. | `WorkbenchTable.tsx:64-66,135-150,290-303` (pre-fix); `ProgressChecklist.tsx:80,99-109`. |
+| 7 | **Curriculum RAG / document artifacts** | **Does not leak.** Retrieval is filtered to the activity's cited `MaterialRef`s; student uploads are listed by activity (`skillId=<activity>`, 1.1.121); artifacts are session-scoped. | `adk/curriculum_retrieval.py:143-200`; `test_upload_reaches_the_workbench_list.py::test_another_activity_does_not_see_it`. |
+| 8 | **`?session=` / join `resumedSessionId` / `GET /active-session`** | **Leaked before 1.1.145 only in principle (legacy lessons, shared URLs); closed now.** The client no longer calls them; a stale `?session=` is replaced by the server's id, and a turn on another activity's session is refused 422. The server routes remain (no caller). | §Implementation notes M1/M3. |
+
+**The one real crossing — prod, 2026-10-05, `late-lynx-27`.** At 09:30–09:31 the group filled
+*Den hoppende bold* (`act-c94eb3dc1fcdf26a`), table `table-k1` "Slip A (150 cm)": `col-k3`
+*Forsøg 1* = 64, `col-k4` *Forsøg 2* = **72** (cm). At 09:42:21, the **first** table event in
+*Faseovergange* (`act-f3bd4f92a9d089ee`) — whose `table-k1` "Målte værdier" also has a
+`col-k4`, there labelled *Vandets starttemperatur* (°C) — was one commit (`col-k3` *Isens
+masse* = 0,1) reporting **2 filled cells**: `col-k4` = **72**, with no commit of its own. That
+snapshot went to the Faseovergange tutor's session as the group's water start temperature;
+the student then entered *Fælles sluttemperatur* = 71,8 beside it. A scan of all 244 prod
+table events for a cell first appearing in one activity with the same key and value an
+earlier snapshot of the group's *other* activity held finds **exactly this one**. No tutor
+turn followed in that session, so it did not shape an answer — but it was in the tutor's
+context, and it was a ball's bounce height posing as a temperature.
+
+**So what were the seminar participants seeing?** Not another activity's chat. M0 above
+stands: the "shared history" and "influencing answers" were several people on **one**
+activity's shared session (V1/V2), which M1–M2 fixed.
+
+**Fixed here (worktree branch, not deployed):**
+- `tableStorageKey(skillId, activityId)` → `aipla.table:<skill>:<activity>` for activity
+  mounts (bare-skill mounts keep the old key); `WorkbenchChart` reads the same key, and the
+  change event carries it. Test: `WorkbenchTable.test.tsx` *"one tab, two activities on the
+  same skill"* — the real component, the prod ids, a per-activity fake store; it fails on the
+  old key.
+- The six `app:` keys → session-scoped (`docs_loaded`, `doc_load_error`, `doc_image_labels`,
+  `doc_resumed_session`, `activity_docs_loaded`, `activity_images_loaded`). Old sessions
+  re-copy their materials once (the orphan-recovery path). Test:
+  `tests/unit/test_state_key_scope.py` — real ADK scoping across two activities of one group
+  and a second group, plus a tripwire on any production `app:`/`user:` state write.
+- `save_session_to_memory_on_cleanup=False` in `adk/agui.py`, asserted beside the other
+  session-safety knobs in `test_compaction_reaches_chat_runner.py`.
+
+**Not checked / left open:** whether the Vertex Memory Bank on prod already holds
+memories from the sweep (needs the Agent Engine id; reading it is M's call — if it does,
+they should be deleted, as no consent covers them). `structured_extraction.py` still
+*reads* `app:extraction_schema`; nothing writes it.
+
+**Presence and the shared transcript (asked alongside).** A student sees *"N fra din gruppe
+er her"* / *"N in your group are here"* above the composer when more than one device has
+polled the pulse for the same `(group, activity)` within 15 s
+(`page.tsx:1522-1528`, `useGroupPulse.ts` every 2.5 s, `db/group_sessions.py`
+`PRESENCE_WINDOW_SECONDS = 15`); while a groupmate's turn streams it says *"a groupmate is
+asking"* instead and locks the composer. Since 1.1.145 M2 (in `v0.1.84`+, so on prod) every
+device refetches the transcript on each revision bump — not only a device that has never
+sent (`page.tsx:824-842`, `useSessionMessages(sessionId, syncRevision)`) — and a user turn
+from another device carries *"Sendt fra en anden enhed i din gruppe"*
+(`ChatMessageList.tsx:386`). Presence is a count; no device or person is identified.

@@ -473,8 +473,11 @@ def create_agent(
     #
     # AIPLA 2026-06-17 — memory tools now default OFF. Cross-session recall is
     # foreclosed by anonymous group IDs (ADR-001 — we deliberately cannot follow
-    # individuals) and the Vertex memory bank is never populated (no
-    # `add_session_to_memory` write path anywhere), so load_memory only ever
+    # individuals) and the Vertex memory bank is not populated (2026-10-08
+    # correction: ag_ui_adk's idle-session sweep WAS a write path, on by
+    # default, until adk/agui.py passed save_session_to_memory_on_cleanup=False.
+    # Memory is keyed by the group uid across ALL its activities, so this
+    # opt-in must stay off for students), so load_memory only ever
     # returned empty while costing prompt tokens + a per-turn preload fetch. All
     # shipped AIPLA skill templates already opt out; flipping the default removes
     # the footgun for new/inherited skills. The opt-in

@@ -10,7 +10,7 @@ not the live chat session) from the two durable stores the live pipeline wrote:
   ``build_document_context`` (the same call the live document loader uses).
 * **Activity images** — teacher-attached image materials in the MIME-agnostic
   durable artifact slot (keyed by ``material_id`` alone). The session's loaded
-  material ids are recorded in ADK session state (``app:activity_images_loaded``);
+  material ids are recorded in ADK session state (``activity_images_loaded``);
   we read them from there and load each Part from the slot.
 
 Everything is best-effort: a session with no uploads (or an unreachable store)
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 #: ADK session-state key the activity-image loader writes (mirror of
 #: ``adk.callbacks.activity_images._STATE_IMAGES_LOADED``).
-_STATE_IMAGES_LOADED = "app:activity_images_loaded"
+_STATE_IMAGES_LOADED = "activity_images_loaded"
 
 
 @dataclass

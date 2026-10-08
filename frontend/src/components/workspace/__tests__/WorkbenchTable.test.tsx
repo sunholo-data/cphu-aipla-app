@@ -28,7 +28,10 @@ const KEY = "aipla.table:skill-1";
 
 describe("WorkbenchTable", () => {
   beforeEach(() => {
-    window.sessionStorage.removeItem(KEY);
+    // clear(), not removeItem(KEY): activity mounts buffer under a per-activity
+    // key (`aipla.table:skill-1:act-1`), which would otherwise carry a reading
+    // from one test into the next.
+    window.sessionStorage.clear();
     vi.mocked(fetchWithAuth).mockClear();
     dispatch.mockClear();
   });
@@ -401,5 +404,122 @@ describe("WorkbenchTable — decimal comma", () => {
     fireEvent.blur(note);
     expect(screen.queryByText(/ikke tal/i)).not.toBeInTheDocument();
     expect(note).not.toHaveAttribute("aria-invalid");
+  });
+});
+
+/**
+ * Cross-activity investigation (2026-10-08). Every activity in a class runs on the
+ * same base skill, and builder-minted element ids repeat across activities
+ * (`table-k1`, `col-k4`). The offline buffer was keyed by skill alone, so a tab
+ * that moved from one activity to the next seeded the second grid with the first
+ * one's readings and pushed them to the second activity's tutor. Prod 2026-10-05,
+ * late-lynx-27: *Den hoppende bold* "Forsøg 2 = 72" (cm) arrived in
+ * *Faseovergange* as "Vandets starttemperatur = 72" (°C), with no commit of its own.
+ */
+describe("WorkbenchTable — one tab, two activities on the same skill", () => {
+  let store: Map<string, string>;
+  const realStorage = window.sessionStorage;
+  // Both activities' tables carry the SAME element ids, as the prod pair did.
+  const BOLD: TableElementDef = {
+    id: "table-k1",
+    title: "Slip A (150 cm)",
+    columns: [{ id: "col-k4", label: "Forsøg 2", unit: "cm", kind: "number" }],
+    rows: 1,
+  };
+  const FASE: TableElementDef = {
+    id: "table-k1",
+    title: "Målte værdier",
+    columns: [
+      { id: "col-k3", label: "Isens masse", unit: "kg", kind: "number" },
+      { id: "col-k4", label: "Vandets starttemperatur", unit: "C", kind: "number" },
+    ],
+    rows: 1,
+  };
+  // A per-activity group store, as the backend keeps it ({group}:{activity}).
+  let server: Record<string, Record<string, string>>;
+
+  beforeEach(() => {
+    store = new Map();
+    Object.defineProperty(window, "sessionStorage", {
+      configurable: true,
+      value: {
+        getItem: (k: string) => store.get(k) ?? null,
+        setItem: (k: string, v: string) => void store.set(k, String(v)),
+        removeItem: (k: string) => void store.delete(k),
+        clear: () => store.clear(),
+      },
+    });
+    server = {};
+    vi.mocked(fetchWithAuth).mockReset();
+    vi.mocked(fetchWithAuth).mockImplementation((url: RequestInfo | URL, opts?: RequestInit) => {
+      const m = String(url).match(/\/activities\/([^/]+)\/table/);
+      if (m) {
+        const act = decodeURIComponent(m[1]);
+        server[act] = server[act] ?? {};
+        if (opts?.method === "PUT") {
+          Object.assign(server[act], JSON.parse(opts.body as string).cells);
+        }
+        return Promise.resolve(
+          new Response(JSON.stringify({ cells: { ...server[act] }, revision: 1 }), { status: 200 }),
+        );
+      }
+      return Promise.resolve(new Response(null, { status: 204 }));
+    });
+    dispatch.mockClear();
+  });
+  afterEach(() => {
+    Object.defineProperty(window, "sessionStorage", { configurable: true, value: realStorage });
+  });
+
+  const pushedSnapshots = () =>
+    vi
+      .mocked(fetchWithAuth)
+      .mock.calls.filter(([u]) => String(u).includes("/iframe-context"))
+      .map(([u, o]) => ({ url: String(u), body: JSON.parse((o as RequestInit).body as string) }));
+
+  it("does not carry one activity's readings into the next activity's grid or its tutor", async () => {
+    // Activity A (the bouncing ball): the student enters 72 cm and commits.
+    const a = render(
+      <WorkbenchTable skillId="skill-1" activityId="act-bold" tables={[BOLD]} sessionId="sess-bold" />,
+    );
+    const bounce = screen.getByLabelText("Slip A (150 cm) Forsøg 2 række 1");
+    fireEvent.change(bounce, { target: { value: "72" } });
+    fireEvent.blur(bounce);
+    await vi.waitFor(() => expect(server["act-bold"]?.["table-k1::0::col-k4"]).toBe("72"));
+    a.unmount();
+    vi.mocked(fetchWithAuth).mockClear();
+
+    // Same tab, activity B (phase change): a different session, a fresh store.
+    render(<WorkbenchTable skillId="skill-1" activityId="act-fase" tables={[FASE]} sessionId="sess-fase" />);
+    const temp = screen.getByLabelText("Målte værdier Vandets starttemperatur række 1") as HTMLInputElement;
+    await vi.waitFor(() =>
+      expect(vi.mocked(fetchWithAuth).mock.calls.some(([u]) => String(u).includes("/act-fase/table"))).toBe(true),
+    );
+    expect(temp.value).toBe("");
+
+    // The student's first reading in B: the push must carry that and nothing else.
+    const ice = screen.getByLabelText("Målte værdier Isens masse række 1");
+    fireEvent.change(ice, { target: { value: "0,1" } });
+    fireEvent.blur(ice);
+    await vi.waitFor(() => expect(pushedSnapshots().length).toBeGreaterThan(0));
+    for (const { url, body } of pushedSnapshots()) {
+      expect(url).toContain("/sessions/sess-fase/");
+      expect(body.structuredContent.tables[0].data[0]["col-k4"]).toBe("");
+      expect(JSON.stringify(body)).not.toContain('"72"');
+    }
+    expect(server["act-fase"]).toEqual({ "table-k1::0::col-k3": "0,1" });
+  });
+
+  it("still restores an activity's OWN buffer when the tab comes back to it", async () => {
+    const a = render(<WorkbenchTable skillId="skill-1" activityId="act-bold" tables={[BOLD]} />);
+    const bounce = screen.getByLabelText("Slip A (150 cm) Forsøg 2 række 1");
+    fireEvent.change(bounce, { target: { value: "72" } });
+    fireEvent.blur(bounce);
+    await vi.waitFor(() => expect(server["act-bold"]?.["table-k1::0::col-k4"]).toBe("72"));
+    a.unmount();
+    server = {}; // the store answers empty: only this activity's buffer can restore it
+    render(<WorkbenchTable skillId="skill-1" activityId="act-bold" tables={[BOLD]} />);
+    const again = screen.getByLabelText("Slip A (150 cm) Forsøg 2 række 1") as HTMLInputElement;
+    await vi.waitFor(() => expect(again.value).toBe("72"));
   });
 });

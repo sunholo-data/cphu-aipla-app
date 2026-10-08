@@ -32,7 +32,7 @@ def test_returns_base_unchanged_when_no_namespaced_keys():
     state = {
         "document_ids": ["doc-1"],
         "user:preferred_locale": "en-GB",
-        "app:resumed_session": True,
+        "doc_resumed_session": True,
     }
     out = render_instruction_with_iframe_context(BASE, state)
     assert out == BASE

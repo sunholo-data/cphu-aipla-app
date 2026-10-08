@@ -15,17 +15,20 @@ export type ChartElementDef = ChartElement;
 
 interface WorkbenchChartProps {
   skillId: string;
+  /** The activity whose table this chart plots. The table's buffer is keyed by
+   *  it (see `tableStorageKey`), so the chart must read the same key. */
+  activityId?: string;
   charts: ChartElementDef[];
   /** The activity's data tables — the chart auto-binds to the first one and
    *  plots its first two numeric columns. */
   tables: TableElementDef[];
 }
 
-function readPlot(skillId: string, binding: ResolvedChartBinding): Plotted {
+function readPlot(storageKey: string, binding: ResolvedChartBinding): Plotted {
   let values: Record<string, string> = {};
   if (typeof window !== "undefined") {
     try {
-      values = JSON.parse(window.sessionStorage.getItem(tableStorageKey(skillId)) || "{}");
+      values = JSON.parse(window.sessionStorage.getItem(storageKey) || "{}");
     } catch {
       values = {};
     }
@@ -39,19 +42,21 @@ function readPlot(skillId: string, binding: ResolvedChartBinding): Plotted {
  * columns (x, y). Re-reads on the `aipla:table-change` event the table fires on
  * each commit, so the plot grows as the student enters readings. Zero LLM.
  */
-export function WorkbenchChart({ skillId, charts, tables }: WorkbenchChartProps) {
+export function WorkbenchChart({ skillId, activityId, charts, tables }: WorkbenchChartProps) {
   const t = useT("WorkbenchChart");
   const [tick, setTick] = useState(0);
   const hasTable = tables.length > 0;
+  const storageKey = tableStorageKey(skillId, activityId);
 
   useEffect(() => {
     const onChange = (e: Event) => {
-      const detail = (e as CustomEvent<{ skillId?: string }>).detail;
-      if (!detail || detail.skillId === skillId) setTick((t) => t + 1);
+      const detail = (e as CustomEvent<{ skillId?: string; storageKey?: string }>).detail;
+      const changedKey = detail?.storageKey ?? tableStorageKey(detail?.skillId ?? "");
+      if (!detail || changedKey === storageKey) setTick((t) => t + 1);
     };
     window.addEventListener(TABLE_CHANGE_EVENT, onChange);
     return () => window.removeEventListener(TABLE_CHANGE_EVENT, onChange);
-  }, [skillId]);
+  }, [storageKey]);
 
   // 1.1.64 — resolved PER CHART, so several charts can plot different variable
   // pairs off the same table. Previously one shared plot was computed from
@@ -62,9 +67,9 @@ export function WorkbenchChart({ skillId, charts, tables }: WorkbenchChartProps)
     [charts, tables],
   );
   const plots = useMemo(
-    () => resolved.map(({ binding }) => (binding ? readPlot(skillId, binding) : null)),
+    () => resolved.map(({ binding }) => (binding ? readPlot(storageKey, binding) : null)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [resolved, skillId, tick],
+    [resolved, storageKey, tick],
   );
 
   return (
