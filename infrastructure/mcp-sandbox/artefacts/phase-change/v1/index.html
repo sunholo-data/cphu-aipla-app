@@ -32,7 +32,7 @@
     --ice: #8fb8d8;
     --ice-deep: #5a8fbd;
     --water: #3d7ea6;
-    --steam: #cbd5e1;
+    --steam: #94a3b8;
     --flame: #ea580c;
     --plateau: #b8451f;
     --curve: #c44a2c;
@@ -89,16 +89,28 @@
   }
   .beaker .substance {
     position: absolute; left: 3px; right: 3px; bottom: 3px;
-    border-radius: 0 0 9px 9px; height: 80%;
+    border-radius: 0 0 9px 9px; height: 0;
     background: linear-gradient(180deg, #dbeaf6, #b9d5ea);
-    transition: height .5s linear;
+    overflow: hidden;   /* bubbles stay inside the liquid as it boils away */
   }
+  /* Gas: spread-out particles, no fill — so steam can never be read as water. */
+  .beaker .gas {
+    position: absolute; inset: 3px; opacity: 0; transition: opacity .4s linear;
+    background-image:
+      radial-gradient(circle, var(--steam) 2.5px, transparent 3px),
+      radial-gradient(circle, var(--steam) 2px, transparent 2.5px);
+    background-size: 37px 29px, 23px 41px;
+    background-position: 4px 6px, 15px 19px;
+    animation: drift 4s linear infinite;
+  }
+  .beaker.gas-filled .gas { opacity: 1; }
+  @keyframes drift { to { background-position: 41px -23px, -8px -22px; } }
   .beaker .ice { position: absolute; inset: 6px 6px 8px; transition: opacity .4s linear; }
   .beaker .ice i {
     position: absolute; display: block; border-radius: 3px;
     background: #f2f8fd; border: 1px solid var(--ice);
   }
-  .beaker .bubbles { position: absolute; left: 8px; right: 8px; bottom: 8px; height: 40%; opacity: 0; }
+  .beaker .bubbles { position: absolute; left: 8px; right: 8px; bottom: 4px; top: 0; opacity: 0; }
   .beaker.boiling .bubbles { opacity: 1; }
   .beaker .bubbles span {
     position: absolute; bottom: 0; width: 6px; height: 6px; border-radius: 50%;
@@ -224,9 +236,11 @@
       <div class="rig">
         <div class="beaker" id="beaker">
           <div class="vapour"><span></span><span></span><span></span></div>
-          <div class="substance" id="substance"></div>
+          <div class="gas"></div>
+          <div class="substance" id="substance">
+            <div class="bubbles"><span></span><span></span><span></span></div>
+          </div>
           <div class="ice" id="iceChunks"></div>
-          <div class="bubbles"><span></span><span></span><span></span></div>
         </div>
         <div class="heater" id="heater">
           <div class="flame" id="flameBox"><i></i><i></i><i></i></div>
@@ -881,8 +895,14 @@
     const sub = document.getElementById("substance");
     const beaker = document.getElementById("beaker");
     const ice = document.getElementById("iceChunks");
-    beaker.classList.remove("boiling", "steaming");
+    beaker.classList.remove("boiling", "steaming", "gas-filled");
 
+    // The picture must never contradict the phase: no liquid below 0 °C, the
+    // liquid grows only as ice melts and shrinks as it boils away, and none is
+    // left once it is all steam. (Students on prod read the old fixed-height
+    // fill as "water with the ice at -20 °C" and "still water after it all
+    // evaporated".)
+    const LIQUID_FULL = 72;   // % of beaker height for 100 g of liquid water
     let meltFrac = 1;
     if (info.phase === "ice") meltFrac = 0;
     else if (info.phase === "melting") meltFrac = Math.min(1, (state.energyJ - E_ICE_WARM) / E_MELT);
@@ -890,24 +910,24 @@
       : info.phase === "melting" ? 0.95 * (1 - meltFrac) : 0;
 
     if (info.phase === "ice" || info.phase === "melting") {
-      sub.style.height = "80%";
-      sub.style.background = "linear-gradient(180deg,#dbeaf6,#b9d5ea)";
+      sub.style.height = (LIQUID_FULL * meltFrac) + "%";
+      sub.style.background = "linear-gradient(180deg,rgb(127,180,214),rgb(61,126,166))";
     } else if (info.phase === "water") {
       const f = info.temp / 100;
-      sub.style.height = "72%";
+      sub.style.height = LIQUID_FULL + "%";
       // Deepen the blue as it warms. It must stay BLUE — an earlier ramp drifted
       // toward grey by 60 °C, which reads as dirty water rather than hot water.
       sub.style.background = "linear-gradient(180deg,rgb(" + Math.round(127 - f * 22) + "," +
         Math.round(180 - f * 32) + "," + Math.round(214 - f * 18) + "),rgb(" +
         Math.round(61) + "," + Math.round(126 - f * 18) + "," + Math.round(166 - f * 10) + "))";
     } else if (info.phase === "boiling") {
-      sub.style.height = "66%";
+      const boilFrac = Math.min(1, (state.energyJ - E_ICE_WARM - E_MELT - E_WATER_WARM) / E_BOIL);
+      sub.style.height = (LIQUID_FULL * (1 - boilFrac)) + "%";
       sub.style.background = "linear-gradient(180deg,#5fa0c4,#3d7ea6)";
       beaker.classList.add("boiling", "steaming");
     } else {
-      sub.style.height = "40%";
-      sub.style.background = "linear-gradient(180deg,#8fb0c8,#6f97b3)";
-      beaker.classList.add("steaming");
+      sub.style.height = "0";
+      beaker.classList.add("steaming", "gas-filled");
     }
 
     document.getElementById("heater").classList.toggle("on", state.running);
