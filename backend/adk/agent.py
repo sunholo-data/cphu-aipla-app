@@ -69,6 +69,7 @@ from adk.curriculum_retrieval import (
     build_curriculum_retrieval_tool,
     build_sources_honesty_block,
 )
+from adk.document_links import build_document_links_block, make_document_link_guard, shared_document_ids
 from adk.element_state import make_element_state_wrapper
 from adk.iframe_context import wrap_with_iframe_context
 from adk.instruction_provider_chain import compose_instruction_providers
@@ -748,9 +749,16 @@ def create_agent(
     # 1.1.122 — strip Vertex's [rag-source-N] chunk labels from what the
     # student sees AND from what is stored/logged (see adk/citation_markers.py).
     _strip_markers_after = make_marker_strip_callback()
+    # 1.1.147 M3c — a student is only ever handed an aitana://doc link to a
+    # STUDENT-VISIBLE material; any other is reduced to plain text, on the
+    # stream and in what is stored (see adk/document_links.py). Students only:
+    # a teacher's chat has no document reader to open and nothing to protect.
+    _doc_links_after = make_document_link_guard(shared_document_ids(_materials)) if user.group_id else None
 
     async def _composed_after_model(callback_context: object, llm_response: object) -> None:
         await _strip_markers_after(callback_context, llm_response)
+        if _doc_links_after is not None:
+            await _doc_links_after(callback_context, llm_response)
         await _budget_after(callback_context, llm_response)
 
     # M2B-BACKEND (MCP-APP-INTEGRATIONS): tag OTel spans on every MCP tool
@@ -874,6 +882,12 @@ def create_agent(
                                 + build_curriculum_grounding_preamble(_materials)
                                 # 1.1.132 — what the tutor can actually read.
                                 + build_sources_honesty_block(_materials, has_activity=_active_cfg is not None)
+                                # 1.1.147 M3c — the docIds of STUDENT-VISIBLE
+                                # materials, so the tutor can link what it
+                                # names. Students only; "" when nothing is
+                                # shared. The guard on the way out
+                                # (_doc_links_after) is the control, not this.
+                                + (build_document_links_block(_active_cfg) if user.group_id else "")
                                 + build_ilo_precedence_block(_active_cfg)
                                 # 1.1.70 M1 — what this GROUP has already been
                                 # recorded as doing. Both summaries were

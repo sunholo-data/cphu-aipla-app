@@ -160,7 +160,9 @@
     "downloadLabel": "Download {title} as a file",
     "downloadFallbackTitle": "the text",
     "downloadAs": "Download as…",
-    "askFeedback": "Ask for feedback"
+    "askFeedback": "Ask for feedback",
+    "notesHeading": "Notes from the tutor ({date})",
+    "notesSavedCard": "Tutor's reply saved as notes in “{title}” ({count, plural, one {# word} other {# words}})"
   },
   "WorkspaceDivider": {
     "label": "Resize the workspace"

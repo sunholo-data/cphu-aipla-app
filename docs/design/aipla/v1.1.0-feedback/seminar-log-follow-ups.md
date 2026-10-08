@@ -1,6 +1,6 @@
 # Seminar log follow-ups — what the 2026-10-05 prod logs showed that the notes did not
 
-**Status:** **1.1.151** · F3 **SHIPPED** 2026-10-05 · F1, F2b, F2c, F4, F5, F9 **IMPLEMENTED** 2026-10-05 (not yet deployed; prod steps below are M's) · F2a, F6, F7, F8 **OPEN** (need M / data / research)
+**Status:** **1.1.151** · F3 **SHIPPED** 2026-10-05 · F1, F2b, F2c, F4, F5, F9 **IMPLEMENTED** 2026-10-05 (not yet deployed; prod steps below are M's) · F6 **DECIDED + IMPLEMENTED** 2026-10-08 (notes yes, restart no) · F2a, F7, F8 **OPEN** (need M / data / research)
 **Priority:** **P1** for F1 (a teacher's document silently never reached the tutor) and F2 (English tutor for a Danish class) · **P2** for the rest
 **Estimated:** ~3.5d phased (F1 ~1.25d · F2 ~0.5d · F4 ~0.5d · F5 ~0.25d · F6 ~0.5d · F7–F9 recorded, not built)
 **Scope:** Backend `db/rag_corpus.py`, `protocols/curriculum_routes.py`, `auth/group_routes.py`, `auth/group_id_auth.py`, `adk/teacher_focus.py` / preambles; frontend `components/teacher/MaterialsSection.tsx`, the curriculum library, `components/teacher/ActivityBuilderBody.tsx`, `app/group/page.tsx`; `messages/{da,en}/`.
@@ -168,6 +168,28 @@ From the transcripts, verbatim:
 | *"hvordan stopper jeg simuleringen"* | The tutor guessed *"stop-knappen i selve simulatoren"* | Check the kettle sim has a visible stop/reset; if it does, the `tutorBlock` should name its controls |
 | *"can you make a stimulation for me"* / *"can you change the simulation for this"* | Correctly declined | None — but note students want it (the sim-authoring prompt is teacher-facing) |
 
+### Decision (M, 2026-10-08) — notes yes, restart no
+
+- **"Start forfra" is NOT built.** A student restart splits a group's log (JB), and a reset is
+  the teacher's (`reset_group_session`). Instead the shared student preamble
+  (`skills/preambles/classroom_authority.md`, the F5 block every student turn carries) gains one
+  rule: when a student asks to restart or reset, the tutor says a restart is the teacher's call
+  and offers to summarise what they have worked out, to keep with the save-as-notes button.
+  Guard: `test_a_restart_is_the_teachers_and_the_tutor_offers_notes_instead`.
+- **"Gem som noter" IS built**, as a STUDENT action: a button under every tutor reply in an
+  activity chat. It appends the reply (Markdown reduced to plain prose; maths left as written)
+  to the activity's **first** writing surface (1.1.73) under the heading *"Noter fra tutoren
+  (dd.mm.yyyy hh:mm)"* — after the student's own text, never replacing it. Where nothing fits
+  under the element's `maxChars`, nothing changes and the button says so. The tutor still has no
+  write path into the document (Axiom 2, `_describe_writing`); the manifest now also tells it
+  that a section headed as tutor notes is not the student's own writing.
+- **It reaches the tutor like any edit of the writing surface:** the `writing` state push (same
+  snapshot shape, `lib/writingSnapshot.ts`) AND one trust card per save (a one-shot action in
+  the workbench-element-builder table), labelled *"Tutorens svar gemt som noter i «…»"*.
+- **No writing surface → copy to the clipboard**, with a message saying the activity has no
+  writing area and the text was copied (or, if the browser refuses, how to copy it by hand).
+  Nothing is shared with the tutor in that case, so there is no card.
+
 ## F7 — Possible phase-change sim display defect (P2, verify)
 
 Two groups, independently, on *Termisk og kemisk energi med simulering* (`phase-change`):
@@ -275,8 +297,35 @@ and the probe set 5; compare with BENCH-2 on the four physics probes only.
 same `BuilderHints` panel. Shown live beside save rather than as a save-time
 dialog — non-blocking either way.
 
-**Not done here:** F2a (prod data, AR's activities — M), F6 (decisions), F7
+**Not done here:** F2a (prod data, AR's activities — M), F7
 (browser verification of the phase-change sim), F8 (stx-bench input).
+
+## Implementation notes — F6 (2026-10-08)
+
+Not deployed; nothing read from or written to any deployed environment. The preamble line reaches
+prod by deploy.
+
+- **Two writers, one owner at a time** (`components/workspace/tutorNotes.tsx`). The chat page owns
+  a small bridge. When the writing element is MOUNTED it registers a handler and the save goes
+  through it — it is the only thing that knows about an edit still in its 2 s autosave debounce,
+  and the append supersedes that pending save rather than racing it. When it is NOT mounted (a
+  sim has taken over the workspace, or the Documents tab is in front), nothing holds unsaved text
+  in memory, so the save reads the store plus the offline sessionStorage buffer (newer by
+  construction), appends, writes back, and on failure parks the result in the buffer the element
+  loads from. Both paths push the same snapshot and dispatch the same card.
+- **The button** (`components/chat/SaveNotesButton.tsx`) renders from `MessageBubble` on assistant
+  turns only, and only where the chat page provides the action (`SaveNotesProvider`) — activity
+  chats (`act-…`). Teacher chats and the builder preview have no provider and show nothing. One
+  line of `role="status"` text says what happened. Strings: `messages/{da,en}/chat.json`
+  (`SaveNotesButton`) and `workspace.json` (`WorkbenchWriting.notesHeading`, `notesSavedCard`).
+- **Several writing surfaces:** the notes go to the first, in the teacher's order. Choosing one
+  was judged not worth a picker for the case the seminar showed.
+- Tests: `components/workspace/__tests__/tutorNotes.test.tsx` (mounted / unmounted / buffered /
+  failed save / over the limit / clipboard / clipboard refused / where the button appears) and
+  `lib/__tests__/tutorNotes.test.ts`; backend `test_classroom_authority.py`,
+  `test_element_manifest.py`.
+- Not run: the tutor-discrimination bench has no restart probe yet; adding one (beside
+  `asks-for-a-break`) is the cheap way to check the preamble line holds on flash-lite.
 
 ### Prod steps for M (after this reaches prod by `make promote`)
 
@@ -300,6 +349,7 @@ same three commands with `ENV=dev|test`.
 ## Open questions for M
 
 1. F2a — change the two activities' language on prod now (as AR's activities), or ask AR?
-2. F6 — should students be able to restart a conversation, and save a summary as notes?
+2. ~~F6 — should students be able to restart a conversation, and save a summary as notes?~~
+   **Answered 2026-10-08:** notes yes, restart no — see *F6 → Decision*.
 3. F1 — alert on `ragStatus: failed` (log-based alert to whom?), or is the UI enough?
 4. Was it Tabitha or AR who revoked the codes on 30 Sept (1.1.146 M0)? Same login?

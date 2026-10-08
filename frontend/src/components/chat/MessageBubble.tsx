@@ -19,6 +19,7 @@ import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
 import { ZoomableImage } from "@/components/chat/media/ZoomableImage";
 import { InlineCitation } from "@/components/chat/InlineCitation";
 import { ReadAloudButton } from "@/components/chat/ReadAloudButton";
+import { SaveNotesButton } from "@/components/chat/SaveNotesButton";
 import { formatRelativeTime, formatAbsoluteTime } from "@/lib/relativeTime";
 import { useAutoReadAloud } from "@/hooks/useAutoReadAloud";
 import { useVoiceConfig } from "@/hooks/useVoiceConfig";
@@ -363,6 +364,9 @@ export const MessageBubble = React.memo(function MessageBubble({
               </div>
             )}
           </div>
+          {/* 1.1.151 F6 — the student keeps this reply in their own notes.
+              Renders only where the chat page provides the action. */}
+          {message.content ? <SaveNotesButton text={message.content} /> : null}
         </div>
       </div>
     );

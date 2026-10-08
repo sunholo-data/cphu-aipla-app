@@ -1,6 +1,6 @@
 # Seminar chat-surface fixes — LaTeX, auto-scroll, a misspelt heading, opening documents
 
-**Status:** **Implemented** (M0, M1, M3 + M3a + M3b, 2026-10-05) — **1.1.147**. M2 is a data fix (owner corrects the activity), M3c awaits a decision. See *Implementation notes* at the end.
+**Status:** **Implemented** (M0, M1, M3 + M3a + M3b, 2026-10-05; **M3c decided + implemented 2026-10-08**) — **1.1.147**. M2 is a data fix (owner corrects the activity). See *Implementation notes* at the end.
 **Priority:** **P1** for M0 (LaTeX) and M1 (auto-scroll): visible on every tutor turn in a live class · **P2** for M2 (spelling) and M3 (document click-through)
 **Estimated:** ~2d phased (M0 LaTeX ~0.75d · M1 auto-scroll ~0.5d · M2 opsamling ~0.1d once located · M3 document click-through ~0.5d, plus a decision)
 **Scope:** Frontend only, unless M2 turns out to be data. `components/chat/ChatMarkdown.tsx`, `components/chat/StreamingBubble.tsx`, `components/chat/ChatMessageList.tsx`, a new `lib/mathDelimiters.ts`, `components/workspace/DocumentsPanel.tsx`, `app/chat/[...path]/page.tsx` (the `navigateToBlock` prop), `messages/{da,en}/chat.json` + `workspace.json`. Optionally one line in `backend/skills/preambles/math_notation.md` (reaches prod by **deploy**, not seed).
@@ -362,7 +362,7 @@ nothing on screen said so.
   `messages/{da,en}/workspace.json` via `useT()`. `MaterialsSection.tsx`: the state labels.
 - **M3a — say why.** For a not-shared material, add a one-line explanation the student can read (`workspace.json`: *"Din lærer har ikke delt indholdet af dette dokument"*), and on the teacher side make the per-material *students can open* toggle visible at a glance in `MaterialsSection` (state, not only an icon). No change to the default.
 - **M3b — a document named in chat opens it.** Pass a real `navigateToBlock` from the chat page that opens the matching student-visible material in the workspace documents panel (lift `openDoc` out of `DocumentsPanel` behind a small context, or a callback through `StudentWorkspace`), switching the mobile tab to the workspace. A not-shared doc opens nothing and shows M3a's message.
-- **M3c — the tutor links what it cites** (only if M decides): the tutor writes a Markdown link whose target is `aitana://doc/{docId}/block/0` for student-visible materials. Needs a prompt line and a guard that it never links a not-shared doc. **Not in this milestone without a decision** (open question 2).
+- **M3c — the tutor links what it cites** (only if M decides): the tutor writes a Markdown link whose target is `aitana://doc/{docId}/block/0` for student-visible materials. Needs a prompt line and a guard that it never links a not-shared doc. **Not in this milestone without a decision** (open question 2). **Decided by M 2026-10-08: yes** — see *Implementation notes → M3c*.
 
 ### Acceptance and tests
 
@@ -413,7 +413,7 @@ Then check the dev build went green (`gcloud builds list --project=aipla-dev-202
 ## Open questions for M
 
 1. **M0:** what does the 10-05 query show — `\(` / `\[`, or `$` only? If `$` only, which turn looked broken (a screenshot settles whether it was the stream)?
-2. **M3c:** should the tutor link the documents it cites (`aitana://`), so a named document is one click away, or is the workspace list enough?
+2. ~~**M3c:** should the tutor link the documents it cites (`aitana://`), so a named document is one click away, or is the workspace list enough?~~ **Answered 2026-10-08 (M): link them** — student-visible materials only, with a backend guard.
 3. **M3a:** was the seminar question about *not-shared* materials (a teacher-side visibility issue), or about something else — e.g. a phone, where documents sit behind the workspace tab?
 4. **M2:** a screenshot or the activity name would make the lookup unnecessary.
 5. Which `app_version` was prod on during the seminar — before or after `2a1d0619` (13:33), which mounts the privacy box above every student chat?
@@ -493,6 +493,54 @@ fetched) and **consumes** the request, so a remount does not replay it. Tests:
 `DocumentsPanel.test.tsx` (extended; the click-to-open tests became open-by-default),
 `chatDocumentNavigation.test.tsx`, and a `MaterialsSection` row-state test.
 
-**Not done.** M2 (data; owner fixes the table). M3c (tutor writes `aitana://` links — open
-question 2). Browser verification on dev (the doc's *Browser verification* step) is left for
-after merge.
+**Not done.** M2 (data; owner fixes the table). Browser verification on dev (the doc's
+*Browser verification* step) is left for after merge.
+
+## Implementation notes — M3c (2026-10-08)
+
+**Decision (M, 2026-10-08):** the tutor links the documents it names, so a named document is one
+click away — but only documents the teacher has shared with students. `studentVisible` is a
+copyright control; a link is an invitation to open, so the student must never be handed one for a
+document they may not read, even though the reader would refuse it (M3a).
+
+Not deployed; nothing read from or written to any deployed environment. Both halves are in
+`backend/adk/document_links.py`:
+
+- **Prompt.** `build_document_links_block(cfg)` lists, for STUDENT turns only, the
+  student-visible reader materials (`curriculum` / `context`; images open elsewhere) as
+  `- [Title](aitana://doc/{docId}/block/0)`, tells the tutor to link a document when it mentions
+  it, and to never write an `aitana://` link to anything else. A not-shared material's id and
+  title are not in the block. `""` when nothing is shared, so those activities compose
+  byte-identically. Composed in `adk/agent.py` right after the sources-honesty block.
+- **Guard (the control).** `make_document_link_guard(allowed)` is an after-model callback, wired
+  for students in `_composed_after_model` after the 1.1.122 marker strip. It rewrites every
+  streamed chunk AND the final aggregated response — the one the session store keeps — so the
+  live SSE stream, `GET /api/sessions/{id}/messages`, `MESSAGES_SNAPSHOT` and proactive turns
+  are all covered by one rewrite, rather than an SSE-only filter that would leave the stored
+  transcript holding the link. A Markdown link to a not-shared (or unknown, or non-document)
+  `aitana://` target becomes its label; a bare or `<…>` one is removed (keeping a sentence's
+  full stop). A link can straddle chunks, so the stream side holds back an unclosed `[…](…`
+  (at most 300 chars — past that an unclosed `[` is prose, e.g. an interval) or a trailing word
+  that is becoming `aitana://`, and releases it on the next chunk or on the chunk carrying the
+  model's `finish_reason` — necessary because ag_ui_adk drops the consolidated response while
+  streaming, so a tail released any later would never reach the live bubble.
+- **Click → open** needed no frontend change: M3b's `navigateToBlock` on the chat page opens the
+  document in the reader and switches the phone to the workspace tab.
+
+Tests:
+- `backend/tests/unit/test_document_links.py` — the rewrite table, every two-way split of a
+  reply plus several fixed chunk sizes (no emitted piece may contain the secret id), the
+  finish-chunk release, the prompt block (only shared ids; a bracket in a title cannot break the
+  link; every link the block teaches survives the guard).
+- `backend/tests/api_tests/test_document_links_end_to_end.py` — a REAL group token through the
+  REAL dispatcher and `/api/skill/{id}/stream`, the real agent factory and ag_ui_adk runner,
+  with only the model faked — as a hostile one that streams a link to a not-shared document
+  split across chunks. The secret id is absent from the SSE body and from the stored transcript;
+  the shared link arrives intact; the prompt carried the shared id and not the secret one.
+- `frontend/src/components/workspace/__tests__/chatDocumentNavigation.test.tsx` — the exact link
+  the tutor is taught, in a finished tutor turn, opens the document; the guard's plain-text
+  output is not a control.
+
+Known limit: a link written while a document WAS shared stays in the stored transcript if the
+teacher later unshares it. Clicking it then shows M3a's "not shared" notice and fetches nothing,
+so the content stays protected; only the chip remains.

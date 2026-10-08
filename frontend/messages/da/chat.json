@@ -125,5 +125,16 @@
   },
   "ArtefactRefused": {
     "appeal": "Klag"
+  },
+  "SaveNotesButton": {
+    "label": "Gem som noter",
+    "ariaLabel": "Gem dette svar som noter i dit skriveområde",
+    "ariaLabelCopy": "Kopiér dette svar, så du kan gemme det som noter",
+    "saving": "Gemmer…",
+    "saved": "Gemt nederst i «{title}». Din egen tekst er uændret.",
+    "unsaved": "Sat ind nederst i «{title}», men ikke gemt endnu — prøver igen.",
+    "full": "Der er ikke plads til svaret i «{title}». Intet er ændret.",
+    "copied": "Aktiviteten har intet skriveområde, så svaret er kopieret. Sæt det ind dér, hvor du gemmer dine noter.",
+    "copyFailed": "Aktiviteten har intet skriveområde, og svaret kunne ikke kopieres. Markér teksten og kopiér den selv."
   }
 }

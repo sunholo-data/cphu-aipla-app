@@ -125,5 +125,16 @@
   },
   "ArtefactRefused": {
     "appeal": "Appeal"
+  },
+  "SaveNotesButton": {
+    "label": "Save as notes",
+    "ariaLabel": "Save this reply as notes in your writing area",
+    "ariaLabelCopy": "Copy this reply so you can save it as notes",
+    "saving": "Saving…",
+    "saved": "Saved at the end of “{title}”. Your own text is unchanged.",
+    "unsaved": "Added at the end of “{title}”, but not saved yet — retrying.",
+    "full": "There is no room for the reply in “{title}”. Nothing was changed.",
+    "copied": "This activity has no writing area, so the reply was copied. Paste it wherever you keep your notes.",
+    "copyFailed": "This activity has no writing area, and the reply could not be copied. Select the text and copy it yourself."
   }
 }

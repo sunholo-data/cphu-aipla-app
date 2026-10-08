@@ -13,6 +13,15 @@ import { fetchWriting, saveWriting } from "@/lib/writingApi";
 import { insertAtCaret, restoreCaret } from "@/lib/insertAtCaret";
 import { SymbolStrip, SymbolStripToggle, useSymbolStrip } from "@/components/chat/SymbolStrip";
 import type { WritingElement } from "@/lib/elementTypes";
+import { appendTutorNotes, formatNotesTimestamp, notesToPlainText } from "@/lib/tutorNotes";
+import {
+  WRITING_DEFAULT_MAX_CHARS,
+  buildWritingSnapshot,
+  countWords,
+  writingStorageKey,
+  type WritingSnapshot,
+} from "@/lib/writingSnapshot";
+import { useRegisterNotesHandler, type SaveNotesOutcome } from "./tutorNotes";
 
 /** Canonical WritingElement re-exported under the render-side name. */
 export type WritingElementDef = WritingElement;
@@ -27,37 +36,9 @@ export const WRITING_SAVE_DEBOUNCE_MS = 2000;
  *  prevent. The push still rides the same 2s save. */
 export const WRITING_CARD_DEBOUNCE_MS = 3000;
 
-/** How much of the text rides in the per-turn tutor context.
- *
- *  This is load-bearing for cost (Axiom 4): `mcp_app_context.writing.state` is
- *  injected into EVERY agent prompt for the rest of the session, so an uncapped
- *  20,000-char essay would be ~5k tokens on every single turn. The tail is kept
- *  (what the student is working on now) plus the opening for orientation, and
- *  `truncated` tells the tutor so it says so rather than commenting confidently
- *  on half a text. "Bed om feedback" sends the WHOLE text as one turn. */
-export const WRITING_PUSH_CHAR_CAP = 4000;
-
-/** Chars of the opening kept when truncating, so the tutor knows what the piece
- *  set out to be and not only where it currently is. */
-const WRITING_PUSH_HEAD_CHARS = 600;
-
-/** What the tutor receives (mcp_app_context.writing.state).
- *
- *  Calculator-shaped: EVERY writing element in one array, matched by id — NOT
- *  table-shaped (one snapshot key shared by all tables), which is the defect
- *  1.1.71 exists to fix and would report a second surface as EMPTY whenever the
- *  student is working in the first. The backend reader (`_read_writing` in
- *  `adk/element_state.py`) matches this shape. */
-interface WritingSnapshot {
-  docs: {
-    id: string;
-    title: string;
-    text: string;
-    words: number;
-    chars: number;
-    truncated: boolean;
-  }[];
-}
+// The push shape + helpers live in lib/writingSnapshot.ts so "Gem som noter"
+// (1.1.151 F6) builds the identical snapshot when this element is not mounted.
+export { WRITING_PUSH_CHAR_CAP, clipForPush, countWords, writingStorageKey } from "@/lib/writingSnapshot";
 
 type SaveState = "idle" | "saving" | "saved" | "error";
 
@@ -67,25 +48,6 @@ type SaveState = "idle" | "saving" | "saved" | "error";
  *  which matters, because deleting the key instead would make an empty document
  *  compare equal and silently skip the retry. */
 const SAVE_FAILED = "\u0000";
-
-/** sessionStorage key holding an activity's writing, as an offline buffer. The
- *  store is authoritative — this only exists so a save that fails while the
- *  student is on a school wifi dead spot is not lost work. */
-export function writingStorageKey(activityId: string): string {
-  return `aipla.writing:${activityId}`;
-}
-
-export function countWords(text: string): number {
-  return text.trim() ? text.trim().split(/\s+/).length : 0;
-}
-
-/** Cap the text for the per-turn push: keep the opening + the tail, mark it. */
-export function clipForPush(text: string): { text: string; truncated: boolean } {
-  if (text.length <= WRITING_PUSH_CHAR_CAP) return { text, truncated: false };
-  const head = text.slice(0, WRITING_PUSH_HEAD_CHARS);
-  const tail = text.slice(-(WRITING_PUSH_CHAR_CAP - WRITING_PUSH_HEAD_CHARS));
-  return { text: `${head}\n\n[…]\n\n${tail}`, truncated: true };
-}
 
 interface WorkbenchWritingProps {
   skillId: string;
@@ -190,20 +152,7 @@ export function WorkbenchWriting({
   }, [storeId, storageKey]);
 
   const buildSnapshot = useCallback(
-    (vals: Record<string, string>): WritingSnapshot => ({
-      docs: writing.map((w) => {
-        const full = vals[w.id] ?? "";
-        const clipped = clipForPush(full);
-        return {
-          id: w.id,
-          title: w.title ?? "",
-          text: clipped.text,
-          words: countWords(full),
-          chars: full.length,
-          truncated: clipped.truncated,
-        };
-      }),
-    }),
+    (vals: Record<string, string>): WritingSnapshot => buildWritingSnapshot(writing, vals),
     [writing],
   );
 
@@ -263,6 +212,70 @@ export function WorkbenchWriting({
     },
     [buildSnapshot, flushCard, pushWriting, storageKey, storeId, t],
   );
+
+  /** 1.1.151 F6 — "Gem som noter": the STUDENT pressed it on a tutor reply.
+   *  Appends (never replaces) under a heading to the first writing surface,
+   *  then shares it like any deliberate edit: the push AND one trust card for
+   *  this one-shot action. Registered on the chat page's bridge while this
+   *  element is mounted and loaded, because only this component knows about an
+   *  edit still sitting in its autosave debounce. */
+  const saveNotes = useCallback(
+    async (markdown: string): Promise<SaveNotesOutcome> => {
+      const target = writing[0];
+      const title = target.title?.trim() || t("untitled");
+      const notes = notesToPlainText(markdown);
+      const heading = t("notesHeading", { date: formatNotesTimestamp(new Date()) });
+      const next = appendTutorNotes(valuesRef.current[target.id] ?? "", heading, notes);
+      if (next.length > (target.maxChars ?? WRITING_DEFAULT_MAX_CHARS)) return { kind: "full", title };
+
+      // The append carries any pending edit of this element with it, so that
+      // autosave is superseded rather than raced.
+      if (saveTimers.current[target.id]) clearTimeout(saveTimers.current[target.id]);
+      const nextValues = { ...valuesRef.current, [target.id]: next };
+      valuesRef.current = nextValues;
+      setValues(nextValues);
+      if (typeof window !== "undefined") {
+        try {
+          window.sessionStorage.setItem(storageKey, JSON.stringify(nextValues));
+        } catch {
+          /* quota / private mode — the store is still the real save */
+        }
+      }
+      savedRef.current[target.id] = next;
+      setSaveState((s) => ({ ...s, [target.id]: "saving" }));
+
+      const label = t("notesSavedCard", { title, count: countWords(notes) });
+      const req = pushWriting(buildSnapshot(nextValues), "writing.commit", label, {
+        logLabel: label,
+        activityId: storeId,
+      });
+      if (req) {
+        void req.catch(() => {});
+        humanToolEvents.dispatch({ label, push: () => req });
+      }
+
+      try {
+        await saveWriting(storeId, target.id, next);
+        setSaveState((s) => ({ ...s, [target.id]: "saved" }));
+        if (typeof window !== "undefined") {
+          try {
+            const buf = JSON.parse(window.sessionStorage.getItem(storageKey) || "{}");
+            delete buf[target.id];
+            window.sessionStorage.setItem(storageKey, JSON.stringify(buf));
+          } catch {
+            /* buffer is best-effort */
+          }
+        }
+        return { kind: "saved", title };
+      } catch {
+        savedRef.current[target.id] = SAVE_FAILED;
+        setSaveState((s) => ({ ...s, [target.id]: "error" }));
+        return { kind: "unsaved", title };
+      }
+    },
+    [buildSnapshot, humanToolEvents, pushWriting, storageKey, storeId, t, writing],
+  );
+  useRegisterNotesHandler(loaded && writing.length > 0 ? saveNotes : null);
 
   const onChange = (elementId: string, text: string) => {
     setValues((prev) => {
@@ -350,7 +363,7 @@ export function WorkbenchWriting({
       {writing.map((w) => {
         const text = values[w.id] ?? "";
         const words = countWords(text);
-        const maxChars = w.maxChars ?? 20000;
+        const maxChars = w.maxChars ?? WRITING_DEFAULT_MAX_CHARS;
         const target = w.minWords ?? 0;
         const state = saveState[w.id] ?? "idle";
         const nearLimit = text.length > maxChars * 0.9;
