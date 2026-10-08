@@ -1,19 +1,19 @@
 ---
 title: "Teacher questions"
-description: "Short answers to the questions teachers asked at the October 2026 seminar, each pointing to the page it comes from — with the open questions marked as open."
+description: "Short answers to the questions teachers have asked about AIPLA so far: building activities, documents, group codes, language, tutors, data and rights."
 eyebrow: "For teachers"
 owner: "AIPLA project team"
 reviewed: "2026-10-08"
 reviewBy: "2026-11-08"
 status: "Provisional"
 order: "90"
-nav: "false"
+nav: "true"
 ---
 # Teacher questions
 
-These are the questions teachers asked at the AIPLA seminar on 5 October 2026. Each answer is taken from a page that already exists, and links to it.
+These are the questions teachers asked during the pilot, most of them at the seminar on 5 October 2026. Each answer describes what the platform does today and links to the guide or page with the detail.
 
-Four questions do not have an answer yet: copyright for uploaded documents, rights in the work teachers upload, data protection for student group codes, and the rollout schedule. They are marked **Awaiting an answer**, with the facts already on record listed underneath. Those answers will come from the project lead and the University of Copenhagen, not from this page.
+This page is provisional. The answers on copyright, rights, data protection and rollout describe what the platform does. They are not the university's legal assessment.
 
 A Danish version of this page is at [Spørgsmål fra lærere](/project/teacher-faq.da).
 
@@ -21,143 +21,186 @@ A Danish version of this page is at [Spørgsmål fra lærere](/project/teacher-f
 
 ### How easy is it to add activities?
 
-An activity is set up in the browser, with no code and no developer. The guide puts a first activity at about five minutes. You give it a name and a teaching goal (the instruction the tutor follows), pick the students' language, and optionally add a workspace: a simulation, checklist, table, chart, calculator or notes. A live preview shows what students will see, and **Try as student** opens the real student view.
+Easy, and no code is needed. The guide puts a first activity at about five minutes. You give it a name and a teaching goal (the instruction the tutor follows), pick the students' language, and can add a workspace: a simulation, checklist, table, chart, calculator or writing area. **Try as student** opens the real student view.
 
-There are three shortcuts:
+To go faster, start from a template, adopt a colleague's shared activity from the library (you get your own editable copy), or describe the activity in words and let the AI co-pilot draft it. You review the co-pilot's proposal and apply it yourself.
 
-- **Start from a template** at the top of the builder.
-- **Adopt from the library** copies a colleague's shared activity into your class in one click.
-- The AI **co-pilot** drafts the goal and workspace from a plain description. You review its proposal and apply it yourself.
-
-Sources: [T2 — Create your first activity](/guides/t2-create-your-first-activity), [T4 — Author with the AI co-pilot](/guides/t4-author-with-the-copilot), [Project decisions](/project/decisions#june-2026-teachers-approve-ai-proposed-changes).
+More: [T2 — Create your first activity](/guides/t2-create-your-first-activity), [T4 — Author with the AI co-pilot](/guides/t4-author-with-the-copilot).
 
 ### Can we upload documents for the tutor to use?
 
-Yes. In an activity's **Materials** section, or under **Materials** in the teacher menu, you can upload a PDF, Word file, slides, a spreadsheet, plain text or an image. AIPLA shows you the text it extracted, so you can check it was read correctly. You can also cite documents from the shared library.
+Yes. Under **Materials** you can upload a PDF, Word file, slides, a spreadsheet, plain text or an image, or cite a document from the shared library. AIPLA shows you the text it extracted, so you can check it was read correctly.
 
-For each document you choose:
+For each document in an activity you choose two things:
 
-- **Visible / Hidden.** A hidden document only grounds the tutor's answers, while a visible one is also shown to students. **New documents start hidden.**
-- **Reference / In context.** With Reference, the tutor looks the document up when it is relevant. With In context, it gets the full text on every turn.
+- **Students can open it / Tutor only.** New documents start as **Tutor only**: the tutor uses them, but students cannot open them.
+- **Reference / In context.** With Reference, the tutor looks the document up when it is relevant. With In context, it has the full text on every turn. Use In context for the task the students are working on.
 
-Your own uploads stay in your own library. Only researchers can add a document to the shared library.
+More: [T3 — Add and organise curriculum materials](/guides/t3-add-curriculum-materials).
 
-Source: [T3 — Add and organise curriculum materials](/guides/t3-add-curriculum-materials).
+### Why can't my students open a document?
+
+Because it has not been shared with them. Documents are **Tutor only** until you click the toggle on the document's row in the activity's materials, so that it reads **Students can open it**. Students see the names of the documents they cannot open, with a note saying the teacher has not shared the content.
+
+Once a document is shared, the first one is already open when students start the activity. The order is the order you added them in, and the builder marks that document **Opens first for students**. If you share several, students switch between them with tabs. When the tutor mentions a shared document, it links to it, and one click opens it. It never links to a document you have not shared.
+
+### What if a document upload fails?
+
+You will see it. Each document says **Ready — the tutor can read it**, **Processing…** or **Failed — the tutor cannot read it**. AIPLA retries a failed document automatically, and you can press **Try again** yourself. An activity whose document has failed shows a warning on its card and in the class view, so you find out before the lesson. If retrying does not help, upload the file again under Materials.
 
 ### Can we create our own simulations?
 
-Yes, without writing code, but not directly in the activity builder. A teacher or physics staff member drafts the simulation in any AI chat (Claude, ChatGPT, Gemini, Copilot) using AIPLA's authoring prompt, tries it in a browser, and sends the two files it produces to the project team. The team wires it to the tutor and runs the security, size and phone-width checks. A physics reviewer signs off the physics before it ships. After that it is in the library, and any teacher can attach it to an activity.
+Yes, without writing code, but not inside the activity builder. You draft the simulation in any AI chat (Claude, ChatGPT, Gemini, Copilot) using AIPLA's authoring prompt, try it in a browser, and send the two files it produces to the project team. The team connects it to the tutor and runs the security, size and phone-width checks, and a physics reviewer signs off the physics. After that it is in the library, and any teacher can add it to an activity.
 
-The question that matters most when proposing one is: *what does the student measure, and what do they work out from it?*
+The question that matters most when you propose one: *what does the student measure, and what do they work out from it?*
 
-Sources: [Build a simulation with an AI chat](/project/build-a-simulation), [T2 — Create your first activity](/guides/t2-create-your-first-activity).
+More: [Build a simulation with an AI chat](/project/build-a-simulation).
 
-### What simulations are there, and what do they do?
+### What simulations are there?
 
-Nine are live: Boldkast, LED Planck, KineBot, Elkedel, Faseovergange, Bølgefart, Interferens, Sol, Jord og Måne, and Sekantbænk. Each opens beside the tutor. The student changes something, reads the instruments and captures readings, and the tutor sees those readings and can ask about them. A simulation never shows the value the student is meant to work out.
+Nine: Boldkast, LED Planck, KineBot, Elkedel, Faseovergange, Bølgefart, Interferens, Sol, Jord og Måne, and Sekantbænk. Each opens beside the tutor. The student changes something, reads the instruments and records readings, and the tutor sees those readings and can ask about them. A simulation never shows the value the student is meant to work out.
 
-On Sol, Jord og Måne, the tutor can also change what the student sees, for example by jumping to the next eclipse. A card in the chat names every change it makes. The other simulations are watched by the tutor but not changed by it.
+In Sol, Jord og Måne the tutor can also change what the student sees, and a card in the chat names every change. A simulation reopens at its defaults on another day, so readings that must be kept belong in a table in the activity.
 
-Limits worth knowing: a simulation reopens at its defaults on another day, so readings that must persist belong in an activity table. A simulation also cannot reach the internet.
+More: [Activities and examples](/project/activities).
 
-Sources: [Build a simulation with an AI chat](/project/build-a-simulation), [Activities and examples](/project/activities), [Build timeline](/project/progress#october-2026-tutors-that-can-act-on-a-simulation).
+### Does the tutor send students to the simulation and the workspace?
 
-### Can we use it for other subjects?
+It is told to. The tutor is given a list of what is in the activity's workspace and an instruction to point students to it when it would help. If several replies go by without it doing so, it is reminded. Its opening message names the simulation first, if there is one. This was changed after the October seminar, where the tutor stayed in conversation. Whether it now refers students often enough is being measured.
 
-AIPLA is a physics research project, and everything published so far is about physics. Some facts on record:
+## Group codes and students
 
-- The first mathematics simulation, Sekantbænk, is in the library.
-- Documents in the materials library can be filed by subject.
-- The model evaluation covers one subject (physics exam tasks) and says other tasks would need their own measurements.
+### How do group codes work, and can several students share one?
 
-**Not yet answered:** none of the existing pages says whether teachers of other subjects can take part in the pilot. That needs a decision from the project.
+A group code is a short code (two words and a number) that lets students join your class without an account. You make as many as you need on the class page, and give students the **join link**, because a code works only on the site it was made on. Codes are meant for groups: the privacy notice describes groups of at least three. There is no separate mode where each student gets their own conversation.
 
-Sources: [About AIPLA](/project/about), [Build a simulation with an AI chat](/project/build-a-simulation), [T3 — Add and organise curriculum materials](/guides/t3-add-curriculum-materials), [Capability floor](/project/evaluation/capability-floor).
+When several devices use the same code in the same activity, they share **one conversation**:
 
-## Language and models
+- Every device shows the whole conversation. A message from a groupmate's device is labelled **Sent from another device in your group**, and students see how many of their group are present.
+- One message reaches the tutor at a time. If two students send at once, the second message waits and is sent automatically.
+- The tutor reads every message from every device, and it is told that the conversation is shared.
+
+Each activity has its own conversation. A group that moves to another activity starts a new one.
+
+More: [T1 — Set up a class and share it](/guides/t1-set-up-a-class), [S1 — Join and use your tutor](/guides/s1-join-and-use-your-tutor).
+
+### A student's code does not work. What now?
+
+Check that the student used the join link for the right site. If a student mistypes a word in the code, AIPLA may suggest the right code (**Did you mean …?**). It never guesses the numbers. A code that has expired or been revoked gets the same message as an unknown one, and the student needs a new code from you.
+
+### What happens to the work if I revoke a code?
+
+Revoking stops the code working: students using it are signed out at their next message, and the code can never be issued again. **The group's work is kept.** Revoked codes move to a **Revoked codes** list on the class page, where their reports stay open to you and to the research team. Revoking deletes nothing.
+
+Deleting a whole class is different: its activities and reports are no longer available to you. That is not the same as erasing the data. To have data erased, contact the project (see the [privacy notice](/privacy)).
+
+### Can students restart the conversation, or keep what the tutor said?
+
+Only you can restart a group's conversation, with **Reset session** on the class page. If a student asks the tutor for a restart, the tutor says that it is the teacher's decision. It offers to summarise what the group has worked out instead.
+
+Under each tutor reply there is a **Save as notes** button. It adds the reply at the end of the activity's writing area, under the heading "Notes from the tutor", and leaves the student's own text unchanged. If the activity has no writing area, the reply is copied so the student can paste it somewhere else.
+
+The tutor also does not know the class's rules or schedule. If students ask about breaks, leaving or grades, it tells them that the teacher decides.
+
+## Language
 
 ### Does it work in English and Danish?
 
-Yes, for the screens:
+Yes:
 
-- Student and teacher screens are available in both Danish and English.
-- Each activity has a **Students' language**, which sets the language students see and the language the tutor replies in. A student can still switch DA | EN for themselves.
+- Every activity has a **students' language**, which sets the language students see and the language the tutor replies in. The activity card shows it (**Students: Danish** or **Students: English**), and the builder warns you if, for example, a Danish title sits on an English activity.
+- A student can choose DA or EN at the top of the page. Their choice applies to the buttons, the tutor and the read-aloud voice.
 - Teachers and researchers choose their own language with the DA | EN switch.
-- The how-to guides exist in both languages.
+- The how-to guides are in both languages. These project pages are in English.
 
-These project pages are in English, and they link to the University of Copenhagen's official AIPLA pages in Danish and English.
+More: [T2 — Create your first activity](/guides/t2-create-your-first-activity), [S1 — Join and use your tutor](/guides/s1-join-and-use-your-tutor).
 
-Sources: [Build timeline](/project/progress#september-2026-tutors-that-carry-their-teaching-approach), [T2 — Create your first activity](/guides/t2-create-your-first-activity), [Platform](/project/platform).
+## Tutors and assessment
+
+### Who can see the tutors and teaching approaches I make?
+
+Any teacher can write a teaching approach and build a tutor on it. **Private** means hidden from other teachers but visible to the research team. Researchers see who made each tutor and approach, including the author's email, and they can edit them. **Shared** makes it available to other teachers.
+
+More: [T1 — Set up a class and share it](/guides/t1-set-up-a-class), [Teaching frameworks](/project/tutors).
+
+### What does the assessment of a session judge?
+
+It judges **the tutor, not the students**. An AI judge reads a session and asks how far the tutor's moves followed the tutor's teaching approach. Students' messages are context and are not scored.
+
+- **Teachers** see a **Teaching approach** section in a group's report. It describes how the tutor used the approach and where it drifted. It gives no bands or grades.
+- **Researchers** see, for each part of the approach, a band (absent, partial or strong), the rules behind the bands, and the turns the judgement rests on, with quotes. They can record a correction beside the AI's judgement, which is kept.
+
+More: [Teaching frameworks](/project/tutors) describes the approaches the judge reads.
+
+## Models, data and rights
 
 ### Could local models help with copyright?
 
-Here is what is on record about where the AI runs:
+Local models are not in use today. The tutor uses Google's Gemini models through Vertex AI in Google's EU region, and Google may not use the data to train its models. The October 2026 evaluation found two open models that would fit on a single GPU and reach the accuracy threshold, but they have not yet been measured on hardware the project would run them on. Moving the model alone would not move everything: document conversion and curriculum search are separate services. On copyright itself, see the next question.
 
-- **Today** the tutor uses Google's Gemini models through Vertex AI, and requests go to the EU endpoint. Under Google Cloud's terms, Google may not use the data to train its models.
-- **Local models are not in use.** The platform is designed so that model inference could be moved. The October 2026 evaluation found that two open models that fit on a single GPU (Qwen 3.8 27B and Gemma 4 31B) reach the accuracy threshold. They were measured through a hosting service, not on the project's own hardware. The next step is to measure one of them on the hardware that would serve it.
-- **Moving the model alone does not move everything.** The privacy notice lists document conversion and curriculum search as separate services, and so does the hosting page. Moving inference does not by itself change where uploads are stored or processed.
-
-**Not yet answered:** whether running models locally changes the copyright position for uploaded material. That belongs with the copyright question below.
-
-Sources: [Data, privacy, and hosting](/project/data-and-hosting), [Capability floor](/project/evaluation/capability-floor), [Privacy notice](/privacy).
-
-## Awaiting an answer
+More: [Data, privacy, and hosting](/project/data-and-hosting), [Capability floor](/project/evaluation/capability-floor).
 
 ### Copyright: may we upload published material?
 
-**Awaiting an answer from the project lead and UCPH.**
+There is no published project position yet on which published material may be uploaded. Here is what the platform does with an upload today:
 
-Facts on record:
+- It is stored in **your own library**. Other teachers cannot see it. The research team can.
+- It starts as **Tutor only**. Students can open it only if you share it in an activity.
+- The **shared library** holds only material the research team has marked as cleared. Teachers cannot add to it.
+- To make it readable for the tutor, the file is converted to text by AILANG Parse (operated by Sunholo) in Belgium. The text is stored and indexed for search in Belgium, and the file itself is stored in Finland. AIPLA also keeps an AI-written summary of each document.
+- Google may not use it to train its models.
+- You can delete a document from your library with the bin icon.
 
-- Teachers can upload PDFs, Word files, slides, spreadsheets, plain text and images. ([T3](/guides/t3-add-curriculum-materials))
-- Every document in the materials library records a rights status (`copyrightStatus`): `teacher_owned`, `cleared` or `pending`. A teacher's own upload is recorded as `teacher_owned`. Only a researcher can add a document to the shared library, and only one marked `cleared`. (Product behaviour.)
-- Newly cited documents start **Hidden**: they ground the tutor's answers without being shown to students. ([T3](/guides/t3-add-curriculum-materials))
-- An upload is converted to text by AILANG Parse, operated by Sunholo, in Belgium. The text is stored and indexed for curriculum search in Belgium, and files and uploads are stored in Finland. ([Privacy notice](/privacy))
-- AIPLA also stores an AI-written summary of each uploaded document, which the co-pilot uses to judge relevance. (Product behaviour.)
-- Google may not use the data to train its models. ([Privacy notice](/privacy))
-- A teacher can delete a document from their library. ([T3](/guides/t3-add-curriculum-materials))
-- The extension's stated focus is "curriculum grounding on **cleared** material". ([Workstreams](/project/workstreams))
-- The only rights position published so far covers the exam items used in the model evaluation, under the research exception in section 11 c of the Danish Copyright Act. ([Evaluation](/project/evaluation), [Capability floor](/project/evaluation/capability-floor))
+If you are unsure about a document, ask the project before uploading it.
 
-### Who has rights in the work teachers upload and create?
+The university's formal assessment is in progress; contact the project if in doubt.
 
-**Awaiting an answer from the project lead and UCPH.**
+### Who has rights in what teachers upload and create?
 
-Facts on record:
+No published AIPLA document sets out ownership or licence terms for teachers' material yet. What the platform does today:
 
-- A teacher's uploads stay in their own library unless a researcher adds them to the shared library. ([T3](/guides/t3-add-curriculum-materials))
-- Activities can be shared, adopted, duplicated and branched, with provenance kept. A teacher who adopts one gets their own editable copy. ([Project decisions](/project/decisions#june-2026-activities-are-reusable-resources))
-- Teachers can make their own tutors and teaching approaches and keep them private or share them. ([Workstreams](/project/workstreams))
-- A simulation drafted by staff is sent to the project team, reworked, and then added to the library for any teacher to attach. ([Build a simulation with an AI chat](/project/build-a-simulation))
-- Classes, activities and student work are kept until the teacher deletes them or the project ends. ([Privacy notice](/privacy))
-- The terms-of-use page is still the v0.1 draft placeholder and says nothing about ownership. ([Terms](/terms))
+- Activities, tutors, approaches and uploads are **private to you** until you share them. The research team can see private tutors and approaches.
+- When you share an activity, other teachers can adopt it. They get their own editable copy, and AIPLA records which activity it came from.
+- A simulation you send to the project team is reworked by the team and then offered to every teacher.
+- Classes, activities and student work are kept until you delete them or the project ends.
 
-### GDPR: what about the student group IDs?
+The university's formal assessment is in progress; contact the project if in doubt.
 
-**Awaiting an answer from the project lead and UCPH.**
+### GDPR: what about the student group codes?
 
-Facts on record:
+A group code is a key to your class's activities, not an identity. It is not linked to a name, email or device, and students have no AIPLA account. It is also not consent to take part in research. Anyone who has the code can join, so revoke it if it leaks.
 
-- Students join with a group code issued by the teacher and have no personal AIPLA account. Teachers and researchers review group sessions, not personal student profiles. ([Project decisions](/project/decisions#may-2026-students-join-as-groups))
-- The privacy notice says students are anonymous, sign in in groups of at least three, and that no names, emails or other identifiers are collected. ([Privacy notice](/privacy))
-- AIPLA stores what the group writes, the tutor's replies, and what the group does in the workspace. This is used in the research project. ([Privacy notice](/privacy))
-- Students are told, in the notice and in their chat, not to write names or CPR numbers, and not to upload documents or pictures showing names, CPR numbers or themselves. ([Privacy notice](/privacy))
-- Speech to the tutor is turned into text and not kept as audio. A whole lesson is recorded only if the teacher turns that on, and only with signed consent forms. ([Privacy notice](/privacy))
-- Where data is held: the application, database, files, uploads, logs and the research log are in Finland. Conversation history and curriculum search are in Belgium. The AI models run in Google's EU multi-region. Teacher sign-in uses Google's global service. ([Privacy notice](/privacy))
-- How long data is kept: technical logs for 30 days and the research chat log for 365 days. Classes, activities and student work are kept until the teacher deletes them or the project ends. ([Privacy notice](/privacy))
-- The University of Copenhagen is the data controller. Google Cloud and Sunholo are processors. ([Privacy notice](/privacy))
-- A group code grants technical access to an activity. It is not research consent on its own. ([Data, privacy, and hosting](/project/data-and-hosting#consent-and-research-participation))
-- Teachers can keep a class list of names that never leaves their own device. ([Build timeline](/project/progress#september-2026-tutors-that-carry-their-teaching-approach))
-- The privacy notice is itself marked as a draft, awaiting review by the University of Copenhagen's legal office and data protection officer. ([Privacy notice](/privacy))
+What the platform does today:
+
+- **What is stored:** what the group writes, the tutor's replies, and what the group does in the workspace. It is used in the research project. Speech to the tutor becomes text and is not kept as audio. Whole lessons are recorded only if you turn that on, and only with signed consent forms.
+- **No names:** students are told, in the privacy notice and in their chat, not to write names or CPR numbers and not to upload pictures of themselves. If you keep a class list of who is behind each code, it stays in your browser and AIPLA never receives it.
+- **Who sees a group's sessions:** you, as the class's teacher, and the research team.
+- **Where:** in the EU. The application, database, files and research log are in Finland, conversation history and curriculum search are in Belgium, and the AI models run in Google's EU region. Only teacher sign-in uses Google's global service.
+- **How long:** technical logs 30 days, and the research log of chats 365 days. Classes, activities and student work are kept until you delete them or the project ends.
+- **Who is responsible:** the University of Copenhagen is the data controller, and Google Cloud and Sunholo are processors.
+
+The privacy notice is a draft awaiting review by the university's legal office and data protection officer.
+
+The university's formal assessment is in progress; contact the project if in doubt.
+
+More: [Privacy notice](/privacy), [Data, privacy, and hosting](/project/data-and-hosting).
 
 ### When will it be rolled out?
 
-**Awaiting an answer from the project lead and UCPH.**
+The published timeline is:
 
-Facts on record:
+- the research project runs from 2026 to 2028;
+- the teacher pilot started in mid-August 2026;
+- the platform work continues to at least April 2027.
 
-- The research project runs from 2026 to 2028. ([About AIPLA](/project/about))
-- The teacher pilot began in mid-August 2026 on the production environment. ([Build timeline](/project/progress#august-2026-operational-readiness-and-the-project-site))
-- The platform work has been extended to at least April 2027. ([Build timeline](/project/progress))
-- The next published checkpoints have no dates. They are a teacher review of the platform later in the autumn, then teacher workshops and classroom use, with broader student trials depending on the necessary data-processing agreements. ([Build timeline](/project/progress#next-checkpoints))
-- Privacy, consent and institutional-hosting decisions are made for each study phase. ([Build timeline](/project/progress#next-checkpoints), [Data, privacy, and hosting](/project/data-and-hosting))
+The next checkpoints are published without dates. They are a teacher review of the platform later this autumn, then teacher workshops and classroom use. Broader student trials depend on the necessary data-processing agreements, and privacy, consent and hosting are decided for each study phase.
+
+The university's formal assessment is in progress; contact the project if in doubt.
+
+More: [Build timeline](/project/progress#next-checkpoints).
+
+### Can we use it for other subjects?
+
+AIPLA is a physics research project, and the tutors, simulations and evaluation are built for physics. The first mathematics simulation, Sekantbænk, is in the library, and documents can be filed by subject. Whether teachers of other subjects can join the pilot has not been decided. Ask the project.
+
+More: [About AIPLA](/project/about).
