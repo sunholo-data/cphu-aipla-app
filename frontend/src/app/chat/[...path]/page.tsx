@@ -83,6 +83,12 @@ import type { ConceptMapElementDef } from "@/components/workspace/ConceptMapView
 import type { ConceptNodeStatus } from "@/components/workspace/ConceptMapGraph";
 import { DocumentsPanel, type ActivityMaterial } from "@/components/workspace/DocumentsPanel";
 import { createDocumentRequestStore, DocumentRequestProvider } from "@/components/workspace/documentRequest";
+import {
+  createTutorNotesBridge,
+  SaveNotesProvider,
+  TutorNotesBridgeProvider,
+  useSaveTutorNotes,
+} from "@/components/workspace/tutorNotes";
 import { reportDocumentEvent } from "@/lib/documentApi";
 import { workspaceContentKind } from "./workspaceContent";
 import { useResizableWorkspaceRatio } from "@/hooks/useResizableWorkspaceRatio";
@@ -812,6 +818,18 @@ function ChatShell({
   const urlSession = searchParams.get("session");
   const sessionId = groupShared ? stableThreadId : urlSession;
 
+  // 1.1.151 F6 — "Gem som noter" on a tutor reply: the STUDENT appends it to
+  // their own writing surface (or copies it when the activity has none). The
+  // mounted writing element registers on the bridge; ChatMessageList's bubbles
+  // read the action from context. Offered in activity chats only.
+  const [notesBridge] = useState(createTutorNotesBridge);
+  const saveNotesAction = useSaveTutorNotes({
+    bridge: notesBridge,
+    writing: activeWriting,
+    activityId: progressActivityId,
+    sessionId: sessionId ?? agentSessionId,
+  });
+
   // 1.1.53 M1 — live pulse for the group's shared session. Since 1.1.145 M3 it
   // is keyed by the activity, or by the skill for a legacy lesson — the same
   // scope the backend's turn-lock and revision use (`group_sessions.scope_key`),
@@ -1382,6 +1400,7 @@ function ChatShell({
               The per-bubble avatar still reinforces it on each turn. */}
           {/* The auto-read toggle moved into the SkillsBar header (2026-06-13)
               so it no longer claims a horizontal row above the transcript. */}
+          <SaveNotesProvider value={progressActivityId ? saveNotesAction : null}>
           <ChatMessageList
             messages={messages}
             // 1.1.63 M4 — the read-aloud voice resolves from THIS activity's
@@ -1445,6 +1464,7 @@ function ChatShell({
               ) : undefined
             }
           />
+          </SaveNotesProvider>
 
           <footer className="border-t p-3">
             {skillMultimodalInput && (
@@ -1631,6 +1651,7 @@ function ChatShell({
             onRatioChange={setWorkspaceRatio}
           >
             <DocumentRequestProvider value={docRequests}>
+            <TutorNotesBridgeProvider value={notesBridge}>
             {workspaceKind !== "none" && (
               // USR-1 (2026-06-25): ONE sim render path. Every workspace surface
               // — a vetted sim artefact, the 1.1.38 element tools, and the
@@ -1674,6 +1695,7 @@ function ChatShell({
                 activityId={activityId}
               />
             )}
+            </TutorNotesBridgeProvider>
             </DocumentRequestProvider>
           </WorkspaceShell>
         )}

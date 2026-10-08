@@ -160,7 +160,9 @@
     "downloadLabel": "Hent {title} som fil",
     "downloadFallbackTitle": "teksten",
     "downloadAs": "Hent som…",
-    "askFeedback": "Bed om feedback"
+    "askFeedback": "Bed om feedback",
+    "notesHeading": "Noter fra tutoren ({date})",
+    "notesSavedCard": "Tutorens svar gemt som noter i «{title}» ({count} ord)"
   },
   "WorkspaceDivider": {
     "label": "Tilpas arbejdsområdets bredde"

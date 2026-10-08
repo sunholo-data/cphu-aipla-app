@@ -159,6 +159,13 @@ def _describe_writing(items: list, spec: ElementSpec) -> list[str]:
         "missing — but never rewrite it for them and never write into their document; your feedback "
         "belongs in this conversation. They may also ask you to look at it explicitly."
     )
+    # 1.1.151 F6 — the student can save a reply of yours into this surface
+    # ("Gem som noter"). That is THEIR action, under a heading naming you; the
+    # tutor must not mistake it for the student's own writing when judging it.
+    lines.append(
+        "A section headed as notes from the tutor is one of your replies the student chose to save there; "
+        "it is not their own writing, so do not assess it as such."
+    )
     return lines
 
 
