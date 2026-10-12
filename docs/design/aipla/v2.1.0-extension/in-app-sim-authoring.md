@@ -1,8 +1,8 @@
 # In-app sim authoring — benchmark first, then build, under a monthly quota
 
-**Status**: **PROPOSED** 2026-10-12
+**Status**: **PROPOSED** 2026-10-12 · **in build** from 2026-10-12 (M0 first). Decisions so far are in [Decisions](#decisions)
 **Priority**: **P1 for this sprint.** The benchmark (M0–M2) is the gate: it decides which model and harness the in-app path is built on, and what one build costs, which sets the quota
-**Estimated**: **~6–8d** in all. Benchmark M0–M2 ~3d · in-app authoring M3–M5 ~3–4d · quota and meter M6 ~1d. M3 onward is re-sized after the benchmark, since the winning harness decides how much has to be built
+**Estimated**: **~9–10d** in all. Benchmark M0–M2 ~3d · sim-verify service M3 ~1d · in-app authoring M4–M6 ~4–5d · quota and meter M7 ~1d. M4 onward is re-sized after the benchmark, since the winning harness decides how much has to be built
 **Scope**: Research: a new `research/sim-bench/` harness (`make bench-sims`). Backend: the static gates as one Python module (this is [sim-verify-mcp](sim-verify-mcp.md) M0), an authoring agent as an ADK skill, a sim-authoring budget on the existing enforcer. Frontend: a teacher authoring surface with a preview and a cost meter. Infra: `aipla-v01-sim-verify`, a separate headless-Chromium Cloud Run service on all three environments (sim-verify-mcp M3, brought forward)
 **Source**: M, 2026-10-12, after `otto-engine` was built with the `anatomy` skill in Claude Code: *"we are going to do some evals and benchmarks for this simulation (and perhaps others) - do we have robust harness in place to assess this? I am first going to see if our gemini models can replicate or get something usable … this sprint we are looking at adding in app creation of simulations"*, and *"we will have a cost quota per month and have a way to display that as we go."*
 **Related**: [sim-build-cost-log.md](sim-build-cost-log.md) (the first data point: Opus 5.5, 21.6 min, $9.74) · [sim-verify-mcp.md](sim-verify-mcp.md) (the gate port this depends on) · [tutor-controls-sims.md](tutor-controls-sims.md) · `.claude/skills/mcp-app-artefact/` (the gates and the authoring prompt) · `.claude/skills/anatomy/AIPLA.md` · [research/tutor-discrimination/](../../../../research/tutor-discrimination/) (the harness shape to copy) · [public-access-tiers-and-spend-control.md](../v1.1.0-feedback/public-access-tiers-and-spend-control.md) and [cost-dashboard.md](../v1.1.0-feedback/cost-dashboard.md) (the spend machinery the quota reuses)
@@ -35,12 +35,14 @@ Two more facts shape the design:
   checks, so a passing self-test proves only that the model agrees with itself.
   It stays in the gates as a crash detector, and is never evidence of correct
   physics.
-- **The anatomy kit cannot run in the app.** It needs Node and headless Chrome
-  at build time, and the deployed container has Node (the frontend runtime) but
-  no browser. So "can Gemini replicate otto-engine" is really two questions: can
-  it do it *with the kit and its checks* (an agentic harness), and can it get
-  something usable *without* them (one-shot, like the authoring prompt today).
-  Measure both.
+- **The anatomy kit cannot run in the app as designed.** The sim-verify service
+  (M3) gives the app a real browser, but the kit's build step runs
+  model-written code in Node, which needs a code sandbox (a container per build),
+  not a page checker. So "can Gemini replicate otto-engine" is really two
+  questions: can it do it *with the kit and its checks* (an agentic harness with
+  a sandbox), and can it get something usable *without* them (a plain sim, as
+  the authoring prompt produces today). Measure both; only the second is built
+  in this sprint.
 
 ## Part 1 — the benchmark (M0–M2)
 
@@ -156,28 +158,42 @@ works:
 | **M1** | `research/sim-bench/` runner: briefs, H1 and H2, Gemini + Claude through one interface, cost capture, `--dry-run`/`--go`/`--report-only`, L0–L3 scoring | ~1.25d | a dry run prints a plan; a one-cell `--go` produces a row and an artefact |
 | **M2** | The physics probe and state contracts for the five briefs; the visual rubric; the first full run; a report with a recommendation | ~1d | **the probe fails the deliberately broken fixtures** (spark at BDC, pV linear, η on screen) and passes the reference sims. A probe that passes everything has not been tested |
 
-H3 (the kit loop) runs from a laptop in M2 if time allows. It is the arm that
-tells us whether bringing the kit into the app would be worth a browser service.
+H2 in the benchmark calls `verify_sim.mjs` locally until M3's service exists,
+then the service, so the benchmark and the app share one checker. H3 (the kit
+loop) runs from a laptop in M2 if time allows. It is the arm that tells us
+whether a per-build code sandbox (a later decision) would be worth running.
 
-## Part 2 — in-app authoring (M3–M5, re-sized after M2)
+## Part 2 — in-app authoring (M3–M6, re-sized after M2)
 
 The shape the benchmark is expected to point to, to be confirmed by it:
 
-- **M3: an authoring agent.** An ADK skill for teachers (not students) that takes a
-  brief and runs the winning harness: draft → `verify_sim` → repair, up to a
-  fixed attempt cap, the same capped loop svg-illustrator uses. The browser half
-  of the gates runs in the **sim-verify service** below (sim-verify-mcp M3,
-  brought forward from "deferred"). Its screenshots go back to the model as
-  images inside the tool result, as svg-illustrator's PNG does, so the model
-  sees what it drew.
-- **M4: a preview.** The teacher tries the draft in a sandboxed frame before
+- **M3: the sim-verify service** below: the browser half of the gates, as its
+  own Cloud Run service (sim-verify-mcp M3, brought forward from "deferred").
+- **M4: an authoring agent.** An ADK skill for teachers (not students),
+  `backend/skills/templates/sim-author/SKILL.md`, that takes a brief and runs the
+  winning harness: draft → `verify_sim` → repair, up to a fixed attempt cap,
+  the same capped loop svg-illustrator uses. Its one checking tool,
+  `verify_sim(index_html, yaml, moments)`, runs the M0 gates in-process and
+  calls the service for the browser half. The screenshots go back to the model as
+  images inside the function response, as svg-illustrator's PNG does, so the
+  model sees what it drew. Drafts are saved as ADK artifacts on the session, so
+  a build that stops (quota, attempt cap, a closed tab) resumes from the last
+  draft. Model: gemini-3.8-flash with thinking unless M2 says otherwise.
+- **M5: a preview.** The teacher tries the draft in a sandboxed frame before
   anything is catalogued. This is sim-verify-mcp M4, and it **needs an ADR-013
   decision first**: unreviewed HTML on the artefact origin is a posture change,
   even under the same CSP.
-- **M5: the route to the library.** A draft is private to its teacher. Making it
+- **M6: the route to the library.** A draft is private to its teacher. Making it
   live for a class goes through review, with the physics sign-off ADR-013
   already asks for and nothing yet records, now recorded on the draft. A
   generated sim never reaches students unreviewed.
+
+| | What | Est. | Gate |
+|---|---|---|---|
+| **M3** | `infrastructure/sim-verify/`: Playwright image, `POST /verify`, the deploy on all three pipelines (dev build + tag + promote twin), private with a no-role service account | ~1d | `make smoke-sim-verify ENV=<env>` posts a live artefact and gets every check back, on all three envs; an unauthenticated call is refused |
+| **M4** | The `sim-author` ADK skill and its `verify_sim` tool; screenshots in the function response; drafts as artifacts; attempt cap | ~1.5–2d | a local run on the otto brief reaches L3 and repairs at least one failure from a screenshot or a check |
+| **M5** | Teacher authoring surface: brief in, live progress, preview of the draft | ~1–2d | **ADR-013 decision recorded first** (see below); then a teacher drives a build to a preview on dev |
+| **M6** | Route to the library: a draft is private, going live needs a recorded review (who, when, physics sign-off) | ~1d | a draft cannot reach `status: live` without a review record |
 
 ### The sim-verify service (decided 2026-10-12)
 
@@ -205,7 +221,7 @@ service account with **no IAM roles** and scales on its own.
   under Docker Compose or Kubernetes on UCPH hardware. Leaving Google means
   changing where it runs, not the agent.
 
-## Part 3 — a monthly quota, shown as you go (M6)
+## Part 3 — a monthly quota, shown as you go (M7)
 
 Authoring is the most expensive thing the app will do per request: one build is
 dozens of model calls, against a few for a tutor turn. It gets its own quota,
@@ -216,7 +232,7 @@ micro-USD, sharded counters, warns at 80 %), a programme-wide daily budget in
 block mode (`db/programme_budget.py`), and the cost dashboard at
 `/teacher/insights/cost`, with BigQuery as the accounting truth.
 
-**What M6 adds:**
+**What M7 adds:**
 
 1. **A separate authoring budget.** A monthly USD quota for sim authoring, per
    teacher and for the programme as a whole, metered by the same enforcer under
@@ -239,7 +255,17 @@ block mode (`db/programme_budget.py`), and the cost dashboard at
 
 | | What | Est. | Gate |
 |---|---|---|---|
-| **M6** | Authoring purpose on the enforcer; monthly quotas (per teacher, programme); the before/during meter; a stop that keeps the draft; the dashboard line | ~1d | a test with two teachers and one programme quota: each teacher's lesson spend is untouched by authoring, and the programme quota stops both |
+| **M7** | Authoring purpose on the enforcer; monthly quotas (per teacher, programme); the before/during meter; a stop that keeps the draft; the dashboard line | ~1d | a test with two teachers and one programme quota: each teacher's lesson spend is untouched by authoring, and the programme quota stops both |
+
+## Decisions
+
+| Date | Decision | Why |
+|---|---|---|
+| 2026-10-12 | **The authoring agent is an ADK skill** in the app, not a managed agent platform (Vertex Agent Engine, Anthropic Managed Agents) | No new provider lock-in. ADK already runs the tutors and the capped draw-and-check loop (svg-illustrator), and LiteLLM keeps the model swappable, including local models for UCPH |
+| 2026-10-12 | **No general code sandbox in this sprint.** The agent gets fixed tools (check, render, save); the only generated code that runs is the sim page, inside headless Chromium under the sandbox CSP | A sim is browser code, so the browser is the sandbox. A per-build container with a shell (option B: ADK's container/GKE executors, E2B, an open-source coding agent) is the later step, only if H3 shows the kit is worth it |
+| 2026-10-12 | **The browser checker is a separate Cloud Run service on dev, test and prod**, not a sidecar | M: keep it simple. It also isolates better (no IAM roles, no shared CPU with student turns) |
+| 2026-10-12 | **Real Chromium (Playwright), not Obscura** | Obscura draws canvases as solid blocks; the visual check is the point |
+| 2026-10-12 | **First model to benchmark: gemini-3.8-flash with thinking** | The strongest model on the app's `eu` endpoint; there is no current Pro there |
 
 ## First runs (2026-10-12, by hand)
 
@@ -269,10 +295,14 @@ loop where the model sees its own screenshot (H2) over a bigger single call.
   $9.74 per hand-built sim, $20 a month buys two; if a Gemini build comes in
   under $1, the same $20 buys twenty. Decide per tier, M with the programme.
 - **Is anatomy in scope for the app?** Only if H3 clearly beats H2 on L4–L5 and
-  the browser service is worth running. Otherwise the kit stays a developer tool
-  and in-app sims are plain ones.
+  a per-build code sandbox is worth running (option B in Decisions). Otherwise
+  the kit stays a developer tool and in-app sims are plain ones.
+- **The preview's origin (M5).** Unreviewed generated HTML on the sandbox
+  origin, even under the same CSP, changes ADR-013's posture. The alternatives
+  are a separate preview origin, or a preview served only by the sim-verify
+  service. Decide before M5 is built.
 - **Who reviews a generated sim** before it is live for a class, and is that
-  review recorded on the draft (M5)? ADR-013 says a physics reviewer; today that
+  review recorded on the draft (M6)? ADR-013 says a physics reviewer; today that
   is AR and nothing enforces it.
 - **The authoring surface's audience.** Teachers on the pilot tier only, or
   researchers first? Starting with researchers keeps the first month's spend and
