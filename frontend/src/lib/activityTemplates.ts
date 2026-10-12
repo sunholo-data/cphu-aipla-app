@@ -1584,4 +1584,162 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
       ],
     },
   },
+  {
+    // The English twin of "otto-engine": the activity's language is what the
+    // tutor speaks to the class (activity.language), so an English class needs an
+    // English activity, not a translated sim alone. The sim itself is bilingual.
+    // Same node ids as the Danish map, so the two stay comparable in research.
+    id: "otto-engine-en",
+    name: "The four-stroke engine — why higher compression? (English)",
+    summary:
+      "Cutaway petrol engine + p-V diagram — measure Q and W, work out the efficiency, and find how it depends on the compression ratio.",
+    language: "en",
+    subject: "Fysik",
+    title: "The four-stroke engine",
+    artefactId: "otto-engine",
+    teachingGoal:
+      "The student investigates how a four-stroke petrol engine turns heat into work, using the simulation of a " +
+      "cutaway engine and its p-V diagram. First let the student go one stroke at a time and describe what the " +
+      "valves, the piston and the gas do, and what happens in the p-V diagram. Then the student measures one cycle " +
+      "at at least four different compression ratios, works out the efficiency η = W/Q themselves and plots it " +
+      "against r. The point is to discover that the efficiency rises with the compression ratio, and to be able to " +
+      "explain why. Never state an efficiency before the student has worked it out, and never write the text for " +
+      "the student. Once the student has the trend, discuss why a real engine reaches only about half of the ideal " +
+      "efficiency.",
+    checklist: [
+      "Go one stroke at a time, and describe what the valves, piston and gas do in each stroke",
+      "Find in the p-V diagram where the gas does work, and where the piston does work on the gas",
+      "Measure one cycle at at least four different compression ratios",
+      "Work out the efficiency η = W/Q for each measurement",
+      "Describe and explain how the efficiency depends on r",
+    ],
+    table: {
+      title: "Measurements",
+      columns: [
+        { label: "r", kind: "number" },
+        { label: "Q", unit: "J", kind: "number" },
+        { label: "W", unit: "J", kind: "number" },
+        { label: "η", kind: "number" },
+      ],
+      rows: 6,
+    },
+    chart: { title: "Efficiency against compression ratio", chartKind: "scatter" },
+    note: {
+      title: "How to use the engine",
+      body:
+        "**Next stroke** stops at the start of each stroke. **Measure one cycle** runs the engine round once and " +
+        "records the heat supplied Q and the work W.\n\n" +
+        "Change the compression ratio r = V_max / V_min with the slider — in the engine it shows as a taller piston.",
+    },
+    writing: [
+      {
+        title: "Conclusion",
+        prompt:
+          "How does the efficiency depend on the compression ratio? Use your measurements, and explain the link with " +
+          "what happens to the gas during compression.",
+        minWords: 60,
+      },
+    ],
+    conceptMap: {
+      title: "The four-stroke engine",
+      nodes: [
+        {
+          id: "takter",
+          label: "The four strokes",
+          doneWhen: "can say, for each stroke, what the piston and the two valves do and what happens to the gas",
+          questions: [
+            {
+              prompt: "What do the piston and the valves do in the compression stroke, and why must both valves be shut?",
+              expectedAnswer: "The piston moves up with both valves shut, so the gas cannot escape — it is squeezed.",
+            },
+          ],
+        },
+        {
+          id: "tilstand",
+          label: "Pressure, volume and temperature",
+          doneWhen: "can read p and V off the diagram and use the ideal gas law to explain how T follows",
+          questions: [
+            {
+              prompt:
+                "During intake the pressure stays constant but the volume grows. What does that mean for the amount of gas in the cylinder?",
+              expectedAnswer: "pV = nRT: at constant p and T, n grows — fresh gas is drawn in.",
+            },
+          ],
+        },
+        {
+          id: "adiabatisk",
+          label: "Adiabatic compression",
+          dependsOn: ["takter", "tilstand"],
+          doneWhen:
+            "can explain that the gas heats up during compression with no heat added, because the piston does work on it",
+          questions: [
+            {
+              prompt:
+                "The temperature rises from 300 K to about 700 K during compression. Where does the energy come from when no heat is added?",
+              expectedAnswer:
+                "From the piston's work on the gas: Q = 0, so ΔU = W, and the internal energy, and so the temperature, rise.",
+            },
+          ],
+        },
+        {
+          id: "arbejde",
+          label: "Work as an area",
+          dependsOn: ["tilstand"],
+          doneWhen: "can explain that the area inside the loop is the net work for one cycle, and why it is positive",
+          questions: [
+            {
+              prompt: "Why is the net work the area inside the loop, not the area under the power stroke's curve?",
+              expectedAnswer:
+                "During compression the piston does work on the gas (the area under the compression curve); that is subtracted from the gas's work in the power stroke, and the difference is the area inside the loop.",
+            },
+          ],
+        },
+        {
+          id: "virkningsgrad",
+          label: "Efficiency",
+          dependsOn: ["arbejde"],
+          doneWhen: "can work out η = W/Q for a measured cycle and explain where the rest of the energy goes",
+          questions: [
+            {
+              prompt:
+                "You have measured Q and W for one cycle. How do you find the efficiency, and where does the energy go that does not become work?",
+              expectedAnswer: "η = W/Q; the rest, Q − W, leaves as heat with the exhaust gas.",
+            },
+          ],
+        },
+        {
+          id: "kompressionsforhold",
+          label: "What the compression ratio does",
+          dependsOn: ["adiabatisk", "virkningsgrad"],
+          doneWhen:
+            "can describe from their own measurements how η depends on r, and explain the trend from the state of the gas after compression",
+          questions: [
+            {
+              prompt: "How does the efficiency change when r goes from 6 to 12, and why?",
+              expectedAnswer:
+                "It rises (about 51 % to 63 % in the ideal cycle), because the gas is hotter and more compressed when combustion happens, so more of the heat becomes work during the expansion; η = 1 − 1/r^(γ−1).",
+            },
+            {
+              prompt: "So why not build a petrol engine with r = 20?",
+              expectedAnswer:
+                "The mixture gets hot enough during compression to ignite by itself before the spark (knocking); a diesel engine compresses only air, so it can run a higher r.",
+            },
+          ],
+        },
+        {
+          id: "virkelighed",
+          label: "Ideal and real engines",
+          dependsOn: ["kompressionsforhold"],
+          doneWhen: "can give at least two reasons why a real petrol engine reaches only about half of the ideal η",
+          questions: [
+            {
+              prompt: "A real petrol engine has an efficiency of about 30 %. Why is that lower than what you worked out?",
+              expectedAnswer:
+                "Friction, heat lost through the cylinder wall, combustion takes time instead of happening instantly, pumping work at intake and exhaust, and incomplete combustion.",
+            },
+          ],
+        },
+      ],
+    },
+  },
 ];
