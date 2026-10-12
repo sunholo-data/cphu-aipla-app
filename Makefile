@@ -541,6 +541,15 @@ release-notes:
 test-release-notes:
 	@python3 -m unittest discover -s scripts/tests -p 'test_release_notes.py'
 
+# Time and tokens one stretch of a Claude Code session spent (e.g. building a
+# sim), read from its transcript. Log results in
+# docs/design/aipla/v2.1.0-extension/sim-build-cost-log.md.
+#   make session-cost SESSION=~/.claude/projects/<proj>/<id>.jsonl START="text" END="commit subject"
+.PHONY: session-cost
+session-cost:
+	@test -n "$(SESSION)" -a -n "$(START)" -a -n "$(END)" || { echo "SESSION, START and END are required"; exit 1; }
+	@python3 scripts/session_cost.py "$(SESSION)" --start "$(START)" --end "$(END)"
+
 tf-local:
 	@test -n "$(ENV)" || { echo "ENV is required, e.g. make tf-local ENV=prod ACTION=plan"; exit 1; }
 	@./scripts/tf.sh $(ENV) $(or $(ACTION),plan)
