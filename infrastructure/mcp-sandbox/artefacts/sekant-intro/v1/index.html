@@ -3,22 +3,60 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Sekantbænk</title>
+<title>Hældningslab</title>
 <!--
-  sekant-intro — a coordinate bench for introductory differential calculus (stx A/B).
-  The apparatus is a plotted parabola on a grid; the instruments are the grid, a
-  coordinate probe and a slope triangle. The student measures coordinates and works
-  out slopes.
+  Hældningslab (id: sekant-intro) v2 — a coordinate bench for introductory differential calculus
+  (stx A/B). It starts with one graph window; the student adds more with "+"
+  (up to six graph windows and one Δx-window). The student types the functions to plot; the
+  instruments are the grid, a coordinate probe, a slope triangle and two line
+  tools. The student measures coordinates and works out slopes.
+
+  THE Δx-WINDOW (added 3 Oct 2026, for UV2; called the k-window until 10 Oct,
+  when the increment was renamed Δx to match Mathematicus and most textbooks —
+  "h" was not an option, since the UV1/UV2 function is called h. Internally the
+  code and the payload still say k; k IS Δx). A window, added with "+", with its
+  own function list plus one extra instrument: click a point P = (x0, f(x0)) on
+  a curve (or type x0), press "+Δx", and a slider sets Δx. The bench marks Δx on
+  the x-axis and f(x0+Δx) - f(x0) on the y-axis, draws the Δx/Δy triangle and
+  the line through the two points, and can zoom in on the triangle. It still
+  never divides: the quotient is the student's to form, and watching it as Δx
+  shrinks is the lesson.
+
+  THE NAME avoids "sekant" and "tangent" on purpose: the title is visible to
+  students, and both words are terms the tutor introduces only when the group
+  has described the idea itself. v1 was called "Sekantbænk", which put one of
+  them on screen from the first minute. The internal id stays sekant-intro so
+  the link to AIPLA is not broken.
+
+  v2 (3 Oct 2026) replaces the fixed curves of v1 (f, g in one view, h in
+  another) with student-entered functions in three windows. The bench now knows
+  nothing about any particular lesson: which functions to use is the activity's
+  business, not the instrument's.
 
   IT DELIBERATELY DOES NOT SHOW:
     - any quotient dy/dx, for any line
+    - the legs dx and dy of a secant — the student typed both points
+    - function values in the k-window — only where f(x0) and f(x0 + k) are
     - any derivative or tangent slope
-    - the word "tangent" anywhere in the interface
-  The bench reports dx and dy. The division is the exercise, and judging whether a
-  line fits the curve is the student's job.
+    - the words "sekant" and "tangent" anywhere in the interface (10 Oct 2026:
+      the two-point tool was called "Indsæt sekant" until then; in testing it
+      led the tutor to treat secants as a known tool and push them early. It is
+      now "Linje gennem to punkter". Internally the code still says "secant".)
+  The bench shows WHERE things are; the student works out WHAT they are, in
+  the program they normally use. That is so the calculation does not end up
+  belonging to the simulation: they must be able to do it without it later.
+  (Values still go to the tutor in the event payloads, invisibly, so it can
+  check the student's arithmetic.) The one measurement the bench does give is
+  the probe, which stands in for reading a point off a paper graph.
 
-  The probe snaps x to the grid and reports y as the function's value there, so a
-  probed point always lies on the curve. The grid controls WHICH x values can be
+  FORMULAS ARE PARSED, NEVER EXECUTED. AIPLA forbids dynamic code evaluation, and a
+  formula is untrusted input. A small recursive-descent parser turns it into a
+  tree of closures. Implicit multiplication binds like "*", left to right, so
+  1/3x^2 means (1/3)x^2 — what a student writing ⅓x² intends.
+
+  The probe snaps to the nearest place where the curve crosses a grid line —
+  vertical or horizontal — and reports y as the function's value there, so a
+  probed point always lies on the curve. The grid controls WHICH points can be
   measured, not how precisely y is reported; with the grid off, any x can be
   measured.
 
@@ -29,12 +67,13 @@
   The bench does NOT check whether the points typed into the secant fields lie on
   a curve, and does not warn or refuse. A wrong y draws a line that visibly misses
   the curve, and that is the feedback. Two reasons it has to stay that way:
-    - a milieu that prevents the error stops being a-didactical (Brousseau); the
-      milieu should return the consequence of the action, not forbid the action;
+    - the bench should return the consequence of an action, not forbid it;
     - "your y is wrong" is a CONCLUSION, and this bench is used in a study whose
       whole manipulation is which tutor configuration withholds conclusions. A
-      validating bench would leak one arm's behaviour into all three, through the
+      validating bench would leak one arm's behaviour into both, through the
       interface, where the logs would not show it.
+  The same goes for formulas: the bench says when it cannot READ a formula, never
+  whether it is the RIGHT one.
 -->
 <style>
   :root {
@@ -84,6 +123,31 @@
      dragging rule comes last so it wins when both classes are present. */
   canvas.over-curve { cursor: crosshair; }
   canvas.dragging { cursor: grabbing; }
+  /* The tick-label strips along the bottom and left edge stretch an axis. */
+  canvas.over-xaxis { cursor: ew-resize; }
+  /* Grid control: a small icon in the plot's top-right corner opens the four
+     choices. On the graph itself, because the grid is about what you see. */
+  .plotwrap { position: relative; }
+  /* Windows are added by the student: one graph window to begin with, "+" adds
+     another graph window or the (single) Δx-window. */
+  .tabbar { align-items: center; }
+  .addwrap { position: relative; }
+  #win-add { font-weight: 600; min-width: 30px; }
+  #win-pop { position: absolute; top: 34px; left: 0; z-index: 6; background: #fff;
+             border: 1px solid var(--border); border-radius: 6px; padding: 6px;
+             box-shadow: 0 4px 14px rgba(15,23,42,.12); display: flex; flex-direction: column; gap: 4px;
+             white-space: nowrap; }
+  #win-pop.hidden { display: none; }
+  #grid-btn { position: absolute; top: 8px; right: 8px; padding: 4px; line-height: 0;
+              background: rgba(255,255,255,.92); }
+  #grid-btn[aria-pressed="true"] { border-color: #2563eb; color: #2563eb; }
+  #grid-pop { position: absolute; top: 40px; right: 8px; z-index: 5; background: #fff;
+              border: 1px solid var(--border); border-radius: 6px; padding: 8px;
+              box-shadow: 0 4px 14px rgba(15,23,42,.12); }
+  #grid-pop .row { flex-wrap: nowrap; gap: 6px; }
+  #grid-pop .grid-opt { padding: 4px; line-height: 0; }
+  #grid-pop .grid-opt[aria-pressed="true"] { border-color: #2563eb; color: #2563eb; background: #eff6ff; }
+  canvas.over-yaxis { cursor: ns-resize; }
   @media (min-width: 720px) { canvas { height: 480px; } }
 
   .readout {
@@ -130,6 +194,30 @@
   .note { color: var(--muted); font-size: 11px; }
   .hidden { display: none; }
   .langbar { display: flex; gap: 4px; }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+  .func-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+  .func-list li {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+    padding: 6px 8px; display: flex; gap: 8px; align-items: center;
+  }
+  .func-list .fx { font-family: "Cambria Math", Cambria, Georgia, "Times New Roman", serif; font-style: italic; font-size: 15px; }
+  .entry { display: flex; gap: 6px; }
+  .entry input { flex: 1 1 auto; }
+  .zoomrow { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .err { color: var(--bad); font-size: 12px; min-height: 1em; }
+  input[type="range"] { width: 100%; accent-color: var(--accent); }
+  .kgrid { display: flex; gap: 8px; align-items: center; }
+  .kgrid input[type="range"] { flex: 1 1 auto; }
+  .kbtn { font-size: 15px; padding: 6px 16px; background: var(--accent); border-color: var(--accent); color: #fff; }
+  .kbtn:disabled { opacity: .3; background: var(--bg); border-color: var(--border); color: var(--muted); }
+  .kgrid input[type="text"] { width: 7.5em; }
+  /* The magnifier: follows the Δx triangle while pressed. Bright when on. */
+  #k-zoom { padding: 5px 8px; line-height: 0; }
+  .x0lab { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-size: 14px; }
+  .kgrid input#x0-in { width: 6em; }
+  #k-zoom[aria-pressed="true"] { background: #d97706; border-color: #d97706; color: #fff; }
+  .kout { font-size: 13px; line-height: 1.7; }
+  .kout .kx { color: #b45309; } .kout .ky { color: #15803d; }
 </style>
 </head>
 <body>
@@ -151,7 +239,52 @@
         </button>
       </span>
     </div>
-    <canvas id="plot"></canvas>
+    <div class="tabs tabbar" style="margin-bottom:8px">
+      <span id="win-tabs" class="tabs"></span>
+      <span class="addwrap">
+        <button id="win-add" class="iconbtn" aria-expanded="false" aria-controls="win-pop" data-ta="winAdd">+</button>
+        <div id="win-pop" class="hidden">
+          <button id="add-graph" data-t="addGraph"></button>
+          <button id="add-kwin" data-t="addKWin"></button>
+        </div>
+      </span>
+    </div>
+    <div class="plotwrap">
+      <canvas id="plot"></canvas>
+      <button id="grid-btn" class="iconbtn" aria-expanded="false" aria-controls="grid-pop" aria-pressed="false" data-ta="gridHead">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true">
+          <rect x="1.5" y="1.5" width="15" height="15" rx="1.5"/><path d="M6.5 1.5v15M11.5 1.5v15M1.5 6.5h15M1.5 11.5h15"/>
+        </svg>
+      </button>
+      <div id="grid-pop" class="hidden">
+        <div class="sub" data-t="gridHead"></div>
+        <div class="row" style="margin-top:6px">
+          <button class="grid-opt iconbtn" data-step="0" aria-pressed="true" data-ta="gridNone"><svg width="22" height="22" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="2" width="14" height="14" rx="1.5"/><path d="M3 15 15 3"/></svg></button>
+          <button class="grid-opt iconbtn" data-step="1" aria-pressed="false" data-ta="gridWhole"><svg width="22" height="22" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="2" width="14" height="14" rx="1.5"/><path d="M9.00 2v14M2 9.00h14" stroke-width="1.2"/></svg></button>
+          <button class="grid-opt iconbtn" data-step="0.5" aria-pressed="false" data-ta="gridHalf"><svg width="22" height="22" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="2" width="14" height="14" rx="1.5"/><path d="M5.50 2v14M2 5.50h14 M9.00 2v14M2 9.00h14 M12.50 2v14M2 12.50h14" stroke-width="0.9"/></svg></button>
+          <button class="grid-opt iconbtn" data-step="0.25" aria-pressed="false" data-ta="gridQuarter"><svg width="22" height="22" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="2" y="2" width="14" height="14" rx="1.5"/><path d="M4.33 2v14M2 4.33h14 M6.67 2v14M2 6.67h14 M9.00 2v14M2 9.00h14 M11.33 2v14M2 11.33h14 M13.67 2v14M2 13.67h14" stroke-width="0.6"/></svg></button>
+        </div>
+      </div>
+    </div>
+    <!-- k — only in the k-window, right under the graph so it is in sight. -->
+    <div id="kbar" class="hidden" style="margin-top:8px">
+      <p class="toolnote" data-th="kNote" style="margin:0 0 6px 0"></p>
+      <div class="kgrid">
+        <label class="x0lab"><i>x</i>&#8320; =
+          <input type="text" id="x0-in" inputmode="decimal" autocomplete="off" data-tp="x0Hint" data-ta="x0Label">
+        </label>
+        <button id="k-add" class="kbtn" disabled>+Δ<i>x</i></button>
+        <input type="range" id="k-range" min="-2" max="2" step="0.001" value="1" aria-label="Δx" class="hidden">
+        <input type="text" id="k-in" inputmode="decimal" autocomplete="off" aria-label="Δx" class="hidden">
+        <button id="k-zoom" class="iconbtn hidden" aria-pressed="false" data-ta="kZoom">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+            <circle cx="7.5" cy="7.5" r="5"/><path d="M11.3 11.3 16 16"/>
+          </svg>
+        </button>
+        <button id="k-remove" class="iconbtn hidden" data-ta="kRemove">&times;</button>
+      </div>
+      <div id="k-out" class="readout kout hidden" style="margin-top:6px; text-align:left"></div>
+    </div>
     <div style="margin-top:8px">
       <div class="sub" data-t="probeHead"></div>
       <div id="probe-out" class="readout"></div>
@@ -159,42 +292,9 @@
     </div>
   </div>
 
-  <!-- VIEW — always visible. Choosing a curve and a grid is what the student
-       does from the first minute; these are not tools, they are how you look. -->
-  <div class="panel">
-    <div class="phead"><span data-t="viewHead"></span></div>
-    <div class="stack">
-
-      <div>
-        <div class="sub" data-t="curveHead"></div>
-        <div class="row" style="margin-top:6px">
-          <button id="view-fg" aria-pressed="true" data-th="viewFG"></button>
-          <button id="view-h" aria-pressed="false" data-th="viewH"></button>
-        </div>
-      </div>
-
-      <div>
-        <div class="sub" data-t="gridHead"></div>
-        <div class="row" style="margin-top:6px">
-          <button class="grid-opt" data-step="0" aria-pressed="true" data-t="gridNone"></button>
-          <button class="grid-opt" data-step="1" aria-pressed="false" data-t="gridWhole"></button>
-          <button class="grid-opt" data-step="0.5" aria-pressed="false" data-t="gridHalf"></button>
-          <button class="grid-opt" data-step="0.25" aria-pressed="false" data-t="gridQuarter"></button>
-        </div>
-      </div>
-
-      <div>
-        <div class="sub" data-t="windowHead"></div>
-        <p class="toolnote" data-t="windowNote"></p>
-        <button id="reset-window" data-t="resetWindow"></button>
-      </div>
-
-    </div>
-  </div>
-
-  <!-- TOOLS — collapsed on load. Drawing lines makes no sense before the student
-       knows what a secant is, so the construction tools stay behind the button
-       until they are needed. The orienting line says where they are. -->
+  <!-- TOOLS — collapsed on load; the orienting line says where they are. Placed
+       right under the graph (11 Oct 2026): at the bottom of the page it opened out
+       of sight, and the student typed points without seeing the graph. -->
   <div class="panel hidden" id="menu">
     <div class="phead"><span data-t="menuHead"></span></div>
     <div class="stack">
@@ -231,6 +331,39 @@
       <div>
         <div class="sub" data-t="linesHead"></div>
         <ul id="lines-list" class="lines-list" style="margin-top:6px"></ul>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- FUNCTIONS — the student plots what the task asks for. Each window has its
+       own list. A formula that names itself (f(x) = ...) keeps its name; one
+       that does not gets the next free letter. -->
+  <div class="panel">
+    <div class="phead"><span data-t="funcHead"></span></div>
+    <ul id="func-list" class="func-list"></ul>
+    <div class="entry" style="margin-top:8px">
+      <input type="text" id="func-in" autocomplete="off" autocapitalize="off" spellcheck="false" data-tp="funcPlaceholder">
+      <button id="func-add" class="primary" data-t="funcAdd"></button>
+    </div>
+    <div id="func-err" class="err" style="margin-top:4px"></div>
+    <p class="toolnote" data-th="funcNote" style="margin-top:4px"></p>
+  </div>
+
+  <!-- VIEW — always visible. -->
+  <div class="panel">
+    <div class="phead"><span data-t="viewHead"></span></div>
+    <div class="stack">
+
+
+      <div>
+        <div class="sub" data-t="windowHead"></div>
+        <p class="toolnote" data-t="windowNote"></p>
+        <div class="zoomrow">
+          <button id="zoom-in" class="iconbtn" data-ta="zoomIn">+</button>
+          <button id="zoom-out" class="iconbtn" data-ta="zoomOut">&minus;</button>
+          <button id="reset-window" data-t="resetWindow"></button>
+        </div>
       </div>
 
     </div>
@@ -615,23 +748,43 @@
 
 const strings = {
   da: {
-    title: "Sekantbænk",
-    orient: "Et koordinatsystem med parabler. Klik på en kurve for at aflæse et punkt, og træk i grafen for at se mere; værktøjer til at tegne linjer ligger bag knappen med de tre streger.",
+    title: "Hældningslab",
+    orient: "Skriv en funktionsforskrift for at tegne grafen, tilføj flere vinduer med +, klik på en kurve for at aflæse et punkt, og træk i grafen for at se mere. Værktøjer til at tegne linjer ligger bag knappen med de tre streger.",
     plotHead: "Koordinatsystem",
+    winTab: "Grafvindue",
+    winAdd: "Tilføj et vindue",
+    addGraph: "Nyt grafvindue",
+    addKWin: "Nyt Δx-vindue",
+    kTab: "Δx-vindue",
+    kHead: "Tilvækst Δx",
+    kNote: "Klik på et punkt på grafen, eller skriv <i>x</i>&#8320; i feltet, og tryk <strong>+Δ<i>x</i></strong>. Så kan du flytte det andet punkt med skyderen eller skrive Δ<i>x</i> i feltet. Funktionsværdierne regner I selv ud.",
+    kRemove: "Fjern Δx",
+    kZoom: "Zoom ind på trekanten",
+    x0Hint: "fx −0,3",
+    x0Label: "Punktets x-værdi",
+    kPick: "Vælg først et punkt: klik på grafen, eller skriv x₀.",
+    kLabel: "Satte Δx til",
+    funcHead: "Funktioner i vinduet",
+    funcPlaceholder: "fx f(x) = x^2",
+    funcAdd: "Tegn",
+    funcNote: "Skriv fx <span class=\"mono\">f(x) = x^2</span> eller <span class=\"mono\">2x^2 - 4x</span>. Brug <span class=\"mono\">^</span> til potens og <span class=\"mono\">/</span> til brøk. Hver graf har sit eget navn: skriver du <span class=\"mono\">f(x)</span> igen, afløser den nye forskrift den gamle. Vil du have en graf mere, så giv den et nyt navn, fx <span class=\"mono\">g(x)</span> eller <span class=\"mono\">h(x)</span>.",
+    funcEmpty: "Ingen funktioner i dette vindue endnu.",
+    deleteFunc: "Fjern funktionen",
+    errFunc: "Forskriften kan ikke læses. Skriv fx x^2, 2x - 4 eller 1/3x^2 + 2x + 1.",
+    errFuncLhs: "Venstre side kan ikke læses. Skriv fx f(x) = … eller kun højresiden.",
+    errFuncEq: "Skriv kun ét lighedstegn, fx f(x) = x^2.",
+    errFuncFull: "Alle bogstaver er brugt i dette vindue. Fjern en funktion først.",
     viewHead: "Visning",
     menuHead: "Værktøjer",
-    curveHead: "Kurver",
-    viewFG: "<i>f</i> og <i>g</i>",
-    viewH: "<i>h</i>",
     gridHead: "Gitter",
-    gridNone: "Intet",
-    gridWhole: "Hver hele",
-    gridHalf: "Hver halve",
-    gridQuarter: "Hver kvarte",
-    secantHead: "Indsæt sekant",
-    secantNote: "Gennem to punkter, der begge ligger på grafen.",
-    addSecant: "Indsæt sekant",
-    lineHead: "Indsæt linje",
+    gridNone: "Intet gitter",
+    gridWhole: "Groft gitter (hver hele)",
+    gridHalf: "Finere gitter (hver halve)",
+    gridQuarter: "Fint gitter (hver kvarte)",
+    secantHead: "Linje gennem to punkter",
+    secantNote: "Skriv koordinaterne til to punkter.",
+    addSecant: "Indsæt linje",
+    lineHead: "Linje med fast hældning",
     lineNote: "Gennem punktet <i>P</i>(<i>x</i>&#8320;, <i>y</i>&#8320;) med en fast hældning.",
     slopeField: "hældning",
     addLine: "Indsæt linje",
@@ -640,43 +793,69 @@ const strings = {
     linesEmpty: "Ingen linjer endnu.",
     probeHead: "Aflæsning",
     probeEmpty: "Klik på en kurve.",
+    probeNoCurves: "Skriv en funktionsforskrift for at tegne en graf.",
     probeMiss: "Ingen kurve dér. Klik tættere på en af graferne.",
     windowHead: "Vindue",
-    windowNote: "Træk i grafen for at flytte vinduet.",
+    windowNote: "Træk i grafen for at flytte vinduet. Træk i tallene på en akse for at strække eller trykke den sammen. Zoom med knapperne, musehjulet eller to fingre.",
+    zoomIn: "Zoom ind",
+    zoomOut: "Zoom ud",
     resetWindow: "Nulstil vindue",
     deleteLine: "Slet linjen",
-    probeNote: "x følger gitteret; y er funktionens værdi i punktet.",
+    probeNote: "Punktet følger gitterlinjerne; y er funktionens værdi i punktet.",
     probeNoteFree: "Uden gitter kan ethvert punkt måles. y er funktionens værdi i punktet.",
     errNum: "Udfyld alle felter med tal.",
     errSame: "De to punkter skal have forskellig x.",
-    secantLabel: "Indsatte sekant gennem",
+    funcLabel: "Tegnede",
+    funcChangedLabel: "Ændrede",
+    inWindow: "i",
+    secantLabel: "Indsatte linje gennem",
     lineLabel: "Indsatte linje gennem",
     withSlope: "med hældning",
     and: "og",
     dx: "Δx",
     dy: "Δy",
     slopeA: "hældning",
-    secantWord: "Sekant",
+    secantWord: "Linje",
     lineWord: "Linje",
   },
   en: {
-    title: "Secant bench",
-    orient: "A coordinate system with parabolas. Click a curve to read off a point, and drag the graph to see more; tools for drawing lines are behind the button with three bars.",
+    title: "Slope lab",
+    orient: "Type a function to plot it, add more windows with +, click a curve to read off a point, and drag the graph to see more. Tools for drawing lines are behind the button with three bars.",
     plotHead: "Coordinate system",
+    winTab: "Graph window",
+    winAdd: "Add a window",
+    addGraph: "New graph window",
+    addKWin: "New Δx-window",
+    kTab: "Δx-window",
+    kHead: "Increment Δx",
+    kNote: "Click a point on a graph, or type <i>x</i>&#8320; in the field, and press <strong>+Δ<i>x</i></strong>. Then move the second point with the slider, or type Δ<i>x</i> in the field. Work out the function values yourselves.",
+    kRemove: "Remove Δx",
+    kZoom: "Zoom in on the triangle",
+    x0Hint: "e.g. −0.3",
+    x0Label: "The point's x-value",
+    kPick: "Choose a point first: click the graph, or type x₀.",
+    kLabel: "Set Δx to",
+    funcHead: "Functions in this window",
+    funcPlaceholder: "e.g. f(x) = x^2",
+    funcAdd: "Plot",
+    funcNote: "Type e.g. <span class=\"mono\">f(x) = x^2</span> or <span class=\"mono\">2x^2 - 4x</span>. Use <span class=\"mono\">^</span> for powers and <span class=\"mono\">/</span> for fractions. Each graph has its own name: typing <span class=\"mono\">f(x)</span> again replaces the old formula. For another graph, give it a new name, e.g. <span class=\"mono\">g(x)</span> or <span class=\"mono\">h(x)</span>.",
+    funcEmpty: "No functions in this window yet.",
+    deleteFunc: "Remove function",
+    errFunc: "The formula cannot be read. Try e.g. x^2, 2x - 4 or 1/3x^2 + 2x + 1.",
+    errFuncLhs: "The left-hand side cannot be read. Write e.g. f(x) = … or just the right-hand side.",
+    errFuncEq: "Use only one equals sign, e.g. f(x) = x^2.",
+    errFuncFull: "Every letter is in use in this window. Remove a function first.",
     viewHead: "View",
     menuHead: "Tools",
-    curveHead: "Curves",
-    viewFG: "<i>f</i> and <i>g</i>",
-    viewH: "<i>h</i>",
     gridHead: "Grid",
-    gridNone: "None",
-    gridWhole: "Every unit",
-    gridHalf: "Every half",
-    gridQuarter: "Every quarter",
-    secantHead: "Insert secant",
-    secantNote: "Through two points that both lie on the graph.",
-    addSecant: "Insert secant",
-    lineHead: "Insert line",
+    gridNone: "No grid",
+    gridWhole: "Coarse grid (every unit)",
+    gridHalf: "Finer grid (every half)",
+    gridQuarter: "Fine grid (every quarter)",
+    secantHead: "Line through two points",
+    secantNote: "Type the coordinates of two points.",
+    addSecant: "Insert line",
+    lineHead: "Line with a fixed slope",
     lineNote: "Through the point <i>P</i>(<i>x</i>&#8320;, <i>y</i>&#8320;) with a fixed slope.",
     slopeField: "slope",
     addLine: "Insert line",
@@ -685,32 +864,37 @@ const strings = {
     linesEmpty: "No lines yet.",
     probeHead: "Reading",
     probeEmpty: "Click a curve.",
+    probeNoCurves: "Type a function to plot a graph.",
     probeMiss: "No curve there. Click closer to one of the graphs.",
     windowHead: "Window",
-    windowNote: "Drag the graph to move the window.",
+    windowNote: "Drag the graph to move the window. Drag the numbers on an axis to stretch or squeeze it. Zoom with the buttons, the mouse wheel or two fingers.",
+    zoomIn: "Zoom in",
+    zoomOut: "Zoom out",
     resetWindow: "Reset window",
     deleteLine: "Delete line",
-    probeNote: "x follows the grid; y is the function's value at that point.",
+    probeNote: "The point follows the grid lines; y is the function's value at that point.",
     probeNoteFree: "With no grid, any point can be measured. y is the function's value there.",
     errNum: "Fill in every field with a number.",
     errSame: "The two points must have different x.",
-    secantLabel: "Inserted secant through",
+    funcLabel: "Plotted",
+    funcChangedLabel: "Changed",
+    inWindow: "in",
+    secantLabel: "Inserted line through",
     lineLabel: "Inserted line through",
     withSlope: "with slope",
     and: "and",
     dx: "Δx",
     dy: "Δy",
     slopeA: "slope",
-    secantWord: "Secant",
+    secantWord: "Line",
     lineWord: "Line",
   },
 };
 
-// Decimals shown for values the student typed and for the legs of the slope
-// triangle. Four, not two: the legs have to survive being divided. From
-// x=1 to x=1.01 on h, dy = 0.026733 — shown as "0.03" a student dividing the
-// displayed numbers gets 3 instead of 2.67. The probe is NOT governed by this;
-// it reads to the grid's resolution and says so with an approximate sign.
+// Decimals shown for readings, typed values and the legs of the slope triangle.
+// Four, not two: the legs have to survive being divided. From x=1 to x=1.01 on
+// (1/3)x^2+2x+1, dy = 0.026733 — shown as "0.03" a student dividing the
+// displayed numbers gets 3 instead of 2.67.
 const DP = 4;
 
 let lang = "da";
@@ -726,39 +910,284 @@ function num(v, dp) {
 // Accept both decimal comma and decimal point on input.
 function parseNum(s) {
   if (typeof s !== "string") return NaN;
-  const cleaned = s.trim().replace(/\s+/g, "").replace(",", ".");
+  const cleaned = s.trim().replace(/\s+/g, "").replace(",", ".").replace(/[−–]/g, "-");
   if (cleaned === "" || !/^[-+]?\d*\.?\d+$/.test(cleaned)) return NaN;
   return parseFloat(cleaned);
 }
 
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+  });
+}
+
 const TEST_MODE = new URLSearchParams(location.search).get("test") === "1";
+/* ------------------------------------------------------- expression parser */
 
-/* -------------------------------------------------------------- mathematics */
+// A small recursive-descent parser. AIPLA forbids dynamic code evaluation, and a
+// student's formula is untrusted input anyway, so the expression is parsed into
+// a tree of closures and never executed as code.
+//
+// Grammar, loosest to tightest:
+//   expr  := term (("+" | "-") term)*
+//   term  := unary (("*" | "/") unary | <implicit> unary)*
+//   unary := ("-" | "+") unary | power
+//   power := atom ("^" unary)?           right-associative; x^-1 allowed
+//   atom  := number | x | constant | fn (paren | power) | "(" expr ")"
+//
+// Implicit multiplication binds exactly like "*", left to right. So 1/3x^2 is
+// (1/3)·x², which is what a student writing ⅓x² means. -x^2 is -(x²).
+const PARSE_FUNCS = {
+  sqrt: Math.sqrt, abs: Math.abs, exp: Math.exp, ln: Math.log,
+  log: function (v) { return Math.log(v) / Math.LN10; },
+  sin: Math.sin, cos: Math.cos, tan: Math.tan,
+};
+const PARSE_WORDS = ["sqrt", "abs", "exp", "ln", "log", "sin", "cos", "tan", "pi"];
+const VULGAR = { "½": 1 / 2, "⅓": 1 / 3, "⅔": 2 / 3, "¼": 1 / 4, "¾": 3 / 4, "⅕": 1 / 5, "⅙": 1 / 6, "⅛": 1 / 8 };
 
-// Pure. The bench draws these; it never differentiates them.
-const CURVES = {
-  f: { key: "f", expr: "f(x) = x²",        fn: (x) => x * x,                 colour: "#2563eb" },
-  g: { key: "g", expr: "g(x) = 2x² − 4x",  fn: (x) => 2 * x * x - 4 * x,     colour: "#d97706" },
-  h: { key: "h", expr: "h(x) = ⅓x² + 2x + 1", fn: (x) => (x * x) / 3 + 2 * x + 1, colour: "#16a34a" },
-};
+function ParseError(code) { this.code = code; }
 
-// Default windows. The live windows below can be dragged, so these are the
-// state "Nulstil vindue" returns to.
-const VIEW_DEFAULTS = {
-  fg: { curves: ["f", "g"], xmin: -2.4, xmax: 3.4, ymin: -3, ymax: 17 },
-  // The h window reaches past the vertex at (-3, -2) on purpose: in a narrow
-  // window around x = 1 the curve is monotonically increasing and does not read
-  // as a parabola at all, which is confusing in a lesson about parabolas.
-  h:  { curves: ["h"],      xmin: -5.2, xmax: 3.2, ymin: -2.6, ymax: 11 },
-};
-const VIEWS = {
-  fg: Object.assign({}, VIEW_DEFAULTS.fg),
-  h:  Object.assign({}, VIEW_DEFAULTS.h),
-};
+function tokenize(src) {
+  const s = src
+    .replace(/[−–—]/g, "-").replace(/[·×∙⋅]/g, "*").replace(/÷/g, "/")
+    .replace(/²/g, "^2").replace(/³/g, "^3").replace(/π/g, "pi").replace(/√/g, "sqrt");
+  const out = [];
+  let i = 0;
+  while (i < s.length) {
+    const c = s[i];
+    if (/\s/.test(c)) { i++; continue; }
+    if (/[0-9.,]/.test(c)) {
+      let j = i;
+      while (j < s.length && /[0-9.,]/.test(s[j])) j++;
+      const raw = s.slice(i, j).replace(",", ".");
+      if (!/^(\d+\.?\d*|\.\d+)$/.test(raw)) throw new ParseError("number");
+      out.push({ t: "num", v: parseFloat(raw) });
+      i = j; continue;
+    }
+    if (VULGAR[c] !== undefined) { out.push({ t: "num", v: VULGAR[c] }); i++; continue; }
+    if (/[a-zA-Z]/.test(c)) {
+      let j = i;
+      while (j < s.length && /[a-zA-Z]/.test(s[j])) j++;
+      let w = s.slice(i, j).toLowerCase();
+      while (w.length) {
+        const m = PARSE_WORDS.find(function (f) { return w.indexOf(f) === 0; });
+        if (m) {
+          out.push(m === "pi" ? { t: "num", v: Math.PI } : { t: "fn", v: m });
+          w = w.slice(m.length); continue;
+        }
+        if (w[0] === "x") out.push({ t: "x" });
+        else if (w[0] === "e") out.push({ t: "num", v: Math.E });
+        else throw new ParseError("name");
+        w = w.slice(1);
+      }
+      i = j; continue;
+    }
+    if ("+-*/^()".indexOf(c) >= 0) { out.push({ t: c }); i++; continue; }
+    throw new ParseError("char");
+  }
+  return out;
+}
+
+function parseExpr(src) {
+  const toks = tokenize(src);
+  let p = 0;
+  const peek = function () { return toks[p]; };
+  const take = function () { return toks[p++]; };
+  const startsAtom = function (tk) {
+    return tk && (tk.t === "num" || tk.t === "x" || tk.t === "fn" || tk.t === "(");
+  };
+
+  function expr() {
+    let left = term();
+    while (peek() && (peek().t === "+" || peek().t === "-")) {
+      const op = take().t, a = left, b = term();
+      left = op === "+" ? function (x) { return a(x) + b(x); } : function (x) { return a(x) - b(x); };
+    }
+    return left;
+  }
+  function term() {
+    let left = unary();
+    for (;;) {
+      const tk = peek();
+      if (tk && (tk.t === "*" || tk.t === "/")) {
+        take();
+        const a = left, b = unary();
+        left = tk.t === "*" ? function (x) { return a(x) * b(x); } : function (x) { return a(x) / b(x); };
+      } else if (startsAtom(tk)) {
+        const a = left, b = unary();
+        left = function (x) { return a(x) * b(x); };
+      } else break;
+    }
+    return left;
+  }
+  function unary() {
+    const tk = peek();
+    if (tk && tk.t === "-") { take(); const a = unary(); return function (x) { return -a(x); }; }
+    if (tk && tk.t === "+") { take(); return unary(); }
+    return power();
+  }
+  function power() {
+    const base = atom();
+    if (peek() && peek().t === "^") {
+      take();
+      const ex = unary();
+      return function (x) { return Math.pow(base(x), ex(x)); };
+    }
+    return base;
+  }
+  function atom() {
+    const tk = take();
+    if (!tk) throw new ParseError("end");
+    if (tk.t === "num") { const v = tk.v; return function () { return v; }; }
+    if (tk.t === "x") return function (x) { return x; };
+    if (tk.t === "fn") {
+      const f = PARSE_FUNCS[tk.v];
+      const arg = peek() && peek().t === "(" ? atom() : power();
+      return function (x) { return f(arg(x)); };
+    }
+    if (tk.t === "(") {
+      const inner = expr();
+      const close = take();
+      if (!close || close.t !== ")") throw new ParseError("paren");
+      return inner;
+    }
+    throw new ParseError("token");
+  }
+
+  if (!toks.length) throw new ParseError("empty");
+  const fn = expr();
+  if (p < toks.length) throw new ParseError("trailing");
+  return fn;
+}
+
+// Splits "f(x) = ..." / "y = ..." / "..." into a name (or null) and the
+// right-hand side. Throws on a left-hand side the bench cannot use.
+const RESERVED_NAMES = ["x", "y", "e"];
+function splitDefinition(src) {
+  const s = src.trim();
+  const eq = s.indexOf("=");
+  if (eq < 0) return { name: null, rhs: s };
+  if (s.indexOf("=", eq + 1) >= 0) throw new ParseError("equals");
+  const lhs = s.slice(0, eq).replace(/\s+/g, "");
+  const rhs = s.slice(eq + 1).trim();
+  if (lhs === "y") return { name: null, rhs: rhs };
+  const m = /^([a-zA-Z])\(x\)$/.exec(lhs);
+  if (!m || RESERVED_NAMES.indexOf(m[1].toLowerCase()) >= 0) throw new ParseError("lhs");
+  return { name: m[1], rhs: rhs };
+}
+
+// For display only: what the student typed, set the way the textbook sets it.
+// Decimal separators follow the bench language, so 0.6 typed in a Danish bench
+// is shown as 0,6 — whichever the student used. Computed at render time, so
+// switching language updates the legend and the list.
+//
+// It must show what is PLOTTED, not just what was typed (Ida, 10 Oct 2026). A
+// student who types 2x2 for 2x² gets 2·x·2 = 4x from the parser, so the
+// legend makes that multiplication visible: "2x·2". A number directly after x
+// or ")" — or after another number, across a space — is an implicit
+// multiplication, and is shown with a dot.
+function prettyExpr(rhs) {
+  const sep = typeof lang !== "undefined" && lang === "en" ? "." : ",";
+  return rhs.trim()
+    .replace(/([xX)])\s*(?=[0-9.,])/g, "$1*")
+    .replace(/(\d)\s+(?=\d)/g, "$1*")
+    .replace(/(\d)[.,](\d)/g, "$1" + sep + "$2")
+    .replace(/\s+/g, " ")
+    .replace(/\^\s*2(?![0-9.,])/g, "²").replace(/\^\s*3(?![0-9.,])/g, "³")
+    .replace(/\*/g, "·").replace(/-/g, "−").replace(/sqrt/gi, "√");
+}
+
+/* -------------------------------------------------------------------- state */
+
+const CURVE_COLOURS = ["#2563eb", "#d97706", "#16a34a", "#9333ea", "#0f766e", "#b91c1c", "#64748b"];
+const LINE_COLOURS = ["#dc2626", "#7c3aed", "#0891b2", "#be185d", "#4d7c0f"];
+// Letters handed out to formulas that do not name themselves. i, j, l, o look
+// like digits or are reserved by convention; e, x, y are taken by the parser.
+const AUTO_NAMES = ["f", "g", "h", "k", "m", "n", "p", "q", "r", "s", "u", "v", "w"];
+const DEFAULT_X = [-5, 5];
+
+// kind "graph" or "k" (the Δx-window); n numbers the graph windows 1, 2, 3 …
+// in the order they were made, so "Grafvindue 2" keeps its name.
+function makeWindow(kind, n) {
+  return { kind: kind || "graph", n: n || 1, curves: [], v: { xmin: -5, xmax: 5, ymin: -5, ymax: 5 }, auto: true, colourSeq: 0 };
+}
+// One graph window to begin with (Ida, 11 Oct 2026). Students add more with
+// "+", and the Δx-window only exists once someone adds it — so an activity
+// that never mentions it (UV1) does not show it.
+const WINDOWS = [makeWindow("graph", 1)];
+const MAX_GRAPH_WINDOWS = 6;
+let K_WIN = -1;              // index of the Δx-window, -1 until it is added
+function windowName(ww) { return ww.kind === "k" ? t("kTab") : t("winTab") + " " + ww.n; }
+let win = 0;                 // index of the active graph window
+const W_ = () => WINDOWS[win];
+
+// No grid to begin with: free clicking is the first thing you try, and the grid
+// is what you reach for when hitting the right spot turns out to be hard.
+let gridStep = 0;
+let lines = [];              // {kind:"secant"|"point", p1, p2?, a?, colour, win}
+let probe = null;            // {x, hits:[{curve,y}]} — x snapped, y from the function
+let probeMissed = false;
+let lineSeq = 0;
+let toolsOpen = false;
+let lastFunctionError = null; // {text, window} — failed entries are data too
+let kTool = null;            // {curve, x0, k} in the k-window, or null
+
+const pendingChanges = {};
+
+const canvas = document.getElementById("plot");
+const ctx = canvas.getContext("2d");
+
+function curveLabel(c) { return c.name + "(x) = " + c.rhs.trim(); }
+function displayOf(c) { return c.name + "(x) = " + prettyExpr(c.rhs); }
+
+function simState() {
+  const w = W_();
+  return {
+    graph_window: windowName(W_()),
+    functions_in_window: w.curves.map(curveLabel),
+    all_windows: WINDOWS.map(function (ww, i) {
+      return { graph_window: windowName(ww), functions: ww.curves.map(curveLabel) };
+    }),
+    grid_step_units: gridStep,
+    tools_panel_open: toolsOpen,
+    window: { x_min: w.v.xmin, x_max: w.v.xmax, y_min: w.v.ymin, y_max: w.v.ymax },
+    window_is_auto: w.auto,
+    last_reading: probe ? {
+      x: probe.x,
+      readings: probe.hits.map(function (h) { return { curve: h.curve, y: h.y }; }),
+      x_snapped_to_grid_step: gridStep,
+    } : null,
+    inserted_lines: lines.filter((L) => L.win === win).slice(-20).map((L) =>
+      L.kind === "secant"
+        ? { kind: "line_through_two_points", x1: L.p1.x, y1: L.p1.y, x2: L.p2.x, y2: L.p2.y, dx: legs(L.p1, L.p2).dx, dy: legs(L.p1, L.p2).dy }
+        : { kind: "line_through_point", x0: L.p1.x, y0: L.p1.y, slope_a: L.a }
+    ),
+    inserted_line_count: lines.filter((L) => L.win === win).length,
+    last_function_error: lastFunctionError,
+    k_tool: kState(),
+  };
+}
+
+function kCurve() {
+  if (!kTool) return null;
+  return WINDOWS[K_WIN].curves.find((c) => c.name === kTool.curve) || null;
+}
+// The two points and the two increments. Never their quotient.
+function kState() {
+  const c = kCurve();
+  if (!c) return null;
+  const y0 = c.fn(kTool.x0), y1 = c.fn(kTool.x0 + kTool.k);
+  return { curve: c.name, x0: kTool.x0, k: kTool.k, x0_plus_k: kTool.x0 + kTool.k,
+           y0: y0, y_at_x0_plus_k: y1, dy: y1 - y0 };
+}
+// Enough decimals that k and the y-increment can still be divided: at k =
+// 0.001 four decimals would show dy as 0,0026 and lose a digit of the quotient.
+function kDecimals(k) {
+  const a = Math.abs(k);
+  return a > 0 ? Math.min(10, Math.max(DP, Math.ceil(-Math.log10(a)) + 3)) : DP;
+}
 
 // Pure: snap a value to the nearest multiple of step. step 0 means no snapping.
-// This is the mechanism that keeps h(1) = 10/3 off the instrument: no offered
-// step (1, 0.5, 0.25) has 10/3 as a multiple.
 function gridSnap(v, step) {
   if (!step) return v;
   return Math.round(v / step) * step;
@@ -769,47 +1198,69 @@ function legs(p1, p2) {
   return { dx: p2.x - p1.x, dy: p2.y - p1.y };
 }
 
-/* -------------------------------------------------------------------- state */
-
-const LINE_COLOURS = ["#dc2626", "#7c3aed", "#0891b2", "#be185d", "#4d7c0f"];
-
-let view = "fg";
-// No grid to begin with: free clicking is the first thing you try, and the grid
-// is what you reach for when hitting the right spot turns out to be hard. That
-// makes switching it on a response to a felt need rather than a setting handed
-// over in advance.
-let gridStep = 0;
-let lines = [];          // {kind:"secant"|"point", p1, p2?, a?, colour}
-let probe = null;        // {x, hits:[{curve,y}]} — x snapped, y from the function
-let probeMissed = false; // last click landed on no curve
-let lineSeq = 0;
-let toolsOpen = false;
-
-const pendingChanges = {};
-
-const canvas = document.getElementById("plot");
-const ctx = canvas.getContext("2d");
-
-function simState() {
-  const v = VIEWS[view];
-  return {
-    view: view,
-    curves_shown: v.curves.map((k) => CURVES[k].expr),
-    grid_step_units: gridStep,
-    tools_panel_open: toolsOpen,
-    window: { x_min: v.xmin, x_max: v.xmax, y_min: v.ymin, y_max: v.ymax },
-    last_reading: probe ? {
-      x: probe.x,
-      readings: probe.hits.map(function (h) { return { curve: h.curve, y: h.y }; }),
-      x_snapped_to_grid_step: gridStep,
-    } : null,
-    inserted_lines: lines.slice(-20).map((L) =>
-      L.kind === "secant"
-        ? { kind: "secant", x1: L.p1.x, y1: L.p1.y, x2: L.p2.x, y2: L.p2.y, dx: legs(L.p1, L.p2).dx, dy: legs(L.p1, L.p2).dy }
-        : { kind: "line_through_point", x0: L.p1.x, y0: L.p1.y, slope_a: L.a }
-    ),
-    inserted_line_count: lines.length,
-  };
+// Pure: a y-range that shows the curves over the default x-range. Percentiles,
+// not min and max, so 1/x or e^x does not flatten everything else, and a steep
+// curve may leave the top of the frame rather than squash the others.
+// The automatic window frames what is interesting about the curves, not the
+// fixed strip x in [-5, 5] (11 Oct 2026). With [-5, 5] a parabola such as
+// 2x^2 - 4x ran to y = 50, and the region around its vertex — where the
+// lesson happens — was a flat smear at the bottom. Now x covers the zeros,
+// turning points, y-intercept and crossings between the curves, with room
+// around them; y follows from the curves over that x-range.
+function interestingX(curves) {
+  const N = 2000, A = -10, B = 10, xs = [0];
+  const sample = curves.map(function (c) {
+    const ys = [];
+    for (let i = 0; i <= N; i++) ys.push(c.fn(A + ((B - A) * i) / N));
+    return ys;
+  });
+  const at = (i) => A + ((B - A) * i) / N;
+  sample.forEach(function (ys) {
+    for (let i = 1; i < N; i++) {
+      const a = ys[i - 1], b = ys[i], c = ys[i + 1];
+      if (!isFinite(a) || !isFinite(b) || !isFinite(c)) continue;
+      if ((a < 0 && b >= 0) || (a > 0 && b <= 0)) xs.push(at(i));      // zero
+      if ((b - a) * (c - b) < 0) xs.push(at(i));                       // turning point
+    }
+  });
+  for (let p = 0; p < sample.length; p++) for (let q = p + 1; q < sample.length; q++) {
+    for (let i = 1; i <= N; i++) {
+      const d0 = sample[p][i - 1] - sample[q][i - 1], d1 = sample[p][i] - sample[q][i];
+      if (isFinite(d0) && isFinite(d1) && ((d0 < 0 && d1 >= 0) || (d0 > 0 && d1 <= 0))) xs.push(at(i)); // crossing
+    }
+  }
+  return xs;
+}
+function fitWindow(w) {
+  let xmin = DEFAULT_X[0], xmax = DEFAULT_X[1];
+  if (w.curves.length) {
+    const xs = interestingX(w.curves);
+    const lo = Math.min.apply(null, xs), hi = Math.max.apply(null, xs);
+    const MIN_SPAN = 5;
+    const span = Math.max(MIN_SPAN, (hi - lo) * 1.8);
+    const mid = (lo + hi) / 2;
+    xmin = mid - span / 2; xmax = mid + span / 2;
+  }
+  const ys = [];
+  w.curves.forEach(function (c) {
+    for (let i = 0; i <= 200; i++) {
+      const y = c.fn(xmin + ((xmax - xmin) * i) / 200);
+      if (isFinite(y)) ys.push(y);
+    }
+  });
+  let ymin = -5, ymax = 5;
+  if (ys.length) {
+    ys.sort(function (a, b) { return a - b; });
+    ymin = ys[Math.floor(0.05 * (ys.length - 1))];
+    ymax = ys[Math.ceil(0.90 * (ys.length - 1))];
+    // keep the x-axis in view when it is close
+    if (ymin > 0 && ymin < 0.5 * (ymax - ymin)) ymin = 0;
+    if (ymax < 0 && -ymax < 0.5 * (ymax - ymin)) ymax = 0;
+    if (ymax - ymin < 2) { const m = (ymax + ymin) / 2; ymin = m - 1; ymax = m + 1; }
+    const pad = 0.08 * (ymax - ymin);
+    ymin -= pad; ymax += pad;
+  }
+  w.v = { xmin: xmin, xmax: xmax, ymin: ymin, ymax: ymax };
 }
 
 /* ---------------------------------------------------------------- telemetry */
@@ -842,37 +1293,54 @@ function sizeCanvas() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 }
 
-const PAD = { l: 38, r: 10, t: 10, b: 26 };
+const PAD = { l: 42, r: 10, t: 10, b: 26 };
 
-function sx(x) {
-  const v = VIEWS[view];
-  return PAD.l + ((x - v.xmin) / (v.xmax - v.xmin)) * (W - PAD.l - PAD.r);
+function sx(x) { const v = W_().v; return PAD.l + ((x - v.xmin) / (v.xmax - v.xmin)) * (W - PAD.l - PAD.r); }
+function sy(y) { const v = W_().v; return H - PAD.b - ((y - v.ymin) / (v.ymax - v.ymin)) * (H - PAD.t - PAD.b); }
+function wx(px) { const v = W_().v; return v.xmin + ((px - PAD.l) / (W - PAD.l - PAD.r)) * (v.xmax - v.xmin); }
+function wy(py) { const v = W_().v; return v.ymin + ((H - PAD.b - py) / (H - PAD.t - PAD.b)) * (v.ymax - v.ymin); }
+
+// Pure: a 1-2-5 tick step giving roughly `target` ticks over `span`.
+function niceStep(span, target) {
+  const raw = span / target;
+  const p = Math.pow(10, Math.floor(Math.log10(raw)));
+  const m = raw / p;
+  return (m < 1.5 ? 1 : m < 3.5 ? 2 : m < 7.5 ? 5 : 10) * p;
 }
-function sy(y) {
-  const v = VIEWS[view];
-  return H - PAD.b - ((y - v.ymin) / (v.ymax - v.ymin)) * (H - PAD.t - PAD.b);
+function stepDecimals(step) { return Math.max(0, -Math.floor(Math.log10(step) + 1e-9)); }
+
+// The axes do not share a scale, so one grid step can be roomy on one axis and
+// crammed on the other (y from -5 to 33 with a half-unit grid gave a line every
+// 6 px). Each axis therefore uses the smallest multiple of the chosen step that
+// leaves at least GRID_MIN_PX between lines — and the probe snaps to exactly
+// the lines that are drawn, so what you see is what you can hit.
+const GRID_MIN_PX = 12;
+function axisStep(rangeUnits, spanPx) {
+  if (!gridStep) return 0;
+  const mults = [1, 2, 4, 5, 10, 20, 40, 50, 100, 200, 500, 1000];
+  for (let i = 0; i < mults.length; i++) {
+    const st = gridStep * mults[i];
+    if ((st / rangeUnits) * spanPx >= GRID_MIN_PX) return st;
+  }
+  return gridStep * mults[mults.length - 1];
 }
-function wx(px) {
-  const v = VIEWS[view];
-  return v.xmin + ((px - PAD.l) / (W - PAD.l - PAD.r)) * (v.xmax - v.xmin);
-}
+function gridStepX() { const v = W_().v; return axisStep(v.xmax - v.xmin, W - PAD.l - PAD.r); }
+function gridStepY() { const v = W_().v; return axisStep(v.ymax - v.ymin, H - PAD.t - PAD.b); }
 
 function drawGrid() {
-  const v = VIEWS[view];
+  const v = W_().v;
   if (gridStep) {
-    const minPx = 4;
-    const xPx = (gridStep / (v.xmax - v.xmin)) * (W - PAD.l - PAD.r);
-    const yPx = (gridStep / (v.ymax - v.ymin)) * (H - PAD.t - PAD.b);
+    const stX = gridStepX(), stY = gridStepY();
     ctx.lineWidth = 1;
-    if (xPx >= minPx) {
-      for (let x = Math.ceil(v.xmin / gridStep) * gridStep; x <= v.xmax + 1e-9; x += gridStep) {
+    {
+      for (let x = Math.ceil(v.xmin / stX) * stX; x <= v.xmax + 1e-9; x += stX) {
         const isInt = Math.abs(x - Math.round(x)) < 1e-9;
         ctx.strokeStyle = isInt ? "#e2e8f0" : "#f1f5f9";
         ctx.beginPath(); ctx.moveTo(sx(x), PAD.t); ctx.lineTo(sx(x), H - PAD.b); ctx.stroke();
       }
     }
-    if (yPx >= minPx) {
-      for (let y = Math.ceil(v.ymin / gridStep) * gridStep; y <= v.ymax + 1e-9; y += gridStep) {
+    {
+      for (let y = Math.ceil(v.ymin / stY) * stY; y <= v.ymax + 1e-9; y += stY) {
         const isInt = Math.abs(y - Math.round(y)) < 1e-9;
         ctx.strokeStyle = isInt ? "#e2e8f0" : "#f1f5f9";
         ctx.beginPath(); ctx.moveTo(PAD.l, sy(y)); ctx.lineTo(W - PAD.r, sy(y)); ctx.stroke();
@@ -885,53 +1353,58 @@ function drawGrid() {
   if (v.ymin <= 0 && v.ymax >= 0) { ctx.beginPath(); ctx.moveTo(PAD.l, sy(0)); ctx.lineTo(W - PAD.r, sy(0)); ctx.stroke(); }
   if (v.xmin <= 0 && v.xmax >= 0) { ctx.beginPath(); ctx.moveTo(sx(0), PAD.t); ctx.lineTo(sx(0), H - PAD.b); ctx.stroke(); }
 
-  // integer ticks and labels
+  // tick labels — the step adapts to the zoom
   ctx.fillStyle = "#64748b";
   ctx.font = "11px system-ui, sans-serif";
+  const xs = niceStep(v.xmax - v.xmin, Math.max(3, Math.floor((W - PAD.l - PAD.r) / 55)));
+  const xd = stepDecimals(xs);
   ctx.textAlign = "center"; ctx.textBaseline = "top";
-  for (let x = Math.ceil(v.xmin); x <= v.xmax; x += 1) {
-    if (Math.abs(x) < 1e-9) continue;
-    ctx.fillText(num(x, 0), sx(x), H - PAD.b + 5);
+  for (let x = Math.ceil(v.xmin / xs) * xs; x <= v.xmax + 1e-9; x += xs) {
+    if (Math.abs(x) < xs / 1e6) continue;
+    ctx.fillText(num(x, xd), sx(x), H - PAD.b + 5);
   }
+  const ys = niceStep(v.ymax - v.ymin, Math.max(3, Math.floor((H - PAD.t - PAD.b) / 40)));
+  const yd = stepDecimals(ys);
   ctx.textAlign = "right"; ctx.textBaseline = "middle";
-  const yStep = (v.ymax - v.ymin) > 12 ? 2 : 1;
-  for (let y = Math.ceil(v.ymin / yStep) * yStep; y <= v.ymax; y += yStep) {
-    if (Math.abs(y) < 1e-9) continue;
-    ctx.fillText(num(y, 0), PAD.l - 6, sy(y));
+  for (let y = Math.ceil(v.ymin / ys) * ys; y <= v.ymax + 1e-9; y += ys) {
+    if (Math.abs(y) < ys / 1e6) continue;
+    ctx.fillText(num(y, yd), PAD.l - 6, sy(y));
   }
 }
 
-function drawCurve(key) {
-  const c = CURVES[key];
-  const v = VIEWS[view];
+function drawCurve(c) {
+  const v = W_().v;
   ctx.save();
   ctx.beginPath();
   ctx.rect(PAD.l, PAD.t, W - PAD.l - PAD.r, H - PAD.t - PAD.b);
   ctx.clip();
   ctx.strokeStyle = c.colour; ctx.lineWidth = 2;
   ctx.beginPath();
-  const steps = 400;
-  let started = false;
+  const steps = Math.max(400, Math.round(W * 1.5));
+  let pen = false, lastPy = 0;
   for (let i = 0; i <= steps; i++) {
     const x = v.xmin + ((v.xmax - v.xmin) * i) / steps;
     const y = c.fn(x);
+    if (!isFinite(y)) { pen = false; continue; }
     const px = sx(x), py = sy(y);
-    if (!started) { ctx.moveTo(px, py); started = true; } else { ctx.lineTo(px, py); }
+    // lift the pen across an asymptote instead of drawing a vertical streak
+    if (pen && Math.abs(py - lastPy) > 3 * H) pen = false;
+    if (!pen) { ctx.moveTo(px, py); pen = true; } else { ctx.lineTo(px, py); }
+    lastPy = py;
   }
   ctx.stroke();
   ctx.restore();
 }
 
-// Expressions live in a legend rather than at the end of each curve: g leaves
-// the top of the frame, so an end-label would be clipped.
 function drawLegend() {
-  const items = VIEWS[view].curves.map((k) => CURVES[k]);
+  const items = W_().curves;
+  if (!items.length) return;
   ctx.save();
   ctx.font = "italic 15px 'Cambria Math', Cambria, Georgia, 'Times New Roman', serif";
   let wmax = 0;
-  items.forEach((c) => { wmax = Math.max(wmax, ctx.measureText(c.expr).width); });
+  items.forEach((c) => { wmax = Math.max(wmax, ctx.measureText(displayOf(c)).width); });
   const bx = PAD.l + 10, by = PAD.t + 8;
-  const bw = wmax + 44, bh = items.length * 22 + 10;
+  const bw = Math.min(wmax + 44, W - PAD.l - PAD.r - 20), bh = items.length * 22 + 10;
   ctx.globalAlpha = 0.92; ctx.fillStyle = "#ffffff";
   ctx.fillRect(bx, by, bw, bh);
   ctx.globalAlpha = 1;
@@ -943,19 +1416,19 @@ function drawLegend() {
     ctx.fillStyle = c.colour;
     ctx.fillRect(bx + 10, y - 2, 20, 3);
     ctx.fillStyle = "#0f172a";
-    ctx.fillText(c.expr, bx + 36, y);
+    ctx.fillText(displayOf(c), bx + 36, y, bw - 44);
   });
   ctx.restore();
 }
 
 function drawLines() {
-  const v = VIEWS[view];
+  const v = W_().v;
   ctx.save();
   ctx.beginPath();
   ctx.rect(PAD.l, PAD.t, W - PAD.l - PAD.r, H - PAD.t - PAD.b);
   ctx.clip();
 
-  lines.filter((L) => L.view === view).forEach((L) => {
+  lines.filter((L) => L.win === win).forEach((L) => {
     let a, b;
     if (L.kind === "secant") {
       const d = legs(L.p1, L.p2);
@@ -971,7 +1444,6 @@ function drawLines() {
     ctx.lineTo(sx(v.xmax), sy(a * v.xmax + b));
     ctx.stroke();
 
-    // slope triangle for secants only
     if (L.kind === "secant") {
       ctx.setLineDash([3, 3]);
       ctx.strokeStyle = L.colour; ctx.globalAlpha = 0.8; ctx.lineWidth = 1;
@@ -982,20 +1454,10 @@ function drawLines() {
       ctx.stroke();
       ctx.setLineDash([]); ctx.globalAlpha = 1;
 
-      const d = legs(L.p1, L.p2);
-      ctx.fillStyle = L.colour;
-      ctx.font = "11px system-ui, sans-serif";
-      ctx.textAlign = "center"; ctx.textBaseline = "top";
-      ctx.fillText(t("dx") + " " + num(d.dx, DP), (sx(L.p1.x) + sx(L.p2.x)) / 2, sy(L.p1.y) + 3);
-      // Right of the vertical leg, unless that runs off the plot — a secant
-      // ending near the window's right edge otherwise loses its dy entirely.
-      const dyText = t("dy") + " " + num(d.dy, DP);
-      const fitsRight = sx(L.p2.x) + 4 + ctx.measureText(dyText).width <= W - PAD.r;
-      ctx.textAlign = fitsRight ? "left" : "right"; ctx.textBaseline = "middle";
-      ctx.fillText(dyText, sx(L.p2.x) + (fitsRight ? 4 : -4), (sy(L.p1.y) + sy(L.p2.y)) / 2);
+      // The triangle is drawn but not measured: the legs are the student's
+      // to work out from the points they typed.
     }
 
-    // the points the student typed
     [L.p1, L.p2].forEach((p) => {
       if (!p) return;
       ctx.fillStyle = L.colour;
@@ -1010,7 +1472,7 @@ function drawProbe() {
   ctx.save();
   probe.hits.forEach((hit) => {
     ctx.strokeStyle = "#94a3b8"; ctx.setLineDash([4, 3]); ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(sx(probe.x), sy(hit.y)); ctx.lineTo(sx(probe.x), sy(VIEWS[view].ymin)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(sx(probe.x), sy(hit.y)); ctx.lineTo(sx(probe.x), H - PAD.b); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(sx(probe.x), sy(hit.y)); ctx.lineTo(PAD.l, sy(hit.y)); ctx.stroke();
     ctx.setLineDash([]);
     ctx.fillStyle = "#0f172a";
@@ -1023,8 +1485,9 @@ function render() {
   if (!W || !H) sizeCanvas();
   ctx.clearRect(0, 0, W, H);
   drawGrid();
-  VIEWS[view].curves.forEach(drawCurve);
+  W_().curves.forEach(drawCurve);
   drawLines();
+  drawKTool();
   drawProbe();
   drawLegend();
 }
@@ -1034,7 +1497,10 @@ function render() {
 function renderReadouts() {
   const out = document.getElementById("probe-out");
   const note = document.getElementById("probe-note");
-  if (probeMissed) {
+  if (!W_().curves.length) {
+    out.textContent = t("probeNoCurves");
+    note.textContent = "";
+  } else if (probeMissed) {
     out.textContent = t("probeMiss");
     note.textContent = "";
   } else if (!probe) {
@@ -1042,53 +1508,78 @@ function renderReadouts() {
     note.textContent = "";
   } else {
     // Function notation, not "y": the probe computes the value from the
-    // function, so this is what it actually did. The curve prefix is dropped
-    // because the name is now inside the notation. The inserted-lines list
-    // below deliberately does NOT use this form — those points are whatever
-    // the student typed, and may not lie on any curve.
+    // function. The inserted-lines list deliberately does NOT use this form —
+    // those points are whatever the student typed.
     out.innerHTML =
       '<i>x</i> = <span class="n">' + num(probe.x, DP) + '</span>' +
       probe.hits.map(function (hit) {
-        return '&nbsp;&nbsp;&nbsp;&nbsp;<i>' + hit.curve + '</i>(<span class="n">' +
+        return '&nbsp;&nbsp;&nbsp;&nbsp;<i>' + escapeHtml(hit.curve) + '</i>(<span class="n">' +
                num(probe.x, DP) + '</span>) = <span class="n">' + num(hit.y, DP) + '</span>';
       }).join("");
-    // gridStep 0 means no snapping: any point on the curve can be measured.
     note.textContent = gridStep ? t("probeNote") : t("probeNoteFree");
   }
+}
+
+function renderFunctions() {
+  const ul = document.getElementById("func-list");
+  ul.textContent = "";
+  const cs = W_().curves;
+  if (!cs.length) {
+    const li = document.createElement("li");
+    li.className = "empty";
+    li.textContent = t("funcEmpty");
+    ul.appendChild(li);
+    return;
+  }
+  cs.forEach((c) => {
+    const li = document.createElement("li");
+    const sw = document.createElement("span");
+    sw.className = "swatch"; sw.style.background = c.colour;
+    li.appendChild(sw);
+    const fx = document.createElement("span");
+    fx.className = "fx";
+    fx.textContent = displayOf(c);  // student text: textContent, never innerHTML
+    li.appendChild(fx);
+    const del = document.createElement("button");
+    del.className = "del"; del.type = "button";
+    del.textContent = "×";
+    del.setAttribute("aria-label", t("deleteFunc") + " " + c.name);
+    del.addEventListener("click", () => removeFunction(c));
+    li.appendChild(del);
+    ul.appendChild(li);
+  });
 }
 
 function renderTable() {
   const ul = document.getElementById("lines-list");
   ul.textContent = "";
-  if (!lines.filter((L) => L.view === view).length) {
+  const mine = lines.filter((L) => L.win === win);
+  if (!mine.length) {
     const li = document.createElement("li");
     li.className = "empty";
     li.textContent = t("linesEmpty");
     ul.appendChild(li);
     return;
   }
-  lines.filter((L) => L.view === view).slice().reverse().forEach((L) => {
+  mine.slice().reverse().forEach((L) => {
     const li = document.createElement("li");
     const sw = document.createElement("span");
     sw.className = "swatch"; sw.style.background = L.colour;
     li.appendChild(sw);
     const txt = document.createElement("span");
     if (L.kind === "secant") {
-      const d = legs(L.p1, L.p2);
       txt.innerHTML = "<strong>" + t("secantWord") + "</strong> " +
-        "<span class=\"mono\">(" + num(L.p1.x, DP) + "; " + num(L.p1.y, DP) + ")</span> " + t("and") + " " +
-        "<span class=\"mono\">(" + num(L.p2.x, DP) + "; " + num(L.p2.y, DP) + ")</span> &nbsp; " +
-        "<span class=\"mono\">" + t("dx") + " = " + num(d.dx, DP) + "</span> &nbsp; " +
-        "<span class=\"mono\">" + t("dy") + " = " + num(d.dy, DP) + "</span>";
+        "<span class=\"mono\">(" + typed(L.p1.x) + "; " + typed(L.p1.y) + ")</span> " + t("and") + " " +
+        "<span class=\"mono\">(" + typed(L.p2.x) + "; " + typed(L.p2.y) + ")</span>";
     } else {
       txt.innerHTML = "<strong>" + t("lineWord") + "</strong> " +
-        "<span class=\"mono\">(" + num(L.p1.x, DP) + "; " + num(L.p1.y, DP) + ")</span> &nbsp; " +
-        "<span class=\"mono\">" + t("slopeA") + " = " + num(L.a, DP) + "</span>";
+        "<span class=\"mono\">(" + typed(L.p1.x) + "; " + typed(L.p1.y) + ")</span> &nbsp; " +
+        "<span class=\"mono\">" + t("slopeA") + " = " + typed(L.a) + "</span>";
     }
     li.appendChild(txt);
     const del = document.createElement("button");
     del.className = "del"; del.type = "button";
-    del.textContent = "\u00d7";
+    del.textContent = "×";
     del.setAttribute("aria-label", t("deleteLine"));
     del.addEventListener("click", () => removeLine(L));
     li.appendChild(del);
@@ -1105,29 +1596,136 @@ function applyLang() {
     const v = t(el.dataset.t);
     if (v !== undefined) el.textContent = v;
   });
-  // data-th carries strings with mathematical markup (<i> for variables).
-  // The content comes only from the strings object above, never from input.
+  // data-th carries strings with markup; content comes only from `strings`.
   document.querySelectorAll("[data-th]").forEach((el) => {
     const v = t(el.dataset.th);
     if (v !== undefined) el.innerHTML = v;
   });
+  document.querySelectorAll("[data-tp]").forEach((el) => { el.placeholder = t(el.dataset.tp); });
+  document.querySelectorAll("[data-ta]").forEach((el) => {
+    el.setAttribute("aria-label", t(el.dataset.ta)); el.title = t(el.dataset.ta);
+  });
+  renderTabs();
   document.getElementById("lang-da").setAttribute("aria-pressed", String(lang === "da"));
   document.getElementById("lang-en").setAttribute("aria-pressed", String(lang === "en"));
   render();
   renderReadouts();
+  renderFunctions();
   renderTable();
+  renderK();
 }
 
 /* ------------------------------------------------------------------ actions */
 
-function setView(v) {
-  if (view === v) return;
-  view = v;
-  probe = null;
-  document.getElementById("view-fg").setAttribute("aria-pressed", String(v === "fg"));
-  document.getElementById("view-h").setAttribute("aria-pressed", String(v === "h"));
-  pendingChanges.view = true;
-  render(); renderReadouts();
+function renderTabs() {
+  const box = document.getElementById("win-tabs");
+  box.innerHTML = "";
+  WINDOWS.forEach(function (ww, i) {
+    const b = document.createElement("button");
+    b.className = "win-tab";
+    b.textContent = windowName(ww);
+    b.setAttribute("aria-pressed", String(i === win));
+    b.addEventListener("click", () => setWin(i));
+    box.appendChild(b);
+  });
+  const graphs = WINDOWS.filter((ww) => ww.kind === "graph").length;
+  document.getElementById("add-graph").disabled = graphs >= MAX_GRAPH_WINDOWS;
+  document.getElementById("add-kwin").disabled = K_WIN >= 0;
+}
+function showWinPop(open) {
+  document.getElementById("win-pop").classList.toggle("hidden", !open);
+  document.getElementById("win-add").setAttribute("aria-expanded", String(open));
+}
+function addWindow(kind) {
+  showWinPop(false);
+  if (kind === "k") {
+    if (K_WIN >= 0) { setWin(K_WIN); return; }
+    WINDOWS.push(makeWindow("k"));
+    K_WIN = WINDOWS.length - 1;
+  } else {
+    const n = WINDOWS.filter((ww) => ww.kind === "graph").length;
+    if (n >= MAX_GRAPH_WINDOWS) return;
+    WINDOWS.push(makeWindow("graph", n + 1));
+  }
+  pendingChanges.all_windows = true;
+  setWin(WINDOWS.length - 1);
+  flushPendingChanges(kind === "k" ? "add-k-window" : "add-graph-window");
+}
+
+function setWin(i) {
+  if (win === i) return;
+  win = i;
+  probe = null; probeMissed = false;
+  document.getElementById("func-err").textContent = "";
+  renderTabs();
+  pendingChanges.graph_window = true;
+  document.getElementById("kbar").classList.toggle("hidden", i !== K_WIN);
+  render(); renderReadouts(); renderFunctions(); renderTable(); renderK();
+}
+
+function addFunction() {
+  const inp = document.getElementById("func-in");
+  const err = document.getElementById("func-err");
+  const text = inp.value;
+  if (!text.trim()) return;
+  const w = W_();
+  let def, fn;
+  try {
+    def = splitDefinition(text);
+    fn = parseExpr(def.rhs);
+  } catch (e) {
+    const code = e instanceof ParseError ? e.code : "parse";
+    err.textContent = code === "lhs" ? t("errFuncLhs") : code === "equals" ? t("errFuncEq") : t("errFunc");
+    // A formula the bench could not read says something about what the
+    // student tried; it goes to the tutor rather than vanishing.
+    lastFunctionError = { text: text, graph_window: windowName(W_()) };
+    emit("state-change", { changed: ["last_function_error"], state: simState(), triggeredBy: "function-error" });
+    return;
+  }
+  let name = def.name;
+  const existing = name ? w.curves.find((c) => c.name === name) : null;
+  if (!name) {
+    name = AUTO_NAMES.find((n) => !w.curves.some((c) => c.name === n));
+    if (!name) { err.textContent = t("errFuncFull"); return; }
+  }
+  err.textContent = "";
+  lastFunctionError = null;
+  // Retyping a name replaces that function: correcting a typo is the
+  // common case, and it keeps the curve's colour.
+  if (existing) {
+    existing.rhs = def.rhs; existing.fn = fn;
+  } else {
+    w.curves.push({ name: name, rhs: def.rhs, fn: fn,
+                    colour: CURVE_COLOURS[w.colourSeq++ % CURVE_COLOURS.length] });
+  }
+  if (w.auto) fitWindow(w);
+  probe = null; probeMissed = false;
+  inp.value = "";
+  flushPendingChanges("plot-function");
+  // An x0 typed into the Δx-window before there was a curve to put it on
+  // takes effect as soon as there is one.
+  let pendingX0 = NaN;
+  if (win === K_WIN && !probe && !kTool) pendingX0 = parseNum(document.getElementById("x0-in").value);
+  emit("commit", {
+    state: simState(),
+    label: (existing ? t("funcChangedLabel") : t("funcLabel")) + " " + name + "(x) = " +
+           def.rhs.trim() + " " + t("inWindow") + " " + windowName(W_()),
+  });
+  render(); renderReadouts(); renderFunctions();
+  if (isFinite(pendingX0)) setX0(pendingX0); else renderK();
+}
+
+function removeFunction(c) {
+  const w = W_();
+  const i = w.curves.indexOf(c);
+  if (i < 0) return;
+  w.curves.splice(i, 1);
+  if (w.auto) fitWindow(w);
+  probe = null; probeMissed = false;
+  if (win === K_WIN && kTool && !kCurve()) kTool = null;
+  // Not `reset`: kinds ending .reset never reach the tutor.
+  emit("state-change", { changed: ["functions_in_window"], state: simState(), triggeredBy: "delete-function" });
+  render(); renderReadouts(); renderFunctions(); renderK();
 }
 
 function setGrid(step) {
@@ -1136,6 +1734,7 @@ function setGrid(step) {
   document.querySelectorAll(".grid-opt").forEach((b) => {
     b.setAttribute("aria-pressed", String(parseFloat(b.dataset.step) === step));
   });
+  document.getElementById("grid-btn").setAttribute("aria-pressed", String(step > 0));
   pendingChanges.grid_step_units = true;
   render(); renderReadouts();
 }
@@ -1148,14 +1747,14 @@ function addSecant() {
   if (Math.abs(p2.x - p1.x) < 1e-12) { err.textContent = t("errSame"); return; }
   err.textContent = "";
   const colour = LINE_COLOURS[lineSeq++ % LINE_COLOURS.length];
-  lines.push({ kind: "secant", p1: p1, p2: p2, colour: colour, view: view });
-  const d = legs(p1, p2);
-  flushPendingChanges("insert-secant");
+  lines.push({ kind: "secant", p1: p1, p2: p2, colour: colour, win: win });
+  flushPendingChanges("insert-two-point-line");
+  // The label is shown to the student in the chat, so it carries only what
+  // they typed. dx and dy travel in the state, for the tutor.
   emit("reading", {
     state: simState(),
-    label: t("secantLabel") + " (" + num(p1.x, DP) + "; " + num(p1.y, DP) + ") " + t("and") +
-           " (" + num(p2.x, DP) + "; " + num(p2.y, DP) + ") — " +
-           t("dx") + " = " + num(d.dx, DP) + ", " + t("dy") + " = " + num(d.dy, DP),
+    label: t("secantLabel") + " (" + typed(p1.x) + "; " + typed(p1.y) + ") " + t("and") +
+           " (" + typed(p2.x) + "; " + typed(p2.y) + ")",
   });
   render(); renderTable();
 }
@@ -1167,11 +1766,11 @@ function addLine() {
   if ([p.x, p.y, a].some((v) => !isFinite(v))) { err.textContent = t("errNum"); return; }
   err.textContent = "";
   const colour = LINE_COLOURS[lineSeq++ % LINE_COLOURS.length];
-  lines.push({ kind: "point", p1: p, a: a, colour: colour, view: view });
+  lines.push({ kind: "point", p1: p, a: a, colour: colour, win: win });
   flushPendingChanges("insert-line");
   emit("commit", {
     state: simState(),
-    label: t("lineLabel") + " (" + num(p.x, DP) + "; " + num(p.y, DP) + ") " + t("withSlope") + " " + num(a, DP),
+    label: t("lineLabel") + " (" + typed(p.x) + "; " + typed(p.y) + ") " + t("withSlope") + " " + typed(a),
   });
   render(); renderTable();
 }
@@ -1180,76 +1779,381 @@ function removeLine(L) {
   const i = lines.indexOf(L);
   if (i < 0) return;
   lines.splice(i, 1);
-  // Not `reset`: kinds ending .reset never reach the tutor, which would leave
-  // it marking a line the student has deleted.
   emit("state-change", { changed: ["inserted_lines"], state: simState(), triggeredBy: "delete-line" });
   render(); renderTable();
 }
 
-function resetWindow() {
-  VIEWS[view] = Object.assign({}, VIEW_DEFAULTS[view]);
-  pendingChanges.window = true;
-  render();
-}
-
-function panBy(dxPx, dyPx) {
-  const v = VIEWS[view];
-  const wpx = (v.xmax - v.xmin) / (W - PAD.l - PAD.r);
-  const wpy = (v.ymax - v.ymin) / (H - PAD.t - PAD.b);
-  v.xmin -= dxPx * wpx; v.xmax -= dxPx * wpx;
-  v.ymin += dyPx * wpy; v.ymax += dyPx * wpy;
-  render();
-}
-
 function clearLines() {
-  if (!lines.filter((L) => L.view === view).length) return;
-  lines = lines.filter((L) => L.view !== view);
-  // Not `reset`: kinds ending .reset are dropped before the tutor, which would
-  // leave it marking lines the student has cleared.
+  if (!lines.filter((L) => L.win === win).length) return;
+  lines = lines.filter((L) => L.win !== win);
   emit("state-change", { changed: ["inserted_lines"], state: simState(), triggeredBy: "clear" });
   render(); renderTable();
 }
 
+function resetWindow() {
+  manualWindow();
+  const w = W_();
+  w.auto = true;
+  fitWindow(w);
+  pendingChanges.window = true;
+  render();
+}
+
+function manualWindow() { if (win === K_WIN && kZoom) setKZoom(false); }
+function panBy(dxPx, dyPx) {
+  manualWindow();
+  const w = W_(), v = w.v;
+  const wpx = (v.xmax - v.xmin) / (W - PAD.l - PAD.r);
+  const wpy = (v.ymax - v.ymin) / (H - PAD.t - PAD.b);
+  v.xmin -= dxPx * wpx; v.xmax -= dxPx * wpx;
+  v.ymin += dyPx * wpy; v.ymax += dyPx * wpy;
+  w.auto = false;
+  render();
+}
+
+// Zoom by factor f (>1 out, <1 in) keeping the world point under (px, py) fixed.
+function zoomAt(f, px, py) {
+  manualWindow();
+  const w = W_(), v = w.v;
+  const nx = (v.xmax - v.xmin) * f, ny = (v.ymax - v.ymin) * f;
+  if (nx < 1e-3 || ny < 1e-3 || nx > 1e5 || ny > 1e5) return;
+  const cx = wx(px), cy = wy(py);
+  v.xmin = cx - (cx - v.xmin) * f; v.xmax = cx + (v.xmax - cx) * f;
+  v.ymin = cy - (cy - v.ymin) * f; v.ymax = cy + (v.ymax - cy) * f;
+  w.auto = false;
+  pendingChanges.window = true;
+  render();
+}
+// Stretch ONE axis by factor f (>1 shows more, <1 shows less). The fixed
+// point is the origin when it is in view — the axes then grow out of 0, as in
+// GeoGebra — and otherwise the middle of the window.
+function scaleAxis(axis, f) {
+  manualWindow();
+  const w = W_(), v = w.v;
+  const lo = axis === "x" ? "xmin" : "ymin", hi = axis === "x" ? "xmax" : "ymax";
+  const n = (v[hi] - v[lo]) * f;
+  if (n < 1e-3 || n > 1e5) return;
+  const c = v[lo] <= 0 && v[hi] >= 0 ? 0 : (v[lo] + v[hi]) / 2;
+  v[lo] = c - (c - v[lo]) * f; v[hi] = c + (v[hi] - c) * f;
+  w.auto = false;
+  render();
+}
+// Which strip a canvas point lies in: the x-axis labels below the plot, the
+// y-axis labels to its left, or neither.
+function axisZone(px, py) {
+  if (py > H - PAD.b && px > PAD.l) return "x";
+  if (px < PAD.l && py < H - PAD.b) return "y";
+  return null;
+}
+function zoomCentre(f) { zoomAt(f, (PAD.l + W - PAD.r) / 2, (PAD.t + H - PAD.b) / 2); }
+
 // Every curve within tolerance of a point on the canvas, nearest first. Not
-// just the nearest one: f and g both pass through (0,0), which is one of the
-// lesson's points, and picking either arbitrarily mislabels the reading and
-// puts the wrong curve in the log.
+// just the nearest: where two curves cross, picking either arbitrarily
+// mislabels the reading and puts the wrong curve in the log.
 const HIT_PX = 26;     // how close a click has to be to register on a curve
 const AMBIG_PX = 13;   // how close the runners-up have to be to count as well
 function curvesNear(px, py) {
   const xw = wx(px);
   const hits = [];
-  VIEWS[view].curves.forEach((k) => {
-    const d = Math.abs(sy(CURVES[k].fn(xw)) - py);
-    if (d < HIT_PX) hits.push({ key: k, d: d });
+  W_().curves.forEach((c) => {
+    const y = c.fn(xw);
+    if (!isFinite(y)) return;
+    const d = Math.abs(sy(y) - py);
+    if (d < HIT_PX) hits.push({ c: c, d: d });
   });
   hits.sort((a, b) => a.d - b.d);
-  // A second curve is reported only where it is genuinely indistinguishable
-  // from the nearest one — measured against the nearest, not against the
-  // click, so it does not depend on how high in the gap the student aimed.
   return hits.filter((h) => h.d - hits[0].d <= AMBIG_PX);
 }
 
-function handleProbe(evt) {
+// With a grid on, a click snaps to the nearest place where the curve crosses
+// a grid LINE — vertical (x on the grid) or horizontal (y on the grid) — not
+// only where it crosses a vertical one (Ida, 10 Oct 2026). Whichever crossing
+// lies closest to the click on screen wins. Either way the point lies ON the
+// curve: y is always the function's value at the chosen x.
+function snapProbeX(px, py, c) {
+  const xw = wx(px);
+  const xa = gridSnap(xw, gridStepX());
+  let best = { x: xa, d: Math.hypot(sx(xa) - px, sy(c.fn(xa)) - py) };
+  if (!isFinite(best.d)) best.d = Infinity;
+  const y0 = gridSnap(c.fn(xw), gridStepY());
+  if (!isFinite(y0)) return xa;
+  const SPAN = 40, N = 80;          // search ±40 px around the click
+  let prevX = wx(px - SPAN), prevV = c.fn(prevX) - y0;
+  for (let i = 1; i <= N; i++) {
+    const x = wx(px - SPAN + (2 * SPAN * i) / N);
+    const v = c.fn(x) - y0;
+    if (isFinite(v) && isFinite(prevV) && (v === 0 || prevV * v < 0)) {
+      let a = prevX, b = x, fa = prevV;
+      for (let k = 0; k < 60; k++) {
+        const m = (a + b) / 2, fm = c.fn(m) - y0;
+        if (fa * fm <= 0) { b = m; } else { a = m; fa = fm; }
+      }
+      const root = (a + b) / 2;
+      const d = Math.hypot(sx(root) - px, sy(y0) - py);
+      if (d < best.d) best = { x: root, d: d };
+    }
+    prevX = x; prevV = v;
+  }
+  return best.x;
+}
+
+function handleProbe(clientX, clientY) {
   const r = canvas.getBoundingClientRect();
-  const px = evt.clientX - r.left;
-  const py = evt.clientY - r.top;
-  const hits = curvesNear(px, py);
+  const px = clientX - r.left, py = clientY - r.top;
+  const near = curvesNear(px, py);
+  const xs = gridStep && near.length ? snapProbeX(px, py, near[0].c) : gridSnap(wx(px), gridStepX());
+  // y is the function's value at xs, so the probed point lies ON the curve.
+  const hits = near
+    .map((h) => ({ curve: h.c.name, y: h.c.fn(xs) }))
+    .filter((h) => isFinite(h.y));
   if (!hits.length) {
     probe = null;
-    probeMissed = true;          // a miss is reported, not silently ignored
+    probeMissed = W_().curves.length > 0;   // a miss is reported, not ignored
     render(); renderReadouts();
     return;
   }
-  // Only x follows the grid. y is the function's value there, so the probed
-  // point lies ON the curve — snapping y as well put the marker at a nearby
-  // grid intersection instead, and a student typing that pair into the secant
-  // fields got a line through a point that was never on the graph.
-  const xs = gridSnap(wx(px), gridStep);
   probeMissed = false;
-  probe = { x: xs, hits: hits.map((h) => ({ curve: h.key, y: CURVES[h.key].fn(xs) })) };
+  probe = { x: xs, hits: hits };
   pendingChanges.last_reading = true;
-  render(); renderReadouts();
+  // In the k-window the probe chooses P; k stays where the student left it.
+  if (win === K_WIN && kTool) {
+    kTool.x0 = xs; kTool.curve = hits[0].curve;
+    pendingChanges.k_tool = true;
+    fitK();
+  }
+  render(); renderReadouts(); renderK();
+}
+
+/* ------------------------------------------------------------- k instrument */
+
+// 1 rather than 1,0000 where the value is the point the student chose.
+// A number the student typed, shown as they typed it: no padding to four
+// decimals ("0" not "0,0000"), and no rounding away of the extra decimals
+// they computed themselves (2,90026001 stays 2,90026001).
+function typed(v) { return shortNum(v, 10); }
+function shortNum(v, dp) {
+  return num(v, dp).replace(/([.,]\d*?)0+$/, "$1").replace(/[.,]$/, "");
+}
+
+// The magnifier. While it is on, the Δx-window keeps the triangle in view —
+// whatever Δx is, from 2 down to 0,0001 — re-fitting every time Δx or the
+// point changes. The units-per-pixel ratio of the two axes is kept from the
+// moment it was switched on, so the secant does not change angle on screen
+// just because of the zoom: what changes is the curve, which straightens out
+// as Δx shrinks. Panning, zooming or stretching an axis by hand switches it
+// off; so does pressing it again, which also restores the earlier window.
+let kZoom = false;
+let kZoomSaved = null;   // {v, auto, ratio}
+function setKZoom(on) {
+  const w = WINDOWS[K_WIN];
+  if (on === kZoom) return;
+  kZoom = on;
+  if (on) {
+    const v = w.v;
+    kZoomSaved = { v: Object.assign({}, v), auto: w.auto,
+                   ratio: ((v.ymax - v.ymin) / (H - PAD.t - PAD.b)) / ((v.xmax - v.xmin) / (W - PAD.l - PAD.r)) };
+    fitK();
+  } else if (kZoomSaved && arguments[1] === "restore") {
+    w.v = Object.assign({}, kZoomSaved.v); w.auto = kZoomSaved.auto;
+  }
+  document.getElementById("k-zoom").setAttribute("aria-pressed", String(kZoom));
+  pendingChanges.window = true;
+  render();
+}
+function fitK() {
+  if (!kZoom || !kTool) return;
+  const st = kState();
+  if (!st || !isFinite(st.y0) || !isFinite(st.y_at_x0_plus_k)) return;
+  const w = WINDOWS[K_WIN];
+  const pw = W - PAD.l - PAD.r, ph = H - PAD.t - PAD.b;
+  const ratio = kZoomSaved ? kZoomSaved.ratio : 1;     // y-units per pixel ÷ x-units per pixel
+  const dx = Math.max(Math.abs(st.k), 1e-6), dy = Math.abs(st.dy);
+  // x-span: the triangle takes about 40 % of the width …
+  let xs = dx / 0.4;
+  // … unless Δy would then not fit in 60 % of the height
+  const ysNeeded = dy / 0.6;
+  if (xs * ratio * ph / pw < ysNeeded) xs = ysNeeded / (ratio * ph / pw);
+  const ys = xs * ratio * ph / pw;
+  const cx = (st.x0 + st.x0_plus_k) / 2, cy = (st.y0 + st.y_at_x0_plus_k) / 2;
+  w.v = { xmin: cx - xs / 2, xmax: cx + xs / 2, ymin: cy - ys / 2, ymax: cy + ys / 2 };
+  w.auto = false;
+}
+
+// Typing x0 instead of clicking: a point such as x0 = -0,3 lies between the
+// finest grid lines and cannot be hit by a click (Ida, 11 Oct 2026). The typed
+// x0 becomes the probe — on the curve the Δx tool is already using, otherwise
+// on the first curve in the window — and moves P if the tool is on. y is the
+// function's value there, as always.
+function setX0(x0) {
+  const w = WINDOWS[K_WIN];
+  if (!isFinite(x0) || !w.curves.length) return;
+  const c = (kTool && kCurve()) || w.curves[0];
+  // Enter and the later change event both arrive: do the same thing once
+  if (probe && probe.x === x0 && probe.hits[0] && probe.hits[0].curve === c.name &&
+      (!kTool || kTool.x0 === x0)) return;
+  const y = c.fn(x0);
+  if (!isFinite(y)) return;
+  probe = { x: x0, hits: [{ curve: c.name, y: y }] };
+  probeMissed = false;
+  pendingChanges.last_reading = true;
+  if (kTool) { kTool.x0 = x0; kTool.curve = c.name; pendingChanges.k_tool = true; fitK(); }
+  if (kTool) commitK("type-x0"); else { render(); renderK(); }
+  renderReadouts();
+}
+
+function renderK() {
+  const add = document.getElementById("k-add");
+  const on = !!(kTool && kCurve());
+  const x0in = document.getElementById("x0-in");
+  const x0now = kTool ? kTool.x0 : (probe ? probe.x : null);
+  if (document.activeElement !== x0in) x0in.value = x0now === null ? "" : shortNum(x0now, DP);
+  add.disabled = !(probe && probe.hits.length);
+  add.title = add.disabled ? t("kPick") : "";
+  add.classList.toggle("hidden", on);
+  ["k-range", "k-in", "k-zoom", "k-remove", "k-out"].forEach((id) => document.getElementById(id).classList.toggle("hidden", !on));
+  if (!on) { if (kZoom) setKZoom(false); return; }
+  const st = kState(), d = kDecimals(st.k), n = escapeHtml(st.curve);
+  const rng = document.getElementById("k-range");
+  if (document.activeElement !== rng) rng.value = String(Math.max(-2, Math.min(2, st.k)));
+  const kin = document.getElementById("k-in");
+  if (document.activeElement !== kin) kin.value = shortNum(st.k, d);
+  // Only what the student chose: the point and k. The function values are
+  // for them to work out.
+  document.getElementById("k-out").innerHTML =
+    '<i>x</i>&#8320; = <span class="n">' + shortNum(st.x0, DP) + '</span>&nbsp;&nbsp;&nbsp; ' +
+    '<span class="kx">Δ<i>x</i> = <span class="n">' + shortNum(st.k, d) + '</span></span>';
+}
+
+function startK() {
+  if (kTool || !probe || !probe.hits.length) return;
+  kTool = { curve: probe.hits[0].curve, x0: probe.x, k: 1 };
+  commitK("start-k");
+}
+function setK(k, commit) {
+  if (!kTool || !isFinite(k)) return;
+  kTool.k = k;
+  pendingChanges.k_tool = true;
+  fitK();
+  render(); renderK();
+  if (commit) commitK("set-k");
+}
+function commitK(why) {
+  const st = kState();
+  flushPendingChanges(why);
+  if (st) {
+    const d = kDecimals(st.k);
+    emit("reading", {
+      state: simState(),
+      // Shown to the student in the chat: the point and k, never a value.
+      label: t("kLabel") + " " + shortNum(st.k, d) + " (x\u2080 = " + shortNum(st.x0, DP) + ")",
+    });
+  }
+  render(); renderK();
+}
+function removeK() {
+  if (!kTool) return;
+  kTool = null;
+  emit("state-change", { changed: ["k_tool"], state: simState(), triggeredBy: "remove-k" });
+  render(); renderK();
+}
+
+// Text on a white plate, so a label stays readable where it crosses a curve.
+function plateText(text, x, y, align, baseline, colour) {
+  const w = ctx.measureText(text).width, h = 16, pad = 3;
+  let left = align === "center" ? x - w / 2 : align === "right" ? x - w : x;
+  let top = baseline === "bottom" ? y - h : baseline === "middle" ? y - h / 2 : y;
+  left = Math.max(PAD.l + 2, Math.min(left, W - PAD.r - w - 2));
+  top = Math.max(PAD.t + 2, Math.min(top, H - PAD.b - h - 2));
+  ctx.save();
+  ctx.globalAlpha = 0.92; ctx.fillStyle = "#ffffff";
+  ctx.fillRect(left - pad, top - 1, w + 2 * pad, h + 2);
+  ctx.globalAlpha = 1; ctx.fillStyle = colour;
+  ctx.textAlign = "left"; ctx.textBaseline = "middle";
+  ctx.fillText(text, left, top + h / 2);
+  ctx.restore();
+}
+
+function drawKTool() {
+  if (win !== K_WIN) return;
+  const st = kState();
+  if (!st || !isFinite(st.y0) || !isFinite(st.y_at_x0_plus_k)) return;
+  const v = W_().v;
+  const P = { x: st.x0, y: st.y0 }, Q = { x: st.x0_plus_k, y: st.y_at_x0_plus_k };
+  const d = kDecimals(st.k);
+  // Markers sit on the axes when the axes are in view, otherwise on the frame.
+  const yb = (v.ymin <= 0 && v.ymax >= 0) ? sy(0) : H - PAD.b;
+  const xb = (v.xmin <= 0 && v.xmax >= 0) ? sx(0) : PAD.l;
+  const KX = "#d97706", KY = "#16a34a", SEC = "#7c3aed";
+  ctx.save();
+  ctx.beginPath(); ctx.rect(PAD.l, PAD.t, W - PAD.l - PAD.r, H - PAD.t - PAD.b); ctx.clip();
+
+  // the line through the two points — drawn, never measured
+  if (Math.abs(st.k) > 1e-12) {
+    const a = st.dy / st.k, b = P.y - a * P.x;
+    ctx.strokeStyle = SEC; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.85;
+    ctx.beginPath(); ctx.moveTo(sx(v.xmin), sy(a * v.xmin + b)); ctx.lineTo(sx(v.xmax), sy(a * v.xmax + b)); ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  // guides from both points to both axes
+  ctx.setLineDash([4, 3]); ctx.lineWidth = 1;
+  [[P, "#94a3b8"], [Q, "#94a3b8"]].forEach(function (pc) {
+    ctx.strokeStyle = pc[1];
+    ctx.beginPath(); ctx.moveTo(sx(pc[0].x), sy(pc[0].y)); ctx.lineTo(sx(pc[0].x), yb); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(sx(pc[0].x), sy(pc[0].y)); ctx.lineTo(xb, sy(pc[0].y)); ctx.stroke();
+  });
+  ctx.setLineDash([]);
+
+  // k on the x-axis
+  ctx.strokeStyle = KX; ctx.fillStyle = KX; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(sx(P.x), yb); ctx.lineTo(sx(Q.x), yb); ctx.stroke();
+  ctx.lineWidth = 2;
+  [P.x, Q.x].forEach(function (x) { ctx.beginPath(); ctx.moveTo(sx(x), yb - 6); ctx.lineTo(sx(x), yb + 6); ctx.stroke(); });
+  ctx.font = "italic 13px 'Cambria Math', Cambria, Georgia, serif";
+  // endpoints on the x-axis: x0 and x0 + k, as the student would write them
+  const a = shortNum(st.x0, DP);
+  const qRight = Q.x >= P.x;
+  plateText(a, sx(P.x) + (qRight ? -3 : 3), yb + 10, qRight ? "right" : "left", "top", KX);
+  plateText(a + " + Δx", sx(Q.x) + (qRight ? 3 : -3), yb + 10, qRight ? "left" : "right", "top", KX);
+
+  // the y-increment on the y-axis
+  ctx.strokeStyle = KY; ctx.fillStyle = KY; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(xb, sy(P.y)); ctx.lineTo(xb, sy(Q.y)); ctx.stroke();
+  ctx.lineWidth = 2;
+  [P.y, Q.y].forEach(function (y) { ctx.beginPath(); ctx.moveTo(xb - 6, sy(y)); ctx.lineTo(xb + 6, sy(y)); ctx.stroke(); });
+  const n = st.curve;
+  // endpoints on the y-axis: f(x0) and f(x0 + k), each at its own height, on
+  // the far side of the axis from P, pushed apart so they never overlap
+  const onRight = sx(P.x) < xb;
+  const qUp = sy(Q.y) <= sy(P.y);
+  const lx = onRight ? xb + 10 : xb - 10, al = onRight ? "left" : "right";
+  plateText(n + "(" + a + ")", lx, sy(P.y) + (qUp ? 3 : -3), al, qUp ? "top" : "bottom", KY);
+  plateText(n + "(" + a + " + Δx)", lx, sy(Q.y) + (qUp ? -3 : 3), al, qUp ? "bottom" : "top", KY);
+
+  // The increment triangle at the graph, as in the textbooks (webmatematik's
+  // figure): a horizontal leg labelled Δx from P, a vertical leg labelled Δy up
+  // or down to Q. Names only, never values (Ida, 10 Oct 2026).
+  if (Math.abs(st.k) > 1e-12) {
+    const C = { x: Q.x, y: P.y };
+    ctx.lineWidth = 2.5;
+    ctx.strokeStyle = KX;
+    ctx.beginPath(); ctx.moveTo(sx(P.x), sy(P.y)); ctx.lineTo(sx(C.x), sy(C.y)); ctx.stroke();
+    ctx.strokeStyle = KY;
+    ctx.beginPath(); ctx.moveTo(sx(C.x), sy(C.y)); ctx.lineTo(sx(Q.x), sy(Q.y)); ctx.stroke();
+    ctx.font = "italic 14px 'Cambria Math', Cambria, Georgia, serif";
+    const up = sy(Q.y) < sy(P.y);
+    // Δx under the horizontal leg when Q is above it, over it when below
+    plateText("Δx", (sx(P.x) + sx(C.x)) / 2, sy(P.y) + (up ? 5 : -5), "center", up ? "top" : "bottom", KX);
+    // Δy beside the vertical leg, on the side away from P
+    const right = sx(Q.x) >= sx(P.x);
+    plateText("Δy", sx(C.x) + (right ? 6 : -6), (sy(C.y) + sy(Q.y)) / 2, right ? "left" : "right", "middle", KY);
+  }
+
+  // the two points
+  ctx.fillStyle = "#0f172a";
+  ctx.beginPath(); ctx.arc(sx(P.x), sy(P.y), 4, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = SEC;
+  ctx.beginPath(); ctx.arc(sx(Q.x), sy(Q.y), 4, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
 }
 
 /* --------------------------------------------------------------------- wire */
@@ -1258,53 +2162,137 @@ document.getElementById("menu-toggle").addEventListener("click", function () {
   const m = document.getElementById("menu");
   const open = m.classList.toggle("hidden") === false;
   this.setAttribute("aria-expanded", String(open));
-  // Worth recording: the tools start collapsed, so opening them marks the move
-  // from measuring to constructing. Unlabelled — it is not a commit.
+  if (open) m.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  // The tools start collapsed, so opening them marks the move from measuring
+  // to constructing. Unlabelled — it is not a commit.
   pendingChanges.tools_panel_open = true;
   toolsOpen = open;
 });
-document.getElementById("view-fg").addEventListener("click", () => setView("fg"));
-document.getElementById("view-h").addEventListener("click", () => setView("h"));
+document.getElementById("win-add").addEventListener("click", (e) => {
+  e.stopPropagation();
+  showWinPop(document.getElementById("win-pop").classList.contains("hidden"));
+});
+document.getElementById("add-graph").addEventListener("click", () => addWindow("graph"));
+document.getElementById("add-kwin").addEventListener("click", () => addWindow("k"));
+document.getElementById("func-add").addEventListener("click", addFunction);
+document.getElementById("k-add").addEventListener("click", startK);
+document.getElementById("k-remove").addEventListener("click", removeK);
+document.getElementById("k-zoom").addEventListener("click", () => setKZoom(!kZoom, "restore"));
+document.getElementById("x0-in").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); setX0(parseNum(e.target.value)); }
+});
+document.getElementById("x0-in").addEventListener("change", (e) => setX0(parseNum(e.target.value)));
+document.getElementById("k-range").addEventListener("input", (e) => setK(parseFloat(e.target.value), false));
+document.getElementById("k-range").addEventListener("change", (e) => setK(parseFloat(e.target.value), true));
+document.getElementById("k-in").addEventListener("change", (e) => setK(parseNum(e.target.value), true));
+document.getElementById("k-in").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); setK(parseNum(e.target.value), true); }
+});
+document.getElementById("func-in").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); addFunction(); }
+});
+function showGridPop(open) {
+  document.getElementById("grid-pop").classList.toggle("hidden", !open);
+  document.getElementById("grid-btn").setAttribute("aria-expanded", String(open));
+}
+document.getElementById("grid-btn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  showGridPop(document.getElementById("grid-pop").classList.contains("hidden"));
+});
 document.querySelectorAll(".grid-opt").forEach((b) => {
-  b.addEventListener("click", () => setGrid(parseFloat(b.dataset.step)));
+  b.addEventListener("click", () => { setGrid(parseFloat(b.dataset.step)); showGridPop(false); });
+});
+// A click anywhere else closes the choices again.
+document.addEventListener("pointerdown", (e) => {
+  if (!e.target.closest("#grid-pop, #grid-btn")) showGridPop(false);
+  if (!e.target.closest("#win-pop, #win-add")) showWinPop(false);
 });
 document.getElementById("add-secant").addEventListener("click", addSecant);
+// Enter in a line field inserts the line, as Enter in the function field plots.
+["sx1", "sy1", "sx2", "sy2"].forEach((id) => document.getElementById(id).addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); addSecant(); }
+}));
+["px", "py", "pa"].forEach((id) => document.getElementById(id).addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); addLine(); }
+}));
 document.getElementById("add-line").addEventListener("click", addLine);
 document.getElementById("clear-lines").addEventListener("click", clearLines);
 document.getElementById("reset-window").addEventListener("click", resetWindow);
-// Drag to pan, click to probe. A pointer that moved less than 4 px is a click;
-// anything more is a drag, so a slightly shaky finger still reads a point.
+document.getElementById("zoom-in").addEventListener("click", () => zoomCentre(1 / 1.5));
+document.getElementById("zoom-out").addEventListener("click", () => zoomCentre(1.5));
+
+// One finger or mouse: drag to pan, click to probe. A pointer that moved less
+// than 4 px is a click. Two fingers: pinch to zoom, and no probe afterwards.
+const pointers = new Map();
 let drag = null;
+let pinch = null;
+let gestureHadPinch = false;
+function pinchInfo() {
+  const ps = Array.from(pointers.values());
+  const r = canvas.getBoundingClientRect();
+  return {
+    d: Math.hypot(ps[0].x - ps[1].x, ps[0].y - ps[1].y),
+    mx: (ps[0].x + ps[1].x) / 2 - r.left, my: (ps[0].y + ps[1].y) / 2 - r.top,
+  };
+}
 canvas.addEventListener("pointerdown", (e) => {
-  drag = { x: e.clientX, y: e.clientY, moved: 0 };
+  pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
   canvas.setPointerCapture(e.pointerId);
-  canvas.classList.add("dragging");
+  if (pointers.size === 1) {
+    gestureHadPinch = false;
+    const b = canvas.getBoundingClientRect();
+    drag = { x: e.clientX, y: e.clientY, moved: 0, axis: axisZone(e.clientX - b.left, e.clientY - b.top) };
+    if (!drag.axis) canvas.classList.add("dragging");
+  } else if (pointers.size === 2) {
+    drag = null;
+    gestureHadPinch = true;
+    pinch = pinchInfo();
+  }
 });
 canvas.addEventListener("pointermove", (e) => {
+  if (pointers.has(e.pointerId)) pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  if (pinch && pointers.size === 2) {
+    const now = pinchInfo();
+    if (now.d > 0) zoomAt(pinch.d / now.d, now.mx, now.my);
+    pinch = now;
+    return;
+  }
   if (!drag) {
-    // Hover only: say which gesture is available here. Harmless on touch,
-    // where there is no hover to report.
     const b = canvas.getBoundingClientRect();
-    canvas.classList.toggle("over-curve",
-      curvesNear(e.clientX - b.left, e.clientY - b.top).length > 0);
+    const zone = axisZone(e.clientX - b.left, e.clientY - b.top);
+    canvas.classList.toggle("over-xaxis", zone === "x");
+    canvas.classList.toggle("over-yaxis", zone === "y");
+    canvas.classList.toggle("over-curve", !zone && curvesNear(e.clientX - b.left, e.clientY - b.top).length > 0);
     return;
   }
   const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
   drag.moved += Math.abs(dx) + Math.abs(dy);
-  if (drag.moved > 4) panBy(dx, dy);
+  // Dragging right along the x labels, or up along the y labels, stretches
+  // that axis (shows less of it); the other way squeezes it.
+  if (drag.axis === "x") scaleAxis("x", Math.exp(-dx / 300));
+  else if (drag.axis === "y") scaleAxis("y", Math.exp(dy / 300));
+  else if (drag.moved > 4) panBy(dx, dy);
   drag.x = e.clientX; drag.y = e.clientY;
 });
-canvas.addEventListener("pointerup", (e) => {
-  if (!drag) return;
-  const wasClick = drag.moved <= 4;
-  const moved = drag.moved;
-  drag = null;
+function endPointer(e, cancelled) {
+  pointers.delete(e.pointerId);
+  if (pointers.size < 2) pinch = null;
+  if (pointers.size > 0) return;
   canvas.classList.remove("dragging");
-  if (wasClick) handleProbe(e);
-  else if (moved > 4) { pendingChanges.window = true; }
-});
-canvas.addEventListener("pointercancel", () => { drag = null; canvas.classList.remove("dragging"); });
-canvas.addEventListener("pointerleave", () => { canvas.classList.remove("over-curve"); });
+  const d = drag;
+  drag = null;
+  if (cancelled || !d) return;
+  if (d.moved <= 4 && !gestureHadPinch && !d.axis) handleProbe(e.clientX, e.clientY);
+  else pendingChanges.window = true;
+}
+canvas.addEventListener("pointerup", (e) => endPointer(e, false));
+canvas.addEventListener("pointercancel", (e) => endPointer(e, true));
+canvas.addEventListener("pointerleave", () => { canvas.classList.remove("over-curve", "over-xaxis", "over-yaxis"); });
+canvas.addEventListener("wheel", (e) => {
+  e.preventDefault();
+  const r = canvas.getBoundingClientRect();
+  zoomAt(Math.exp(Math.max(-0.5, Math.min(0.5, e.deltaY * 0.0015))), e.clientX - r.left, e.clientY - r.top);
+}, { passive: false });
 
 document.getElementById("lang-da").addEventListener("click", () => { lang = "da"; langLockedByStudent = true; applyLang(); });
 document.getElementById("lang-en").addEventListener("click", () => { lang = "en"; langLockedByStudent = true; applyLang(); });
@@ -1316,24 +2304,33 @@ applyLang();
 
 /* --------------------------------------------------------------- self-test */
 
-if (new URLSearchParams(location.search).get("test") === "1") {
-  // A probe on g with the quarter grid, from a click landing near x = 1.3:
-  // x snaps to 1.25, and y = g(1.25) = 2*1.5625 - 4*1.25 = 3.125 - 5 = -1.875.
-  // Snapping y as well would have reported -1.75, which is not on the curve.
-  const got = CURVES.g.fn(gridSnap(1.3, 0.25));
-  const ok = Math.abs(got - -1.875) < 1e-9;
-  document.title = (ok ? "TEST PASS" : "TEST FAIL") + " — " + strings.da.title;
-  if (!ok) console.error("Self-test failed: " + got);
+if (TEST_MODE) {
+  const cases = [
+    ["2x^2-4x", 1.25, -1.875], ["1/3x^2+2x+1", 1, 10 / 3], ["⅓x²+2x+1", 1, 10 / 3],
+    ["x²", 3, 9], ["-x^2", 2, -4], ["(x+1)(x-1)", 3, 8], ["0,5x", 2, 1], ["2sqrt(x)", 4, 4],
+  ];
+  const bad = [];
+  cases.forEach(function (c) {
+    let got;
+    try { got = parseExpr(c[0])(c[1]); } catch (e) { got = NaN; }
+    if (!(Math.abs(got - c[2]) < 1e-9)) bad.push(c[0] + " -> " + got);
+  });
+  ["x^", "2**x", "abc", "(x+1", ""].forEach(function (s) {
+    try { parseExpr(s); bad.push("accepted: " + s); } catch (e) { /* expected */ }
+  });
+  // probe semantics: x snaps to the grid, y comes from the function
+  if (Math.abs(parseExpr("2x^2-4x")(gridSnap(1.3, 0.25)) - -1.875) > 1e-9) bad.push("probe snap");
+  document.title = (bad.length ? "TEST FAIL" : "TEST PASS") + " — " + strings.da.title;
+  if (bad.length) console.error("Self-test failed: " + bad.join("; "));
 }
 
 /* ------------------------------------------------------------------ handshake */
 
 const b = bridge();
 if (b) {
-  b.init({ name: ARTEFACT_NAME, version: "1.0.0" });
+  b.init({ name: ARTEFACT_NAME, version: "2.1.0" });
   b.onChatFlush(function () { flushPendingChanges("chat-submit"); });
   emit("open", { state: simState() });
-  // adopt the host locale if the student has not chosen one
   let waited = 0;
   const poll = setInterval(function () {
     waited += 50;

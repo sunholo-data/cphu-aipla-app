@@ -31,7 +31,7 @@ Nine are live today:
 | Bølgefart | Set *f* and *λ*, work out the wave speed |
 | Interferens | Add two waves, find constructive, destructive and beats |
 | Sol, Jord og Måne | Change viewpoint, scale and time; solve missions on days, seasons, moon phases and eclipses |
-| Sekantbænk | Read coordinates off a parabola, draw secants, work out how steep it is at a point — the first mathematics bench |
+| Hældningslab | Type in the functions, read coordinates off the graphs, draw lines through two points, work out the slope at a point — the first mathematics bench |
 
 Note the shape they share. **The simulation never shows the answer.** The kettle reports energy and temperature and never the efficiency; the wave bench reports *f*, *λ* and *T* and never the speed. That withholding is the exercise, and it is the single most useful thing you can specify when you propose one.
 

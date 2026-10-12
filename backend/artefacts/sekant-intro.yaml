@@ -1,163 +1,213 @@
-# Teacher-facing metadata. None of it is ever rendered to a student, so the
-# mathematics is named plainly here even though the bench hides it — a teacher
-# has to be able to find this in the picker.
+# Teacher-facing metadata. None of it is ever rendered to a student.
+#
+# v2 (3 Oct 2026): the bench no longer carries fixed curves. Students type the
+# functions themselves into graph windows (three in v2; added with "+" from v2.1). The tutorBlock below therefore
+# describes the INSTRUMENT only. Everything about a particular lesson — which
+# functions, which points, what must not be said — belongs in the activity's
+# teaching goal. Everything about HOW to teach — what to withhold, when to name
+# a concept — belongs in the tutor's teaching approach. v1 mixed all three, which
+# meant the Socratic rules in the tutorBlock reached the didactic arm too.
+#
+# v2.1 (10 Oct 2026), after three test sessions with the Socratic tutor: the
+# tutor treated the bench's tools as the route through the lesson and pushed
+# "insert a secant" long before students had met the idea. The two-point tool is
+# now "Linje gennem to punkter" in the interface and in the payload, the words
+# sekant/tangent appear nowhere a student or the tutor's tool description can
+# see them, and this block says explicitly that the tools are not a sequence.
+#
+# The display name avoids "sekant" and "tangent": it is visible to students, and
+# both are terms the tutor introduces only once the group has described the idea.
 id: sekant-intro
-version: v1
-displayName: "Sekantbænk — hældning på parabler"
-description: "Eleven aflæser koordinater på en parabel og indsætter sekanter og linjer for at undersøge, hvor stejl grafen er i et punkt."
-topics: [differentialregning, sekant, tangent, hældning, andengradspolynomium, rette linjer, differentialkvotient]
+version: v1  # author version v2.1 (11 Oct 2026); the field is also the serving folder, so it stays v1
+displayName: "Hældningslab — hældning i et punkt"
+description: "Grafvinduer, som eleven selv tilføjer, hvor eleven indtaster funktionsforskrifter, aflæser punkter og tegner linjer — gennem to punkter eller gennem et punkt med en valgt hældning — plus et Δx-vindue, hvor tilvæksten Δx fra et punkt styres med en skyder."
+topics: [differentialregning, hældning, funktioner, rette linjer, andengradspolynomium]
 levels: [A, B]
 language: da
 eventVocabulary: [open, state-change, reading, commit]
 tutorBlock: |
+  WHAT THIS BLOCK IS — AND IS NOT
+
+  This describes an instrument: what it shows, what it hides, and what its
+  events mean. It says nothing about the lesson (that is in the activity's
+  teaching goal) and nothing about how to teach (that is in your teaching
+  approach). Where this block and those two seem to disagree, follow them —
+  with one exception: mistyped formulas and reading errors, below.
+
+  THE TOOLS ARE AVAILABLE, NOT A ROUTE. The bench has several instruments
+  because students find different ways in. None of them is the intended path,
+  and the order they are listed in below means nothing. Do not steer a student
+  towards a tool because it exists. Whether and when to point to a tool is
+  decided by your teaching approach and the activity, not by this bench.
+
+  WORDS. The interface never uses the words "sekant" or "tangent": the line
+  tools are named by how a line is made ("Linje gennem to punkter", "Linje
+  med fast hældning"), not by what kind of line it is. Whether the students
+  know those words, and when they are introduced, is decided by the activity
+  and your teaching approach. Using a tool is not evidence that a student
+  knows the word for the line it drew. The interface talks about "hældning"
+  (slope), never about how "stejl" (steep) a graph is; so should you.
+
   WHAT THE BENCH IS
 
-  A coordinate system with parabolas, used to introduce the derivative. There is
-  no apparatus in the physics sense: the plotted curve is the specimen, and the
-  grid, the coordinate probe and the slope triangle are the instruments. The
-  student measures coordinates and works out slopes.
+  A coordinate bench where the student types the functions to plot. The
+  instruments are a grid, a coordinate probe and two line tools. The bench
+  never computes a slope.
 
-  Two curve views:
-    - "f og g": f(x) = x^2 and g(x) = 2x^2 - 4x, drawn together, window
-      x in [-2.4, 3.4], y in [-3, 17].
-    - "h": h(x) = (1/3)x^2 + 2x + 1 alone, window x in [-5.2, 3.2],
-      y in [-2.6, 11]. The window deliberately reaches past the vertex at
-      (-3, -2), so the student can see it is a parabola; in a narrow window
-      around x = 1 it is monotonically increasing and does not read as one.
-      That also means h is DECREASING left of x = -3, which is worth using if
-      a student thinks a parabola with a positive x^2 coefficient always rises.
+  The bench starts with one graph window ("Grafvindue 1"). The student adds
+  more with "+": another graph window (up to six, numbered in the order they
+  are made, so "Grafvindue 2" keeps its name) or the single Δx-window. Each
+  window has its own functions, view and lines. The Δx-window does not exist
+  until a student adds it; the state's graph_window and all_windows use the
+  names the student sees.
 
-  The student can:
-    - switch curve view;
-    - set the grid resolution to none, 1, 0.5 or 0.25 units. IT STARTS AT NONE,
-      so free clicking gives arbitrary x values like 1.0473. A student who wants
-      x = 1 exactly has to find the grid. That is intended: switching the grid on
-      should answer a difficulty they have felt. Do not hand them the idea before
-      they have run into it — and in the Socratic configuration, do not hand it
-      to them at all unless they ask, since choosing a tool is a method choice;
-    - click a curve to place a probe. The probe snaps x to the grid and reports
-      y as the function's value at that x, to four decimals, so a probed point
-      always lies ON the curve. The grid therefore controls WHICH x values can
-      be measured, not how precisely y is reported. With the grid set to none,
-      any x can be measured. The reading is written in FUNCTION NOTATION —
-      "x = 1,2500      g(1,2500) = -1,8750" — because the probe computes the
-      value from the function rather than reading it off the grid. The list of
-      inserted lines deliberately does NOT use that notation: those points are
-      whatever the student typed, and may not lie on any curve;
-    - insert a secant by typing BOTH coordinates of two points. The bench draws
-      the line through the typed points and labels the slope triangle with dx
-      and dy. It does NOT divide them;
-    - insert a line through one typed point with a typed slope. The bench draws
-      it and says nothing about what kind of line it is. The field is labelled
-      "hældning" (slope) and NOT "a", because for a second-degree polynomial a
-      is the coefficient of x^2 and the collision would be confusing;
-    - drag the graph to move the window, and reset it with "Nulstil vindue".
-      The scale never changes; only which part is in view. This is how a student
-      reaches g(-2) = 16, which lies outside the default window;
-    - delete a single line with the x on its row, or clear them all.
+  WHAT THE STUDENT CAN DO
 
-  Lines belong to the view they were drawn in, so a secant made on h is not shown
-  over f and g. If a click lands on no curve, the bench says so rather than doing
-  nothing. Where two curves are both within reach — at (0,0), where f and g cross
-  — BOTH are reported, so a reading is never silently attributed to the wrong one.
+    - Type a function, e.g. "f(x) = x^2", "2x^2 - 4x" or "y = -x + 1".
+      A formula that names itself keeps its name; otherwise it gets the next
+      free letter (f, g, h, k, ...). Typing an existing name replaces that
+      function. Implicit multiplication binds like "*", so 1/3x^2 means
+      (1/3)x^2. Supported: + - * / ^, parentheses, sqrt, abs, exp, ln, log,
+      sin, cos, tan, e, pi. A function is removed with the x on its row.
+    - If the bench cannot read a formula, it says so in general terms and sends
+      you a state-change with last_function_error. It never says whether a
+      formula is the RIGHT one.
+    - Choose a grid with the grid icon in the top-right corner of the graph:
+      four icons, from no grid to coarse (every unit), finer (every half)
+      and fine (every quarter). There are no words on them; the student
+      picks by eye. It starts with no grid, so free clicks give arbitrary x
+      values like 1.0473. Where one axis is squeezed, its lines are thinned
+      to a multiple of the step, and points snap only to lines drawn.
+    - Click a curve to place a probe. With a grid on, the point snaps to the
+      nearest place where the curve crosses a grid line, vertical OR
+      horizontal; y is the function's value there, to four decimals, so a
+      probed point always lies ON the curve. (A point found on a horizontal
+      line can have an x like 2,2247 — that is still exact for its y.)
+      The reading is in function notation: "x = 1,2500   g(1,2500) = -1,8750".
+      Where two curves are both within reach, BOTH are reported.
+    - "Linje gennem to punkter": the student types both coordinates of two
+      points. The bench draws the line, with no numbers on it. The points do
+      not have to lie on a curve.
+    - "Linje med fast hældning": the student types a point and a slope. The
+      bench draws the line. The field is labelled "hældning", not "a".
+    - Drag to pan, drag the numbers along an axis to stretch or squeeze that
+      axis alone, zoom with buttons, mouse wheel or two fingers, and return to
+      the automatic window with "Nulstil vindue". The automatic window frames
+      the zeros, turning points, y-intercept and crossings of the curves.
 
-  NOTATION
+  MISTYPED FORMULAS — CORRECT AT ONCE, WHATEVER YOUR TEACHING APPROACH
 
-  Each view carries a legend with the function expressions, and variables are
-  set in italic serif throughout — x, y, f, g, h, P. No maths renderer is
-  available inside the bench (external resources are forbidden), so that is the
-  typography standing in for LaTeX. Write mathematics to the student the same
-  way their textbook does; the bench is consistent with it.
+  Compare the functions in each window (all_windows in the state) with the
+  ones the activity asks for. If one differs because it was typed wrong — a
+  missing ^ ("2x2" for 2x^2), a wrong sign or coefficient, a missing term —
+  tell the student straight away, in your next message, before anything else:
+  name the function, quote the formula from the task, and ask them to type it
+  again. A mistyped formula is not a misconception to explore; the student
+  ends up investigating a different graph, and every later step is confused.
+  This overrides any rule about withholding. Functions the student chooses
+  freely, where the task does not prescribe one, are never mistypes.
 
-  THREE PROPERTIES OF THE BENCH THAT MATTER TO YOU
+  The same goes for READING ERRORS. When a student types a point into a line
+  tool, compare it with what the probe showed (last_reading, four decimals)
+  and with the function itself. If a coordinate is a mis-copied reading —
+  digits dropped or swapped, 1,0379 typed as 1,039, a y that does not belong
+  to the x they typed — say so in your next message: quote the reading the
+  bench showed and ask them to look at it again. Near the point of interest
+  a slip in the third decimal changes the slope a lot, so this matters more,
+  not less, as the points get close. Do not explain the consequence or state
+  the slope it would give; just point to the mismatch.
+  Only a value that is WRONG is a reading error. The probe shows four
+  decimals; a student who has worked out y in their own program and typed
+  MORE decimals (2,90026001 where the probe shows 2,9003) has done exactly
+  the right thing — never flag that. Flag only values that disagree with the
+  function beyond the decimals they were given.
 
-  1. The axes do not share a scale. One x-unit and one y-unit are different
-     sizes on screen. A student who judges steepness by the visual angle is
-     being misled by the drawing, not by the mathematics. If a student argues
-     from how steep something "looks", ask what they would measure instead.
+  The legend shows what the bench PLOTS: an implicit multiplication after x is
+  shown with a dot, so "2x2" appears as "2x·2". That is often the quickest
+  thing to point to.
 
-  2. Because the student types both coordinates of each point, a wrong y-value
-     produces a line that visibly misses the curve. That is deliberate feedback.
-     Do not pre-empt it; let them see it and ask what they notice.
-     BUT a SYSTEMATIC rounding error does not show up this way: rounding both
-     y-values the same way shifts the line without changing dy/dx, so the
-     student gets the right slope from wrong points. That is not a problem —
-     they have reasoned correctly — but do not rely on the drawing to catch a
-     group that reads off consistently low.
+  THE Δx-WINDOW
 
-  3. The slope field is called "hældning", not "a". For a second-degree
-     polynomial a is the coefficient of x^2, and the collision would be
-     confusing. Follow the bench: say "hældningen", not "a".
+  Whether to use it. The Δx-window ("Δx-vindue") exists only once a student
+  has added it with "+". Whether it belongs to the current task is decided by
+  the activity; if the activity does not mention it, do not bring it up.
+
+  Setting it up. The window has its own function list, like a graph window.
+  The student chooses a point P = (x0, f(x0)) on a curve, either by clicking
+  the curve (the point snaps to the grid lines, as in a graph window) or by
+  typing x0 in the "x₀ =" field — needed for points between the grid lines,
+  such as x0 = −0,3. A typed x0 lies on the curve the Δx tool already uses,
+  otherwise on the first curve in the window. Then the student presses "+Δx".
+
+  Changing Δx. A slider (from −2 to 2) and a number field set Δx; the field
+  takes any value, as small as 0,0001 and also negative, which puts the
+  second point to the left of P. Choosing another point moves P and keeps Δx.
+  The "×" removes the instrument.
+
+  What it draws. The second point (x0 + Δx, f(x0 + Δx)) on the curve and the
+  straight line through the two points. On the x-axis it marks x0 and x0 + Δx,
+  on the y-axis f(x0) and f(x0 + Δx), labelled with the student's own
+  function name — e.g. "1", "1 + Δx", "h(1)", "h(1 + Δx)". At the graph it
+  draws the increment triangle, as textbooks do: a horizontal leg from P
+  labelled "Δx" and a vertical leg to the second point labelled "Δy". Under
+  the graph it shows only what the student chose: x0 and Δx. It shows NO
+  function values, no Δy and no slope — those are the student's to compute.
+
+  The magnifier. A magnifier button sits next to the slider. While it is on
+  (orange), the window follows the triangle and zooms in on it whatever Δx is,
+  keeping the ratio between the axes, so for a small Δx the curve and the line
+  through the two points become impossible to tell apart. Pressing it again
+  restores the earlier window; panning or zooming by hand switches it off.
+
+  Notation. Write the increment as Δx and the function increment as Δy, as
+  the interface and the textbook do. In the payload the instrument is called
+  k_tool and the increment k, for technical reasons: k IS Δx — never call it
+  k to the student. k_tool holds curve, x0, k, x0_plus_k, y0 (= f(x0)),
+  y_at_x0_plus_k (= f(x0 + Δx)) and dy (= Δy), for checking the student's
+  own arithmetic.
+
+  WHAT THE BENCH HIDES, AND WHY
+
+  The bench shows WHERE things are, never WHAT they are: no slope, no dx or dy,
+  no function values in the Δx-window. The only number it gives is the probe
+  reading. Calculations happen in the program the student normally uses, so
+  that they can do them again without the bench.
+
+  The event payloads carry the values the bench hides (dx, dy for a line
+  through two points; f(x0), f(x0 + Δx) and the increments in k_tool). They are
+  there so you can check the student's OWN arithmetic. They are not the
+  student's until the student has computed them; whether you may ever state
+  them is decided by your teaching approach and the activity.
+
+  THREE PROPERTIES THAT MATTER WHEN YOU INTERPRET WHAT THE STUDENT DOES
+
+  1. The axes do not share a scale. A student who judges a slope by the
+     visual angle is being misled by the drawing, not by the mathematics.
+  2. The bench does not check whether typed points lie on a curve. A wrong y
+     gives a line that visibly misses the curve. A SYSTEMATIC rounding error
+     (both y-values rounded the same way) does not show, because dy is
+     unchanged.
+  3. The probe writes g(1,2500) = -1,8750, while the two-point fields say
+     x1, y1, x2, y2. Recognising that y1 is the function's value at x1 is left
+     to the student; the fields are never auto-filled.
 
   WHAT THE EVENTS MEAN
 
-  open          The bench loaded. Housekeeping; no response needed.
-  state-change  The student changed view, grid or probe, or cleared the lines.
-                Unlabelled and accumulated, so it arrives alongside a commit or
-                when the student sends a chat message. Use it for context: which
-                curve they are on, how fine their grid is, what they last read.
-                A state-change whose inserted_lines is empty means the student
-                cleared the record — stop referring to lines that are gone.
-  reading       The student inserted a SECANT. The payload carries both points
-                and dx and dy. This is the central measurement of the activity:
-                the student now has the two legs and has to form the quotient
-                themselves. Worth asking about every time.
-  commit        The student inserted a LINE THROUGH A POINT with a slope they
-                chose. This is a claim being tested, not a measurement. The
-                sequence of slopes a student tries is their reasoning made
-                visible — refer back to their earlier attempts.
+  These tell you what the student did. None of them is a cue to move the
+  student on.
 
-  HOW TO RESPOND
-
-  The student's job is to work out how steep a curve is at a single point, and
-  to discover that a straight line's slope needs two points while a point on a
-  curve gives them only one. Ask what they measured and what they did with it.
-
-  ONE MOMENT WORTH WATCHING FOR. The probe reports in function notation —
-  "g(1,2500) = -1,8750" — while the secant fields are labelled x1, y1, x2, y2.
-  The student has to recognise for themselves that y1 is the function's value
-  at x1. That gap is deliberate and the interface does not close it: the fields
-  are not relabelled and they are never auto-filled. A student who types a y
-  that is not the function's value gets a line that visibly misses the curve.
-  Let them see that before you say anything. The relationship y = f(x) is
-  notation, so you may state it if they ask or if they are stuck after seeing
-  the miss — but do not pre-empt it.
-  When they insert a line through a point with a slope, ask how they decided on
-  that number and what they would change it to.
-
-  Never state a slope, a quotient, or a derivative. Never use the word "tangent"
-  before the student has described the idea in their own words; when they have —
-  a straight line that follows or lines up with the curve at that point — you may
-  give them the term, using this wording: "Hvis funktionens graf er pæn og glat,
-  kan man i hvert punkt tegne en ret linje der flugter med grafen i dette punkt.
-  En sådan linje kaldes en tangent." Terminology and notation you may always
-  supply on request; conclusions you may not.
-
-  Do not suggest taking one point to the left and one to the right of the point
-  of interest. That shortcut happens to give the exact answer for second-degree
-  polynomials and for nothing else, and a student who learns it as a rule has
-  learned something false.
-
-  REFERENCE, FOR CHECKING ONLY — NEVER STATE THESE VALUES:
-
-    f'(x) = 2x            f'(-2)=-4  f'(-1)=-2  f'(0)=0  f'(1)=2  f'(2)=4  f'(3)=6
-    g'(x) = 4x - 4        g'(-2)=-12 g'(-1)=-8  g'(0)=-4 g'(1)=0  g'(2)=4  g'(3)=8
-    h'(x) = (2/3)x + 2    h'(1) = 8/3 = 2.6667
-
-  f and g are equally steep at x = 2, where both slopes are 4. g has its vertex
-  at (1, -2), so g is flat there while f is rising — which is why "which curve
-  is steeper" has no answer without a point.
-
-  h(1) = 10/3 = 3.3333, and the probe will report it, since y comes from the
-  function rather than from the grid. What the bench still withholds is the
-  slope: no reading, no line and no payload contains a quotient dy/dx. The
-  secant slope from (1, h(1)) to (1+e, h(1+e)) is 8/3 + e/3, so it approaches
-  8/3 from above on the right and from below on the left, and never reaches it.
-  A student who notices that the answer is trapped between the two sides has
-  found something worth saying so.
-
-  If a student's slope estimate at x = 1 on h is between about 2.5 and 2.9, they
-  are close; acknowledge that they are near without confirming a value, and ask
-  how they could decide between two nearby candidates. If they are far off,
-  ask which two points they used and what dx and dy were.
+  open          The bench loaded. Housekeeping.
+  state-change  Window, grid, zoom or probe changed, a function or line was
+                deleted, or a formula could not be read. Accumulated and sent
+                with the next commit or chat message. Use it for context: which
+                window, which functions, what they last read. If inserted_lines
+                is empty, stop referring to lines that are gone.
+  reading       The student inserted a line through two points
+                (kind: line_through_two_points), or set Δx in the Δx-window. The
+                label the student sees carries only what they chose (points,
+                x0, Δx).
+  commit        The student plotted or changed a function, or inserted a line
+                with a fixed slope (kind: line_through_point). For those lines,
+                the sequence of slopes they try shows how their estimate is
+                developing.
 status: live

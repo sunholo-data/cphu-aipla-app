@@ -178,7 +178,8 @@ describe("sim starters (2026-09-28) — one per live catalogue sim", () => {
     expect(t.subject).toBe("Matematik");
     // Everything a STUDENT sees: checklist, note, table, writing, and every
     // concept-map label (shown from the first minute, "not yet" nodes too).
-    // The sim's tutorBlock forbids "tangent" before the student has the idea.
+    // The sim's tutorBlock forbids "tangent" before the student has the idea,
+    // and since v2 the bench never says "sekant" either (Hældningslab).
     const studentVisible = [
       ...t.checklist,
       t.note?.body ?? "",
@@ -188,7 +189,7 @@ describe("sim starters (2026-09-28) — one per live catalogue sim", () => {
     ]
       .join(" ")
       .toLowerCase();
-    for (const word of ["tangent", "differentialkvotient", "afledt", "gitter"]) {
+    for (const word of ["tangent", "sekant", "differentialkvotient", "afledt", "gitter"]) {
       expect(studentVisible, word).not.toContain(word);
     }
   });

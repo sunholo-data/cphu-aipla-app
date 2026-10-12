@@ -58,7 +58,7 @@ Læs mere: [Build a simulation with an AI chat](/project/build-a-simulation) (p�
 
 ### Hvilke simuleringer findes der?
 
-Der er ni: Boldkast, LED Planck, KineBot, Elkedel, Faseovergange, Bølgefart, Interferens, Sol, Jord og Måne samt Sekantbænk. De åbner alle ved siden af tutoren. Eleven ændrer på noget, aflæser instrumenterne og noterer målinger, og tutoren ser målingerne og kan spørge ind til dem. En simulering viser aldrig den værdi, eleven skal regne sig frem til.
+Der er ni: Boldkast, LED Planck, KineBot, Elkedel, Faseovergange, Bølgefart, Interferens, Sol, Jord og Måne samt Hældningslab. De åbner alle ved siden af tutoren. Eleven ændrer på noget, aflæser instrumenterne og noterer målinger, og tutoren ser målingerne og kan spørge ind til dem. En simulering viser aldrig den værdi, eleven skal regne sig frem til.
 
 I Sol, Jord og Måne kan tutoren også ændre det, eleven ser, og hver ændring står på et kort i chatten. En simulering starter forfra med standardindstillingerne en anden dag. Målinger, der skal gemmes, skal derfor stå i en tabel i aktiviteten.
 
@@ -201,6 +201,6 @@ Læs mere: [Build timeline](/project/progress#next-checkpoints) (på engelsk).
 
 ### Kan vi bruge det i andre fag?
 
-AIPLA er et forskningsprojekt i fysik, og tutorerne, simuleringerne og evalueringen er lavet til fysik. Den første matematiksimulering, Sekantbænk, ligger i biblioteket, og dokumenter kan sorteres efter fag. Det er endnu ikke besluttet, om lærere fra andre fag kan være med i piloten. Spørg projektet.
+AIPLA er et forskningsprojekt i fysik, og tutorerne, simuleringerne og evalueringen er lavet til fysik. Den første matematiksimulering, Hældningslab, ligger i biblioteket, og dokumenter kan sorteres efter fag. Det er endnu ikke besluttet, om lærere fra andre fag kan være med i piloten. Spørg projektet.
 
 Læs mere: [About AIPLA](/project/about) (på engelsk).

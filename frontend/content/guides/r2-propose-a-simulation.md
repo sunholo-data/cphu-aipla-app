@@ -38,7 +38,7 @@ Nine are live today:
 | Bølgefart | Set *f* and *λ*, work out the wave speed |
 | Interferens | Add two waves, find constructive, destructive and beats |
 | Sol, Jord og Måne | Change viewpoint, scale and time; solve five missions on day, seasons, moon phases, eclipses and scale |
-| Sekantbænk | Read points on a parabola, lay secants, find how steep the graph is at a point (mathematics) |
+| Hældningslab | Type in the functions, read points off the graphs, draw lines through two points and find the slope at a point (mathematics) |
 
 Note the shape they share. **The simulation never shows the answer.** The kettle
 reports energy and temperature and never the efficiency; the wave bench reports

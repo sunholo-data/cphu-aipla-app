@@ -1049,32 +1049,38 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
     },
   },
   {
-    // The first MATHS starter. The sim withholds dy/dx and the word
-    // "tangent" by design, and its tutorBlock forbids suggesting a point
-    // either side of the one of interest and handing over the grid — so
-    // neither the checklist, the note nor a node label does either.
+    // The first MATHS starter. Since the sim's v2 (Hældningslab, 2026-10-12)
+    // the bench carries no curves: the students type them, so THIS goal must
+    // name every formula exactly — the tutorBlock compares what was typed with
+    // what the activity asks for, and corrects a mistype at once. The bench
+    // shows no slope, no Δx and no Δy, and never says "sekant" or "tangent";
+    // neither does anything a student sees here (the test beside this file
+    // enforces it). It talks about "hældning", never how "stejl" a graph is.
     id: "sekant-intro",
-    name: "Hvor stejl er grafen i et punkt?",
-    summary: "Sekantbænk — aflæs punkter på en parabel og undersøg hældningen i ét punkt.",
+    name: "Hvad er hældningen i et punkt?",
+    summary: "Hældningslab — tegn parablerne selv, aflæs punkter og undersøg hældningen i ét punkt.",
     language: "da",
     subject: "Matematik",
     title: "Hældning i et punkt",
     artefactId: "sekant-intro",
     teachingGoal:
-      "Eleven undersøger, hvor stejl en parabel er i ét bestemt punkt, med udgangspunkt i h(x) = ⅓x² + 2x + 1 " +
-      "ved x = 1. Eleven aflæser punkter, indsætter sekanter og linjer og regner selv hældningerne ud. " +
+      "Eleven undersøger hældningen af en parabel i ét bestemt punkt. Eleverne tegner selv graferne: først " +
+      "f(x) = x^2 og g(x) = 2x^2 - 4x i samme grafvindue, derefter h(x) = 1/3x^2 + 2x + 1 i et nyt grafvindue, " +
+      "og punktet er h ved x = 1. Eleven aflæser punkter, tegner linjer gennem to punkter og linjer med fast " +
+      "hældning og regner selv hældningerne ud. " +
       "Pointen er at opdage, at en ret linjes hældning kræver to punkter, mens et punkt på en kurve kun " +
       "giver ét. Spørg, hvad eleven har målt, og hvad de gjorde med det. Nævn ikke ordet tangent, før " +
       "eleven selv har beskrevet idéen, og oplys aldrig en hældning.",
     checklist: [
+      "Tegn f(x) = x^2 og g(x) = 2x^2 - 4x i grafvinduet",
       "Aflæs nogle punkter på f og g",
-      "Indsæt en sekant, og find dens hældning",
-      "Undersøg: hvilken af f og g er stejlest?",
-      "Skift til h, og undersøg hvor stejl h er i x = 1",
+      "Tegn en linje gennem to punkter, og regn dens hældning ud",
+      "Undersøg: hvilken af f og g har den største hældning?",
+      "Tilføj et grafvindue med h(x) = 1/3x^2 + 2x + 1, og undersøg hældningen af h i x = 1",
       "Forklar, hvordan du fandt frem til dit bud",
     ],
     table: {
-      title: "Sekanter",
+      title: "Linjer gennem to punkter",
       columns: [
         { label: "x₁", kind: "number" },
         { label: "x₂", kind: "number" },
@@ -1088,7 +1094,7 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
       {
         title: "Dit bud",
         prompt:
-          "Hvor stejl er h i x = 1? Skriv dit bud, og forklar, hvordan du fandt frem til det, og hvorfor du " +
+          "Hvad er hældningen af h i x = 1? Skriv dit bud, og forklar, hvordan du fandt frem til det, og hvorfor du " +
           "stoler på det. Hvad var svært ved at give et præcist svar?",
         minWords: 60,
       },
@@ -1096,6 +1102,7 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
     note: {
       title: "Sådan bruger du bænken",
       body:
+        "**Skriv** en funktionsforskrift, fx `f(x) = x^2`, og tryk **Tegn**. Et nyt grafvindue får du med **+**.\n\n" +
         "**Klik** på en kurve for at aflæse et punkt. **Træk** i grafen for at se mere af den.\n\n" +
         "Værktøjerne til at tegne linjer ligger bag knappen med de **tre streger**.",
     },
@@ -1117,10 +1124,10 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
           id: "to-punkter",
           label: "Hældning mellem to punkter",
           dependsOn: ["aflaese-punkt"],
-          doneWhen: "beregner Δy/Δx for en sekant selv og kan sige, hvad tallet betyder",
+          doneWhen: "beregner Δy/Δx for en linje gennem to punkter selv og kan sige, hvad tallet betyder",
           questions: [
             {
-              prompt: "Bænken viser Δx og Δy for din sekant. Hvordan får du hældningen ud af dem?",
+              prompt: "Du har tegnet en linje gennem (x₁; y₁) og (x₂; y₂). Hvordan regner du dens hældning ud?",
               expectedAnswer: "hældningen er Δy/Δx — hvor meget y ændrer sig pr. enhed x",
             },
           ],
@@ -1129,11 +1136,11 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
           id: "ingen-faelles-haeldning",
           label: "Sammenligne f og g",
           dependsOn: ["to-punkter"],
-          doneWhen: "kan forklare med egne målinger, at 'hvilken kurve er stejlest?' ikke har et svar uden et punkt",
+          doneWhen: "kan forklare med egne målinger, at 'hvilken kurve har den største hældning?' ikke har et svar uden et punkt",
           questions: [
             {
-              prompt: "Er f eller g stejlest?",
-              expectedAnswer: "det afhænger af hvor — fx er g flad i x = 1, mens f stiger; i x = 2 er de lige stejle",
+              prompt: "Hvilken af f og g har den største hældning?",
+              expectedAnswer: "det afhænger af hvor — fx har g hældning 0 i x = 1, mens f stiger; i x = 2 har de samme hældning",
             },
           ],
         },
@@ -1142,10 +1149,10 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
           label: "Hældning i ét punkt",
           dependsOn: ["ingen-faelles-haeldning"],
           doneWhen:
-            "lader det andet punkt nærme sig x = 1 fra begge sider og argumenterer for et bud mellem de to rækker af sekanthældninger",
+            "lader det andet punkt nærme sig x = 1 fra begge sider og argumenterer for et bud mellem de to rækker af hældninger",
           questions: [
             {
-              prompt: "Hvad sker der med sekantens hældning, når det andet punkt kommer tættere og tættere på x = 1?",
+              prompt: "Hvad sker der med linjens hældning, når det andet punkt kommer tættere og tættere på x = 1?",
               expectedAnswer:
                 "hældningerne nærmer sig et bestemt tal (8/3 ≈ 2,67) — ovenfra fra højre og nedefra fra venstre",
             },

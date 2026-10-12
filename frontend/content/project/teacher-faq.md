@@ -58,7 +58,7 @@ More: [Build a simulation with an AI chat](/project/build-a-simulation).
 
 ### What simulations are there?
 
-Nine: Boldkast, LED Planck, KineBot, Elkedel, Faseovergange, Bølgefart, Interferens, Sol, Jord og Måne, and Sekantbænk. Each opens beside the tutor. The student changes something, reads the instruments and records readings, and the tutor sees those readings and can ask about them. A simulation never shows the value the student is meant to work out.
+Nine: Boldkast, LED Planck, KineBot, Elkedel, Faseovergange, Bølgefart, Interferens, Sol, Jord og Måne, and Hældningslab. Each opens beside the tutor. The student changes something, reads the instruments and records readings, and the tutor sees those readings and can ask about them. A simulation never shows the value the student is meant to work out.
 
 In Sol, Jord og Måne the tutor can also change what the student sees, and a card in the chat names every change. A simulation reopens at its defaults on another day, so readings that must be kept belong in a table in the activity.
 
@@ -201,6 +201,6 @@ More: [Build timeline](/project/progress#next-checkpoints).
 
 ### Can we use it for other subjects?
 
-AIPLA is a physics research project, and the tutors, simulations and evaluation are built for physics. The first mathematics simulation, Sekantbænk, is in the library, and documents can be filed by subject. Whether teachers of other subjects can join the pilot has not been decided. Ask the project.
+AIPLA is a physics research project, and the tutors, simulations and evaluation are built for physics. The first mathematics simulation, Hældningslab, is in the library, and documents can be filed by subject. Whether teachers of other subjects can join the pilot has not been decided. Ask the project.
 
 More: [About AIPLA](/project/about).
