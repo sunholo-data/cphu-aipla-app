@@ -154,7 +154,7 @@ works:
 
 | | What | Est. | Gate |
 |---|---|---|---|
-| **M0** | Static gates as one Python module (sim-verify-mcp M0), so the runner, the MCP tool and the in-app path share one implementation | ~0.75d | every live artefact passes; one fixture per gate fails only that gate |
+| **M0** ✅ 2026-10-12 | Static gates as one Python module, `backend/sim_gates/` (sim-verify-mcp M0), so the runner, the MCP tool and the in-app path share one implementation. `audit_artefact.sh` is now a wrapper | ~0.75d | ✅ `tests/unit/test_sim_gates.py`: every live artefact passes tier A; tiers B–C pass except gaps named per sim (four pre-prompt sims, and sekant-intro's missing reference block); one broken fixture per gate. **Found on the way:** the bash gate 1 (no external fetches) had never checked anything — an invalid lookahead made grep exit 2, which `2>/dev/null` hid. Both Gemini drafts pass every static gate, which is the point: their faults are physics |
 | **M1** | `research/sim-bench/` runner: briefs, H1 and H2, Gemini + Claude through one interface, cost capture, `--dry-run`/`--go`/`--report-only`, L0–L3 scoring | ~1.25d | a dry run prints a plan; a one-cell `--go` produces a row and an artefact |
 | **M2** | The physics probe and state contracts for the five briefs; the visual rubric; the first full run; a report with a recommendation | ~1d | **the probe fails the deliberately broken fixtures** (spark at BDC, pV linear, η on screen) and passes the reference sims. A probe that passes everything has not been tested |
 
