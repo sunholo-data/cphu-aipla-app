@@ -636,6 +636,34 @@ def test_no_activity_composes_exactly_as_before(_activity_env):
     )
 
 
+def test_an_agent_tool_answers_the_tutor_not_the_student(_activity_env):
+    """An ``agentTools`` child (svg-illustrator) is CALLED by the tutor and
+    answers the tutor. Told it is "Sofie" in a shared classroom chat, it chats at
+    the student instead of returning its diagram — so it composes without the
+    student-facing blocks. A ``sub_skills`` child takes the conversation over,
+    so it keeps them. Both are built for the same student user."""
+    import asyncio
+    from unittest.mock import MagicMock
+
+    from google.adk.tools import AgentTool
+
+    from adk.classroom_authority import build_classroom_authority_block
+    from adk.tutor_identity import build_identity_block
+
+    child = _skill(name="svg-illustrator", skill_id="ill-id", instructions="Draw.")
+    ctx = MagicMock()
+    ctx.state = {}
+    with patch("adk.agent.get_skill", return_value=child):
+        caller = create_agent(_skill(skill_id="tutor-id", agent_tools=["ill-id"]), _student())
+        handoff = create_agent(_skill(skill_id="tutor-2", sub_skills=["ill-id"]), _student())
+
+    (tool,) = [t for t in caller.tools if isinstance(t, AgentTool)]
+    assert asyncio.run(tool.agent.instruction(ctx)) == ("Draw." + build_math_notation_block() + build_praise_block())
+    handoff_prompt = asyncio.run(handoff.sub_agents[0].instruction(ctx))
+    assert build_identity_block(None) in handoff_prompt
+    assert build_classroom_authority_block() in handoff_prompt
+
+
 def test_inherited_checklist_progress_reaches_the_model(_activity_env):
     """**Aswin's case, end to end (1.1.70).**
 

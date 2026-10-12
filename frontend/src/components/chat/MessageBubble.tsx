@@ -28,6 +28,7 @@ import { useLocaleMode, useT } from "@/i18n";
 import { useVoiceLang } from "@/hooks/useVoiceLang";
 import { ToolCallChip } from "@/components/chat/ToolCallChip";
 import { ChecklistMarkCard, parseChecklistMarkResult } from "@/components/chat/ChecklistMarkCard";
+import { IllustrationCard, parseIllustrationResult } from "@/components/chat/IllustrationCard";
 import { CheckpointCard, parseCheckpointResult } from "@/components/chat/CheckpointCard";
 import { SimCommandCard, parseSimCommandResult } from "@/components/chat/SimCommandCard";
 import { useSurfaceRegistry } from "@/providers/SurfaceRegistry";
@@ -346,6 +347,15 @@ export const MessageBubble = React.memo(function MessageBubble({
                 const result = parseSimCommandResult(tc.resultContent);
                 return result ? <SimCommandCard key={tc.id} toolCallId={tc.id} result={result} /> : null;
               })}
+            {/* svg-illustrator — the computed, render-checked diagram is
+                delivered from the tool result, never from a copy the tutor
+                may drop (see IllustrationCard). */}
+            {nonA2uiCalls
+              .filter((tc) => tc.name === "svg_illustrator")
+              .map((tc) => {
+                const svg = parseIllustrationResult(tc.resultContent);
+                return svg ? <IllustrationCard key={tc.id} svg={svg} /> : null;
+              })}
             {nonA2uiCalls.length > 0 && (
               <div className="flex flex-wrap gap-1.5 pt-1">
                 {nonA2uiCalls
@@ -356,7 +366,8 @@ export const MessageBubble = React.memo(function MessageBubble({
                         parseCheckpointResult(tc.resultContent)
                       ) &&
                       !(tc.name === "mark_checklist_item" && parseChecklistMarkResult(tc.resultContent)) &&
-                      !(tc.name === "control_sim" && parseSimCommandResult(tc.resultContent)),
+                      !(tc.name === "control_sim" && parseSimCommandResult(tc.resultContent)) &&
+                      !(tc.name === "svg_illustrator" && parseIllustrationResult(tc.resultContent)),
                   )
                   .map((tc) => (
                     <ToolCallChip key={tc.id} toolCall={tc} />

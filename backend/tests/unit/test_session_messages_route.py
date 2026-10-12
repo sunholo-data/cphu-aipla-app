@@ -374,3 +374,51 @@ class TestGetSessionMessages:
         assert data["interactions"][0]["label"] == "Sent question with v0=15"
         assert data["interactions"][0]["timestamp"] == 2.0
         assert data["interactions"][0]["server_id"] == "boldkast"
+
+
+# ---------------------------------------------------------------------------
+# svg-illustrator diagrams survive a reload
+# ---------------------------------------------------------------------------
+
+_DIAGRAM = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 160"><line x1="0" y1="0" x2="9" y2="9"/></svg>'
+
+
+def _real_event(author: str, parts: list, timestamp: float = 1.0):
+    from types import SimpleNamespace
+
+    from google.genai import types
+
+    return SimpleNamespace(author=author, timestamp=timestamp, content=types.Content(role="model", parts=parts))
+
+
+def _illustrator_turn(result: str):
+    from google.genai import types
+
+    call = types.Part(function_call=types.FunctionCall(name="svg_illustrator", args={"request": "draw"}))
+    response = types.Part(function_response=types.FunctionResponse(name="svg_illustrator", response={"result": result}))
+    return [
+        _real_event("user", [types.Part(text="Kan du tegne det?")]),
+        _real_event("tutor", [call]),
+        _real_event("tutor", [response]),
+        _real_event("tutor", [types.Part(text="Se tegningen. Hvad viser pilene?")]),
+    ]
+
+
+def test_an_illustration_is_reattached_to_the_reply_it_belonged_to():
+    """Live, the diagram is drawn from the tool result (IllustrationCard), not
+    from the tutor's text. A replay that skipped tool events — which is what this
+    function did for everything else — would lose every diagram on reload."""
+    msgs = _events_to_messages(_illustrator_turn(f"```svg\n{_DIAGRAM}\n```"))
+    assert [m.role for m in msgs] == ["user", "assistant"]
+    assert msgs[1].content.startswith("Se tegningen.")
+    assert f"```svg\n{_DIAGRAM}\n```" in msgs[1].content
+
+
+def test_an_illustration_with_no_reply_after_it_is_not_lost():
+    msgs = _events_to_messages(_illustrator_turn(_DIAGRAM)[:3])
+    assert msgs[-1].role == "assistant" and _DIAGRAM in msgs[-1].content
+
+
+def test_an_illustrator_answer_with_no_svg_adds_nothing():
+    msgs = _events_to_messages(_illustrator_turn("I could not draw that."))
+    assert "svg" not in msgs[1].content

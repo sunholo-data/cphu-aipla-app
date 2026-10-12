@@ -1,7 +1,10 @@
 FROM python:3.12-slim
 
-# Install uv
-RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
+# Install uv. fonts-dejavu-core: the svg-illustrator's render_svg_preview
+# (adk/svg_preview.py) rasterises with resvg, which draws NO <text> without a
+# system font — every label would silently vanish from the preview. DejaVu
+# covers Greek and the Unicode subscripts (v₀, θ) the tutors label with.
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 ADD https://astral.sh/uv/0.5.24/install.sh /uv-installer.sh
 RUN sh /uv-installer.sh && rm /uv-installer.sh

@@ -89,6 +89,7 @@ from adk.progress_context import compose_progress_context
 from adk.resilient_llm import ResilientLlm
 from adk.shared_conversation import build_shared_conversation_block
 from adk.sim_control_tools import build_sim_control_tools, resolve_sim_control_level
+from adk.svg_preview import attach_svg_preview, make_final_svg_guard
 from adk.teacher_focus import build_ilo_precedence_block, inject_teacher_focus, resolve_active_config
 from adk.tools import resolve_mcp_tools, resolve_tools
 from adk.tutor_framework import inject_framework_preamble
@@ -370,6 +371,13 @@ def _request_has_image_part(llm_request: object) -> bool:
             mime = getattr(blob, "mime_type", "") if blob is not None else ""
             if (mime or "").startswith("image/"):
                 return True
+            # An svg-illustrator preview rides INSIDE its function response
+            # (adk/svg_preview.py) — multimodal for Gemini's purposes too.
+            fr = getattr(part, "function_response", None)
+            for fr_part in getattr(fr, "parts", None) or []:
+                fr_blob = getattr(fr_part, "inline_data", None)
+                if (getattr(fr_blob, "mime_type", "") or "").startswith("image/"):
+                    return True
     return False
 
 
@@ -411,6 +419,7 @@ def create_agent(
     student_language: str | None = None,
     devices_present: int = 0,
     _seen: set[str] | None = None,
+    _delegated: bool = False,
     _model_override: str | None = None,
     _planner_override: BuiltInPlanner | None = None,
 ) -> LlmAgent:
@@ -427,6 +436,11 @@ def create_agent(
     Args:
         _seen: internal. Set of skill IDs already on the current call stack,
             used to detect cycles. Callers should leave as None.
+        _delegated: internal. True when this agent is built as another skill's
+            ``agent_tools`` AgentTool: it answers the parent agent, never the
+            student, so the student-facing blocks (persona identity, shared
+            conversation, classroom authority) are left out. A ``sub_skills``
+            agent takes over the conversation, so it keeps them.
         _model_override: internal. When building router sub-agents,
             _create_router_sub_agent uses this to swap the model without
             duplicating the recursion logic.
@@ -442,6 +456,8 @@ def create_agent(
             f"Sub-skill cycle detected: {skill_config.skill_id!r} already on the resolution stack {seen!r}"
         )
     seen.add(skill_config.skill_id)
+    # Student-facing prompt blocks: only for an agent a student actually talks to.
+    _talks_to_student = bool(user.group_id) and not _delegated
 
     # ALS-1 M0: the activity whose teacher-focus / materials / interaction-style
     # shape THIS agent. When the caller passes an explicit ``act-…`` id (the
@@ -571,7 +587,7 @@ def create_agent(
                 skill_config.skill_id,
             )
             continue
-        at_agent = create_agent(at_skill, user, access_context=access_context, _seen=seen)
+        at_agent = create_agent(at_skill, user, access_context=access_context, _seen=seen, _delegated=True)
         # The wrapped agent's name becomes the tool's function name the hub LLM
         # selects on (and the frontend tool-call pill). Derive it from the
         # skill's human name (e.g. "analytics-chat" → "analytics_chat") rather
@@ -725,6 +741,11 @@ def create_agent(
         # 1.1.87 — inline the activity's task materials as text, same placement and
         # for the same reason: the budget projection must see what we added.
         await _activity_doc_injector(callback_context, llm_request)
+        # svg-illustrator: put the last render_svg_preview PNG inside its
+        # function response so the drawing agent can see its own diagram. No-op
+        # for every other agent. Before the image check below, so a preview
+        # turn is treated as multimodal (adk/svg_preview.py).
+        await attach_svg_preview(callback_context, llm_request)
         # 1.1.7 images need no injector: they arrive as native AG-UI
         # ImageInputContent parts that ag_ui_adk turns into ADK Parts in the
         # user event, so they're already in llm_request.contents (and replayed
@@ -755,7 +776,15 @@ def create_agent(
     # a teacher's chat has no document reader to open and nothing to protect.
     _doc_links_after = make_document_link_guard(shared_document_ids(_materials)) if user.group_id else None
 
+    # svg-illustrator: an agent holding the drawing tools returns the last diagram
+    # a tool produced and checked, never SVG it wrote itself (adk/svg_preview.py).
+    _final_svg_guard = (
+        make_final_svg_guard() if {"draw_physics_diagram", "render_svg_preview"} & set(md.tools) else None
+    )
+
     async def _composed_after_model(callback_context: object, llm_response: object) -> None:
+        if _final_svg_guard is not None:
+            await _final_svg_guard(callback_context, llm_response)
         await _strip_markers_after(callback_context, llm_response)
         if _doc_links_after is not None:
             await _doc_links_after(callback_context, llm_response)
@@ -949,17 +978,17 @@ def create_agent(
                                 # only: the persona renders in the anonymous-group
                                 # chat, and a teacher co-pilot must not be told
                                 # it is "Sofie".
-                                + (build_identity_block(_teaching_ctx.persona_id) if user.group_id else "")
+                                + (build_identity_block(_teaching_ctx.persona_id) if _talks_to_student else "")
                                 # 1.1.145 — the conversation is shared by N
                                 # screens on one group code, and the tutor
                                 # reads all of them. Without this it told a
                                 # seminar student it could "only see what you
                                 # write". Empty for one device and for anyone
                                 # not on a group code (byte-identical prompt).
-                                + (build_shared_conversation_block(devices_present) if user.group_id else "")
+                                + (build_shared_conversation_block(devices_present) if _talks_to_student else "")
                                 # 1.1.151 F5 — breaks, leaving, deadlines and
                                 # grades are the teacher's; students only.
-                                + (build_classroom_authority_block() if user.group_id else ""),
+                                + (build_classroom_authority_block() if _talks_to_student else ""),
                                 skill_config.multimodal_input,
                             ),
                             _activity_id,
