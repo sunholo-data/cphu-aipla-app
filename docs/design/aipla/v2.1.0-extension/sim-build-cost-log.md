@@ -8,14 +8,34 @@ Measure each entry with `make session-cost` (`scripts/session_cost.py`). It read
 the Claude Code transcript from the user message that asked for the sim to the
 commit that shipped it.
 
+Each entry records the **model and harness**, because the point of the log is to
+compare them. Cost is API list price (USD) at standard speed and global routing,
+priced by `session_cost.py` from the per-call usage, including 5-minute vs 1-hour
+cache writes. A Claude Code subscription bills differently, so the dollar figure
+is the API equivalent, not what was invoiced.
+
 ## Entries
 
-| Date | Sim | Built with | Wall clock | API calls | Output tokens | Input tokens (fresh + cache write + cache read) | Mean context per call | Produced |
-|---|---|---|---|---|---|---|---|---|
-| 2026-10-12 | `otto-engine` + DA activity | Claude Code, Opus 5.5, `anatomy` + `mcp-app-artefact` skills | 20.4 min | 57 | 93,666 | 114 + 164,577 + 27,925,155 | ~493k | 1,208 source lines (model, geometry, page, build), a 187 KB artefact, the catalogue entry, an activity template with a 7-node concept map |
-| 2026-10-12 | + EN twin activity | same session | +1.2 min (21.6 total) | +7 (64) | +5,140 (98,806) | 128 + 174,109 + 31,841,863 | ~500k | an English copy of the template, same concept-map ids |
+| Date | Sim | Model · harness | Wall clock | API calls | Cost (list) | Output tokens | Input tokens (fresh + cache write + cache read) | Mean context per call | Produced |
+|---|---|---|---|---|---|---|---|---|---|
+| 2026-10-12 | `otto-engine` + DA activity | `claude-opus-5-5`, standard speed · Claude Code 2.1.296 with the `anatomy` + `mcp-app-artefact` skills | 20.4 min | 57 | $8.78 | 93,666 | 114 + 164,577 + 27,925,155 | ~493k | 1,208 source lines (model, geometry, page, build), a 187 KB artefact, the catalogue entry, an activity template with a 7-node concept map |
+| 2026-10-12 | + EN twin activity | same session | +1.2 min (21.6 total) | +7 (64) | +$0.96 ($9.74) | +5,140 (98,806) | 128 + 174,109 + 31,841,863 | ~500k | an English copy of the template, same concept-map ids |
 
 ## Reading the otto-engine numbers
+
+- **Where the $9.74 went** (Opus 5.5 at $4 input, $8 per 1-hour cache write,
+  $0.20 cache read and $20 output per million tokens):
+
+  | | Tokens | Cost | Share |
+  |---|---|---|---|
+  | Cache reads | 31,841,863 | $6.37 | 65 % |
+  | Output, including thinking | 98,806 | $1.98 | 20 % |
+  | Cache writes (all 1-hour) | 174,109 | $1.39 | 14 % |
+  | Uncached input | 128 | <$0.01 | 0 % |
+
+- **A fresh session would cost about $4–5.** At about 100k of context per call
+  instead of 500k, cache reads fall to roughly $1.30. Output and cache writes
+  stay about the same.
 
 - **Context is inflated.** The build ran at the end of a long session, so every
   call carried about 500k tokens of earlier work: the svg-illustrator build,

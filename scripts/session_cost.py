@@ -23,6 +23,15 @@ import pathlib
 
 TOKEN_KEYS = ("input_tokens", "output_tokens", "cache_creation_input_tokens", "cache_read_input_tokens")
 
+# USD per million tokens, standard speed, global routing: input, 5m cache write,
+# 1h cache write, cache read, output. From
+# https://platform.claude.com/docs/en/about-claude/pricing, read 2026-10-12.
+# Prices change: re-check before quoting a cost.
+PRICES = {
+    "claude-opus-5-5": (4.0, 5.0, 8.0, 0.20, 20.0),
+    "claude-sonnet-5-5": (2.0, 2.5, 4.0, 0.10, 10.0),
+}
+
 
 def _text(row: dict) -> str:
     content = row.get("message", {}).get("content")
@@ -68,6 +77,8 @@ def main() -> None:
 
     seen: set[str] = set()
     tokens: collections.Counter[str] = collections.Counter()
+    cost = 0.0
+    unpriced: set[str] = set()
     tools: collections.Counter[str] = collections.Counter()
     models: collections.Counter[str] = collections.Counter()
     for r in pool:
@@ -81,8 +92,24 @@ def main() -> None:
             continue
         seen.add(msg.get("id"))
         models[msg.get("model", "?")] += 1
+        usage = msg.get("usage") or {}
         for k in TOKEN_KEYS:
-            tokens[k] += (msg.get("usage") or {}).get(k) or 0
+            tokens[k] += usage.get(k) or 0
+        price = PRICES.get(msg.get("model", ""))
+        if price is None:
+            unpriced.add(msg.get("model", "?"))
+            continue
+        split = usage.get("cache_creation") or {}
+        w5 = split.get("ephemeral_5m_input_tokens") or 0
+        w1h = split.get("ephemeral_1h_input_tokens") or 0
+        w5 += (usage.get("cache_creation_input_tokens") or 0) - w5 - w1h  # unsplit writes: assume 5m
+        cost += (
+            (usage.get("input_tokens") or 0) * price[0]
+            + w5 * price[1]
+            + w1h * price[2]
+            + (usage.get("cache_read_input_tokens") or 0) * price[3]
+            + (usage.get("output_tokens") or 0) * price[4]
+        ) / 1e6
 
     calls = len(seen)
     print(f"from     {t0:%Y-%m-%d %H:%M:%S} UTC")
@@ -96,6 +123,7 @@ def main() -> None:
             tokens["input_tokens"] + tokens["cache_creation_input_tokens"] + tokens["cache_read_input_tokens"]
         ) / calls
         print(f"mean context per call        {context:>12,.0f}")
+    print(f"cost     ${cost:,.2f} at list price" + (f" (no price for {sorted(unpriced)})" if unpriced else ""))
     print(f"tools    {dict(tools.most_common())}")
 
 
