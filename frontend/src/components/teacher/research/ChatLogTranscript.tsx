@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Bot,
   Calculator,
@@ -30,6 +30,17 @@ export interface ChatLogTranscriptProps {
   status: "loading" | "ok" | "error";
   /** "unreadable" → say so; an empty work log must not read as "no work". */
   workStatus?: "ok" | "unreadable";
+  /** 1.1.148 M3 — scroll to and highlight turn `#turn`. `key` changes on every
+   *  click, so clicking the same citation twice scrolls again. */
+  highlight?: { turn: number; key: number } | null;
+  /** Researcher-only: turn `#N` → the constructs that cite it, shown as a badge
+   *  so the chat reads as evidence. Teachers never get it (1.1.65 R1). */
+  citedBy?: Record<number, string[]> | null;
+}
+
+/** The DOM id of a transcript row — the target a fidelity citation links to. */
+export function turnAnchorId(turnIndex: number): string {
+  return `turn-${turnIndex}`;
 }
 
 function roleLabel(turn: ChatLogTurn, t: Translate<"ChatLogTranscript">): string {
@@ -123,7 +134,7 @@ export function collapseWork(items: ChatLogTimelineItem[]): TimelineRow[] {
  * fallback — which is what the report showed before, minus the 80-char cut.
  */
 export function timelineFromSummary(
-  conversation: { timestamp: string; role: string; content: string }[],
+  conversation: { timestamp: string; role: string; content: string; turnIndex?: number | null }[],
   workbenchEvents: { timestamp: string; server: string; tool: string; field: string; value: string }[] = [],
 ): ChatLogTimelineItem[] {
   const work = [...workbenchEvents].sort((a, b) => (msOf(a.timestamp) ?? 0) - (msOf(b.timestamp) ?? 0));
@@ -137,7 +148,9 @@ export function timelineFromSummary(
     items.push({
       kind: "turn",
       ts: t.timestamp,
-      turn_index: i,
+      // 1.1.148 — the emitter's number when the payload carries it, so the
+      // fallback transcript shows the same #N the fidelity judge cites.
+      turn_index: t.turnIndex ?? i,
       role: t.role,
       content: t.content,
       is_synthetic: t.content === "[session_start]",
@@ -290,8 +303,15 @@ function WorkCard({ burst }: { burst: WorkBurst }) {
  * the system, not the student, opened the conversation. So it is shown as what
  * it is.
  */
-export function ChatLogTranscript({ items, status, workStatus = "ok" }: ChatLogTranscriptProps) {
+export function ChatLogTranscript({ items, status, workStatus = "ok", highlight = null, citedBy = null }: ChatLogTranscriptProps) {
   const t = useT("ChatLogTranscript");
+  // 1.1.148 M3 — a citation click lands here. Re-runs when the items arrive, so
+  // a click that opened a still-loading transcript scrolls once it renders.
+  useEffect(() => {
+    if (!highlight) return;
+    const el = document.getElementById(turnAnchorId(highlight.turn));
+    el?.scrollIntoView?.({ block: "center", behavior: "smooth" });
+  }, [highlight, items]);
   if (status === "loading") {
     return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
   }
@@ -331,20 +351,28 @@ export function ChatLogTranscript({ items, status, workStatus = "ok" }: ChatLogT
           }
           const isStudent = turn.role === "student";
           const Icon = isStudent ? GraduationCap : Bot;
+          const hasIndex = turn.turn_index !== null && turn.turn_index !== undefined;
+          const highlighted = hasIndex && highlight?.turn === turn.turn_index;
+          const citers = hasIndex && citedBy ? citedBy[turn.turn_index as number] : undefined;
           return (
             <li
               key={key}
-              className={
+              id={hasIndex ? turnAnchorId(turn.turn_index as number) : undefined}
+              data-highlighted={highlighted ? "true" : undefined}
+              className={`${
                 isStudent
                   ? "rounded border border-border bg-background px-3 py-2"
                   : "rounded border border-border bg-muted/40 px-3 py-2"
-              }
+              }${highlighted ? " ring-2 ring-brand" : ""}`}
             >
               <div className="mb-1 flex items-center gap-2 text-[11px] font-medium text-muted-foreground">
                 <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 <span>{roleLabel(turn, t)}</span>
-                {turn.turn_index !== null && turn.turn_index !== undefined ? (
-                  <span className="opacity-60">#{turn.turn_index}</span>
+                {hasIndex ? <span className="opacity-60">#{turn.turn_index}</span> : null}
+                {citers && citers.length > 0 ? (
+                  <span className="rounded bg-amber-100 px-1 font-normal text-amber-900">
+                    {t("citedBy", { list: citers.join(", ") })}
+                  </span>
                 ) : null}
                 {turn.model ? <span className="ml-auto font-mono opacity-60">{turn.model}</span> : null}
               </div>

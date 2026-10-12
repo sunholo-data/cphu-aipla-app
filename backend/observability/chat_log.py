@@ -348,12 +348,51 @@ def emit_rubric_run(
         logger.warning("chat_log: emit_rubric_run failed (suppressed): %s", exc)
 
 
+LOG_ID_RUBRIC_REVIEW = "aipla_rubric_review"  # 1.1.148 M4 — one row per researcher review
+
+
+def emit_rubric_review(row: dict[str, Any]) -> None:
+    """Mirror one researcher review of a rubric run into BigQuery (1.1.148 M4).
+
+    Append-only like the Firestore store it mirrors. The reviewer is named by
+    uid only — the email stays in Firestore, out of the analysis tables. The
+    judge's snapshot rides as a JSON string, the ``profile_json`` discipline.
+    Never raises; no-op in LOCAL_MODE.
+    """
+    gl = _get_logger(LOG_ID_RUBRIC_REVIEW)
+    if gl is None:
+        return
+    payload = {
+        "review_id": row.get("review_id"),
+        "run_id": row.get("run_id"),
+        "rubric_id": row.get("rubric_id"),
+        "rubric_version": row.get("rubric_version"),
+        "session_id": row.get("session_id"),
+        "group_id": row.get("group_id"),
+        "construct_key": row.get("construct_key"),
+        "band": row.get("band"),
+        "judged_band": (row.get("judged") or {}).get("band"),
+        "evidence_json": json.dumps(row.get("evidence") or []),
+        "judged_json": json.dumps(row.get("judged") or {}, ensure_ascii=False),
+        "reason": row.get("reason"),
+        "reviewer_uid": row.get("reviewer_uid"),
+        "supersedes": row.get("supersedes"),
+        "created_at": row.get("created_at"),
+    }
+    try:
+        gl.log_struct(payload)
+    except Exception as exc:  # telemetry must never break the review path
+        logger.warning("chat_log: emit_rubric_review failed (suppressed): %s", exc)
+
+
 __all__ = [
     "LOG_ID_CHAT_TURN",
+    "LOG_ID_RUBRIC_REVIEW",
     "LOG_ID_RUBRIC_RUN",
     "LOG_ID_VOICE_COST",
     "LOG_ID_WORKBENCH_EVENT",
     "emit_chat_turn",
+    "emit_rubric_review",
     "emit_rubric_run",
     "emit_voice_cost",
     "emit_workbench_event",

@@ -27,6 +27,7 @@ import {
 } from "@/lib/teacherApi";
 import type { ActivityPayload } from "@/lib/teacherApi";
 import { ActingForOwnerBanner, LastEditedLine } from "@/components/teacher/ActingForOwnerBanner";
+import { StudentsLanguageBadge } from "@/components/teacher/StudentsLanguageBadge";
 import { SettingsMap } from "@/components/teacher/SettingsMap";
 import { InheritedTutor } from "@/components/teacher/InheritedTutor";
 import { TryAsStudentButton } from "@/components/teacher/TryAsStudentButton";
@@ -218,8 +219,10 @@ export default function TeacherActivityConfigPage() {
       {breadcrumb}
 
       <header>
-        <h1 className="text-xl font-semibold sm:text-2xl">
+        <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold sm:text-2xl">
           {t("title", { name: displayName })}
+          {/* 1.1.151 F2b — the students' language, visible from the top. */}
+          <StudentsLanguageBadge language={builder.language} />
         </h1>
         <p className="max-w-3xl text-sm text-muted-foreground">
           {t("intro")}

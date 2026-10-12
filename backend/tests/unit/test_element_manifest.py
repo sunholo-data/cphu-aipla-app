@@ -272,3 +272,14 @@ def test_writing_surface_says_the_text_arrives_continuously():
     which is exactly the copy-paste this element exists to remove."""
     manifest = describe_elements(_cfg(writing=[WritingElement(id="w", title="Konklusion")])).lower()
     assert "as they work" in manifest
+
+
+def test_writing_surface_knows_saved_tutor_notes_are_not_the_students_work():
+    """1.1.151 F6 — "Gem som noter" lets the STUDENT append a tutor reply to
+    this surface under a heading. The tutor reads the surface continuously, so
+    without this it would praise its own summary as the student's writing."""
+    manifest = describe_elements(_cfg(writing=[WritingElement(id="w", title="Konklusion")])).lower()
+    assert "notes from the tutor" in manifest
+    assert "not their own writing" in manifest
+    # ...and the ghost-writing rule is untouched: the student saves, never the tutor.
+    assert "never write into their document" in manifest

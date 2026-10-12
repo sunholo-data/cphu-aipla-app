@@ -43,6 +43,7 @@ def create_session_index(
     document_ids: list[str] | None = None,
     first_message_at: datetime | None = None,
     group_code: str | None = None,
+    activity_id: str | None = None,
 ) -> ChatSessionIndex:
     """Persist a new ChatSessionIndex row. Idempotent: overwrites if exists."""
     now = first_message_at or _utcnow()
@@ -55,6 +56,7 @@ def create_session_index(
         firstMessageAt=now,
         lastMessageAt=now,
         groupCode=group_code,
+        activityId=activity_id,
     )
     set_document(_COLLECTION, session_id, _to_firestore(idx))
     return idx

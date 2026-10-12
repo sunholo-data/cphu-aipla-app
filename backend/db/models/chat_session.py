@@ -51,6 +51,12 @@ class ChatSessionIndex(BaseModel):
     archived_at: datetime | None = Field(default=None, alias="archivedAt")
     shared_with_teacher: bool = Field(default=False, alias="sharedWithTeacher")
     group_code: str | None = Field(default=None, alias="groupCode")
+    activity_id: str | None = Field(default=None, alias="activityId")
+    """1.1.145 M3 — the (group) scope this session was created for: the
+    ``act-…`` id, or the skill id for a legacy lesson (``group_sessions.scope_key``).
+    A group turn whose scope differs is refused, so one activity's session
+    cannot be written from another (a shared ``?session=`` URL, H4). None on
+    sessions created before M3 and on teacher sessions — not checked."""
     proactive_turn_count: int = Field(default=0, alias="proactiveTurnCount")
     """Count of proactive tutor turns fired this session, across both
     Phase A (auto-greet) and Phase B (sim-reactive). Compared against

@@ -22,6 +22,7 @@ import { SourcePassagePanel } from "@/components/teacher/research/SourcePassageP
 import { PublishedApproachList } from "@/components/teacher/research/PublishedApproachList";
 import { TutorPreviewPanel } from "@/components/teacher/research/TutorPreviewPanel";
 import { TutorCrossviewPanel } from "@/components/teacher/research/TutorCrossviewPanel";
+import { CalibrationSetPanel } from "@/components/teacher/research/CalibrationSetPanel";
 import { TutorCopilot } from "./_TutorCopilot";
 import type { TutorProposal } from "./tutorCopilotProposal";
 import { TutorApproachPanel } from "@/components/teacher/research/TutorApproachPanel";
@@ -386,6 +387,9 @@ export default function ResearchFrameworksPage() {
               // Researcher-only: a cross-tenancy read of every teacher's work
               // (1.1.91 M4). The teacher tier never renders it.
               { id: "usage", label: t("tabUsage"), content: <TutorCrossviewPanel /> },
+              // Researcher-only: every researcher's corrections of the fidelity
+              // judge as a calibration set + agreement (1.1.148, M 2026-10-08).
+              { id: "calibration", label: t("tabCalibration"), content: <CalibrationSetPanel /> },
             ]}
           />
           {/* The fourth co-pilot mount (1.1.91 M2), on the surface it edits.

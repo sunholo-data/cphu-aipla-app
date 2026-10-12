@@ -62,12 +62,14 @@ from adk.callbacks import (
 from adk.checklist_tools import build_checklist_tools
 from adk.checkpoint_tools import build_checkpoint_tools
 from adk.citation_markers import make_marker_strip_callback
+from adk.classroom_authority import build_classroom_authority_block
 from adk.concept_steering import build_concept_steering_block
 from adk.curriculum_retrieval import (
     build_curriculum_grounding_preamble,
     build_curriculum_retrieval_tool,
     build_sources_honesty_block,
 )
+from adk.document_links import build_document_links_block, make_document_link_guard, shared_document_ids
 from adk.element_state import make_element_state_wrapper
 from adk.iframe_context import wrap_with_iframe_context
 from adk.instruction_provider_chain import compose_instruction_providers
@@ -85,12 +87,15 @@ from adk.proactive_reactive import inject_reactive_guidance
 from adk.proactive_telemetry import tag_proactive_span_from_callback_context
 from adk.progress_context import compose_progress_context
 from adk.resilient_llm import ResilientLlm
+from adk.shared_conversation import build_shared_conversation_block
 from adk.sim_control_tools import build_sim_control_tools, resolve_sim_control_level
+from adk.svg_preview import attach_svg_preview, make_final_svg_guard
 from adk.teacher_focus import build_ilo_precedence_block, inject_teacher_focus, resolve_active_config
 from adk.tools import resolve_mcp_tools, resolve_tools
 from adk.tutor_framework import inject_framework_preamble
 from adk.tutor_identity import build_identity_block
 from adk.tutor_resolution import resolve_teaching_context
+from adk.workbench_affordances import TurnFills, make_workbench_affordances_wrapper, resolve_workbench_use
 from auth.access_context import AccessContext
 from auth.firebase_auth import User
 from db.models import SkillConfig
@@ -366,6 +371,13 @@ def _request_has_image_part(llm_request: object) -> bool:
             mime = getattr(blob, "mime_type", "") if blob is not None else ""
             if (mime or "").startswith("image/"):
                 return True
+            # An svg-illustrator preview rides INSIDE its function response
+            # (adk/svg_preview.py) — multimodal for Gemini's purposes too.
+            fr = getattr(part, "function_response", None)
+            for fr_part in getattr(fr, "parts", None) or []:
+                fr_blob = getattr(fr_part, "inline_data", None)
+                if (getattr(fr_blob, "mime_type", "") or "").startswith("image/"):
+                    return True
     return False
 
 
@@ -405,7 +417,9 @@ def create_agent(
     activity_id: str | None = None,
     access_context: AccessContext | None = None,
     student_language: str | None = None,
+    devices_present: int = 0,
     _seen: set[str] | None = None,
+    _delegated: bool = False,
     _model_override: str | None = None,
     _planner_override: BuiltInPlanner | None = None,
 ) -> LlmAgent:
@@ -422,6 +436,11 @@ def create_agent(
     Args:
         _seen: internal. Set of skill IDs already on the current call stack,
             used to detect cycles. Callers should leave as None.
+        _delegated: internal. True when this agent is built as another skill's
+            ``agent_tools`` AgentTool: it answers the parent agent, never the
+            student, so the student-facing blocks (persona identity, shared
+            conversation, classroom authority) are left out. A ``sub_skills``
+            agent takes over the conversation, so it keeps them.
         _model_override: internal. When building router sub-agents,
             _create_router_sub_agent uses this to swap the model without
             duplicating the recursion logic.
@@ -437,6 +456,8 @@ def create_agent(
             f"Sub-skill cycle detected: {skill_config.skill_id!r} already on the resolution stack {seen!r}"
         )
     seen.add(skill_config.skill_id)
+    # Student-facing prompt blocks: only for an agent a student actually talks to.
+    _talks_to_student = bool(user.group_id) and not _delegated
 
     # ALS-1 M0: the activity whose teacher-focus / materials / interaction-style
     # shape THIS agent. When the caller passes an explicit ``act-…`` id (the
@@ -469,8 +490,11 @@ def create_agent(
     #
     # AIPLA 2026-06-17 — memory tools now default OFF. Cross-session recall is
     # foreclosed by anonymous group IDs (ADR-001 — we deliberately cannot follow
-    # individuals) and the Vertex memory bank is never populated (no
-    # `add_session_to_memory` write path anywhere), so load_memory only ever
+    # individuals) and the Vertex memory bank is not populated (2026-10-08
+    # correction: ag_ui_adk's idle-session sweep WAS a write path, on by
+    # default, until adk/agui.py passed save_session_to_memory_on_cleanup=False.
+    # Memory is keyed by the group uid across ALL its activities, so this
+    # opt-in must stay off for students), so load_memory only ever
     # returned empty while costing prompt tokens + a per-turn preload fetch. All
     # shipped AIPLA skill templates already opt out; flipping the default removes
     # the footgun for new/inherited skills. The opt-in
@@ -495,7 +519,13 @@ def create_agent(
     # below; the double read is acceptable at agent-build-time (once per session).
     _active_cfg = resolve_active_config(_activity_id, group_tags=user.group_tags)
     _materials = _active_cfg.materials if _active_cfg else []
-    _curriculum_tool = build_curriculum_retrieval_tool(_materials)
+    # 1.1.151 F1d — session_key lets a doc the tutor cannot read be logged once
+    # per (group/teacher, activity) rather than on every turn's rebuild.
+    _curriculum_tool = build_curriculum_retrieval_tool(
+        _materials,
+        activity_id=_activity_id,
+        session_key=f"{getattr(user, 'group_id', '') or user.uid}:{_activity_id}",
+    )
     if _curriculum_tool is not None:
         tools.append(_curriculum_tool)
     # CONCEPT-1 M3 — chat-native checkpoint tools, built per session like the
@@ -557,7 +587,7 @@ def create_agent(
                 skill_config.skill_id,
             )
             continue
-        at_agent = create_agent(at_skill, user, access_context=access_context, _seen=seen)
+        at_agent = create_agent(at_skill, user, access_context=access_context, _seen=seen, _delegated=True)
         # The wrapped agent's name becomes the tool's function name the hub LLM
         # selects on (and the frontend tool-call pill). Derive it from the
         # skill's human name (e.g. "analytics-chat" → "analytics_chat") rather
@@ -663,6 +693,9 @@ def create_agent(
             teaching=_teaching_ctx,
         )
     )
+    # 1.1.149 — whether the tutor can act on the sim, for the workbench block's
+    # inventory line. Read off the tools actually built, not re-derived.
+    _control_sim_available = any(getattr(t, "name", "") == "control_sim" for t in tools)
     # 1.1.133 M3 — assessment as a hidden tool call, on a sim that defines a
     # construct map, for a student session only. Empty list otherwise.
     tools.extend(build_assessment_tools(_active_cfg, user, skill_id=skill_config.skill_id, teaching=_teaching_ctx))
@@ -708,6 +741,11 @@ def create_agent(
         # 1.1.87 — inline the activity's task materials as text, same placement and
         # for the same reason: the budget projection must see what we added.
         await _activity_doc_injector(callback_context, llm_request)
+        # svg-illustrator: put the last render_svg_preview PNG inside its
+        # function response so the drawing agent can see its own diagram. No-op
+        # for every other agent. Before the image check below, so a preview
+        # turn is treated as multimodal (adk/svg_preview.py).
+        await attach_svg_preview(callback_context, llm_request)
         # 1.1.7 images need no injector: they arrive as native AG-UI
         # ImageInputContent parts that ag_ui_adk turns into ADK Parts in the
         # user event, so they're already in llm_request.contents (and replayed
@@ -732,9 +770,24 @@ def create_agent(
     # 1.1.122 — strip Vertex's [rag-source-N] chunk labels from what the
     # student sees AND from what is stored/logged (see adk/citation_markers.py).
     _strip_markers_after = make_marker_strip_callback()
+    # 1.1.147 M3c — a student is only ever handed an aitana://doc link to a
+    # STUDENT-VISIBLE material; any other is reduced to plain text, on the
+    # stream and in what is stored (see adk/document_links.py). Students only:
+    # a teacher's chat has no document reader to open and nothing to protect.
+    _doc_links_after = make_document_link_guard(shared_document_ids(_materials)) if user.group_id else None
+
+    # svg-illustrator: an agent holding the drawing tools returns the last diagram
+    # a tool produced and checked, never SVG it wrote itself (adk/svg_preview.py).
+    _final_svg_guard = (
+        make_final_svg_guard() if {"draw_physics_diagram", "render_svg_preview"} & set(md.tools) else None
+    )
 
     async def _composed_after_model(callback_context: object, llm_response: object) -> None:
+        if _final_svg_guard is not None:
+            await _final_svg_guard(callback_context, llm_response)
         await _strip_markers_after(callback_context, llm_response)
+        if _doc_links_after is not None:
+            await _doc_links_after(callback_context, llm_response)
         await _budget_after(callback_context, llm_response)
 
     # M2B-BACKEND (MCP-APP-INTEGRATIONS): tag OTel spans on every MCP tool
@@ -750,6 +803,8 @@ def create_agent(
         _handle_large_output,
         make_mcp_after_tool_callback(),
     )
+
+    _turn_fills = TurnFills()
 
     return LlmAgent(
         name=_safe_agent_name(skill_config.skill_id),
@@ -856,6 +911,12 @@ def create_agent(
                                 + build_curriculum_grounding_preamble(_materials)
                                 # 1.1.132 — what the tutor can actually read.
                                 + build_sources_honesty_block(_materials, has_activity=_active_cfg is not None)
+                                # 1.1.147 M3c — the docIds of STUDENT-VISIBLE
+                                # materials, so the tutor can link what it
+                                # names. Students only; "" when nothing is
+                                # shared. The guard on the way out
+                                # (_doc_links_after) is the control, not this.
+                                + (build_document_links_block(_active_cfg) if user.group_id else "")
                                 + build_ilo_precedence_block(_active_cfg)
                                 # 1.1.70 M1 — what this GROUP has already been
                                 # recorded as doing. Both summaries were
@@ -917,7 +978,17 @@ def create_agent(
                                 # only: the persona renders in the anonymous-group
                                 # chat, and a teacher co-pilot must not be told
                                 # it is "Sofie".
-                                + (build_identity_block(_teaching_ctx.persona_id) if user.group_id else ""),
+                                + (build_identity_block(_teaching_ctx.persona_id) if _talks_to_student else "")
+                                # 1.1.145 — the conversation is shared by N
+                                # screens on one group code, and the tutor
+                                # reads all of them. Without this it told a
+                                # seminar student it could "only see what you
+                                # write". Empty for one device and for anyone
+                                # not on a group code (byte-identical prompt).
+                                + (build_shared_conversation_block(devices_present) if _talks_to_student else "")
+                                # 1.1.151 F5 — breaks, leaving, deadlines and
+                                # grades are the teacher's; students only.
+                                + (build_classroom_authority_block() if _talks_to_student else ""),
                                 skill_config.multimodal_input,
                             ),
                             _activity_id,
@@ -972,6 +1043,25 @@ def create_agent(
                 _active_cfg,
                 group_id=user.group_id,
                 activity_id=_activity_id,
+                observe=_turn_fills.observe,
+            ),
+            # 1.1.149 — the tutor SENDS the student to the workbench. Inventory
+            # (the sim first — the manifest never listed it), a referral rule
+            # with recognisable triggers, and a deterministic nudge after K
+            # tutor turns with no referral. After the fill-state block, so it is
+            # the last workbench text the model reads and comes after the
+            # framework preamble (later instruction wins). It reads that block's
+            # observation for this turn through `_turn_fills` rather than the
+            # store a second time. `""` for an activity with no sim and no
+            # element, so those compose byte-identically. NOT inside
+            # {teacher_focus}: that is the weak position 1.1.62 already lost in.
+            make_workbench_affordances_wrapper(
+                _active_cfg,
+                policy=resolve_workbench_use(_teaching_ctx.framework_id),
+                control_sim=_control_sim_available,
+                turn_fills=_turn_fills,
+                group_id=user.group_id,
+                activity_id=_activity_id,
             ),
             wrap_with_a2ui_surface_context,
         ),
@@ -997,6 +1087,7 @@ def create_agent_with_thinking(
     activity_id: str | None = None,
     access_context: AccessContext | None = None,
     student_language: str | None = None,
+    devices_present: int = 0,
 ) -> LlmAgent | _HeuristicRouter:
     """Dispatch to the three-tier thinking strategy.
 
@@ -1018,12 +1109,18 @@ def create_agent_with_thinking(
             activity_id=activity_id,
             access_context=access_context,
             student_language=student_language,
+            devices_present=devices_present,
         )
 
     # Tier 3: two agents + picker. Build both via the same recursive factory
     # so sub-skills/tools/callbacks stay wired identically.
     fast = create_agent(
-        skill_config, user, activity_id=activity_id, access_context=access_context, student_language=student_language
+        skill_config,
+        user,
+        activity_id=activity_id,
+        access_context=access_context,
+        student_language=student_language,
+        devices_present=devices_present,
     )
     thinking = create_agent(
         skill_config,
@@ -1031,6 +1128,7 @@ def create_agent_with_thinking(
         activity_id=activity_id,
         access_context=access_context,
         student_language=student_language,
+        devices_present=devices_present,
         _model_override=md.thinking_model,
         _planner_override=None,
     )

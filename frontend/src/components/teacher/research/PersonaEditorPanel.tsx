@@ -18,6 +18,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Plus, Share2, Trash2 } from "lucide-react";
 
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
+import { AuthorLine } from "@/components/teacher/research/AuthorLine";
 import { AVATAR_CHOICES } from "@/lib/avatarManifest";
 import {
   createCustomPersona,
@@ -267,6 +268,8 @@ export function PersonaEditorPanel() {
               <div className="min-w-0">
                 <p className="text-sm font-medium">{p.name}</p>
                 {p.title ? <p className="text-xs text-muted-foreground">{p.title}</p> : null}
+                {/* 1.1.150 — who made this face, from `isOwn`, never `canEdit`. */}
+                <AuthorLine row={p} testId={`persona-author-${p.id}`} />
                 {p.canEdit ? (
                   <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
                     <span

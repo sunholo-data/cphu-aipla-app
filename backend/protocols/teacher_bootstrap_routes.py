@@ -165,7 +165,9 @@ async def teacher_stage(user: User = Depends(get_current_user)) -> dict:  # noqa
                 "classId": c.class_id,
                 "name": c.name,
                 "demo": c.demo,
-                "groupCodes": list(c.group_codes),
+                # Joinable codes only (1.1.146) — the checklist links a code to
+                # share; a revoked one stays on the class roster as evidence.
+                "groupCodes": c.active_group_codes,
                 "activityIds": list(c.activity_ids),
             }
             for c in classes

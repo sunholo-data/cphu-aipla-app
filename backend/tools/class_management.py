@@ -82,8 +82,11 @@ def _class_brief(cls: Class) -> dict[str, Any]:
         "class_id": cls.class_id,
         "name": cls.name,
         "description": cls.description,
-        "group_codes": list(cls.group_codes),
-        "num_group_codes": len(cls.group_codes),
+        # Codes a teacher can hand out (1.1.146); revoked ones are listed
+        # separately — they no longer work but their sessions are still kept.
+        "group_codes": cls.active_group_codes,
+        "num_group_codes": len(cls.active_group_codes),
+        "revoked_group_codes": list(cls.revoked_group_codes),
         "num_activities": len(cls.activity_ids),
     }
 

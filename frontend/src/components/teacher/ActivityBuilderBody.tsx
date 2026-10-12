@@ -4,6 +4,7 @@ import { MessageCircle, Plus, X } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { ActivityPreview } from "@/components/teacher/ActivityPreview";
+import { BuilderHints } from "@/components/teacher/BuilderHints";
 import { BuilderSection, BuilderSectionNav, SECTION } from "@/components/teacher/BuilderLayout";
 import { CalculatorEditor } from "@/components/teacher/CalculatorEditor";
 import { ChartEditor } from "@/components/teacher/ChartEditor";
@@ -18,6 +19,7 @@ import { TableEditor } from "@/components/teacher/TableEditor";
 import { useCopilotEntry } from "@/components/teacher/copilot";
 import type { ActivityBuilder } from "@/hooks/useActivityBuilder";
 import { useT } from "@/i18n";
+import { languageHint, tableHints, type BuilderHint } from "@/lib/builderHints";
 
 // Living concept map (CONCEPT-1 M1) — dark-flagged like the authoring co-pilot;
 // bakes at build time (cloudbuild `_CONCEPT_MAP`), on for dev.
@@ -62,6 +64,7 @@ export function ActivityBuilderBody({
 }: ActivityBuilderBodyProps) {
   const t = useT("ActivityBuilderBody");
   const b = builder;
+  const hints = collectBuilderHints(b);
   // CONCEPT-2 M3 — "Foreslå begrebskort" asks the page's co-pilot for a draft.
   // `useCopilotEntry` is null outside the teacher shell and `ask` returns false
   // when no work co-pilot is mounted, so the button only appears where it can
@@ -87,34 +90,42 @@ export function ActivityBuilderBody({
         />
 
         <BuilderSection section={SECTION.setup}>
-          <Field label={t("name")} htmlFor="activity-title">
-            <input
-              id="activity-title"
-              type="text"
-              value={b.title}
-              onChange={(e) => b.setTitle(e.target.value)}
-              placeholder={t("namePlaceholder")}
-              maxLength={200}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-          </Field>
+          {/* 1.1.151 F2b — the students' language sits NEXT TO the title: two
+              activities of a Danish class ran an English tutor because this
+              field sat lower down and nobody saw its value. */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+            <div className="min-w-0 flex-1">
+              <Field label={t("name")} htmlFor="activity-title">
+                <input
+                  id="activity-title"
+                  type="text"
+                  value={b.title}
+                  onChange={(e) => b.setTitle(e.target.value)}
+                  placeholder={t("namePlaceholder")}
+                  maxLength={200}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                />
+              </Field>
+            </div>
+            {/* The STUDENTS' language (data on the activity) — not the teacher's own
+                DA | EN setting, which only changes this screen (1.1.108). */}
+            <div className="sm:w-44">
+              <Field label={t("language")} htmlFor="activity-language">
+                <select
+                  id="activity-language"
+                  value={b.language}
+                  onChange={(e) => b.setLanguage(e.target.value as ActivityBuilder["language"])}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                >
+                  <option value="da">Dansk</option>
+                  <option value="en">English</option>
+                </select>
+              </Field>
+            </div>
+          </div>
+          <span className="-mt-2 text-xs text-slate-500">{t("languageHelp")}</span>
 
           {classControl}
-
-          {/* The STUDENTS' language (data on the activity) — not the teacher's own
-              DA | EN setting, which only changes this screen (1.1.108). */}
-          <Field label={t("language")} htmlFor="activity-language">
-            <select
-              id="activity-language"
-              value={b.language}
-              onChange={(e) => b.setLanguage(e.target.value as ActivityBuilder["language"])}
-              className="w-fit rounded-md border border-slate-300 px-3 py-2 text-sm"
-            >
-              <option value="da">Dansk</option>
-              <option value="en">English</option>
-            </select>
-            <span className="text-xs text-slate-500">{t("languageHelp")}</span>
-          </Field>
 
           {/* The tutor is class-default-only (1.1.32 Q4): chosen once in class
               settings, inherited by every activity. Shown read-only here so the
@@ -222,6 +233,8 @@ export function ActivityBuilderBody({
           <MaterialsSection materials={b.materials} onChange={b.setMaterials} activityId={activityId} />
         </BuilderSection>
 
+        {/* 1.1.151 — soft hints beside save; never blocking. */}
+        <BuilderHints hints={hints} />
         {error}
         {footer}
       </div>
@@ -249,6 +262,21 @@ export function ActivityBuilderBody({
       </div>
     </div>
   );
+}
+
+/** Every hint the builder's current state earns (1.1.151). */
+function collectBuilderHints(b: ActivityBuilder): BuilderHint[] {
+  const labels = [
+    ...b.table.flatMap((tbl) => [tbl.title, ...tbl.columns.map((c) => c.label)]),
+    ...b.checklist.map((c) => c.label),
+    ...b.writing.map((w) => w.title),
+  ].filter((s): s is string => typeof s === "string" && s.trim() !== "");
+  const hints: BuilderHint[] = [];
+  const lang = languageHint({ language: b.language, title: b.title, teachingGoal: b.teachingGoal, labels });
+  if (lang) hints.push(lang);
+  // 1.1.151 F9 — duplicate column labels, untitled tables among several.
+  hints.push(...tableHints(b.table));
+  return hints;
 }
 
 function Field({

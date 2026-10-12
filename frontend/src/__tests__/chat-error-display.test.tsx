@@ -27,6 +27,8 @@ function makeReturn(overrides: Partial<UseSkillAgentReturn>): UseSkillAgentRetur
     clearError: mockClearError,
     stop: mockStop,
     stall: null,
+    turnRefused: null,
+    clearTurnRefused: vi.fn(),
     retryStalled: mockRetryStalled,
     ...overrides,
   };

@@ -31,6 +31,7 @@ from db.authored_frameworks import list_authored_frameworks
 from db.classes import get_class, update_class_tutor
 from db.framework_overrides import effective_framework
 from db.models.activity_config import InteractionStyle
+from db.models.authorship import SEED_AUTHOR, ClientCreatedVia
 from db.models.tutor import Tutor
 from db.tutor_assignments import clear_assignment, get_assignment, set_assignment
 from db.tutors import (
@@ -45,6 +46,7 @@ from db.tutors import (
 )
 from frameworks.loader import load_frameworks
 from personas.loader import load_persona
+from protocols.authorship import author_emails_for, authorship_fields
 
 log = logging.getLogger(__name__)
 
@@ -104,11 +106,21 @@ def plain_framework_name(framework_id: str | None) -> str | None:
     return plain if _same_words(plain, acronym) else f"{plain} ({acronym})"
 
 
-def _serialize(t: Tutor, *, viewer: User | None = None) -> dict:
+def _serialize(t: Tutor, *, viewer: User | None = None, emails: dict[str, str] | None = None) -> dict:
     persona = load_persona(t.persona_id) if t.persona_id else None
     fw = effective_framework(t.framework_id)
+    stored = get_authored_tutor(t.id) is not None
     return {
         **t.model_dump(by_alias=True, mode="json"),
+        # 1.1.150 M1 — `isOwn` (did I make it), distinct from `canEdit` (may I
+        # change it), plus the author's email for researchers only. See
+        # protocols/authorship.py for the 2026-10-05 seminar that needed it.
+        **authorship_fields(t.author_uid, viewer, emails),
+        # A tutor nobody authored: a YAML base, or one the deploy seed wrote
+        # from a SKILL.md. Its `authorRole` defaults to "researcher" in the
+        # model, which on screen would credit a person with the platform's own
+        # catalogue — so the UI says "built in" instead of reading the role.
+        "isBuiltIn": (not stored) or t.author_uid in (None, SEED_AUTHOR),
         "persona": (
             {"id": persona.id, "name": persona.name, "title": persona.title, "avatar": persona.avatar}
             if persona
@@ -149,6 +161,10 @@ def _serialize(t: Tutor, *, viewer: User | None = None) -> dict:
     }
 
 
+async def _author_emails(viewer: User | None, tutors: list[Tutor]) -> dict[str, str]:
+    return await author_emails_for(viewer, (t.author_uid for t in tutors))
+
+
 def _may_edit(t: Tutor, viewer: User | None) -> bool:
     """Owner, or a researcher, and only for a tutor that has a stored row."""
     if viewer is None or get_authored_tutor(t.id) is None:
@@ -163,6 +179,9 @@ class TutorWrite(BaseModel):
     persona_id: str | None = Field(default=None, alias="personaId", max_length=64)
     framework_id: str | None = Field(default=None, alias="frameworkId", max_length=64)
     interaction_style: InteractionStyle = Field(default="socratic", alias="interactionStyle")
+    # 1.1.150 M2 — the only channels a client may claim. `seed`, `sync` and
+    # `adopt` are server-only and a body naming them is a 422.
+    created_via: ClientCreatedVia = Field(default="ui", alias="createdVia")
 
     model_config = {"populate_by_name": True}
 
@@ -208,12 +227,13 @@ async def list_tutors_route(user: User = Depends(get_current_user)) -> dict:  # 
     if user.is_researcher:
         log.info("tutors: unfiltered catalogue read by researcher uid=%s", user.uid)
     catalogue = list_tutor_catalogue(user.uid, see_all=user.is_researcher)
+    emails = await _author_emails(user, catalogue)
     return {
         # Identity tutors only — what a class can actually be given. The
         # skill-bound four are addressable via /api/tutors/{id} and live in
         # `skillBoundTutors` for research use.
-        "tutors": [_serialize(t, viewer=user) for t in catalogue if not t.is_skill_bound],
-        "skillBoundTutors": [_serialize(t, viewer=user) for t in catalogue if t.is_skill_bound],
+        "tutors": [_serialize(t, viewer=user, emails=emails) for t in catalogue if not t.is_skill_bound],
+        "skillBoundTutors": [_serialize(t, viewer=user, emails=emails) for t in catalogue if t.is_skill_bound],
         # The picker needs these to offer "create a variant" without a second
         # round trip, and to render a framework chooser.
         "frameworks": [
@@ -239,6 +259,10 @@ async def list_tutors_route(user: User = Depends(get_current_user)) -> dict:  # 
                 "summary": " ".join(f.summary.split()) if f.summary else "",
                 "isPlaceholder": f.is_placeholder,
                 "isCustom": True,
+                # 1.1.150 M3 — shown on the tutor's row in MyTutorsPanel. A
+                # teacher-gated route (assert_teacher above): sources never
+                # travel to a group token.
+                "sources": [s.model_dump(by_alias=True, mode="json") for s in f.sources],
             }
             for f in list_authored_frameworks(user.uid, see_all=user.is_researcher)
         ],
@@ -352,6 +376,18 @@ async def create_tutor_route(
             detail="choose a teaching approach for this tutor — or start from an existing tutor instead",
         )
     _validate_refs(body.id, body.persona_id, body.framework_id)
+    # 1.1.150 F4 — refuse a taken id, as the variant route always did. The id
+    # is slugged from the display name in the client, so two teachers each
+    # creating "Didaktisk tutor" used to yield ONE row, owned by whoever saved
+    # last; and a teacher naming a tutor "Sofie" wrote an authored row that
+    # shadowed the base tutor for every class (authored wins in resolve_tutor).
+    # `resolve_tutor`, not a visibility-filtered read: someone else's PRIVATE
+    # tutor holds the id just as firmly.
+    if resolve_tutor(body.id) is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"a tutor with id {body.id} already exists — choose a different name",
+        )
     tutor = Tutor(
         id=body.id,
         displayName=body.display_name,
@@ -363,9 +399,9 @@ async def create_tutor_route(
         # New rows are private EXPLICITLY — see Tutor.visibility.
         visibility="private",
     )
-    saved = save_tutor(tutor, updated_by=user.uid)
-    log.info("tutor authored: id=%s by=%s", saved.id, user.uid)
-    return _serialize(saved)
+    saved = save_tutor(tutor, updated_by=user.uid, created_via=body.created_via)
+    log.info("tutor authored: id=%s by=%s via=%s", saved.id, user.uid, body.created_via)
+    return _serialize(saved, viewer=user)
 
 
 @router.post("/api/research/tutors/variant")
@@ -399,7 +435,7 @@ async def create_variant_route(
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     log.info("tutor variant created: id=%s parent=%s by=%s", variant.id, body.parent_id, user.uid)
-    return _serialize(variant)
+    return _serialize(variant, viewer=user)
 
 
 @router.delete("/api/research/tutors/{tutor_id}")
@@ -569,4 +605,4 @@ async def set_tutor_visibility_route(
         raise HTTPException(status_code=404, detail="tutor not found")
     updated = set_visibility(tutor_id, body.visibility)
     log.info("tutor visibility: id=%s -> %s by=%s", tutor_id, body.visibility, user.uid)
-    return _serialize(updated) if updated else {}
+    return _serialize(updated, viewer=user) if updated else {}

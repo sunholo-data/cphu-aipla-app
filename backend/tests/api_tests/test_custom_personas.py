@@ -168,3 +168,46 @@ def test_a_persona_carries_a_voice_and_a_delivery_prompt():
     resolved = load_persona(created["id"])
     assert resolved.voice.tts_voice == "da-DK-Chirp3-HD-Aoede"
     assert resolved.voice_prompt == "Tal roligt og opmuntrende."
+
+
+# --- 1.1.150: who made a persona, and whether it is yours -------------------
+
+
+def test_researcher_sees_others_personas_as_not_own(monkeypatch):
+    """M, 2026-10-05: label who made it for researchers — tutors, approaches AND
+    personas. A researcher may edit every persona (`canEdit`), which the UI must
+    not read as "you made it" (`isOwn`)."""
+    monkeypatch.setattr(
+        "protocols.authorship.resolve_owner_emails",
+        lambda uids: {u: f"{u}@example.dk" for u in uids},
+    )
+    assert _client(TEACHER).post("/api/personas/custom", json=_BODY).status_code == 200
+
+    row = _client(RESEARCHER).get("/api/personas/custom/list").json()["personas"][0]
+    assert (row["canEdit"], row["isOwn"], row["authorRole"]) == (True, False, "teacher")
+    assert row["authorEmail"] == "t-1@example.dk"
+
+    own = _client(TEACHER).get("/api/personas/custom/list").json()["personas"][0]
+    assert own["isOwn"] is True
+    assert "authorEmail" not in own
+
+
+def test_persona_provenance_is_stamped_on_create_and_never_rewritten():
+    created = _client(TEACHER).post("/api/personas/custom", json=_BODY).json()
+    assert (created["createdBy"], created["createdVia"], created["authorRole"]) == ("t-1", "ui", "teacher")
+    assert created["createdAt"]
+
+    pid = created["id"]
+    _client(RESEARCHER).put(f"/api/personas/custom/{pid}", json={**_BODY, "title": "Edited by a researcher"})
+    _client(RESEARCHER).put(f"/api/personas/custom/{pid}/visibility", json={"visibility": "shared"})
+    after = _client(TEACHER).get("/api/personas/custom/list").json()["personas"][0]
+    assert after["title"] == "Edited by a researcher"
+    assert (after["authorUid"], after["authorRole"]) == ("t-1", "teacher")
+    assert (after["createdBy"], after["createdVia"], after["createdAt"]) == ("t-1", "ui", created["createdAt"])
+
+
+def test_a_persona_body_cannot_claim_its_own_provenance():
+    """`extra="forbid"` on the body: the creation record is the server's."""
+    for field, value in (("createdBy", "someone"), ("createdVia", "seed"), ("authorRole", "researcher")):
+        r = _client(TEACHER).post("/api/personas/custom", json={**_BODY, field: value})
+        assert r.status_code == 422, field

@@ -176,6 +176,14 @@ class TestSessionSafetySurvivesTheWiring:
             "steps away mid-lesson as garbage."
         )
 
+    def test_sessions_are_never_copied_into_memory_on_cleanup(self, chat_agui_agent):
+        mgr = chat_agui_agent._session_manager
+        assert mgr._save_session_to_memory_on_cleanup is False, (
+            "REGRESSION: ag_ui_adk's cleanup sweep would copy idle sessions into the "
+            "Memory Bank, keyed by the GROUP uid across all its activities. Pass "
+            "save_session_to_memory_on_cleanup=False."
+        )
+
     def test_thread_id_is_the_session_id(self, chat_agui_agent):
         mgr = chat_agui_agent._session_manager
         assert mgr._use_thread_id_as_session_id is True, (

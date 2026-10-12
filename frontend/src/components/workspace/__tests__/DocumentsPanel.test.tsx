@@ -1,5 +1,5 @@
-import { afterEach, describe, it, expect, vi } from "vitest";
-import { fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
+import { fireEvent, render as rtlRender, screen, waitFor, within } from "@testing-library/react";
 import { DocumentsPanel } from "@/components/workspace/DocumentsPanel";
 import type React from "react";
 import { LocaleProvider } from "@/i18n";
@@ -14,6 +14,35 @@ function render(ui: React.ReactElement) {
 
 
 afterEach(() => vi.clearAllMocks());
+
+// A fresh in-memory localStorage per test (1.1.147 M3 remembers the chosen
+// document). Node >= 25 ships a global localStorage that shadows jsdom's, and
+// on the CI's Node 22 jsdom's would persist across this file's tests — either
+// way, a test must not inherit the previous one's choice.
+let store: Map<string, string>;
+function installStorage(impl?: Partial<Storage>) {
+  store = new Map();
+  Object.defineProperty(window, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (k: string) => store.get(k) ?? null,
+      setItem: (k: string, v: string) => void store.set(k, v),
+      removeItem: (k: string) => void store.delete(k),
+      ...impl,
+    },
+  });
+}
+
+beforeEach(() => {
+  installStorage();
+  fetchCurriculumContent.mockImplementation(async (docId: string) => ({
+    docId,
+    title: docId,
+    available: true,
+    text: `Body of ${docId}.`,
+    chars: 9 + docId.length,
+  }));
+});
 
 const fetchCurriculumContent = vi.fn();
 vi.mock("@/lib/curriculumApi", async () => {
@@ -97,7 +126,7 @@ describe("DocumentsPanel", () => {
     expect(screen.getByRole("img", { name: "your upload" })).toBeTruthy();
   });
 
-  it("opens a viewer with the parsed content when a shared doc is clicked (M3)", async () => {
+  it("opens the only shared doc by default, with the student token (1.1.147 M3)", async () => {
     fetchCurriculumContent.mockResolvedValue({
       docId: "d1",
       title: "A-level kinematics",
@@ -112,13 +141,16 @@ describe("DocumentsPanel", () => {
         activityId="act-1"
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /A-level kinematics/i }));
     // Student workbench MUST use the anonymous-group token, not teacher auth
     // (else 401 — a student has no Firebase identity).
     expect(fetchCurriculumContent).toHaveBeenCalledWith("d1", "act-1", { as: "student" });
     await waitFor(() =>
       expect(screen.getByText(/Newton's second law/)).toBeInTheDocument(),
     );
+    // One shared document → a reader with its title, no switcher.
+    expect(screen.getByRole("heading", { name: "A-level kinematics" })).toBeInTheDocument();
+    expect(screen.queryByRole("tablist")).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
   });
 
   it("renders a teacher-shared image material as an image (1.1.44 M4)", async () => {
@@ -187,56 +219,134 @@ describe("DocumentsPanel", () => {
         activityId="act-1"
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /Old doc/i }));
     await waitFor(() =>
       expect(screen.getByText(/isn't available to read here yet/i)).toBeInTheDocument(),
     );
   });
+});
 
-  it("renders the opened doc content INLINE (no modal dialog)", async () => {
-    fetchCurriculumContent.mockResolvedValue({
-      docId: "d1",
-      title: "A-level kinematics",
-      available: true,
-      text: "Inline body text.",
-      chars: 17,
-    });
-    render(
-      <DocumentsPanel
-        materials={[{ docId: "d1", origin: "A-level kinematics", studentVisible: true }]}
-        images={[]}
-        activityId="act-1"
-      />,
-    );
-    fireEvent.click(screen.getByRole("button", { name: /A-level kinematics/i }));
-    await waitFor(() => expect(screen.getByText(/Inline body text/)).toBeInTheDocument());
-    // Inline pane, not a modal — there must be no dialog role, and the source
-    // button stays in the document (so the student can switch / it stays visible).
-    expect(screen.queryByRole("dialog")).toBeNull();
-    expect(screen.getByRole("button", { name: /A-level kinematics/i })).toBeInTheDocument();
-    // Closing the inline pane hides the content but keeps the source list.
-    fireEvent.click(screen.getByRole("button", { name: /close document/i }));
-    await waitFor(() => expect(screen.queryByText(/Inline body text/)).toBeNull());
-    expect(screen.getByRole("button", { name: /A-level kinematics/i })).toBeInTheDocument();
+describe("DocumentsPanel — a reader that is already open (1.1.147 M3)", () => {
+  const two = [
+    { docId: "d1", origin: "Fysik C læreplan", studentVisible: true },
+    { docId: "d2", origin: "Vejledning til Fysik C", studentVisible: true },
+    { docId: "d3", origin: "Prompt for Energi.pdf", studentVisible: false },
+  ];
+
+  it("opens the FIRST shared document and shows a tab per shared document", async () => {
+    render(<DocumentsPanel materials={two} images={[]} activityId="act-1" sessionId="s-first" />);
+    await waitFor(() => expect(screen.getByText("Body of d1.")).toBeInTheDocument());
+    const tabs = within(screen.getByRole("tablist")).getAllByRole("tab");
+    expect(tabs.map((t) => t.getAttribute("aria-label"))).toEqual(["Fysik C læreplan", "Vejledning til Fysik C"]);
+    expect(tabs[0]).toHaveAttribute("aria-selected", "true");
+    // The not-shared one is never a tab.
+    expect(screen.queryByRole("tab", { name: /Prompt for Energi/ })).toBeNull();
   });
 
-  it("reports a document.open interaction for research when a shared doc is opened (1.1.45 M5)", async () => {
-    fetchCurriculumContent.mockResolvedValue({
+  it("reports document.default_shown for the automatic open — not document.open — once per session", async () => {
+    const { unmount } = render(
+      <DocumentsPanel materials={two} images={[]} activityId="act-1" sessionId="s-default" />,
+    );
+    await waitFor(() => expect(screen.getByText("Body of d1.")).toBeInTheDocument());
+    expect(reportDocumentEvent).toHaveBeenCalledWith("s-default", {
+      kind: "document.default_shown",
       docId: "d1",
-      title: "Haka Fysik",
-      available: true,
-      text: "Energi.",
-      chars: 7,
+      detail: { remembered: false },
     });
+    expect(reportDocumentEvent).not.toHaveBeenCalledWith(
+      "s-default",
+      expect.objectContaining({ kind: "document.open" }),
+    );
+    unmount();
+    // Remounting (the workbench tabs unmount a hidden panel) does not re-emit.
+    render(<DocumentsPanel materials={two} images={[]} activityId="act-1" sessionId="s-default" />);
+    await waitFor(() => expect(screen.getByText("Body of d1.")).toBeInTheDocument());
+    const defaults = reportDocumentEvent.mock.calls.filter(
+      ([, e]) => (e as { kind: string }).kind === "document.default_shown",
+    );
+    expect(defaults).toHaveLength(1);
+  });
+
+  it("a tab click opens that document, reports document.open and is remembered for the activity", async () => {
+    const { unmount } = render(
+      <DocumentsPanel materials={two} images={[]} activityId="act-1" sessionId="s-click" />,
+    );
+    await waitFor(() => expect(screen.getByText("Body of d1.")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("tab", { name: "Vejledning til Fysik C" }));
+    await waitFor(() => expect(screen.getByText("Body of d2.")).toBeInTheDocument());
+    expect(reportDocumentEvent).toHaveBeenCalledWith("s-click", { kind: "document.open", docId: "d2" });
+    expect(store.get("aipla.documents.selected:act-1")).toBe("d2");
+    unmount();
+    // On return, the last choice wins over "first".
+    render(<DocumentsPanel materials={two} images={[]} activityId="act-1" sessionId="s-click-2" />);
+    await waitFor(() => expect(screen.getByText("Body of d2.")).toBeInTheDocument());
+    expect(screen.getByRole("tab", { name: "Vejledning til Fysik C" })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("arrow keys move between tabs", async () => {
+    render(<DocumentsPanel materials={two} images={[]} activityId="act-1" />);
+    await waitFor(() => expect(screen.getByText("Body of d1.")).toBeInTheDocument());
+    fireEvent.keyDown(screen.getByRole("tablist"), { key: "ArrowRight" });
+    await waitFor(() => expect(screen.getByText("Body of d2.")).toBeInTheDocument());
+    expect(screen.getByRole("tab", { name: "Vejledning til Fysik C" })).toHaveFocus();
+  });
+
+  it("the narrow-screen select switches documents too", async () => {
+    render(<DocumentsPanel materials={two} images={[]} activityId="act-1" />);
+    await waitFor(() => expect(screen.getByText("Body of d1.")).toBeInTheDocument());
+    fireEvent.change(screen.getByRole("combobox", { name: /choose a document/i }), { target: { value: "d2" } });
+    await waitFor(() => expect(screen.getByText("Body of d2.")).toBeInTheDocument());
+  });
+
+  it("ignores a remembered document that is no longer shared", async () => {
+    store.set("aipla.documents.selected:act-1", "d3");
+    render(<DocumentsPanel materials={two} images={[]} activityId="act-1" />);
+    await waitFor(() => expect(screen.getByText("Body of d1.")).toBeInTheDocument());
+    expect(fetchCurriculumContent).not.toHaveBeenCalledWith("d3", expect.anything(), expect.anything());
+  });
+
+  it("works when browser storage throws", async () => {
+    installStorage({
+      getItem: () => {
+        throw new Error("blocked");
+      },
+      setItem: () => {
+        throw new Error("blocked");
+      },
+    });
+    render(<DocumentsPanel materials={two} images={[]} activityId="act-1" />);
+    await waitFor(() => expect(screen.getByText("Body of d1.")).toBeInTheDocument());
+    fireEvent.click(screen.getByRole("tab", { name: "Vejledning til Fysik C" }));
+    await waitFor(() => expect(screen.getByText("Body of d2.")).toBeInTheDocument());
+  });
+
+  it("M3a: a not-shared material is explained and has no button", () => {
     render(
       <DocumentsPanel
-        materials={[{ docId: "d1", origin: "Haka Fysik", studentVisible: true }]}
+        materials={[{ docId: "d3", origin: "Prompt for Energi.pdf", studentVisible: false }]}
         images={[]}
         activityId="act-1"
-        sessionId="sess-1"
       />,
     );
-    fireEvent.click(await screen.findByRole("button", { name: "Haka Fysik" }));
-    expect(reportDocumentEvent).toHaveBeenCalledWith("sess-1", { kind: "document.open", docId: "d1" });
+    expect(screen.getByText(/your teacher has not shared the contents/i)).toBeInTheDocument();
+    expect(screen.getByText("Prompt for Energi.pdf")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Prompt for Energi/ })).toBeNull();
+    expect(screen.queryByRole("tab")).toBeNull();
+  });
+
+  it("zero shared documents → no empty reader; nothing is fetched", () => {
+    const { container } = render(
+      <DocumentsPanel
+        materials={[
+          { docId: "d1", origin: "Fysik C læreplan", studentVisible: false },
+          { docId: "d2", origin: "Vejledning til Fysik C", studentVisible: false },
+        ]}
+        images={[]}
+        activityId="act-1"
+      />,
+    );
+    expect(screen.queryByRole("heading", { level: 3 })).toBeNull();
+    expect(fetchCurriculumContent).not.toHaveBeenCalled();
+    // The not-shared list is open when it is all there is.
+    expect(container.querySelector("details")).toHaveAttribute("open");
   });
 });

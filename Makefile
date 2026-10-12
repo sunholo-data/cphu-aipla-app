@@ -1,4 +1,4 @@
-.PHONY: sync-tutor-assignments tf-plan tf-apply tf-local tf-fmt check-iam-posture check-spend-ceiling spend-ceiling check-eu-log-routing eu-log-routing list-privacy-acks check-domains deploy-status dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes check-role list-roles list-unregistered grant-researcher revoke-researcher register-demo-teacher force-seed-demo bind-demo-code reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content backfill-document-skill-ids seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check smoke-sim guides guides-pdf check-guides guide-screens seed-guide-corpus guide-staleness
+.PHONY: backfill-rag-status sync-tutor-assignments tf-plan tf-apply tf-local tf-fmt check-iam-posture check-spend-ceiling spend-ceiling check-eu-log-routing eu-log-routing list-privacy-acks check-domains deploy-status dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes check-role list-roles list-unregistered grant-researcher revoke-researcher register-demo-teacher force-seed-demo bind-demo-code reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content backfill-document-skill-ids seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check smoke-sim guides guides-pdf check-guides guide-screens seed-guide-corpus guide-staleness
 
 # Seed SKILL.md templates -> Firestore. Since P1.3 the Cloud Build deploy runs
 # this automatically via the `aipla-seed-skills` Cloud Run job (see
@@ -158,6 +158,16 @@ backfill-curriculum-content:
 #   make backfill-document-skill-ids ENV=prod ARGS="--uid anon-busygarden11 --skill-id <id> --go"
 backfill-document-skill-ids:
 	@scripts/backfill-document-skill-ids.sh $(ENV) $(ARGS)
+
+# 1.1.151 F1 — stamp ragStatus (ready/failed) on curriculum docs written before
+# it existed, and re-ingest a named doc via the same code as the teacher's
+# "Prøv igen". Dry-run unless GO=1. `make backfill-curriculum-content` does NOT
+# re-upload to RAG (it only fills the viewer's stored text), hence this target.
+#   make backfill-rag-status ENV=dev
+#   make backfill-rag-status ENV=dev GO=1
+#   make backfill-rag-status ENV=prod REINGEST=<doc_id> GO=1
+backfill-rag-status:
+	@scripts/backfill-rag-status.sh $(ENV) $(if $(filter 1,$(GO)),--go) $(if $(REINGEST),--reingest $(REINGEST))
 
 # 1.1.60 migration: seed the nine Danish stx physics areas as SHARED curriculum
 # folders and relocate docs still carrying a physics area in `subject` (subject
@@ -466,6 +476,47 @@ sync-tutor-assignments:
 	@test -n "$(FROM)" -a -n "$(TO)" || { echo "usage: make sync-tutor-assignments FROM=prod TO=test [GO=1] [PRUNE=1] [FORCE=1]"; exit 2; }
 	@cd backend && uv run python scripts/sync_tutor_assignments.py --from $(FROM) --to $(TO) \
 		$(if $(filter 1,$(GO)),--go) $(if $(filter 1,$(PRUNE)),--prune) $(if $(filter 1,$(FORCE)),--force)
+
+# 1.1.148 — researcher corrections of the fidelity judge as a calibration set
+# (decided by M 2026-10-08: shared + calibration set). READ-ONLY on the env:
+# reads rubric_reviews + rubric_runs, writes a LOCAL JSONL (default
+# backend/exports/calibration-<env>.jsonl, gitignored) and prints agreement per
+# framework and construct. Same rows as GET /api/research/calibration-set.
+#   make calibration-set ENV=prod
+#   make calibration-set ENV=prod FRAMEWORK=toulmin OUT=/tmp/cal.jsonl
+.PHONY: calibration-set test-calibration-set
+calibration-set:
+	@test -n "$(ENV)" || { echo "usage: make calibration-set ENV=dev|test|prod [FRAMEWORK=<id>] [OUT=<path>]"; exit 2; }
+	@cd backend && uv run python scripts/export_calibration_set.py --env $(ENV) \
+		$(if $(FRAMEWORK),--framework $(FRAMEWORK)) $(if $(OUT),--out $(abspath $(OUT)))
+
+test-calibration-set:
+	@cd backend && uv run pytest tests/unit/test_calibration_set.py -q
+
+# 1.1.150 M2 — stamp createdBy/createdVia/createdAt onto tutors, custom approaches
+# and custom personas written before those fields existed. Only certain values:
+# createdAt from Firestore's create_time, createdBy from authorUid, createdVia=seed
+# for platform-seed rows (else left "not recorded"). Never overwrites. Dry-run
+# unless GO=1. ⚠️ Only once the release whose models carry the fields serves
+# ALL of that env's traffic — an older revision drops a row it cannot validate.
+# dev, then test; prod is M's to run.
+#   make backfill-authored-provenance ENV=dev
+#   make backfill-authored-provenance ENV=dev GO=1
+.PHONY: backfill-authored-provenance
+backfill-authored-provenance:
+	@test -n "$(ENV)" || { echo "usage: make backfill-authored-provenance ENV=dev|test|prod [GO=1]"; exit 2; }
+	@cd backend && uv run python scripts/backfill_authored_provenance.py --env $(ENV) $(if $(filter 1,$(GO)),--go)
+
+# 1.1.146 M3: restore the class binding of join codes an old Revoke hard-deleted,
+# as tombstones (still revoked, reviewable again). Dry-run unless GO=1; ENV=prod
+# without CLASS= is refused unless FORCE=1. Idempotent. Never deletes anything.
+#   make repair-revoked-codes ENV=prod CLASS=0be138dda057
+#   make repair-revoked-codes ENV=prod CLASS=0be138dda057 GO=1
+.PHONY: repair-revoked-codes
+repair-revoked-codes:
+	@test -n "$(ENV)" || { echo "usage: make repair-revoked-codes ENV=dev|test|prod [CLASS=<id>] [GO=1] [FORCE=1]"; exit 2; }
+	@cd backend && uv run python -m scripts.repair_revoked_group_codes --env $(ENV) \
+		$(if $(CLASS),--class $(CLASS)) $(if $(filter 1,$(GO)),--go) $(if $(filter 1,$(FORCE)),--force)
 
 # What screen sizes are people using? Read-only distribution of the
 # `aipla_client_env` beacons (viewport width bucket x surface, DPR, pointer).

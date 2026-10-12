@@ -35,7 +35,7 @@ def test_returns_base_unchanged_when_no_surface_keys():
     state = {
         "document_ids": ["doc-1"],
         "user:preferred_locale": "en-GB",
-        "app:resumed_session": True,
+        "doc_resumed_session": True,
         # Sibling namespace from sprint 1.25 — must NOT bleed into the
         # A2UI block (kept by iframe_context's own InstructionProvider).
         "mcp_app_context.foo.bar": {"x": 1},

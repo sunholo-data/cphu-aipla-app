@@ -22,7 +22,9 @@ import { GitBranch, Plus, Share2, Trash2 } from "lucide-react";
 
 import { TutorVariantDialog } from "@/components/teacher/TutorVariantDialog";
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
+import { AuthorLine } from "@/components/teacher/research/AuthorLine";
 import {
+  ConflictError,
   createTutor,
   deleteTutor,
   fetchTutorCatalogue,
@@ -117,8 +119,11 @@ export function MyTutorsPanel() {
       });
       setDraft(null);
       load();
-    } catch {
-      setError(t("failedSave"));
+    } catch (err) {
+      // 1.1.150 F4 — the server now refuses a taken id (another person's tutor,
+      // or a built-in like "Sofie") instead of silently overwriting it. Say so,
+      // and keep the draft so the name can be changed.
+      setError(err instanceof ConflictError ? t("nameTaken") : t("failedSave"));
     } finally {
       setBusy(false);
     }
@@ -127,8 +132,14 @@ export function MyTutorsPanel() {
   if (failed) return <p className="text-sm text-muted-foreground">{t("failed")}</p>;
   if (catalogue === null) return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
 
-  const mine = catalogue.tutors.filter((tutor) => tutor.canEdit);
-  const others = catalogue.tutors.filter((tutor) => !tutor.canEdit);
+  // 1.1.150 — grouped on `isOwn` (did I make it), NOT `canEdit` (may I change
+  // it). A researcher may edit every authored tutor, so grouping on canEdit
+  // put every teacher's tutor under a researcher's "Yours" — the 2026-10-05
+  // seminar's "where has this come from?".
+  const mine = catalogue.tutors.filter((tutor) => tutor.isOwn);
+  const others = catalogue.tutors.filter((tutor) => !tutor.isOwn);
+  const sourcesOf = (tutor: TutorPayload) =>
+    catalogue.frameworks.find((f) => f.id === tutor.frameworkId && f.isCustom)?.sources ?? [];
 
   const row = (tutor: TutorPayload) => (
     <div key={tutor.id} className="flex items-start justify-between gap-3 rounded border px-3 py-2">
@@ -142,6 +153,12 @@ export function MyTutorsPanel() {
           ) : null}
         </p>
         <p className="text-xs text-muted-foreground">{(tutor.frameworkName ? t("teaches", { name: tutor.frameworkName }) : t("teachesNone"))}</p>
+        {sourcesOf(tutor).length > 0 ? (
+          <p className="text-xs text-muted-foreground">
+            {t("derivedFrom", { list: sourcesOf(tutor).map((src) => src.citation).join("; ") })}
+          </p>
+        ) : null}
+        <AuthorLine row={tutor} testId={`tutor-author-${tutor.id}`} />
         {tutor.canEdit ? (
           <p className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
             <span

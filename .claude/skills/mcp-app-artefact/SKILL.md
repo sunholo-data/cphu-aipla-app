@@ -106,6 +106,15 @@ Writing it here, read **[resources/artefact-anatomy.md](resources/artefact-anato
 file skeleton, the bridge API, how to emit, commit-on-submit, host→artefact
 notifications, and the self-test.
 
+**Want a crafted apparatus rather than a plain bench?** The **`anatomy`** skill
+(`.claude/skills/anatomy/`, vendored, MIT) builds an interactive isometric figure of
+a real instrument whose working *is* the concept, driven by one model. Build the figure
+there, then bring it back here as the body of `index.html`. Read
+[its AIPLA.md](../anatomy/AIPLA.md) first: only its smallest **Figure** size fits the
+200 KB cap, it must ship its `--light` build, and the bridge still has to be wired.
+(Not to be confused with `resources/artefact-anatomy.md`, which is the file skeleton
+for our artefacts.)
+
 Read **[resources/visual-standard.md](resources/visual-standard.md)** before you
 write CSS. The host workspace is light-themed and ~700px wide; a dark header or
 a 900px bench reads as a broken app, not a styling nit.
@@ -388,6 +397,7 @@ Keep this table current — it is the fastest answer to "what do we already have
 | [resources/vendored-libraries.md](resources/vendored-libraries.md) | a sim needs three.js, or you want to admit another library |
 | [resources/host-side-code.md](resources/host-side-code.md) | you believe the generic frame is not enough |
 | [resources/pre-ship-checklist.md](resources/pre-ship-checklist.md) | before merging |
+| [../anatomy/AIPLA.md](../anatomy/AIPLA.md) | the sim should be a crafted isometric apparatus (the `anatomy` skill) |
 
 | Script | Does |
 |---|---|

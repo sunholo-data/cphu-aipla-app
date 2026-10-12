@@ -16,6 +16,7 @@ Agent Engine and are not guessable from the outside.
 
 from __future__ import annotations
 
+import re
 from datetime import UTC
 from typing import Annotated, Any, Literal
 
@@ -130,21 +131,54 @@ def _to_summary(idx: ChatSessionIndex, viewer_uid: str) -> ChatSessionSummary:
     )
 
 
+#: The svg-illustrator AgentTool (see adk/svg_preview.py). Live, its diagram is
+#: shown from the tool result (IllustrationCard), not from the tutor's text — so
+#: a replay that skipped tool events would lose every diagram on reload.
+_ILLUSTRATOR_TOOL = "svg_illustrator"
+_SVG_IN_RESULT = re.compile(r"```svg\s*(.*?)```|(<svg.*?</svg>)", re.DOTALL)
+
+
+def _illustration_of(part: object) -> str | None:
+    fr = getattr(part, "function_response", None)
+    if fr is None or getattr(fr, "name", None) != _ILLUSTRATOR_TOOL:
+        return None
+    result = (getattr(fr, "response", None) or {}).get("result")
+    if not isinstance(result, str):
+        return None
+    m = _SVG_IN_RESULT.search(result)
+    svg = (m.group(1) or m.group(2) or "").strip() if m else ""
+    return svg if svg.startswith("<svg") else None
+
+
 def _events_to_messages(events: list) -> list[ChatMessage]:
     """Extract user/assistant text messages from ADK session events.
 
     Skips events with no content (tool calls, system events, empty turns).
-    Joins multi-part content parts with a space.
+    Joins multi-part content parts with a space. One exception to "skips tool
+    calls": an svg-illustrator diagram is re-attached, as an ```svg block, to the
+    assistant message that follows it — where the student saw it live.
     """
     messages: list[ChatMessage] = []
+    pending: list[str] = []
     for e in events:
         if not e.content or not e.content.parts:
             continue
+        pending += [svg for p in e.content.parts if (svg := _illustration_of(p))]
         text = " ".join(p.text for p in e.content.parts if p.text).strip()
         if not text:
             continue
         role: Literal["user", "assistant"] = "user" if e.author == "user" else "assistant"
+        if role == "assistant" and pending:
+            text += "".join(f"\n\n```svg\n{svg}\n```" for svg in pending)
+            pending = []
         messages.append(ChatMessage(role=role, content=text, timestamp=e.timestamp))
+    if pending and messages:  # the turn ended on the diagram
+        last = messages[-1]
+        messages.append(
+            ChatMessage(
+                role="assistant", content="\n\n".join(f"```svg\n{s}\n```" for s in pending), timestamp=last.timestamp
+            )
+        )
     return messages
 
 

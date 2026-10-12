@@ -25,17 +25,30 @@ import { useEffect, useRef, useState } from "react";
  *   thread): adopt the new id; AGUIProvider rebuilds intentionally.
  * - URL clears ``?session=`` (user clicked "+ New conversation"): mint a
  *   fresh UUID; AGUIProvider rebuilds intentionally.
+ *
+ * 1.1.145 M1 — anonymous-group students NEVER mint. Their session is decided by
+ * the server (`POST /api/auth/group/session`, a transactional create-if-absent)
+ * and passed as `serverSessionId`; it wins over the URL and is returned as-is.
+ * A client-minted UUID was the V2 race: every device opening an activity at
+ * once bootstrapped its own id, and the losers chatted on private sessions.
  */
 export function useStableThreadId(
   urlSessionId: string | null,
-  opts?: { initialSessionId?: string },
+  opts?: { initialSessionId?: string; serverSessionId?: string },
 ): string {
+  const serverSessionId = opts?.serverSessionId;
   const [threadId, setThreadId] = useState<string>(
-    () => urlSessionId ?? opts?.initialSessionId ?? crypto.randomUUID(),
+    () => serverSessionId ?? urlSessionId ?? opts?.initialSessionId ?? crypto.randomUUID(),
   );
   const prevUrlSessionIdRef = useRef<string | null>(urlSessionId);
 
   useEffect(() => {
+    if (serverSessionId) {
+      // The server decided; the URL follows it, never the other way round.
+      prevUrlSessionIdRef.current = urlSessionId;
+      if (threadId !== serverSessionId) setThreadId(serverSessionId);
+      return;
+    }
     const prev = prevUrlSessionIdRef.current;
     prevUrlSessionIdRef.current = urlSessionId;
 
@@ -49,7 +62,7 @@ export function useStableThreadId(
     }
     // When urlSessionId === threadId (URL writeback caught up to our id),
     // do nothing — that's the whole point of this hook.
-  }, [urlSessionId, threadId]);
+  }, [urlSessionId, threadId, serverSessionId]);
 
-  return threadId;
+  return serverSessionId ?? threadId;
 }

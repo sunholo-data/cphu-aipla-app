@@ -150,6 +150,33 @@ def effective_framework(framework_id: str | None) -> TeachingFramework | None:
         return base
 
 
+def criteria_version(framework_id: str | None) -> str:
+    """Which edition of a framework's CRITERIA :func:`effective_framework` serves
+    (1.1.148 M5) — the stored ``version`` of the row that supplies them, else
+    ``"yaml"`` for the framework exactly as shipped.
+
+    The fidelity judge stamps this onto every run (``fidelity-r3+fw<this>``), so
+    a criteria edit yields a NEW run beside the old one instead of a cached read
+    judged against text that no longer exists. Mirrors the three cases of
+    :func:`effective_framework`, including its "a malformed or text-mode row is
+    the YAML" rule — the version must describe what was actually served.
+    """
+    if not framework_id:
+        return "yaml"
+    from db.authored_frameworks import COLLECTION as AUTHORED
+    from db.authored_frameworks import is_custom_id
+
+    if is_custom_id(framework_id):
+        row = get_document(AUTHORED, framework_id) or {}
+        v = row.get("version")
+        return str(int(v)) if isinstance(v, (int, float)) and v else "custom"
+    row = get_document(_COLLECTION, framework_id) or {}
+    if row.get("mode") != "structured" or not row.get("structure"):
+        return "yaml"
+    v = row.get("version")
+    return str(int(v)) if isinstance(v, (int, float)) and v else "yaml"
+
+
 def clear_framework_override(framework_id: str) -> None:
     """Revert to the YAML-rendered default by deleting the override."""
     if framework_id:
@@ -212,6 +239,7 @@ def resolve_framework_instruction(framework_id: str | None) -> str:
 
 __all__ = [
     "clear_framework_override",
+    "criteria_version",
     "default_framework_instruction",
     "effective_framework",
     "get_framework_override",

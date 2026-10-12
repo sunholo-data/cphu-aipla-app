@@ -12,7 +12,8 @@ When ``LOCAL_MODE=1`` is set the client is the in-memory drop-in from
 from __future__ import annotations
 
 import logging
-from typing import Any
+from collections.abc import Callable
+from typing import Any, TypeVar
 
 from google.cloud import firestore
 
@@ -23,6 +24,8 @@ from db.firestore_protocol import FirestoreClient
 logger = logging.getLogger(__name__)
 
 _client: FirestoreClient | None = None
+
+T = TypeVar("T")
 
 
 def get_client() -> FirestoreClient:
@@ -154,6 +157,54 @@ def query_documents(
             data["__id"] = doc.id
             results.append(data)
     return results
+
+
+def transact_document(
+    collection: str,
+    doc_id: str,
+    fn: Callable[[dict[str, Any] | None], tuple[dict[str, Any] | None, T]],
+) -> T:
+    """Read-modify-write ONE document atomically (1.1.145 M1).
+
+    ``fn`` receives the document's current data (``None`` when absent) and
+    returns ``(fields_to_merge_or_None, result)``. When it returns fields they
+    are written with ``merge=True`` in the same atomic unit as the read; the
+    ``result`` is handed back to the caller.
+
+    The only transaction in the data-access layer, and deliberately this narrow:
+    a single-document compare-and-set is the one thing a create-if-absent needs,
+    and it maps directly onto Postgres ``SELECT … FOR UPDATE`` for the on-prem
+    adapter (``firestore-portability-seam.md``). Real Firestore may RETRY ``fn``
+    on contention, so ``fn`` must be pure — no side effects, no I/O.
+
+    LOCAL_MODE (the in-memory client) holds the client's store lock across the
+    read and the write, which gives the same guarantee within one process.
+    """
+    _require_path(collection, doc_id)
+    client = get_client()
+    ref = client.collection(collection).document(doc_id)
+
+    from db.firestore_inmemory import InMemoryFirestoreClient
+
+    if isinstance(client, InMemoryFirestoreClient):
+        with client._lock:  # the in-memory client's own store lock
+            snap = ref.get()
+            updates, result = fn(snap.to_dict() if snap.exists else None)
+            if updates is not None:
+                ref.set(updates, merge=True)
+            return result
+
+    transaction = client.transaction()  # type: ignore[attr-defined]
+
+    @firestore.transactional
+    def _run(tx: Any) -> T:
+        snap = ref.get(transaction=tx)  # type: ignore[call-arg]
+        updates, result = fn(snap.to_dict() if snap.exists else None)
+        if updates is not None:
+            tx.set(ref, updates, merge=True)
+        return result
+
+    return _run(transaction)
 
 
 def increment_field(collection: str, doc_id: str, field: str, amount: int = 1) -> None:

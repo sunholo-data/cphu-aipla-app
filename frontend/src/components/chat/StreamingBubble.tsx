@@ -8,32 +8,55 @@
 "use client";
 
 import type { SkillMessage } from "@/hooks/useSkillAgent";
-import { BrandAvatar } from "@/components/chat/BrandAvatar";
+import { BotAvatar, botBylineName, type PersonaSummary } from "@/components/chat/BotByline";
 import { ThinkingPanel } from "@/components/chat/ThinkingPanel";
+import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
+import { holdOpenMath } from "@/lib/mathDelimiters";
+
+// A streaming bubble has no document panel to navigate; a chip that arrives
+// mid-stream becomes live once the turn finalises into MessageBubble.
+const noNavigate = () => {};
 
 interface StreamingBubbleProps {
   message: SkillMessage;
   skillId: string;
+  /** The same identity the finished MessageBubble is given — the byline and
+   *  avatar must not change when the turn stops streaming (1.1.147 OQ6). */
+  skillDisplayName?: string;
+  persona?: PersonaSummary | null;
   thinkingContent?: string;
   isThinking?: boolean;
 }
 
-export function StreamingBubble({ message, skillId, thinkingContent, isThinking }: StreamingBubbleProps) {
+export function StreamingBubble({
+  message,
+  skillId,
+  skillDisplayName,
+  persona,
+  thinkingContent,
+  isThinking,
+}: StreamingBubbleProps) {
   return (
     <div className="flex items-start gap-3">
-      <BrandAvatar />
+      <BotAvatar persona={persona} />
       <div className="flex max-w-[80%] flex-col gap-1">
         <div className="flex items-baseline gap-2">
-          <span className="text-xs font-medium text-orange-600">{skillId}</span>
+          <span className="text-xs font-medium text-orange-600">
+            {botBylineName({ skillId, skillDisplayName, persona })}
+          </span>
         </div>
         <div className="rounded-[2px_8px_8px_8px] border-l-[3px] border-orange-400 bg-[hsl(0,0%,98%)] px-3 py-2 text-sm">
           {thinkingContent && (
             <ThinkingPanel content={thinkingContent} isThinking={isThinking ?? false} />
           )}
-          <p className="whitespace-pre-wrap">
-            {message.content}
-            <span className="ml-0.5 inline-block h-3.5 w-0.5 bg-orange-400 animate-pulse align-middle" />
-          </p>
+          {/* 1.1.147 M0: Markdown + KaTeX WHILE streaming, not only once the
+              turn ends — the raw-text bubble showed `$…$` source on every
+              turn and its swap for rendered Markdown at the end was a layout
+              jump that broke auto-scroll. holdOpenMath holds back an unclosed
+              `$`, `$$`, `\(`, `\[` or backtick at the tail, so neither source
+              nor a half code span flashes. */}
+          <ChatMarkdown content={holdOpenMath(message.content)} navigateToBlock={noNavigate} />
+          <span className="ml-0.5 inline-block h-3.5 w-0.5 bg-orange-400 animate-pulse align-middle" />
         </div>
       </div>
     </div>

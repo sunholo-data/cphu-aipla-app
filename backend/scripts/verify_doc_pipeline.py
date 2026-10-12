@@ -68,7 +68,7 @@ async def main() -> None:
 
     assert state.get(_STATE_DOCS_LOADED) == ["test-doc-001"], "docs_loaded list incorrect"
     assert _STATE_DOC_LOAD_ERROR not in state, f"unexpected error: {state.get(_STATE_DOC_LOAD_ERROR)}"
-    print(f"  app:docs_loaded = {state[_STATE_DOCS_LOADED]}")
+    print(f"  docs_loaded = {state[_STATE_DOCS_LOADED]}")
     print("  PASS: document loaded on first turn\n")
 
     # --- Turn 2: should skip (already loaded) ---
@@ -105,7 +105,7 @@ async def main() -> None:
     assert error_state.get(_STATE_DOCS_LOADED) == ["bad-doc"]
     errors = error_state.get(_STATE_DOC_LOAD_ERROR, {})
     assert "Firestore unavailable" in errors.get("bad-doc", "")
-    print(f"  app:doc_load_error = {errors!r}")
+    print(f"  doc_load_error = {errors!r}")
     print("  PASS: error captured in state, no exception raised\n")
 
     print("=== All checks passed ✓ ===")

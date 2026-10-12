@@ -61,3 +61,15 @@ def test_access_control_defaults_to_public() -> None:
     public and any group can open it."""
     parsed = _parse_template(TEMPLATE_PATH)
     assert parsed["accessControl"] is None
+
+
+def test_does_not_deny_the_workbench() -> None:
+    """1.1.149 M3: the body said "There is no simulator on screen" — and
+    ``{teacher_focus}``, which carries the sim's tutorBlock and the element
+    manifest, is substituted INSIDE that body. Every teacher-built activity runs
+    this skill, so a sim activity's tutor was told twice that the sim did not
+    exist. It reacted to the sim and never sent a student to it."""
+    parsed = _parse_template(TEMPLATE_PATH)
+    assert "There is no simulator on screen" not in parsed["instructions"]
+    assert "NO simulator" not in parsed["description"]
+    assert "sending the student to it is part of your job" in " ".join(parsed["instructions"].split())

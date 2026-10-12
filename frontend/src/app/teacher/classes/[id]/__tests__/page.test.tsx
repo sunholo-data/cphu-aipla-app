@@ -228,7 +228,7 @@ describe("/teacher/classes/[id] — class detail", () => {
 
       fireEvent.click(screen.getByLabelText(`Revoke ${CODE}`));
 
-      // ⚠️ Harder than Reset: revoke DELETES the anon_groups doc, so a student
+      // ⚠️ Harder than Reset: revoke tombstones the anon_groups doc, so a student
       // mid-lesson fails at their next message and the code can never be
       // reissued. A one-click version of this would be the wrong shape.
       expect(revokeSpy).not.toHaveBeenCalled();
@@ -264,6 +264,38 @@ describe("/teacher/classes/[id] — class detail", () => {
         const announcements = screen.getAllByRole("status").map((n) => n.textContent ?? "");
         expect(announcements.some((t) => /work is kept/i.test(t))).toBe(true);
       });
+    });
+
+    it("says the conversations stay available before the teacher confirms", async () => {
+      await openTheClass();
+      fireEvent.click(screen.getByLabelText(`Revoke ${CODE}`));
+      expect(screen.getByText(/stay available to you and to researchers/i)).toBeInTheDocument();
+    });
+
+    it("lists revoked codes in their own section with a report link and no controls", async () => {
+      // 1.1.146 — Revoke ends access, never evidence. The prod bug: a revoked
+      // code vanished from this page, and with it the only route a researcher
+      // had to the group's sessions.
+      getSpy.mockResolvedValue(
+        makeClassPayload({
+          groupCodes: ["bright-fox-12", "soft-otter-44"],
+          revokedGroupCodes: ["soft-otter-44"],
+          revokedGroupCodesAt: { "soft-otter-44": "2026-09-30T09:01:31Z" },
+        }),
+      );
+      render(<TeacherClassDetailPage />);
+      const section = await screen.findByTestId("revoked-codes");
+
+      expect(section).toHaveTextContent("Revoked codes (1)");
+      expect(section).toHaveTextContent("soft-otter-44");
+      const report = screen.getByLabelText("View session report for soft-otter-44");
+      expect(report).toHaveAttribute("href", "/teacher/reports/groups/soft-otter-44");
+      expect(section).toContainElement(report);
+      // No live controls for a code that no longer works.
+      expect(screen.queryByLabelText("Revoke soft-otter-44")).not.toBeInTheDocument();
+      expect(section.querySelectorAll("button")).toHaveLength(0);
+      // The live code keeps its controls.
+      expect(screen.getByLabelText("Revoke bright-fox-12")).toBeInTheDocument();
     });
 
     it("cancel leaves the code alone", async () => {

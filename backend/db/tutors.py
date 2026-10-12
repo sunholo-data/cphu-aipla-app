@@ -22,6 +22,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from db.firestore import delete_document, get_document, query_documents, set_document
+from db.models.authorship import CreatedVia
 from db.models.tutor import Tutor, TutorLineage
 from tutors.loader import load_base_tutor, load_base_tutors
 
@@ -184,15 +185,43 @@ def list_tutor_catalogue(for_uid: str | None = None, *, see_all: bool = False) -
     return sorted(out, key=lambda t: (t.is_variant, t.display_name.lower()))
 
 
-def save_tutor(tutor: Tutor, *, updated_by: str) -> Tutor:
-    """Write an authored tutor, bumping the version of an existing one."""
+def save_tutor(tutor: Tutor, *, updated_by: str, created_via: CreatedVia | None = None) -> Tutor:
+    """Write an authored tutor, bumping the version of an existing one.
+
+    1.1.150 F4 — the AUTHOR of an existing row is preserved, as
+    ``save_authored_framework`` and ``save_custom_persona`` always did. This
+    used to set ``author_uid = updated_by`` on every write, so the next edit
+    route would have quietly made a teacher's tutor the editor's. Who touched
+    it last is ``updated_by``; who it belongs to does not change on a save.
+
+    ``created_by`` / ``created_via`` / ``created_at`` are stamped on CREATE
+    only and never rewritten. On an existing row they are carried over as they
+    are — including None on a row that predates them, which the backfill
+    (``scripts/backfill_authored_provenance.py``) fills from what is certain.
+    """
     existing = get_authored_tutor(tutor.id)
+    now = datetime.now(UTC)
+    if existing is not None:
+        provenance = {
+            "author_uid": existing.author_uid,
+            "author_role": existing.author_role,
+            "created_by": existing.created_by,
+            "created_via": existing.created_via,
+            "created_at": existing.created_at,
+        }
+    else:
+        provenance = {
+            "author_uid": updated_by,
+            "created_by": updated_by,
+            "created_via": created_via,
+            "created_at": now,
+        }
     row = tutor.model_copy(
         update={
+            **provenance,
             "version": (existing.version + 1) if existing else tutor.version,
-            "author_uid": updated_by,
-            "created_at": existing.created_at if existing else datetime.now(UTC),
-            "updated_at": datetime.now(UTC),
+            "updated_by": updated_by,
+            "updated_at": now,
         }
     )
     set_document(_COLLECTION, row.id, row.model_dump(by_alias=True, mode="json"), merge=False)
@@ -207,6 +236,7 @@ def create_variant(
     created_by: str,
     author_role: str = "researcher",
     visibility: str = "private",
+    created_via: CreatedVia = "ui",
     framework_id: str | None = None,
     persona_id: str | None = None,
     interaction_style: str | None = None,
@@ -241,9 +271,15 @@ def create_variant(
             "visibility": visibility,
             "created_at": None,
             "updated_at": None,
+            # Never inherited from the parent: the variant is a new record with
+            # its own maker. ``save_tutor`` stamps these on create.
+            "author_uid": None,
+            "created_by": None,
+            "created_via": None,
+            "updated_by": None,
         }
     )
-    return save_tutor(variant, updated_by=created_by)
+    return save_tutor(variant, updated_by=created_by, created_via=created_via)
 
 
 def delete_authored_tutor(tutor_id: str) -> None:

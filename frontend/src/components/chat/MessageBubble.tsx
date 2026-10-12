@@ -15,11 +15,11 @@
 import React, { useEffect } from "react";
 import { A2UIRenderer } from "@/components/protocols/A2UIRenderer";
 import { MCPAppToolCallRouter } from "@/components/protocols/MCPAppToolCallRouter";
-import { BrandAvatar } from "@/components/chat/BrandAvatar";
 import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
 import { ZoomableImage } from "@/components/chat/media/ZoomableImage";
 import { InlineCitation } from "@/components/chat/InlineCitation";
 import { ReadAloudButton } from "@/components/chat/ReadAloudButton";
+import { SaveNotesButton } from "@/components/chat/SaveNotesButton";
 import { formatRelativeTime, formatAbsoluteTime } from "@/lib/relativeTime";
 import { useAutoReadAloud } from "@/hooks/useAutoReadAloud";
 import { useVoiceConfig } from "@/hooks/useVoiceConfig";
@@ -28,19 +28,16 @@ import { useLocaleMode, useT } from "@/i18n";
 import { useVoiceLang } from "@/hooks/useVoiceLang";
 import { ToolCallChip } from "@/components/chat/ToolCallChip";
 import { ChecklistMarkCard, parseChecklistMarkResult } from "@/components/chat/ChecklistMarkCard";
+import { IllustrationCard, parseIllustrationResult } from "@/components/chat/IllustrationCard";
 import { CheckpointCard, parseCheckpointResult } from "@/components/chat/CheckpointCard";
 import { SimCommandCard, parseSimCommandResult } from "@/components/chat/SimCommandCard";
 import { useSurfaceRegistry } from "@/providers/SurfaceRegistry";
 import type { SkillMessage, ToolCallState } from "@/hooks/useSkillAgent";
 
-/** A persona resolved for the running activity (1.1.12). When present the bot
- *  bubble shows the persona's avatar + name instead of the skill byline. */
-export interface PersonaSummary {
-  id: string;
-  name: string;
-  title: string | null;
-  avatar: string;
-}
+// The byline + avatar live in BotByline so the streaming bubble signs a turn
+// exactly as this one does (1.1.147 open question 6).
+import { BotAvatar, botBylineName, type PersonaSummary } from "@/components/chat/BotByline";
+export type { PersonaSummary };
 
 interface MessageBubbleProps {
   message: SkillMessage;
@@ -137,27 +134,6 @@ export function parseA2UIResult(
   }
 }
 
-
-function PersonaBubbleAvatar({ persona }: { persona: PersonaSummary }) {
-  if (persona.avatar) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={persona.avatar}
-        alt={persona.name}
-        className="h-8 w-8 shrink-0 rounded-full object-cover"
-      />
-    );
-  }
-  return (
-    <span
-      aria-hidden="true"
-      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-100 text-xs font-bold text-orange-700"
-    >
-      {persona.name[0]?.toUpperCase() ?? "?"}
-    </span>
-  );
-}
 
 export const MessageBubble = React.memo(function MessageBubble({
   message,
@@ -272,11 +248,11 @@ export const MessageBubble = React.memo(function MessageBubble({
 
     return (
       <div className="flex items-start gap-3">
-        {persona ? <PersonaBubbleAvatar persona={persona} /> : <BrandAvatar />}
+        <BotAvatar persona={persona} />
         <div className="flex max-w-[80%] flex-col gap-1">
           <div className="flex items-baseline gap-2">
             <span className="text-xs font-medium text-orange-600">
-              {persona ? persona.name : (skillDisplayName ?? skillId)}
+              {botBylineName({ skillId, skillDisplayName, persona })}
             </span>
             <span className="text-xs text-muted-foreground" title={timeFull}>
               {time}
@@ -371,6 +347,15 @@ export const MessageBubble = React.memo(function MessageBubble({
                 const result = parseSimCommandResult(tc.resultContent);
                 return result ? <SimCommandCard key={tc.id} toolCallId={tc.id} result={result} /> : null;
               })}
+            {/* svg-illustrator — the computed, render-checked diagram is
+                delivered from the tool result, never from a copy the tutor
+                may drop (see IllustrationCard). */}
+            {nonA2uiCalls
+              .filter((tc) => tc.name === "svg_illustrator")
+              .map((tc) => {
+                const svg = parseIllustrationResult(tc.resultContent);
+                return svg ? <IllustrationCard key={tc.id} svg={svg} /> : null;
+              })}
             {nonA2uiCalls.length > 0 && (
               <div className="flex flex-wrap gap-1.5 pt-1">
                 {nonA2uiCalls
@@ -381,7 +366,8 @@ export const MessageBubble = React.memo(function MessageBubble({
                         parseCheckpointResult(tc.resultContent)
                       ) &&
                       !(tc.name === "mark_checklist_item" && parseChecklistMarkResult(tc.resultContent)) &&
-                      !(tc.name === "control_sim" && parseSimCommandResult(tc.resultContent)),
+                      !(tc.name === "control_sim" && parseSimCommandResult(tc.resultContent)) &&
+                      !(tc.name === "svg_illustrator" && parseIllustrationResult(tc.resultContent)),
                   )
                   .map((tc) => (
                     <ToolCallChip key={tc.id} toolCall={tc} />
@@ -389,6 +375,9 @@ export const MessageBubble = React.memo(function MessageBubble({
               </div>
             )}
           </div>
+          {/* 1.1.151 F6 — the student keeps this reply in their own notes.
+              Renders only where the chat page provides the action. */}
+          {message.content ? <SaveNotesButton text={message.content} /> : null}
         </div>
       </div>
     );

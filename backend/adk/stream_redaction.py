@@ -119,6 +119,13 @@ _CLIENT_RENDER_TOOLS = frozenset(
         # by construction: the sim id, the command name, the validated args and
         # the catalogue's own effect text — never the tutorBlock.
         "control_sim",
+        # IllustrationCard — the svg-illustrator's diagram (an AgentTool, so the
+        # name is the skill's: "svg-illustrator" → svg_illustrator). The result
+        # IS the student-facing picture; delivering it from here rather than
+        # from the tutor's pasted copy is the point, since the tutor dropped
+        # that copy two times in three in live runs. It carries nothing the
+        # illustrator was not asked to draw for the student.
+        "svg_illustrator",
     }
 )
 

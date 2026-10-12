@@ -140,7 +140,9 @@
     "teachesNone": "No teaching approach set",
     "variantBadge": "variant",
     "failedSave": "That could not be saved. Try again.",
-    "shareAria": "{action}: {name}"
+    "shareAria": "{action}: {name}",
+    "nameTaken": "A tutor with that name already exists. Choose another name.",
+    "derivedFrom": "Its approach draws on: {list}"
   },
   "PersonaEditorPanel": {
     "title": "Faces and voices",
@@ -266,15 +268,21 @@
     "editAria": "Edit {label}",
     "removeAria": "Delete {label}",
     "confirmRemove": "Delete “{label}”? Any class using it loses its approach.",
-    "byYou": "yours",
     "readOnly": "You can read this approach but not change it — it belongs to someone else.",
     "failed": "Could not save. Your text is still here — try again.",
     "loadFailed": "Could not load custom approaches.",
     "researchersCanSee": "Researchers on the project can see the approaches you write here, including your name against them, and how much they are used. They cannot change them. This is the same read they have of class data.",
     "deleteWarning": "Nothing checks whether a class is still using an approach before it is deleted. A class that loses its approach keeps teaching, without one.",
-    "byOther_teacher": "written by a teacher",
-    "byOther_researcher": "written by a researcher",
-    "byOther_colleague": "written by a colleague"
+    "sourcesLabel": "What this approach draws on (optional)",
+    "sourcesHelp": "Papers, books or materials you built this approach from. Teachers and researchers reading the approach see them. The tutor is never told them, and students never see them.",
+    "sourcesMax": "Up to {max} sources.",
+    "sourceCitation": "Reference",
+    "sourceCitationPlaceholder": "e.g. Brousseau (1997), Theory of Didactical Situations",
+    "sourceUrl": "Link (https, optional)",
+    "sourceNote": "Note (optional)",
+    "addSource": "Add a source",
+    "removeSource": "Remove source {n}",
+    "sourcesHeading": "Draws on"
   },
   "FrameworkStructureEditor": {
     "itemAria": "{label} {n}",
@@ -337,7 +345,8 @@
     "fallback_calculator": "Calculator used",
     "fallback_progress": "Checklist updated",
     "fallback_chart": "Chart updated",
-    "fallback_documents": "Document: {tool}"
+    "fallback_documents": "Document: {tool}",
+    "citedBy": "cited by: {list}"
   },
   "TutorVariantDialog": {
     "defaultName": "{name} — variant",
@@ -388,7 +397,8 @@
     "revertFailed": "Could not revert. Try again.",
     "loading": "Loading frameworks…",
     "errorTitle": "Could not load frameworks",
-    "errorBody": "Something went wrong reading the framework catalogue. Reload to try again."
+    "errorBody": "Something went wrong reading the framework catalogue. Reload to try again.",
+    "tabCalibration": "Calibration"
   },
   "TutorProposal": {
     "approachTitle": "New approach: {label} — {n, plural, one {# construct} other {# constructs}}",
@@ -534,5 +544,37 @@
     "statusDemonstrated": "demonstrated",
     "statusPartial": "partly",
     "photosNotKept": "Photos shared with the tutor are not kept."
+  },
+  "AuthorLine": {
+    "byYou": "Made by you",
+    "byTeacher": "Made by a teacher",
+    "byResearcher": "Made by a researcher",
+    "byColleague": "Made by a colleague",
+    "builtIn": "Built in",
+    "createdVia": "created via {channel} on {date, date, medium}",
+    "createdOn": "created on {date, date, medium}",
+    "notRecorded": "when and how it was created was not recorded",
+    "via_ui": "the app",
+    "via_copilot": "the co-pilot",
+    "via_seed": "the platform's own setup",
+    "via_sync": "a copy between environments",
+    "via_adopt": "adoption"
+  },
+  "CalibrationSetPanel": {
+    "title": "Corrections as a calibration set",
+    "blurb": "Every researcher's current correction of the fidelity judge, shared with all researchers. A correction never changes a judgement or what the judge reads; together they are the labelled examples a new version of the judge is measured against.",
+    "loading": "Loading…",
+    "failed": "Could not read the corrections. This is a failed read, not an empty set.",
+    "empty": "No researcher has reviewed a judgement yet. Corrections are made per construct in a group report (“Correct this”).",
+    "overall": "{n, plural, one {# review} other {# reviews}} by {reviewers, plural, one {# researcher} other {# researchers}} — the researcher agreed with the AI in {agreement}.",
+    "multiRated": "{n, plural, one {# construct was} other {# constructs were}} reviewed by more than one researcher — the sample for inter-rater agreement.",
+    "colFramework": "Approach",
+    "colConstruct": "Construct",
+    "colReviews": "Reviews",
+    "colAgreement": "Agrees with AI",
+    "colHigher": "Researcher higher",
+    "colLower": "Researcher lower",
+    "readOnly": "A blank agreement means nothing was comparable (for example a judge that abstained) — not 0%. A review superseded by a later one is left out.",
+    "download": "Download the calibration set ({n, plural, one {# example} other {# examples}}, JSONL)"
   }
 }

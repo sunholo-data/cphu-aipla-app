@@ -344,7 +344,10 @@ class TestMintGroups:
 
 
 class TestRevokeGroup:
-    def test_revoke_drops_code_from_class(self, client):
+    def test_revoke_retires_the_code_but_keeps_it_on_the_roster(self, client):
+        """1.1.146 — Revoke ends access, never evidence: the code stays in
+        ``groupCodes`` (every evidence surface reads it) and is listed in
+        ``revokedGroupCodes`` so live surfaces can filter it."""
         created = client.post("/api/classes", json={"name": "C"}).json()
         cid = created["classId"]
         codes = client.post(f"/api/classes/{cid}/groups", json={"count": 2}).json()["codes"]
@@ -353,10 +356,28 @@ class TestRevokeGroup:
         assert resp.status_code == 200
         assert resp.json()["revoked"] is True
 
-        # Class.groupCodes no longer contains the revoked code.
         c = client.get(f"/api/classes/{cid}").json()
-        assert codes[0] not in c["groupCodes"]
+        assert codes[0] in c["groupCodes"]
         assert codes[1] in c["groupCodes"]
+        assert c["revokedGroupCodes"] == [codes[0]]
+        assert codes[0] in c["revokedGroupCodesAt"]
+
+    def test_revoke_a_code_from_another_class_is_404(self, client):
+        mine = client.post("/api/classes", json={"name": "Mine"}).json()["classId"]
+        other = client.post("/api/classes", json={"name": "Other"}).json()["classId"]
+        other_code = client.post(f"/api/classes/{other}/groups", json={"count": 1}).json()["codes"][0]
+
+        resp = client.delete(f"/api/classes/{mine}/groups/{other_code}")
+        assert resp.status_code == 404
+        assert client.get(f"/api/classes/{other}").json()["revokedGroupCodes"] == []
+
+    def test_reset_refuses_a_revoked_code(self, client):
+        cid = client.post("/api/classes", json={"name": "C"}).json()["classId"]
+        code = client.post(f"/api/classes/{cid}/groups", json={"count": 1}).json()["codes"][0]
+        client.delete(f"/api/classes/{cid}/groups/{code}")
+
+        resp = client.post(f"/api/classes/{cid}/groups/{code}/reset-session")
+        assert resp.status_code == 409
 
     def test_revoke_other_teachers_group_404(self, client, other_teacher_client):
         b = other_teacher_client.post("/api/classes", json={"name": "B"}).json()

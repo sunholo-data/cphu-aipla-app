@@ -55,7 +55,13 @@ const REFRESH_SKEW_SECONDS = 5 * 60;
 export type GroupAuthStatus = "idle" | "joining" | "joined" | "expired";
 
 export type GroupAuthError =
-  | { kind: "unknown_or_revoked"; message: string }
+  | {
+      kind: "unknown_or_revoked";
+      message: string;
+      /** 1.1.151 F4 — one live code the student probably meant (a one-word
+       *  typo fix). Shown as "Mente du …?"; never joined without a click. */
+      suggestion?: string;
+    }
   | { kind: "rate_limited"; message: string; retryAfterSeconds: number }
   | { kind: "at_capacity"; message: string }
   | { kind: "network"; message: string };
@@ -112,7 +118,7 @@ function userFromSession(session: PersistedGroupSession): GroupAuthUser {
   };
 }
 
-function classifyError(status: number, body: { detail?: string } | null): GroupAuthError {
+function classifyError(status: number, body: { detail?: string; suggestion?: string } | null): GroupAuthError {
   if (status === 429) {
     const detail = body?.detail ?? "rate limit exceeded";
     // Backend includes "retry after Ns" in the detail; extract.
@@ -130,6 +136,7 @@ function classifyError(status: number, body: { detail?: string } | null): GroupA
     return {
       kind: "unknown_or_revoked",
       message: body?.detail ?? "group not found or no longer active",
+      ...(typeof body?.suggestion === "string" && body.suggestion ? { suggestion: body.suggestion } : {}),
     };
   }
   return {
@@ -205,9 +212,9 @@ export function AnonymousGroupAuthProvider({ children }: { children: ReactNode }
         body: JSON.stringify({ group_id: code }),
       });
       if (!resp.ok) {
-        let body: { detail?: string } | null = null;
+        let body: { detail?: string; suggestion?: string } | null = null;
         try {
-          body = (await resp.json()) as { detail?: string };
+          body = (await resp.json()) as { detail?: string; suggestion?: string };
         } catch {
           // Body wasn't JSON — fall through with null.
         }

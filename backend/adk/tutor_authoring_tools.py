@@ -181,6 +181,11 @@ def propose_approach(
             "constructs": _strip_provenance(constructs),
             # ALWAYS empty. See the module docstring, layer 2.
             "provenance": [],
+            # 1.1.150 M3 — and so are a custom approach's `sources`. They are a
+            # person's own statement of what the approach is derived from, and
+            # a model writing one would be the invented-citation failure in a
+            # second field. Nothing the model passes can reach this list.
+            "sources": [],
             "needsVouching": (
                 "No citation is attached. Add the source yourself, or use the source search — "
                 "a proposal cannot carry a reference this co-pilot wrote."

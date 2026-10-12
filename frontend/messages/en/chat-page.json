@@ -26,7 +26,10 @@
     "error_serverError": "Something went wrong on our end. Try again.",
     "error_requestFailed": "Request failed. Try again.",
     "error_connectionLost": "Connection lost. Try again.",
-    "error_agentError": "The tutor ran into an error. Try again."
+    "error_agentError": "The tutor ran into an error. Try again.",
+    "turnRefused": "Someone in your group reached the tutor just before you. Your message is saved and will be sent as soon as the tutor has answered them.",
+    "sessionResolving": "Opening your group's conversation…",
+    "sessionFailed": "Couldn't open your group's conversation."
   },
   "StageProgress": {
     "thinking": "Thinking…",

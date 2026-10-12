@@ -342,6 +342,7 @@ from protocols.recording_routes import router as recording_router  # noqa: E402
 from protocols.reports_routes import router as reports_router  # noqa: E402
 from protocols.research_lens_routes import router as research_lens_router  # noqa: E402
 from protocols.research_logs_routes import router as research_logs_router  # noqa: E402
+from protocols.rubric_review_routes import router as rubric_review_router  # noqa: E402
 from protocols.session_bootstrap_routes import router as session_bootstrap_router  # noqa: E402
 from protocols.session_restore_routes import router as session_restore_router  # noqa: E402
 from protocols.sessions_route import router as sessions_router  # noqa: E402
@@ -353,6 +354,7 @@ from protocols.voice_routes import router as voice_router  # noqa: E402
 from protocols.writing_progress_routes import router as writing_progress_router  # noqa: E402
 from skills.routes import router as skills_router  # noqa: E402
 from skills.skill_processor import (  # noqa: E402
+    SessionScopeMismatchError,
     SkillNotFoundError,
     SpendNotAuthorisedError,
     TurnLockedError,
@@ -387,6 +389,7 @@ app.include_router(checklist_progress_router)
 app.include_router(table_progress_router)
 app.include_router(writing_progress_router)
 app.include_router(research_lens_router)
+app.include_router(rubric_review_router)
 app.include_router(research_logs_router)
 app.include_router(programme_router)
 app.include_router(teacher_prefs_router)
@@ -783,6 +786,15 @@ async def stream_skill(
         raise HTTPException(
             status_code=409,
             detail={"error": "turn_in_progress", "group_id": exc.group_id},
+        ) from exc
+    except SessionScopeMismatchError as exc:
+        # 1.1.145 M3 — the threadId belongs to another activity of this group.
+        # 422, not 409: the client reads 409 as "a groupmate holds the turn,
+        # wait and resend", and resending this would be refused forever.
+        reset_current_tracker(_tracker_token)
+        raise HTTPException(
+            status_code=422,
+            detail={"error": "session_activity_mismatch", "session_id": exc.session_id},
         ) from exc
     except SpendNotAuthorisedError as exc:
         # ACCESS-1 M1 — the caller may SEE this skill but may not pay for it.

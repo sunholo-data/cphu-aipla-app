@@ -34,7 +34,8 @@
     "yourUploads": "Dine uploads",
     "yourUploadAlt": "din upload",
     "openDocLabel": "Dokument: {title}",
-    "closeDoc": "Luk dokument",
+    "switcherLabel": "Vælg dokument",
+    "notShared": "Din lærer har ikke delt indholdet af dette dokument.",
     "loading": "Indlæser…",
     "unavailable": "Indholdet af dette dokument kan ikke læses her endnu.",
     "empty": "Der blev ikke fundet noget tekst i dette dokument.",
@@ -159,7 +160,9 @@
     "downloadLabel": "Hent {title} som fil",
     "downloadFallbackTitle": "teksten",
     "downloadAs": "Hent som…",
-    "askFeedback": "Bed om feedback"
+    "askFeedback": "Bed om feedback",
+    "notesHeading": "Noter fra tutoren ({date})",
+    "notesSavedCard": "Tutorens svar gemt som noter i «{title}» ({count} ord)"
   },
   "WorkspaceDivider": {
     "label": "Tilpas arbejdsområdets bredde"

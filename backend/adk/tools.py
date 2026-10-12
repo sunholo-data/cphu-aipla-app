@@ -25,6 +25,8 @@ from collections.abc import Callable
 from google.adk.tools import FunctionTool, ToolContext
 
 from adk import authoring_tools as _authoring_tools
+from adk import physics_diagram as _physics_diagram
+from adk import svg_preview as _svg_preview
 from adk import tutor_authoring_tools as _tutor_authoring
 from analytics import summarise as _analytics_summarise
 from analytics import tools as _analytics_tools
@@ -178,6 +180,12 @@ TOOL_REGISTRY: dict[str, Callable[[dict], FunctionTool]] = {
     "class_spend": lambda _config: FunctionTool(_class_management.class_spend),
     "class_kpis": lambda _config: FunctionTool(_class_management.class_kpis),
     "class_trend": lambda _config: FunctionTool(_class_management.class_trend),
+    # svg-illustrator (adk/svg_preview.py) — render a draft diagram and attach
+    # the PNG so the drawing agent can see and repair it before a student does.
+    "render_svg_preview": lambda _config: FunctionTool(_svg_preview.render_svg_preview),
+    # ...and draw_physics_diagram (adk/physics_diagram.py): the agent gives the
+    # physics, code computes every coordinate — angles, proportions, normals.
+    "draw_physics_diagram": lambda _config: FunctionTool(_physics_diagram.draw_physics_diagram),
 }
 
 # Tools handled entirely outside this registry (no ValueError for these)

@@ -203,6 +203,35 @@ describe("/group page — typed error rendering", () => {
     ).toBeInTheDocument();
   });
 
+  // 1.1.151 F4 — a one-word typo of a live code gets ONE "did you mean",
+  // confirmed by the student; the page never joins the suggestion on its own.
+  it("offers the server's suggestion and joins it only when confirmed", async () => {
+    await submitWith(401, { detail: "group not found or no longer active", suggestion: "kind-kettle-86" });
+    expect(await screen.findByText("kind-kettle-86")).toBeInTheDocument();
+    expect(screen.getByText(/did you mean/i)).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(routerReplaceMock).not.toHaveBeenCalled();
+
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ token: "t", uid: "anon-k", expires_at: Date.now() / 1000 + 3600 }),
+    } as Response);
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /yes, join/i }));
+    });
+    const lastBody = JSON.parse((fetchMock.mock.calls.at(-1)?.[1] as RequestInit).body as string);
+    // The provider upper-cases (a legacy habit); the backend is case-insensitive.
+    expect(lastBody.group_id.toLowerCase()).toBe("kind-kettle-86");
+    await waitFor(() => expect(routerReplaceMock).toHaveBeenCalledWith("/lessons"));
+  });
+
+  it("shows no suggestion when the server offers none", async () => {
+    await submitWith(401, { detail: "group not found or no longer active" });
+    expect(await screen.findByText(/code not found, expired, or revoked/i)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /yes, join/i })).toBeNull();
+  });
+
   it("re-enables the Join button after an error (so user can retry)", async () => {
     await submitWith(401, { detail: "unknown" });
     // After error → status returns to 'idle', button no longer disabled

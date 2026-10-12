@@ -3,16 +3,18 @@
 // StreamingBubble. All state transitions are driven by TEXT_MESSAGE_START /
 // CONTENT / END events — no custom event types, no polling.
 // Auto-scroll tracks whether the user is near the bottom; if they've scrolled
-// up, a "↓ New message" badge appears instead of forcing them back down.
+// up, a "new message" badge appears instead of forcing them back down.
 // See: docs/talks/workshop.md §W5
 
 "use client";
 
-import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { ArrowDown } from "lucide-react";
 import type { StreamError, SkillMessage, ToolCallState } from "@/hooks/useSkillAgent";
 import type { ActiveDocumentContext } from "@/components/chat/ContextBanner";
 import { ContextBanner } from "@/components/chat/ContextBanner";
-import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
+import { useHumanToolEvents, type HumanToolEvent } from "@/hooks/useHumanToolEvents";
+import { buildSharedTranscript } from "./sharedTranscript";
 
 import { HumanToolUseCard } from "./HumanToolUseCard";
 import { MessageBubble, type PersonaSummary } from "./MessageBubble";
@@ -86,9 +88,40 @@ interface ChatMessageListProps {
    * is false during it — without this the chat looks empty/broken while
    * the (slower) opening turn is produced. Shows the typing indicator. */
   greetLoading?: boolean;
+  /** 1.1.145 M2 — a group's shared session: render `initialMessages` (the
+   *  refetched transcript the tutor reads) and this device's live `messages` as
+   *  ONE transcript, folding each live message into its persisted copy instead
+   *  of listing both. `syncedFrom` is the history length at first load; a user
+   *  turn after it that is not this device's is labelled as a groupmate's.
+   *  Absent → the two-block render every other surface uses, unchanged. */
+  sharedTranscript?: { syncedFrom: number };
 }
 
 const SCROLL_THRESHOLD = 100;
+
+const NO_HIDDEN: ReadonlySet<string> = new Set();
+
+/** Restored interaction cards that duplicate one of this device's live cards.
+ *  In a shared transcript the live card (still pending/confirmed on screen) and
+ *  its persisted copy (restored by the refetch) are the same push; keep the live
+ *  one. Matched by label as a multiset — each live card hides at most one. */
+function duplicateRestoredCards(events: HumanToolEvent[]): ReadonlySet<string> {
+  const liveLabels = new Map<string, number>();
+  for (const e of events) {
+    if (!e.restored) liveLabels.set(e.label, (liveLabels.get(e.label) ?? 0) + 1);
+  }
+  if (liveLabels.size === 0) return NO_HIDDEN;
+  const hidden = new Set<string>();
+  for (let i = events.length - 1; i >= 0; i--) {
+    const e = events[i];
+    const n = liveLabels.get(e.label) ?? 0;
+    if (e.restored && n > 0) {
+      hidden.add(e.id);
+      liveLabels.set(e.label, n - 1);
+    }
+  }
+  return hidden;
+}
 
 // Shared empty array so bubbles without tool calls receive the SAME reference
 // every render — a fresh `[]` per render defeats MessageBubble's React.memo,
@@ -122,8 +155,10 @@ export function ChatMessageList({
   onChatMessage,
   sessionId,
   greetLoading,
+  sharedTranscript,
 }: ChatMessageListProps) {
   const t = useT("ChatMessageList");
+  const { events: humanToolEvents } = useHumanToolEvents();
   const scrollRef = useRef<HTMLDivElement>(null);
   const innerRef = useRef<HTMLDivElement>(null);
   const [showScrollBadge, setShowScrollBadge] = useState(false);
@@ -133,42 +168,114 @@ export function ChatMessageList({
   }, []);
   const navigate = navigateToBlock ?? noopNavigate;
 
-  const isNearBottom = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return true;
-    return el.scrollTop + el.clientHeight >= el.scrollHeight - SCROLL_THRESHOLD;
+  // 1.1.147 M1 — STICK STATE RECORDED BEFORE GROWTH. The old rule measured
+  // "near bottom" inside the ResizeObserver callback, i.e. AFTER the content
+  // had grown, so any single growth over the threshold (a finished turn, a
+  // table, an SVG, a restored history) read as "the student scrolled up" and
+  // the chat stopped following. Now only the student's own scrolling changes
+  // whether we follow; growth just obeys it.
+  const stickRef = useRef(true);
+  // Our own scrolls fire scroll events too; while this is set, onScroll does
+  // not re-derive the stick state from them (a smooth scroll mid-animation, or
+  // one overtaken by more growth, would otherwise read as "scrolled up").
+  const programmaticRef = useRef(false);
+  const programmaticTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const distanceFromBottom = useCallback((el: HTMLElement) => el.scrollHeight - el.scrollTop - el.clientHeight, []);
+
+  const markProgrammatic = useCallback((ms: number) => {
+    programmaticRef.current = true;
+    if (programmaticTimer.current) clearTimeout(programmaticTimer.current);
+    programmaticTimer.current = setTimeout(() => {
+      programmaticRef.current = false;
+      programmaticTimer.current = null;
+    }, ms);
   }, []);
 
-  const scrollToBottom = useCallback(() => {
+  useEffect(
+    () => () => {
+      if (programmaticTimer.current) clearTimeout(programmaticTimer.current);
+    },
+    [],
+  );
+
+  /** Jump (not animate) to the bottom: a smooth scroll during streaming is
+   *  overtaken by the next token and never arrives. */
+  const pinToBottom = useCallback(() => {
     const el = scrollRef.current;
-    if (el && typeof el.scrollTo === "function") {
-      el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+    if (!el) return;
+    const target = el.scrollHeight;
+    if (el.scrollTop !== target) {
+      markProgrammatic(150);
+      el.scrollTop = target;
     }
     setShowScrollBadge(false);
-  }, []);
+  }, [markProgrammatic]);
 
-  // ResizeObserver: auto-scroll whenever the inner content grows (streaming
-  // tokens, new messages, thinking content) without depending on message count.
+  /** The badge: the one place a smooth scroll is right. */
+  const scrollToBottom = useCallback(() => {
+    const el = scrollRef.current;
+    stickRef.current = true;
+    if (el) {
+      markProgrammatic(800);
+      if (typeof el.scrollTo === "function") {
+        el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+      } else {
+        el.scrollTop = el.scrollHeight;
+      }
+    }
+    setShowScrollBadge(false);
+  }, [markProgrammatic]);
+
+  // Observe BOTH the content (streaming tokens, new messages, cards) and the
+  // scroll container (the pinned welcome expanding, the phone keyboard).
   useEffect(() => {
     const inner = innerRef.current;
-    if (!inner) return;
+    const outer = scrollRef.current;
+    if (!inner || !outer) return;
     const observer = new ResizeObserver(() => {
-      if (isNearBottom()) {
-        scrollToBottom();
-      } else {
+      if (stickRef.current) {
+        pinToBottom();
+      } else if (distanceFromBottom(outer) > SCROLL_THRESHOLD) {
         setShowScrollBadge(true);
       }
     });
     observer.observe(inner);
+    observer.observe(outer);
     return () => observer.disconnect();
-  }, [isNearBottom, scrollToBottom]);
+  }, [pinToBottom, distanceFromBottom]);
 
   const handleScroll = useCallback(() => {
-    if (isNearBottom()) setShowScrollBadge(false);
-  }, [isNearBottom]);
+    const el = scrollRef.current;
+    if (!el) return;
+    const near = distanceFromBottom(el) <= SCROLL_THRESHOLD;
+    if (programmaticRef.current) {
+      // Ours. Once it has arrived, the guard has done its job.
+      if (near) programmaticRef.current = false;
+      return;
+    }
+    stickRef.current = near;
+    if (near) setShowScrollBadge(false);
+  }, [distanceFromBottom]);
+
+  // A new session (and the first mount — a resumed one restores its history
+  // here) opens at the latest message.
+  useLayoutEffect(() => {
+    stickRef.current = true;
+    pinToBottom();
+  }, [sessionId, pinToBottom]);
 
   // Determine what to render as the last item
   const lastMessage = messages[messages.length - 1];
+
+  // Sending is an explicit "I am here": a new student message at the tail
+  // re-attaches the view to the bottom, wherever the student had scrolled.
+  const lastUserTailId = lastMessage?.role === "user" ? lastMessage.id : null;
+  useLayoutEffect(() => {
+    if (!lastUserTailId) return;
+    stickRef.current = true;
+    pinToBottom();
+  }, [lastUserTailId, pinToBottom]);
   const isStreaming =
     isLoading && lastMessage?.role === "assistant" && lastMessage.content.length > 0;
   const isTyping =
@@ -213,6 +320,19 @@ export function ChatMessageList({
     ...stableMessages,
   ]);
 
+  // 1.1.145 M2 — the folded shared transcript (null outside a group session).
+  const sharedItems = useMemo(
+    () =>
+      sharedTranscript
+        ? buildSharedTranscript(initialMessages ?? [], stableMessages, sharedTranscript.syncedFrom)
+        : null,
+    [sharedTranscript, initialMessages, stableMessages],
+  );
+  const hiddenRestored = useMemo(
+    () => (sharedTranscript ? duplicateRestoredCards(humanToolEvents) : NO_HIDDEN),
+    [sharedTranscript, humanToolEvents],
+  );
+
   // Show the most recent running tool name in the TypingIndicator
   const activeToolName = toolCalls.find((tc) => tc.status === "running")?.name ?? null;
 
@@ -242,7 +362,61 @@ export function ChatMessageList({
             <p className="text-xs text-muted-foreground italic">{historyError}</p>
           )}
 
-          {initialMessages && initialMessages.length > 0 && (
+          {sharedItems && (
+            <>
+              {interactionsTruncated && (
+                <p className="text-center text-[11px] text-muted-foreground italic">
+                  {t("olderHidden")}
+                </p>
+              )}
+              {sharedItems.map((item) => (
+                <Fragment key={item.kind === "live" ? `live-${item.message.id}` : item.message.id}>
+                  {/* Restored cards sit in history's index space, live cards in
+                      the live one — each rendered before the message it
+                      preceded, wherever that message now sits. */}
+                  {item.historyIndex !== null && (
+                    <HumanToolEventsAt index={item.historyIndex} restored hidden={hiddenRestored} />
+                  )}
+                  {item.kind === "live" && <HumanToolEventsAt index={item.liveIndex} />}
+                  {item.kind === "history" && item.fromGroup && (
+                    <p
+                      className="text-right text-[11px] text-muted-foreground"
+                      data-testid="from-group-device"
+                    >
+                      {t("fromGroupDevice")}
+                    </p>
+                  )}
+                  <MessageBubble
+                    message={item.message}
+                    skillId={skillId}
+                    activityId={activityId}
+                    skillDisplayName={item.kind === "live" ? skillDisplayName : undefined}
+                    persona={persona}
+                    userInitial={userInitial}
+                    userDisplayName={userDisplayName}
+                    toolCalls={
+                      item.kind === "live"
+                        ? (toolCallsByParent[item.message.id] ?? NO_TOOL_CALLS)
+                        : NO_TOOL_CALLS
+                    }
+                    navigateToBlock={navigate}
+                    onAction={onAction}
+                    mcpServerIds={mcpServerIds}
+                    onChatMessage={onChatMessage}
+                    sessionId={sessionId}
+                    autoSpeakAllowed={item.message.id === autoReadAssistantId}
+                  />
+                </Fragment>
+              ))}
+              <HumanToolEventsAt
+                index={initialMessages?.length ?? 0}
+                restored
+                hidden={hiddenRestored}
+              />
+            </>
+          )}
+
+          {!sharedItems && initialMessages && initialMessages.length > 0 && (
             <>
               {/* 1.1.34: a quiet note when older interactions were dropped by
                   the backend cap — never a silent truncation. */}
@@ -292,7 +466,7 @@ export function ChatMessageList({
             <p className="text-sm text-muted-foreground">{t("emptyPrompt")}</p>
           )}
 
-          {stableMessages.map((m, i) => (
+          {!sharedItems && stableMessages.map((m, i) => (
             <Fragment key={m.id}>
               {/* Cards dispatched BEFORE this message landed (i.e.
                   while message count was still i). Renders at the top
@@ -329,6 +503,8 @@ export function ChatMessageList({
             <StreamingBubble
               message={lastMessage}
               skillId={skillId}
+              skillDisplayName={skillDisplayName}
+              persona={persona}
               thinkingContent={thinkingContent}
               isThinking={isThinking}
             />
@@ -346,9 +522,10 @@ export function ChatMessageList({
         <button
           type="button"
           onClick={scrollToBottom}
-          className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full border border-border bg-background px-3 py-1 text-xs font-medium shadow-md hover:bg-muted"
+          className="absolute bottom-4 left-1/2 inline-flex -translate-x-1/2 items-center gap-1 rounded-full border border-border bg-background px-3 py-1 text-xs font-medium shadow-md hover:bg-muted"
         >
-          ↓ New message
+          <ArrowDown className="h-3 w-3" aria-hidden="true" />
+          {t("newMessage")}
         </button>
       )}
     </div>
@@ -361,13 +538,24 @@ export function ChatMessageList({
 // the chronologically correct point in the transcript, not always at
 // the bottom. See `HumanToolEvent.afterMessageIndex` in
 // useHumanToolEvents.ts for the dispatch-time snapshot.
-function HumanToolEventsAt({ index, restored = false }: { index: number; restored?: boolean }) {
+function HumanToolEventsAt({
+  index,
+  restored = false,
+  hidden = NO_HIDDEN,
+}: {
+  index: number;
+  restored?: boolean;
+  /** Restored cards to skip because a live card already shows them (1.1.145). */
+  hidden?: ReadonlySet<string>;
+}) {
   const { events } = useHumanToolEvents();
   // Two separate index spaces (1.1.34): restored cards index into the
   // RESTORED history loop; live cards index into the live `messages` loop.
   // Filtering by `restored` keeps a card with afterMessageIndex===2 from
   // rendering in BOTH loops.
-  const here = events.filter((e) => e.afterMessageIndex === index && Boolean(e.restored) === restored);
+  const here = events.filter(
+    (e) => e.afterMessageIndex === index && Boolean(e.restored) === restored && !hidden.has(e.id),
+  );
   if (here.length === 0) return null;
   return (
     <div

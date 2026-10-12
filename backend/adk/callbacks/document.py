@@ -19,13 +19,16 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Frontend sets this to True when the user enters a chat by clicking a
-# conversation thread from the per-document Conversations panel.
-_STATE_RESUMED_SESSION = "app:resumed_session"
+# All keys below are SESSION-scoped (unprefixed). They were ``app:``-prefixed
+# until 2026-10-08 — application-global in ADK (every user, every session),
+# the same mistake session.py fixed on 2026-06-23. See the cross-activity
+# investigation in docs/design/aipla/v1.1.0-feedback/group-code-shared-history.md.
+# Set when the user resumes a thread from the per-document Conversations panel.
+_STATE_RESUMED_SESSION = "doc_resumed_session"
 # Tracks which doc ids have been *successfully loaded as artifacts*.
-_STATE_DOCS_LOADED = "app:docs_loaded"
+_STATE_DOCS_LOADED = "docs_loaded"
 # Map of doc_id -> error string for any doc that failed to load.
-_STATE_DOC_LOAD_ERROR = "app:doc_load_error"
+_STATE_DOC_LOAD_ERROR = "doc_load_error"
 
 
 # 1.1.122 — one loader/injector pair, two artifact shapes, keyed by TYPE:
@@ -35,7 +38,7 @@ _STATE_DOC_LOAD_ERROR = "app:doc_load_error"
 # decided by the record's mediaKind, never by the student.
 # doc_id -> original filename for image artifacts, so the injector can label
 # the pixels ("which photo is this?") without a Firestore read per turn.
-_STATE_DOC_IMAGE_LABELS = "app:doc_image_labels"
+_STATE_DOC_IMAGE_LABELS = "doc_image_labels"
 
 
 def _text_artifact_name(doc_id: str) -> str:
@@ -63,9 +66,9 @@ def make_document_loader() -> Any:
     separate session-scoped artifact ``doc:{id}.json`` (application/json) which
     ``load_artifacts_tool`` auto-injects into the model's context.
 
-    Incremental: tracks loaded ids in ``app:docs_loaded`` so when the user adds
+    Incremental: tracks loaded ids in ``docs_loaded`` so when the user adds
     a tab mid-session we only load the *new* doc, and a failed doc isn't retried
-    every turn. Failures are recorded per-doc in ``app:doc_load_error`` — non-fatal.
+    every turn. Failures are recorded per-doc in ``doc_load_error`` — non-fatal.
     """
 
     async def _loader(callback_context: Any) -> None:
@@ -104,8 +107,7 @@ def make_document_loader() -> Any:
             loaded.append(doc_id)
         if orphans:
             logger.warning(
-                "doc loader: dropping %d orphaned id(s) from app:docs_loaded "
-                "(no artifact behind them) — will re-load: %s",
+                "doc loader: dropping %d orphaned id(s) from docs_loaded (no artifact behind them) — will re-load: %s",
                 len(orphans),
                 orphans,
             )
@@ -263,7 +265,7 @@ def make_document_injector() -> Any:
         loaded: list[str] = list(state.get(_STATE_DOCS_LOADED) or [])
         if not loaded:
             logger.info(
-                "doc injector: skipped — app:docs_loaded is empty (document_ids=%s)",
+                "doc injector: skipped — docs_loaded is empty (document_ids=%s)",
                 state.get("document_ids"),
             )
             return
@@ -296,7 +298,7 @@ def make_document_injector() -> Any:
                 continue
             if not artifact:
                 logger.warning(
-                    "doc injector: artifact missing for %s — orphan in app:docs_loaded "
+                    "doc injector: artifact missing for %s — orphan in docs_loaded "
                     "(loader's orphan recovery will retry next turn)",
                     doc_id,
                 )

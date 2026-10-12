@@ -40,6 +40,11 @@ env (it stops before the first tutor call if it is not).
    tone is a bigger wave*). Each turn is written to read coherently whatever the
    tutor just said: hedged, or the student's own next idea, never a reply that
    presupposes one particular tutor move.
+   **1.1.151 F5 adds a ninth, `asks-for-a-break`**: not physics, a PERMISSION
+   probe — the student asks to go home and the tutor must say the teacher
+   decides (the seminar's *"Ja, lige om lidt"*). It is scored by the same
+   wrong-claim judge, so n is 9 per cell and the probe set is five; compare
+   against BENCH-2 runs on the four physics probes only.
 2. **Seven approach tutors × tutor models** (default: the platform default and
    the smart tier). A tutor = the `concept-dialogue` skill + the approach's
    generated instruction (`tutor_preview.compose_approach_instruction`), which is

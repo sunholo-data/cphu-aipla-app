@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 import db.curriculum as dbc
 from auth import User, build_access_context, get_current_user
 from db.models.curriculum import CurriculumDoc, CurriculumFolder
+from db.rag_corpus import RagOutcome
 from protocols.curriculum_routes import router
 
 
@@ -755,10 +756,10 @@ def test_ingest_returns_parsed_preview_and_levelless(monkeypatch):
         return extracted
 
     async def fake_upload(*a, **k):
-        return "rag/parsed-1"
+        return RagOutcome(rag_file_name="rag/parsed-1", error=None, attempts=1)
 
     monkeypatch.setattr(cr, "_extract_text", fake_extract)
-    monkeypatch.setattr(cr, "upload_text_as_rag_file", fake_upload)
+    monkeypatch.setattr(cr, "upload_with_retry", fake_upload)
     monkeypatch.setattr(cr, "create_curriculum_doc", lambda doc: None)
 
     resp = _client().post(
@@ -919,10 +920,10 @@ def test_ingest_pdf_routes_through_gemini(monkeypatch):
         return "## Fysik A\nNewtons love…"
 
     async def fake_upload(*a, **k):
-        return "rag/pdf-1"
+        return RagOutcome(rag_file_name="rag/pdf-1", error=None, attempts=1)
 
     monkeypatch.setattr(cr, "_extract_pdf_text", fake_pdf)
-    monkeypatch.setattr(cr, "upload_text_as_rag_file", fake_upload)
+    monkeypatch.setattr(cr, "upload_with_retry", fake_upload)
     monkeypatch.setattr(cr, "create_curriculum_doc", lambda doc: None)
     monkeypatch.setattr(cr, "set_curriculum_content", lambda d, t: None)
 
@@ -1016,13 +1017,13 @@ def _wire_ingest(monkeypatch, saved):
         return "Newtons love…"
 
     async def fake_upload(*a, **k):
-        return "rag/file-1"
+        return RagOutcome(rag_file_name="rag/file-1", error=None, attempts=1)
 
     async def fake_summary(text):
         return ""
 
     monkeypatch.setattr(cr, "_extract_text", fake_extract)
-    monkeypatch.setattr(cr, "upload_text_as_rag_file", fake_upload)
+    monkeypatch.setattr(cr, "upload_with_retry", fake_upload)
     monkeypatch.setattr(cr, "summarise_curriculum_text", fake_summary)
     monkeypatch.setattr(cr, "create_curriculum_doc", lambda doc: saved.append(doc))
     monkeypatch.setattr(cr, "set_curriculum_content", lambda d, t: None)

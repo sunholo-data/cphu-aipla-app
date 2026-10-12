@@ -163,6 +163,35 @@ describe("ClassListSheet — revoked codes", () => {
   });
 });
 
+describe("ClassListSheet — retained revoked codes (1.1.146)", () => {
+  it("keeps a revoked code's names on the device, but not in the table or export", async () => {
+    window.localStorage.setItem(
+      classListStorageKey(CLASS_ID),
+      JSON.stringify({ v: 1, rows: { "gone-code-99": { names: "Revoked Person", note: "" }, "bright-fox-12": { names: "Eva", note: "" } } }),
+    );
+    render(
+      <ClassListSheet
+        classId={CLASS_ID}
+        className="Physics 7B"
+        codes={["bright-fox-12"]}
+        retainedCodes={["gone-code-99"]}
+        joinOrigin={ORIGIN}
+        locale="en"
+      />,
+    );
+    await waitFor(() => expect(screen.getByLabelText("Names for bright-fox-12")).toHaveValue("Eva"));
+    expect(screen.queryByText("gone-code-99")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: /download as excel/i }));
+    const [, rows] = downloadXlsxSpy.mock.calls[0] as [string, string[][]];
+    expect(JSON.stringify(rows)).not.toContain("Revoked Person");
+
+    // Its sessions are still reviewable, so who was in the group is kept.
+    fireEvent.change(screen.getByLabelText("Note for bright-fox-12"), { target: { value: "front row" } });
+    expect(window.localStorage.getItem(classListStorageKey(CLASS_ID))).toContain("Revoked Person");
+  });
+});
+
 describe("ClassListSheet — import (M2)", () => {
   it("imports our own .xlsx, matched on Code, in the browser", async () => {
     render(sheet());

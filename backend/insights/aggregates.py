@@ -298,7 +298,8 @@ def _scope_classes(user: User, scope: str) -> tuple[list[Any], list[str]]:
     never someone else's data).
     """
     if scope == "all" and getattr(user, "is_researcher", False):
-        classes = list_all_classes()
+        # 1.1.146 M4 — a class its teacher deleted is still research evidence.
+        classes = list_all_classes(include_revoked=True)
         allowed = sorted({code for cls in classes for code in cls.group_codes})
         return classes, allowed
     return list_classes_for_owner(user.uid), list(resolve_caller_group_codes(user.uid))

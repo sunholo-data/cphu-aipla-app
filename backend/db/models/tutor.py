@@ -30,6 +30,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from db.models.activity_config import InteractionStyle
+from db.models.authorship import CreatedVia
 
 # ``draft`` — being authored. ``ready`` — publishable. ``in-use`` — attached to a
 # live activity/class, so edits must fork a version rather than mutate (see
@@ -136,6 +137,15 @@ class Tutor(BaseModel):
 
     created_at: datetime | None = Field(default=None, alias="createdAt")
     updated_at: datetime | None = Field(default=None, alias="updatedAt")
+
+    # 1.1.150 M2 — provenance, stamped by the store on CREATE and never
+    # rewritten (see ``db/models/authorship.py``). ``author_uid`` says whose it
+    # is; these say who made it, by which route — and, once ``save_tutor``
+    # stopped reassigning the author on every write (1.1.150 F4), ``updated_by``
+    # is how the deploy seed still tells a human edit apart from its own.
+    created_by: str | None = Field(default=None, alias="createdBy", max_length=128)
+    created_via: CreatedVia | None = Field(default=None, alias="createdVia")
+    updated_by: str | None = Field(default=None, alias="updatedBy", max_length=128)
 
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 

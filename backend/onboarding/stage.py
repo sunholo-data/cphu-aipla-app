@@ -120,11 +120,13 @@ def compute_stage(
     if live_at:
         return TeacherStage("live", live_at, None)
 
-    ready = [c for c in own if c.group_codes and c.activity_ids]
+    # A code that still WORKS (1.1.146): a revoked code stays on the roster as
+    # evidence, but a class whose only code is revoked has nothing to share.
+    ready = [c for c in own if c.active_group_codes and c.activity_ids]
     if ready:
         return TeacherStage("waiting", latest_created(ready), NEXT_STEP["waiting"])
 
-    with_codes = [c for c in own if c.group_codes]
+    with_codes = [c for c in own if c.active_group_codes]
     if with_codes:
         return TeacherStage("no_activity", latest_created(with_codes), NEXT_STEP["no_activity"])
 

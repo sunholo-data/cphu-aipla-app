@@ -112,6 +112,7 @@ from typing import Any
 
 from google.adk.agents.readonly_context import ReadonlyContext
 
+from adk.element_manifest import name_element
 from db.models.activity_config import ELEMENT_REGISTRY, ActivityConfig, ElementSpec
 
 log = logging.getLogger(__name__)
@@ -188,6 +189,9 @@ class ElementFill:
     # to whether their step gets marked, or the tutor is grading content through
     # a mechanism built to check presence.
     values: str = ""
+    # 1-based position among elements of this kind. Names an UNTITLED element
+    # (``title == ""``) without inventing a heading — see ``name_element``.
+    ordinal: int = 1
 
     @property
     def status(self) -> str:
@@ -374,19 +378,16 @@ def _read_table(items: list, spec: ElementSpec, src: FillSources) -> list[Elemen
     state = src.state
     grids = _grids_by_id(_entry(state, "table"))
     # 1.1.71 — with several tables authored, the title is the only thing that
-    # tells them apart in the tutor's block, and an untitled one falls back to
-    # "untitled". Three of those produce three identical lines
-    # (`Data table "untitled": EMPTY`), which is worse than useless: the tutor
-    # cannot say which table it means and neither can the student reading its
-    # reply. Disambiguate by position when a title is missing or shared.
+    # tells them apart in the tutor's block. Three untitled ones used to produce
+    # three identical lines, so position disambiguates: a shared title gets
+    # "(n)", and a missing one stays empty with its ``ordinal`` set, which
+    # ``name_element`` renders as "no. n" — never an invented "untitled", which
+    # the tutor quoted to Danish students on 2026-10-05.
     raw_titles = [(getattr(t, "title", "") or "").strip() for t in items]
     seen: dict[str, int] = {}
     for t in raw_titles:
         seen[t] = seen.get(t, 0) + 1
-    titles = [
-        t if (t and seen[t] == 1) else (f"{t} ({i + 1})" if t else f"untitled ({i + 1})")
-        for i, t in enumerate(raw_titles)
-    ]
+    titles = [t if (t and seen[t] == 1) else (f"{t} ({i + 1})" if t else "") for i, t in enumerate(raw_titles)]
     fills = []
     for idx, tbl in enumerate(items):
         table_id = str(getattr(tbl, "id", ""))
@@ -411,6 +412,7 @@ def _read_table(items: list, spec: ElementSpec, src: FillSources) -> list[Elemen
                 kind="table",
                 element_id=table_id,
                 title=titles[idx],
+                ordinal=idx + 1,
                 filled=filled,
                 total=total,
                 values=_format_table_values(cells, columns),
@@ -433,7 +435,7 @@ def _read_calculator(items: list, spec: ElementSpec, src: FillSources) -> list[E
             if isinstance(c, dict) and c.get("id"):
                 by_id[str(c["id"])] = c
     fills = []
-    for calc in items:
+    for n, calc in enumerate(items, 1):
         inputs = getattr(calc, "inputs", []) or []
         pushed = by_id.get(str(getattr(calc, "id", "")))
         filled = 0
@@ -445,7 +447,8 @@ def _read_calculator(items: list, spec: ElementSpec, src: FillSources) -> list[E
             ElementFill(
                 kind="calculator",
                 element_id=str(getattr(calc, "id", "")),
-                title=getattr(calc, "title", "") or "untitled",
+                title=(getattr(calc, "title", "") or "").strip(),
+                ordinal=n,
                 filled=filled,
                 total=len(inputs),
                 detail=f"result {result}" if result not in (None, "") else "",
@@ -483,7 +486,7 @@ def _read_writing(items: list, spec: ElementSpec, src: FillSources) -> list[Elem
             if isinstance(d, dict) and d.get("id"):
                 by_id[str(d["id"])] = d
     fills = []
-    for w in items:
+    for n, w in enumerate(items, 1):
         target = int(getattr(w, "min_words", 0) or 0)
         pushed = by_id.get(str(getattr(w, "id", "")))
         words = 0
@@ -494,7 +497,8 @@ def _read_writing(items: list, spec: ElementSpec, src: FillSources) -> list[Elem
             ElementFill(
                 kind="writing",
                 element_id=str(getattr(w, "id", "")),
-                title=getattr(w, "title", "") or "untitled",
+                title=(getattr(w, "title", "") or "").strip(),
+                ordinal=n,
                 filled=words,
                 total=target or 1,
                 detail=f"target {target} words" if target else "",
@@ -583,7 +587,7 @@ _UNITS = {"table": "cells filled", "calculator": "inputs entered"}
 
 
 def _line(fill: ElementFill, *, with_values: bool = True) -> str:
-    noun = _NOUNS.get(fill.kind, fill.kind)
+    name = name_element(_NOUNS.get(fill.kind, fill.kind), fill.title, fill.ordinal)
     if fill.kind == "writing":
         # Writing counts words against a TARGET, not cells against a capacity,
         # and an untargeted surface carries a nominal total of 1 (see
@@ -591,13 +595,13 @@ def _line(fill: ElementFill, *, with_values: bool = True) -> str:
         # "0 of 1 words", which is technically true and useless. The status word
         # is unchanged, so the M3 refusal reads this line the same way.
         if fill.filled <= 0:
-            return f'{noun} "{fill.title}": EMPTY — the student has written nothing'
+            return f"{name}: EMPTY — the student has written nothing"
         body = f"{fill.filled} words written"
         if fill.detail:
             body += f" ({fill.detail})"
-        return f'{noun} "{fill.title}": {fill.status} — {body}'
+        return f"{name}: {fill.status} — {body}"
     if fill.total <= 0:
-        return f'{noun} "{fill.title}": UNKNOWN — nothing authored to fill in'
+        return f"{name}: UNKNOWN — nothing authored to fill in"
     body = f"{fill.filled} of {fill.total} {_UNITS.get(fill.kind, 'filled')}"
     if fill.detail:
         body += f", {fill.detail}"
@@ -606,7 +610,7 @@ def _line(fill: ElementFill, *, with_values: bool = True) -> str:
     # element is — the half the refusal and the footer both depend on.
     if with_values and fill.values:
         body += f" — {fill.values}"
-    return f'{noun} "{fill.title}": {fill.status} — {body}'
+    return f"{name}: {fill.status} — {body}"
 
 
 def describe_element_state(
@@ -628,7 +632,17 @@ def describe_element_state(
         The block, or ``""`` when the activity authors no element with an
         observable fill channel.
     """
-    fills = read_element_fills(cfg, state, table_cells=table_cells)
+    return render_element_state(read_element_fills(cfg, state, table_cells=table_cells))
+
+
+def render_element_state(fills: list[ElementFill]) -> str:
+    """Format already-read fills as the per-turn block (``""`` for none).
+
+    Split out of ``describe_element_state`` (1.1.149) so the wrapper reads the
+    fills ONCE per turn and can hand the same observation to the workbench
+    affordances block — two reads of the table store per turn would cost a
+    second Firestore round-trip and could disagree about the same table.
+    """
     if not fills:
         return ""
 
@@ -773,7 +787,8 @@ def refusal_for(fill: ElementFill) -> str:
     noun = "data table" if fill.kind == "table" else fill.kind
     unit = _UNITS.get(fill.kind, "entries")
     return (
-        f'the {noun} "{fill.title}" is empty — the student has {fill.filled} of {fill.total} {unit}. '
+        f"the {name_element(noun, fill.title, fill.ordinal)} is empty"
+        f" — the student has {fill.filled} of {fill.total} {unit}. "
         "Ask them to fill it in and tell you what they found, then mark the step once you have seen "
         "the substance. Do not mark it on their say-so alone."
     )
@@ -811,8 +826,13 @@ def make_element_state_wrapper(
     *,
     group_id: str | None = None,
     activity_id: str | None = None,
+    observe: Callable[[ReadonlyContext, list[ElementFill]], None] | None = None,
 ) -> Callable[[str | Callable[[ReadonlyContext], Awaitable[str]]], Callable[[ReadonlyContext], Awaitable[str]]]:
     """An ``InstructionProvider`` wrapper for ``compose_instruction_providers``.
+
+    ``observe`` (1.1.149) receives this turn's fills, so a LATER provider in the
+    chain (``workbench_affordances``) can say *untouched* / *in use* from the
+    same observation this block reports, rather than reading the store again.
 
     Captures the resolved activity (fixed for the session) and reads the session
     state fresh on every turn — the whole point of being a provider rather than
@@ -833,11 +853,14 @@ def make_element_state_wrapper(
     ) -> Callable[[ReadonlyContext], Awaitable[str]]:
         async def _provider(ctx: ReadonlyContext) -> str:
             base_text = await base(ctx) if callable(base) else base
-            block = describe_element_state(
+            fills = read_element_fills(
                 cfg,
                 dict(ctx.state) if ctx.state else {},
                 table_cells=read_table_cells(group_id, activity_id),
             )
+            if observe is not None:
+                observe(ctx, fills)
+            block = render_element_state(fills)
             if not block:
                 return base_text
             return f"{base_text.rstrip()}\n\n{block}"
@@ -859,4 +882,5 @@ __all__ = [
     "read_element_fills",
     "read_table_cells",
     "refusal_for",
+    "render_element_state",
 ]

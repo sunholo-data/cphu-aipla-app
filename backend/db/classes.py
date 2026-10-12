@@ -17,7 +17,6 @@ import logging
 from datetime import UTC, datetime
 
 from db.firestore import (
-    delete_document,
     get_document,
     query_documents,
     set_document,
@@ -441,36 +440,94 @@ def mint_preview_group(class_id: str) -> str:
     return record.group_id
 
 
-def revoke_group_code(class_id: str, code: str) -> None:
-    """Remove a single code from a class's bindings.
+class GroupCodeNotInClass(LookupError):
+    """The code is not bound to this class — refuse rather than touch another
+    class's binding (1.1.146)."""
 
-    The anon_groups/<code> doc itself is dropped — the next attempt to
-    use the JWT will fail at verification.
+
+def revoke_group_code(class_id: str, code: str, *, revoked_by: str | None = None) -> None:
+    """Retire a single code: it stops working, its evidence stays (1.1.146).
+
+    **Revoke ends access; it never touches evidence.** Until 1.1.146 this
+    removed the code from ``groupCodes`` and hard-deleted ``anon_groups/<code>``
+    — the only record of the code → class binding — so every class-anchored
+    review surface (class page, insights, recent sessions, progress) silently
+    lost the group while its conversations sat intact in BigQuery. A researcher
+    on prod could no longer review a class's sessions after the teacher tidied
+    up its codes the morning after a lesson.
+
+    Now it writes a TOMBSTONE instead:
+
+    - ``anon_groups/<code>`` gets ``{revoked, revokedAt, revokedBy, classId}``
+      (merge). ``classId`` is kept on the same document, so ownership and
+      ``get_class_for_group`` still resolve. ``_resolve_class_tags`` refuses a
+      tombstoned code on every token verification, on any instance.
+    - the code STAYS in ``Class.groupCodes`` (the historical roster every
+      evidence surface reads) and is appended to ``revokedGroupCodes``; live
+      surfaces read ``Class.active_group_codes``.
+
+    Idempotent: a second call does not shift ``revokedAt``. A code that is not
+    bound to this class raises ``GroupCodeNotInClass`` — the old version
+    deleted whatever ``anon_groups/<code>`` it was handed, which let a class
+    owner unbind ANOTHER class's code by naming it.
+
+    This is not erasure. Erase (1.1.80) is a separate, deliberate control.
     """
     cls = get_class(class_id)
     if cls is None:
         raise ValueError(f"class {class_id} not found")
 
-    if code in cls.group_codes:
-        new_codes = [c for c in cls.group_codes if c != code]
+    anon = get_document(_ANON_GROUPS_COLLECTION, code)
+    bound_here = code in cls.group_codes or (anon is not None and anon.get("classId") == class_id)
+    if not bound_here:
+        raise GroupCodeNotInClass(f"code {code!r} is not bound to class {class_id}")
+    if anon is not None and anon.get("classId") not in (None, class_id):
+        # In this roster but bound elsewhere — never rewrite another class's binding.
+        raise GroupCodeNotInClass(f"code {code!r} is bound to a different class")
+
+    already = bool(anon and anon.get("revoked")) and code in cls.revoked_group_codes
+    now = _utcnow().isoformat()
+    revoked_at = (anon or {}).get("revokedAt") or cls.revoked_group_codes_at.get(code) or now
+
+    if not (anon and anon.get("revoked")):
+        tombstone: dict = {"revoked": True, "revokedAt": revoked_at, "classId": class_id}
+        if revoked_by:
+            tombstone["revokedBy"] = revoked_by
+        set_document(_ANON_GROUPS_COLLECTION, code, tombstone, merge=True)
+    elif anon.get("classId") != class_id:
+        set_document(_ANON_GROUPS_COLLECTION, code, {"classId": class_id}, merge=True)
+
+    if not already:
+        group_codes = list(cls.group_codes)
+        if code not in group_codes:
+            group_codes.append(code)
+        revoked_codes = list(cls.revoked_group_codes)
+        if code not in revoked_codes:
+            revoked_codes.append(code)
+        revoked_at_map = {**cls.revoked_group_codes_at}
+        revoked_at_map.setdefault(code, revoked_at)
         update_document(
             _COLLECTION,
             class_id,
-            {"groupCodes": new_codes, "updatedAt": _utcnow().isoformat()},
+            {
+                "groupCodes": group_codes,
+                "revokedGroupCodes": revoked_codes,
+                "revokedGroupCodesAt": revoked_at_map,
+                "updatedAt": now,
+            },
         )
 
-    # Drop the anon_groups doc directly — the next verify-token attempt
-    # will fail because the doc is gone. Going through
-    # auth.group_id_auth.delete_group would need the requesting_uid +
-    # the in-process _state lookup, both of which are noise here: this
-    # function is called from a Firebase-teacher-authenticated route
-    # that already gated ownership at the layer above.
-    delete_document(_ANON_GROUPS_COLLECTION, code)
+    # This instance's fast path: stop serving the code from the in-memory cache.
+    # Other instances learn it from the tombstone at their next verify.
+    from auth.group_id_auth import forget_revoked_group
+
+    forget_revoked_group(code)
 
     logger.info("classes_db: revoked group code=%s from class=%s", code, class_id)
 
 
 __all__ = [
+    "GroupCodeNotInClass",
     "add_lessons",
     "create_class",
     "get_class",

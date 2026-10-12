@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Pencil, Plus, Share2, Trash2 } from "lucide-react";
+import { Pencil, Plus, Share2, Trash2, X } from "lucide-react";
 
 import {
+  type ApproachSource,
+  type ApproachSourceInput,
   type CustomApproach,
   type FrameworkRegister,
   createCustomApproach,
@@ -14,6 +16,7 @@ import {
 } from "@/lib/teacherApi";
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
 import { RegisterPicker } from "@/components/teacher/research/RegisterPicker";
+import { AuthorLine } from "@/components/teacher/research/AuthorLine";
 import { useT } from "@/i18n";
 
 /** UI copy, lifted out of JSX (1.1.108 M4) so a translator can reach it. */
@@ -25,9 +28,56 @@ interface Draft {
   summary: string;
   instructionText: string;
   register: FrameworkRegister | null;
+  /** 1.1.150 M3 — what the approach draws on. Edited here, never shown to the
+   *  tutor or a student; the server stamps who added each one. */
+  sources: ApproachSourceInput[];
 }
 
-const EMPTY: Draft = { id: null, label: "", summary: "", instructionText: "", register: null };
+const EMPTY: Draft = { id: null, label: "", summary: "", instructionText: "", register: null, sources: [] };
+
+/** Mirrors the server's cap (`MAX_APPROACH_SOURCES`). */
+const MAX_SOURCES = 10;
+
+/** Only the fields a client may send. `addedBy`/`addedAt` are the server's,
+ *  and a corpus link is carried back unchanged so re-saving never drops it. */
+function toInput(src: ApproachSource): ApproachSourceInput {
+  return { citation: src.citation, url: src.url ?? null, note: src.note ?? null, corpusRef: src.corpusRef ?? null };
+}
+
+/** The list that is SENT: blank rows dropped, optional fields null when empty. */
+function cleanSources(sources: ApproachSourceInput[]): ApproachSourceInput[] {
+  return sources
+    .map((src) => ({
+      citation: src.citation.trim(),
+      url: src.url?.trim() || null,
+      note: src.note?.trim() || null,
+      corpusRef: src.corpusRef ?? null,
+    }))
+    .filter((src) => src.citation.length > 0);
+}
+
+function SourceList({ sources, heading }: { sources: ApproachSource[]; heading: string }) {
+  if (sources.length === 0) return null;
+  return (
+    <div className="mt-1 text-xs text-muted-foreground">
+      <span className="font-medium">{heading}:</span>
+      <ul className="ml-4 list-disc">
+        {sources.map((src, i) => (
+          <li key={`${src.citation}-${i}`}>
+            {src.url ? (
+              <a href={src.url} target="_blank" rel="noopener noreferrer" className="underline">
+                {src.citation}
+              </a>
+            ) : (
+              src.citation
+            )}
+            {src.note ? <span> — {src.note}</span> : null}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 /**
  * Custom teaching approaches (1.1.110) — the teacher-editable tier.
@@ -66,6 +116,7 @@ export function CustomApproachPanel() {
         summary: draft.summary.trim(),
         instructionText: draft.instructionText.trim(),
         register: draft.register,
+        sources: cleanSources(draft.sources),
       };
       if (draft.id) await updateCustomApproach(draft.id, input);
       else await createCustomApproach(input);
@@ -103,6 +154,9 @@ export function CustomApproachPanel() {
   };
 
   const valid = draft && draft.label.trim().length > 0 && draft.instructionText.trim().length > 0;
+
+  const setSource = (i: number, patch: Partial<ApproachSourceInput>) =>
+    draft && setDraft({ ...draft, sources: draft.sources.map((src, j) => (j === i ? { ...src, ...patch } : src)) });
 
   return (
     <TeacherCard>
@@ -167,6 +221,58 @@ export function CustomApproachPanel() {
               same one, so the two editors cannot drift apart. */}
           <RegisterPicker value={draft.register} onChange={(register) => setDraft({ ...draft, register })} />
 
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium">{t("sourcesLabel")}</legend>
+            <p className="text-xs text-muted-foreground">{t("sourcesHelp")}</p>
+            {draft.sources.map((src, i) => (
+              <div key={i} className="space-y-1.5 rounded border p-2" data-testid={`source-row-${i}`}>
+                <div className="flex items-center gap-2">
+                  <input
+                    aria-label={`${t("sourceCitation")} ${i + 1}`}
+                    value={src.citation}
+                    onChange={(e) => setSource(i, { citation: e.target.value })}
+                    placeholder={t("sourceCitationPlaceholder")}
+                    className="w-full rounded border bg-background p-1.5 text-sm"
+                  />
+                  <button
+                    type="button"
+                    aria-label={t("removeSource", { n: i + 1 })}
+                    onClick={() => setDraft({ ...draft, sources: draft.sources.filter((_, j) => j !== i) })}
+                    className="shrink-0 rounded border p-1.5 hover:bg-muted"
+                  >
+                    <X className="h-3.5 w-3.5" aria-hidden />
+                  </button>
+                </div>
+                <input
+                  aria-label={`${t("sourceUrl")} ${i + 1}`}
+                  value={src.url ?? ""}
+                  onChange={(e) => setSource(i, { url: e.target.value })}
+                  placeholder={t("sourceUrl")}
+                  className="w-full rounded border bg-background p-1.5 text-xs"
+                />
+                <input
+                  aria-label={`${t("sourceNote")} ${i + 1}`}
+                  value={src.note ?? ""}
+                  onChange={(e) => setSource(i, { note: e.target.value })}
+                  placeholder={t("sourceNote")}
+                  className="w-full rounded border bg-background p-1.5 text-xs"
+                />
+              </div>
+            ))}
+            {draft.sources.length < MAX_SOURCES ? (
+              <button
+                type="button"
+                onClick={() => setDraft({ ...draft, sources: [...draft.sources, { citation: "", url: null, note: null }] })}
+                className="flex items-center gap-1.5 rounded border px-2 py-1 text-xs hover:bg-muted"
+              >
+                <Plus className="h-3 w-3" aria-hidden />
+                {t("addSource")}
+              </button>
+            ) : (
+              <p className="text-xs text-muted-foreground">{t("sourcesMax", { max: MAX_SOURCES })}</p>
+            )}
+          </fieldset>
+
           {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
           <div className="flex items-center gap-2">
@@ -199,19 +305,13 @@ export function CustomApproachPanel() {
           rows.map((row) => (
             <div key={row.id} className="flex items-start justify-between gap-3 rounded border px-3 py-2">
               <div className="min-w-0">
-                <p className="text-sm font-medium">
-                  {row.label}
-                  <span className="ml-2 text-xs font-normal text-muted-foreground">
-                    {row.canEdit && row.authorRole ? t("byYou") : t(
-                          row.authorRole === "teacher"
-                            ? "byOther_teacher"
-                            : row.authorRole === "researcher"
-                              ? "byOther_researcher"
-                              : "byOther_colleague",
-                        )}
-                  </span>
-                </p>
+                <p className="text-sm font-medium">{row.label}</p>
+                {/* 1.1.150 — whose it is, from `isOwn`, never from `canEdit`:
+                    a researcher may edit every row, and reading that as "yours"
+                    is how a teacher's approach looked like a researcher's own. */}
+                <AuthorLine row={row} testId={`approach-author-${row.id}`} />
                 {row.summary ? <p className="text-xs text-muted-foreground">{row.summary}</p> : null}
+                <SourceList sources={row.sources ?? []} heading={t("sourcesHeading")} />
                 {!row.canEdit ? <p className="mt-1 text-xs text-muted-foreground">{t("readOnly")}</p> : null}
                 {row.canEdit ? (
                   <p className="mt-1 flex items-center gap-1.5 text-[11px] text-muted-foreground">
@@ -252,6 +352,7 @@ export function CustomApproachPanel() {
                         summary: row.summary,
                         instructionText: row.instructionText,
                         register: row.register,
+                        sources: (row.sources ?? []).map(toInput),
                       })
                     }
                     className="rounded border p-1.5 hover:bg-muted"

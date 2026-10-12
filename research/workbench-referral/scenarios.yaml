@@ -1,0 +1,107 @@
+# 1.1.149 M5 — scripted students WITH A WORKBENCH: does the tutor send them to it?
+#
+# Design: docs/design/aipla/v1.1.0-feedback/tutor-directs-to-workbench.md
+#
+# Same format and same rules as research/tutor-discrimination/scenarios.yaml
+# (scripted, identical for every tutor, 4-6 Danish student turns), plus:
+#
+#   activity:        an inline ActivityConfig — a sim (artefactId) and elements.
+#                    For such a scenario the bench composes the tutor through the
+#                    REAL agent build, every turn, so the WORKBENCH block, the
+#                    referral rule and the nudge are the ones a student gets.
+#   probe.stuckTurn: 0-based among student turns — the planted "I don't know".
+#                    The referral probe checks the tutor answers it by sending the
+#                    student to the bench within two tutor turns.
+#
+# Kept OUT of the BENCH-2 file on purpose: these compose a different (full
+# lesson) prompt, and mixing them into the discrimination headline would make
+# its n = 8 per cell incomparable with the run it is measured against.
+#
+#   make bench-tutors ARGS="--dry-run --scenarios ../research/workbench-referral/scenarios.yaml"
+#   make bench-tutors ENV=dev ARGS="--go --tutor-models gemini-3.5-flash-lite \
+#        --scenarios ../research/workbench-referral/scenarios.yaml"     # costs money: M's go-ahead
+#
+# The student turns never name the sim or the table themselves — a referral the
+# student made first is not the tutor's. They are written to read coherently
+# whether or not the tutor referred.
+scenarios:
+  - id: projectile-boldkast
+    title: Projectile motion — which launch angle gives the longest range? (Boldkast)
+    language: da
+    activity:
+      title: Boldkast — hvilken vinkel giver længst kast?
+      teachingGoal: Eleverne undersøger, hvordan udgangsvinklen påvirker rækkevidden, og finder den vinkel, der giver det længste kast.
+      artefactId: boldkast
+      checklist:
+        - {id: c1, label: Forudsig hvilken vinkel der giver længst kast}
+        - {id: c2, label: Mål rækkevidden for mindst fem vinkler}
+        - {id: c3, label: Forklar resultatet}
+      table:
+        - id: t1
+          title: Rækkevidde
+          rows: 6
+          columns:
+            - {id: v, label: Vinkel, unit: "°"}
+            - {id: r, label: Rækkevidde, unit: m}
+    studentTurns:
+      - "Hej. Vi skal finde ud af noget med at kaste en bold i dag."
+      - "Jeg tror, man skal kaste så stejlt som muligt, så bolden er længst tid i luften."
+      - "Jeg ved det ikke. Hvordan skal jeg finde ud af det?"
+      - "Ved 30 grader og 60 grader kom den faktisk lige langt, cirka 22 meter. Det forstår jeg ikke."
+      - "Så det bedste må være et sted midt imellem?"
+    probe:
+      stuckTurn: 2
+
+  - id: kettle-efficiency
+    title: Energy — how efficient is an electric kettle? (Elkedel)
+    language: da
+    activity:
+      title: Effekt og nyttevirkning med simulering
+      teachingGoal: Eleverne bestemmer elkedlens nyttevirkning ud fra egne målinger af tilført elektrisk energi og vandets temperaturstigning.
+      artefactId: kettle-efficiency
+      checklist:
+        - {id: c1, label: Vælg effekt og vandmængde}
+        - {id: c2, label: Aflæs energi og temperatur}
+        - {id: c3, label: Beregn nyttevirkningen}
+      table:
+        - id: t1
+          title: Måleskema
+          rows: 4
+          columns:
+            - {id: m, label: Vandmængde, unit: g}
+            - {id: e, label: Tilført energi, unit: kJ}
+            - {id: dt, label: Temperaturstigning, unit: "°C"}
+    studentTurns:
+      - "Hej, hvad skal vi lave?"
+      - "Nyttevirkning er vel hvor god kedlen er? Jeg er ikke sikker på, hvad det betyder præcist."
+      - "Jeg ved det ikke. Kan du ikke bare sige, hvad nyttevirkningen er?"
+      - "Jeg fik at kedlen brugte 42 kJ, og 100 g vand blev 80 grader varmere."
+      - "Hvorfor er det ikke 100 procent?"
+    probe:
+      stuckTurn: 2
+
+  - id: wave-interference
+    title: Waves — when do two waves cancel? (Interferens)
+    language: da
+    activity:
+      title: Interferens — to bølger lægges sammen
+      teachingGoal: Eleverne undersøger konstruktiv og destruktiv interferens og forklarer, hvornår to bølger udslukker hinanden.
+      artefactId: wave-interference
+      checklist:
+        - {id: c1, label: Find en indstilling hvor bølgerne forstærker hinanden}
+        - {id: c2, label: Find en indstilling hvor de udslukker hinanden}
+      table:
+        - id: t1
+          title: Faseforskydning
+          rows: 4
+          columns:
+            - {id: p, label: Faseforskydning, unit: "°"}
+            - {id: a, label: Resulterende amplitude}
+    studentTurns:
+      - "Hej. Vi har fysik om bølger."
+      - "Hvis man lægger to bølger sammen, bliver den så altid dobbelt så stor?"
+      - "Jeg ved det ikke. Jeg kan ikke se det for mig."
+      - "Når jeg flytter den ene en halv bølgelængde, bliver summen næsten flad."
+      - "Hvad sker der så, hvis bølgelængderne er lidt forskellige?"
+    probe:
+      stuckTurn: 2

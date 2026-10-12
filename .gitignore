@@ -107,3 +107,8 @@ docs/literature/**/parsed/
 /research/tutor-discrimination/*
 !/research/tutor-discrimination/README.md
 !/research/tutor-discrimination/scenarios.yaml
+
+# Local research exports (1.1.148 calibration set: researcher reasons + quotes of
+# student dialogue). Anchored, per the footgun table — an unanchored rule matches
+# at every depth.
+/backend/exports/

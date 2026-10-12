@@ -205,16 +205,28 @@ export async function readClassListFile(file: File): Promise<string[][]> {
 export interface ClassListSheetProps {
   classId: string;
   className: string;
-  /** LIVE codes only — the page's `cls.groupCodes`, which drops a code the
-   *  moment it is revoked. */
+  /** LIVE codes only — the page's `activeGroupCodes(cls)`. A revoked code is
+   *  not a row here: it cannot be handed out any more. */
   codes: ReadonlyArray<string>;
+  /** 1.1.146 — revoked codes whose names this device keeps. Revoke ends
+   *  access, not evidence: their sessions stay reviewable, and the teacher's
+   *  own note of who was in the group is what makes those sessions readable.
+   *  Not shown as rows, not exported; only kept in storage. */
+  retainedCodes?: ReadonlyArray<string>;
   /** `window.location.origin` as the page read it; the link carries the env. */
   joinOrigin: string;
   /** Pins the sheet's language; defaults to the teacher's own (1.1.108 M2). */
   locale?: ClassListLocale;
 }
 
-export function ClassListSheet({ classId, className, codes, joinOrigin, locale: pinned }: ClassListSheetProps) {
+export function ClassListSheet({
+  classId,
+  className,
+  codes,
+  retainedCodes,
+  joinOrigin,
+  locale: pinned,
+}: ClassListSheetProps) {
   const mode = useLocaleMode();
   const locale: ClassListLocale = pinned ?? (mode === "bilingual" ? "da" : mode);
   const t = useT("ClassListSheet", locale);
@@ -233,13 +245,13 @@ export function ClassListSheet({ classId, className, codes, joinOrigin, locale: 
 
   const persist = useCallback(
     (next: ClassListEntries) => {
-      // Keep only live codes — a revoked code's names are dropped from the
-      // device too, not merely hidden.
-      const liveOnly: ClassListEntries = {};
-      for (const code of codes) if (next[code]) liveOnly[code] = next[code];
-      if (!saveClassList(classId, liveOnly)) setStorageOk(false);
+      // Keep live codes, plus the revoked codes the page asks us to retain
+      // (1.1.146). Anything else — a code this class never had — is dropped.
+      const kept: ClassListEntries = {};
+      for (const code of [...codes, ...(retainedCodes ?? [])]) if (next[code]) kept[code] = next[code];
+      if (!saveClassList(classId, kept)) setStorageOk(false);
     },
-    [classId, codes],
+    [classId, codes, retainedCodes],
   );
 
   function update(code: string, field: keyof ClassListEntry, value: string) {

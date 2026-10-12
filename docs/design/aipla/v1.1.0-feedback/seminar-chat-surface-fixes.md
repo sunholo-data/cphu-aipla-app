@@ -1,6 +1,6 @@
 # Seminar chat-surface fixes — LaTeX, auto-scroll, a misspelt heading, opening documents
 
-**Status:** Design (OPEN) — **1.1.147**
+**Status:** **Implemented** (M0, M1, M3 + M3a + M3b, 2026-10-05; **M3c decided + implemented 2026-10-08**) — **1.1.147**. M2 is a data fix (owner corrects the activity). See *Implementation notes* at the end.
 **Priority:** **P1** for M0 (LaTeX) and M1 (auto-scroll): visible on every tutor turn in a live class · **P2** for M2 (spelling) and M3 (document click-through)
 **Estimated:** ~2d phased (M0 LaTeX ~0.75d · M1 auto-scroll ~0.5d · M2 opsamling ~0.1d once located · M3 document click-through ~0.5d, plus a decision)
 **Scope:** Frontend only, unless M2 turns out to be data. `components/chat/ChatMarkdown.tsx`, `components/chat/StreamingBubble.tsx`, `components/chat/ChatMessageList.tsx`, a new `lib/mathDelimiters.ts`, `components/workspace/DocumentsPanel.tsx`, `app/chat/[...path]/page.tsx` (the `navigateToBlock` prop), `messages/{da,en}/chat.json` + `workspace.json`. Optionally one line in `backend/skills/preambles/math_notation.md` (reaches prod by **deploy**, not seed).
@@ -11,14 +11,15 @@
 ## Problem Statement
 
 Four small defects on the student chat surface, seen by teachers on prod. Each was
-traced against the code on 2026-10-05. **Nothing below was checked against prod
-data**; every "confirm with" query is for M to run.
+traced against the code on 2026-10-05, and **the prod logs of the seminar were read the
+same evening** (§ *M0 results* under each milestone). M0 was **redesigned** as a result:
+the leading hypothesis was wrong.
 
 | # | Defect | Cause | Confidence |
 |---|---|---|---|
-| 1 | LaTeX not rendering | (a) `remark-math` 6 accepts only `$…$` / `$$…$$`; `\(…\)` and `\[…\]` reach the student as `(v = \frac{s}{t})`. (b) The streaming bubble renders raw text, so every formula shows as source until the turn ends | (a) **verified** by running the installed pipeline; that the model emitted `\(` on 10-05 is **hypothesis** · (b) **verified** by reading |
-| 2 | "opsamling" misspelt in a table heading | No form of *opsamling* exists anywhere in the repository. The heading is data: a teacher-authored table title/column label, or a tutor-generated Markdown table | **verified** absent from repo; location **hypothesis** |
-| 3 | Can students click documents? | Teacher-attached materials open only if the teacher flipped *studentVisible*, which defaults to **off**; otherwise they are listed by name, unclickable. Document names in tutor replies are never clickable: the chat page passes no `navigateToBlock`, so the citation handler is a no-op | **verified** by reading |
+| 1 | LaTeX not rendering | (a) **The tutor wraps maths in backticks** — `` `$E = P \cdot t$` `` — which Markdown parses as inline code *before* `remark-math` sees it, so the student reads the raw source in monospace. (b) A command KaTeX rejects (`\text{ ^\circ C}`, `\celsius`) renders red. (c) The streaming bubble renders raw text until the turn ends. `\(…\)` / `\[…\]` — the original hypothesis — appeared **once** | (a)(b) **verified in prod logs** 2026-10-05 · (c) **verified** by reading |
+| 2 | "opsamling" misspelt in a table heading | It is **"Opsring"** (for *Opspring*), a teacher-authored column label on *Den hoppende bold: Energibevarelse* — "opsamling" is phone autocorrect in M's note. The same table also has "Forsøg 1" twice | **verified** in prod Firestore |
+| 3 | Documents not obviously clickable | Every material on every seminar activity was **not shared** (`studentVisible: false`, the default), so nothing could open. Even a shared one is a small list row the student must find and click; nothing is open when the workspace loads | **verified** in prod Firestore + by reading |
 | 4 | Chat does not auto-scroll | "Near bottom" is measured **after** the content has already grown, against a 100 px threshold. Any single growth step over 100 px (a finished turn swapping from raw text to rendered Markdown, a table, an SVG, a tool card, a restored history) reads as "the student scrolled up" and stops following | **verified** by reading; browser reproduction pending |
 
 ## M0 — LaTeX renders in tutor replies (~0.75d)
@@ -48,50 +49,124 @@ Run on 2026-10-05 through `unified` + `remark-parse` + `remark-gfm` + `remark-ma
 | `Farten er $v = \frac{s}{` (mid-stream) | no | raw source, until the closing `$` arrives |
 | `Det koster $5 og $10.` | **false positive** | "5 og " typeset as maths (low risk in Danish, which writes *kr.*) |
 
-`\(…\)` and `\[…\]` are the delimiters Gemini models commonly emit when not held to `$`, which makes (a) the leading hypothesis for *"Latex rendering in chat"*. (b) is certain regardless: every formula is shown as source for the whole duration of the stream, which a teacher watching a turn arrive would also describe as "LaTeX not rendering".
+### M0 results — the 2026-10-05 prod logs (read 2026-10-05 evening)
 
-### Change
+234 tutor turns on 10-05, all `gemini-3.5-flash-lite`, `v0.1.79`–`v0.1.81`. Counted with the
+query at the end of this section:
 
-1. **`frontend/src/lib/mathDelimiters.ts`** — `normalizeMathDelimiters(text: string): string`. Rewrites `\(…\)` → `$…$` and `\[…\]` → `$$…$$` (display form padded with blank lines so it is its own block). Skips fenced code blocks and inline code spans. Idempotent on `$`-delimited input. Pure; unit-tested in isolation.
-2. **`ChatMarkdown.tsx`** — call it in the preprocessing `useMemo`, after `stripCitationMarkers`, before SVG extraction.
-3. **Streaming renders Markdown.** `StreamingBubble` renders `ChatMarkdown` instead of raw text, with a **tail guard**: `holdOpenMath(text)` (same new module) cuts the content at an unclosed `$`, `$$`, `\(` or `\[` at the tail and renders the held-back fragment as nothing (or a `…`), so source never flashes and KaTeX never re-parses a half formula. Keep the blinking cursor. This also removes the layout jump at finalisation that feeds M1.
-4. **Optional, only if the M0 query finds siunitx:** pass `rehypeKatex` a small `macros` map (`\degree` → `^\circ`; `\unit{#1}` → `\,\mathrm{#1}`; `\SI{#1}{#2}` → `#1\,\mathrm{#2}`). Do not add it speculatively.
-5. **Optional belt-and-braces:** one line in `math_notation.md` — *"Never use `\(…\)` or `\[…\]`."* Reaches prod by **deploy**, not seed (`math_notation.py:36-39`). The frontend normaliser is the fix; the prompt line only reduces how often it is needed.
+| Shape | Turns | What the student saw |
+|---|---|---|
+| `` `$E = P \cdot t$` `` — **maths wrapped in backticks** | **15**, in two activities (*Effekt og nyttevirkning med simulering*: 9 of 42; *Mekanisk energi*: 6 of 26) | `$E = P \cdot t$` in monospace — the source, dollars and all |
+| `\text{ ^\circ C}`, `\text{ \celsius}` inside `$…$` | **3** | a KaTeX error (red source) |
+| `\(…\)` | **1** | `(100\text{ g})` |
+| `\[…\]` | 0 | — |
+| Plain `$…$` | ~100 | typeset — **this already works** |
+
+The students said so, in the transcript, to the tutor: *"Du har en latex-bug når du svarer
+mig"* · *"Stadigvæk sender du latex tilbage"* · *"Er der meningen at der skal være de der $
+tegn?"* · *"hvad betyder cdot"*. The tutor apologised and **did it again in the next turn**, and
+answered the last two by explaining the source (*"`\cdot` er bare et gangetegn"*): a student
+learning to read LaTeX source is the failure in its purest form.
+
+The backtick shape is Markdown's own precedence: a code span is parsed before `remark-math`
+runs, so `$` inside it is literal text. The **original design would not have fixed it** — its
+normaliser explicitly *"skips inline code spans"*, which is exactly where the maths was.
+
+Verified against the installed `katex` 0.16.47:
+
+| Input | Result |
+|---|---|
+| `-20\text{ ^\circ C}` | **parse error** — `^` is not allowed in text mode |
+| `100{,}0\text{ \celsius}` | **parse error** — `\celsius` is siunitx, not KaTeX |
+| `38 \text{ \%}`, `67\,\%`, `80^\circ\text{C}`, `E_{\text{pot}}` | OK |
+
+### Change (redesigned 2026-10-05)
+
+The fix stays in the renderer, where code fences are known. One pure module,
+**`frontend/src/lib/mathDelimiters.ts`**, three functions, applied in this order in the
+`ChatMarkdown` preprocessing `useMemo` (after `stripCitationMarkers`, before SVG extraction):
+
+1. **`unwrapCodedMath(text)`** — *the fix for what the seminar saw.* An inline code span whose
+   **entire** content is one maths expression loses its backticks: `` `$…$` `` → `$…$`,
+   `` `$$…$$` `` → `$$…$$`, `` `\(…\)` `` → `$…$`. The rule is "the whole span is maths"
+   (anchored match on the span's content, after trimming), so `` `price = $5` ``, a span of
+   shell, or any span with text outside the delimiters is untouched. Fenced code blocks are
+   never touched. A span that is maths-shaped but contains a backtick-escaped double backtick is
+   left alone (too ambiguous to be worth a rule).
+2. **`normalizeMathDelimiters(text)`** — as originally designed: `\(…\)` → `$…$`, `\[…\]` →
+   `$$…$$` (display padded to its own block), skipping fences and (now remaining) code spans.
+   Kept although it fired once: it is cheap, and Gemini drifts to it when the preamble is long.
+3. **`repairTextModeMaths(text)`** — inside `$…$` only, two narrow rewrites for the shapes
+   seen: `\text{<ws>^\circ<ws>C}` → `^\circ\text{C}` (and `^{\circ}`, `°` variants) ·
+   `\celsius` → `^\circ\text{C}`. Not a general LaTeX fixer — a list of observed shapes, each
+   with its prod example in the test. Add `macros: { "\\celsius": "^\\circ\\text{C}",
+   "\\degree": "^\\circ" }` to `rehypeKatex` as the belt for the second; the text-mode `^` cannot
+   be a macro, which is why (3) exists.
+
+Then:
+
+4. **Streaming renders Markdown** (unchanged from the original design): `StreamingBubble` renders
+   `ChatMarkdown` with a tail guard, `holdOpenMath(text)`, that holds back an unclosed `$`, `$$`,
+   `\(`, `\[` **or an unclosed backtick** at the tail, so neither source nor a half code span
+   flashes. Removes the finalisation layout jump that feeds M1.
+5. **`rehypeKatex` `{ throwOnError: false, errorColor: "inherit" }`** — a formula KaTeX still
+   cannot parse renders as its source in the body colour instead of red. Source is bad; red
+   source reads as *the app is broken*.
+6. **Prompt line**, `backend/skills/preambles/math_notation.md`: *"Write maths with `$…$` or
+   `$$…$$` directly in the sentence — never inside backticks or code formatting, never `\(…\)`
+   or `\[…\]`. Inside `\text{…}` write words only; put `^\circ` outside it."* Reaches prod by
+   **deploy**, not seed (`math_notation.py:36-39`). The renderer is the fix; this only lowers
+   the rate.
+7. **The tutor must not explain its own markup.** When a student says the formatting is broken,
+   the right reply is not *"`\cdot` er bare et gangetegn"*. The preamble line in (6) closes with
+   *"If a student says the maths looks wrong, rewrite it in plain words and symbols (×, ·, °)
+   for the rest of the conversation."* This is the only lever that works when the renderer is
+   the one at fault.
 
 Do not set `singleDollarTextMath: false` to cure the currency false positive: the preamble *instructs* single-dollar inline maths.
 
 ### Acceptance
 
-- Every row marked "no" in the table above that has a delimiter renders typeset; the unwrapped row is unchanged (no guessing at undelimited LaTeX).
-- A streaming turn never shows a `$`, `\(`, `\[` or `\frac` source fragment to the student.
-- Code blocks containing `\(` are untouched.
+- The 15 backtick turns and 3 text-mode turns from 10-05, replayed through `ChatMarkdown`, render
+  with **no** literal `$`, `\cdot`, `\frac` or `\text` in `textContent` and no `.katex-error`.
+- Every delimiter row of the earlier table marked "no" renders typeset; unwrapped LaTeX is unchanged.
+- `` `price = $5` ``, `` `npm run dev` `` and a fenced block containing `` `$x$` `` are byte-identical after preprocessing.
+- A streaming turn never shows a `$`, `` ` ``, `\(`, `\[` or `\frac` source fragment.
 
 ### Tests
 
-- `frontend/src/lib/__tests__/mathDelimiters.test.ts` — normaliser and tail guard, including: nested braces, two inline formulas on one line, display form mid-paragraph, `\(` inside a ```` ``` ```` fence and inside a `` ` `` span (untouched), already-`$` input (identity), Danish `{,}` decimals, unterminated `$`, `$$`, `\(` at the tail.
-- `frontend/src/components/chat/__tests__/ChatMarkdown.math.test.tsx` — a **fixture of real model-output shapes** (`__fixtures__/tutor-math-shapes.ts`): one case per row of the table above, plus a GFM table with maths in cells and a reply mixing an SVG block with a display formula. Assert on `.katex` count and on the **absence** of literal `\frac` / `\(` in `textContent`. When M's query returns real turns, paste 3–5 of them (anonymised, no group ids) into the fixture.
-- `StreamingBubble.test.tsx` — extend: partial content with an open `$` renders no `$`; completed inline formula renders `.katex`.
+- `frontend/src/lib/__tests__/mathDelimiters.test.ts` — each function in isolation: whole-span
+  unwrap vs. partial span (left alone), span inside a fence (left alone), two coded formulas on
+  one line, `{,}` decimals, nested braces; the delimiter rewrites; each text-mode repair with its
+  prod example and an already-correct input (identity); tail guard on unclosed `$`, `$$`, `\(`, `` ` ``.
+- `frontend/src/components/chat/__tests__/ChatMarkdown.math.test.tsx` with
+  `__fixtures__/tutor-math-shapes.ts`: **five real 10-05 turns**, anonymised (no group or session
+  ids) — two backtick turns from *Effekt og nyttevirkning*, one from *Mekanisk energi*, the
+  `\text{ ^\circ C}` turn, the `\celsius` turn — plus the synthetic rows from the table above.
+  Assert `.katex` count, no `.katex-error`, and no literal source in `textContent`.
+- `StreamingBubble.test.tsx` — partial content with an open `$` or `` ` `` renders neither; a
+  completed inline formula renders `.katex`.
+- Backend: `test_math_notation.py` asserts the preamble carries the backtick and `\text` lines.
 
-### Confirm from the 2026-10-05 prod logs (M runs this)
+### Re-run after shipping (read-only)
 
 Roles in `chat_turns` are `'student'` and `'tutor'` (`backend/analytics/research_logs.py:75-76`) — a query on `'assistant'` silently returns zero.
 
 ```sql
-SELECT app_version,
+SELECT DATE(ts, 'Europe/Copenhagen') AS d, app_version,
   COUNT(*) AS tutor_turns,
+  COUNTIF(REGEXP_CONTAINS(content, r'`\$')) AS backtick_wrapped,
   COUNTIF(REGEXP_CONTAINS(content, r'\\\(')) AS paren_inline,
   COUNTIF(REGEXP_CONTAINS(content, r'\\\[')) AS bracket_display,
-  COUNTIF(REGEXP_CONTAINS(content, r'\$\$')) AS dollar_display,
-  COUNTIF(REGEXP_CONTAINS(content, r'(^|[^$])\$[^$\s]')) AS dollar_inline,
-  COUNTIF(REGEXP_CONTAINS(content, r'\\(frac|cdot|Delta|theta|text)\b')
-          AND NOT REGEXP_CONTAINS(content, r'\$|\\\(|\\\[')) AS bare_latex,
-  COUNTIF(REGEXP_CONTAINS(content, r'\\(SI|si|unit|qty|degree)\{')) AS siunitx
+  COUNTIF(REGEXP_CONTAINS(content, r'\\text\{[^}]*(\^|\\circ|\\celsius)')) AS text_mode_maths
 FROM `aipla-prod-2026.chat_logs.chat_turns`
-WHERE DATE(ts, 'Europe/Copenhagen') = '2026-10-05' AND role = 'tutor'
-GROUP BY app_version;
+WHERE role = 'tutor' AND ts > TIMESTAMP('2026-10-01')
+GROUP BY 1, 2 ORDER BY 1;
 ```
 
-`paren_inline + bracket_display > 0` confirms (a). If both are zero and `dollar_*` are non-zero, (a) is refuted and the seminar saw (b) or a KaTeX-unsupported command; pull a few rows with `LIMIT 5` to see which.
+The renderer makes these harmless whatever the counts; the counts measure the prompt line (6).
+A student turn matching `(?i)latex|\$ tegn|cdot|formel.*(mærkelig|forkert)` is the direct
+symptom and should go to zero.
 
 ## M1 — The chat follows the conversation (~0.5d)
 
@@ -156,7 +231,28 @@ Plus `make screen-sizes ENV=prod DAYS=1` for the viewport widths in use. A high 
 
 ## M2 — The misspelt "opsamling" heading (~0.1d once located)
 
-### What was searched
+### M0 results — located 2026-10-05
+
+It is **"Opsring"**, not "opsamling" (phone autocorrect in the note). Prod Firestore,
+`activities/act-c94eb3dc1fcdf26a` (*Den hoppende bold: Energibevarelse*, owned by AR's
+account), teacher-authored:
+
+| Table | Columns as authored | Should be |
+|---|---|---|
+| Slip A (150 cm) | **Opsring** (no unit), Forsøg 1, Forsøg 2, **Forsøg 1**, Gennemsnit | Opspring, …, **Forsøg 3** |
+| Slip B (180 cm) | **Opsring**, Forsøg 1, Forsøg 2, Forsøg 3, **5. Gennemsnit** | Opspring, …, Gennemsnit |
+
+It cost more than a typo. Students asked *"hvorfor står der forsøg to gange under slip A?"* and
+*"hvad skal jeg skrive under opsring?"*; the tutor read the ambiguous column as the drop height,
+computed 68,3 / 68 and told a student the ball bounced to over 100 %. It then told the student
+the duplicate column was *"en fejl i tabellens opsætning"* — correct, and the only place the
+defect was reported.
+
+**Change:** data, not code — tell the owner (AR) and correct it in the builder. Two platform
+follow-ups, *not* in this milestone: the builder could flag duplicate column labels on save (a
+deterministic check, cheap), and spelling in teacher-authored labels is out of scope.
+
+### What was searched (before the lookup)
 
 `git grep -niE "opsam|opsml|samling"` across the whole repository (frontend messages, `frontend/src/lib/activityTemplates.ts`, `backend/skills/templates/*/SKILL.md`, `backend/frameworks/*.yaml`, `infrastructure/mcp-sandbox/artefacts/`, content Markdown): **no occurrence of *opsamling* in any spelling**, correct or not. The only `samling` hits are *kredsløbssamling*, *formelsamling* and *samlingen* — all spelt correctly. The platform's own copy therefore does not contain the heading.
 
@@ -218,11 +314,55 @@ No test unless the heading turns out to come from code, in which case the fix la
 
 The off-by-default is deliberate — only copyright-cleared material may be shown to students (see the curriculum-clearance decision) — so the seminar question most likely came from a teacher seeing names their students could not open.
 
+### M0 results — 2026-10-05
+
+All seven activities in the seminar class attached the same two cleared UVM documents (*Fysik C
+læreplan*, *Vejledning til Fysik C*), and one attached the teacher's own *Prompt for Energi.pdf*.
+**Every one was `studentVisible: false`.** So at the seminar there was nothing a student could
+open; the names sat in the dashed "not shared" list. That alone answers *"can you click on
+documents?"* with *no*. M's follow-up (2026-10-05): **even when they can, they are not
+obviously clickable** — a shared document is a small row in a list, and the workspace opens
+with nothing in it.
+
+### Decision (M, 2026-10-05): open one by default, switch with a visible control
+
+The documents surface stops being a list you open things from and becomes a **reader that is
+already open**:
+
+- **On load, the first shared document is open.** "First" is the order the teacher attached
+  them in (`materials[]` order), so the teacher controls which one a student lands on. No
+  `document.open` research event is emitted for the automatic open — only for a student's own
+  choice — or the telemetry would record reading that never happened. Emit
+  `document.default_shown` instead, once per session.
+- **A visible switcher above the reader**, when there is more than one shared document: a row
+  of tabs (wrapping; a `<select>` under ~400 px width), each showing the document title, the
+  current one selected. Tabs, not a dropdown, at desktop width: the point is that the other
+  documents are *seen* to exist. `role="tablist"`, keyboard arrows, the title in `aria-label`.
+- **One shared document → no switcher**, just the reader with its title as a heading.
+- **Not-shared materials stay out of the switcher.** They remain listed by name below the reader,
+  collapsed, with M3a's explanation — the copyright control is unchanged.
+- **Zero shared documents → no empty reader.** The panel shows the not-shared names and M3a's
+  line; nothing pretends to be openable.
+- **Phone:** the workspace tab opens on the reader. M3b's "named in chat → opens it" switches
+  the tab *and* the selected document.
+- Remembered per student per activity in `localStorage` (the last document they chose wins over
+  "first" on return), wrapped in try/catch — a per-viewer convenience, so browser storage is the
+  right place. Run `make test-frontend-ci-node` (CLAUDE.md footgun: Node 22 vs 26 `localStorage`).
+
+**Teacher side, same milestone:** the materials list in the builder shows the
+*students can open it* state as words on every row ("Eleverne kan åbne den" / "Kun tutoren"),
+not an icon, and the first shared material carries "Åbnes først for eleverne". This is
+where the seminar's real cause sits: seven activities, nobody had shared anything, and
+nothing on screen said so.
+
 ### Change
 
+- **M3-default — the reader above.** `DocumentsPanel.tsx`: lift `openDoc` initial state to the
+  first shared material; add `DocumentSwitcher` (tabs / select); new strings in
+  `messages/{da,en}/workspace.json` via `useT()`. `MaterialsSection.tsx`: the state labels.
 - **M3a — say why.** For a not-shared material, add a one-line explanation the student can read (`workspace.json`: *"Din lærer har ikke delt indholdet af dette dokument"*), and on the teacher side make the per-material *students can open* toggle visible at a glance in `MaterialsSection` (state, not only an icon). No change to the default.
 - **M3b — a document named in chat opens it.** Pass a real `navigateToBlock` from the chat page that opens the matching student-visible material in the workspace documents panel (lift `openDoc` out of `DocumentsPanel` behind a small context, or a callback through `StudentWorkspace`), switching the mobile tab to the workspace. A not-shared doc opens nothing and shows M3a's message.
-- **M3c — the tutor links what it cites** (only if M decides): the tutor writes a Markdown link whose target is `aitana://doc/{docId}/block/0` for student-visible materials. Needs a prompt line and a guard that it never links a not-shared doc. **Not in this milestone without a decision** (open question 2).
+- **M3c — the tutor links what it cites** (only if M decides): the tutor writes a Markdown link whose target is `aitana://doc/{docId}/block/0` for student-visible materials. Needs a prompt line and a guard that it never links a not-shared doc. **Not in this milestone without a decision** (open question 2). **Decided by M 2026-10-08: yes** — see *Implementation notes → M3c*.
 
 ### Acceptance and tests
 
@@ -273,8 +413,134 @@ Then check the dev build went green (`gcloud builds list --project=aipla-dev-202
 ## Open questions for M
 
 1. **M0:** what does the 10-05 query show — `\(` / `\[`, or `$` only? If `$` only, which turn looked broken (a screenshot settles whether it was the stream)?
-2. **M3c:** should the tutor link the documents it cites (`aitana://`), so a named document is one click away, or is the workspace list enough?
+2. ~~**M3c:** should the tutor link the documents it cites (`aitana://`), so a named document is one click away, or is the workspace list enough?~~ **Answered 2026-10-08 (M): link them** — student-visible materials only, with a backend guard.
 3. **M3a:** was the seminar question about *not-shared* materials (a teacher-side visibility issue), or about something else — e.g. a phone, where documents sit behind the workspace tab?
 4. **M2:** a screenshot or the activity name would make the lookup unnecessary.
 5. Which `app_version` was prod on during the seminar — before or after `2a1d0619` (13:33), which mounts the privacy box above every student chat?
-6. The streaming bubble's byline shows the raw `skillId` (`StreamingBubble.tsx:27`), while the finished bubble shows the persona name — a visible flicker of a technical id at every turn. Fold into M0, or leave?
+6. ~~The streaming bubble's byline shows the raw `skillId` (`StreamingBubble.tsx:27`), while the finished bubble shows the persona name — a visible flicker of a technical id at every turn. Fold into M0, or leave?~~
+   **Answered 2026-10-08 — fixed, not left.** The byline and avatar now come from one source,
+   `components/chat/BotByline.tsx` (`botBylineName`: persona → skill display name → `skillId`;
+   `BotAvatar`: persona image/initial → brand mark), used by both `MessageBubble` and
+   `StreamingBubble`, and `ChatMessageList` hands the streaming bubble the same `persona` +
+   `skillDisplayName` it hands the finished one. The avatar had the same flicker (brand mark
+   while streaming, persona face once finished) and is fixed by the same change. Tests:
+   `StreamingBubble.test.tsx` (persona name + face, display-name fallback, raw id only when
+   nothing else exists) and a two-ended `ChatMessageList.test.tsx` case asserting the SAME name
+   while streaming and after the turn finishes — the wiring a test on either bubble alone
+   cannot see.
+
+## Implementation notes (2026-10-05)
+
+Shipped on a worktree branch, one commit per milestone. Not deployed; nothing read from or
+written to any deployed environment.
+
+**M0 — LaTeX.** `frontend/src/lib/mathDelimiters.ts` holds the three repairs
+(`unwrapCodedMath` → `normalizeMathDelimiters` → `repairTextModeMaths`, composed as
+`prepareChatMaths`) and the streaming guard `holdOpenMath`. All four share one small
+tokenizer (fences line-based, then CommonMark code spans: a run closes only on a run of the
+same length), so "never touch a fence" and "only a span that is wholly maths" are the same
+code path for every function. `ChatMarkdown` applies `prepareChatMaths` after
+`stripCitationMarkers` and before SVG extraction, and passes `rehypeKatex`
+`{ throwOnError: false, errorColor: "inherit", macros: { \celsius, \degree } }` — the plugin
+lists are now module constants. Note that `rehype-katex` 7 forces `throwOnError: true` on its
+first attempt and only honours our setting on the retry, so a parse error renders as
+`.katex-error` in the body colour, and an *unknown command* renders inline in the body colour
+without that class. `StreamingBubble` renders `ChatMarkdown(holdOpenMath(content))`; a
+streaming chip has no navigation (it becomes live when the turn finalises). The fixture of
+real 10-05 turns (six, anonymised — the five the doc named plus the `\(…\)` turn) and the
+synthetic table rows live in `frontend/src/test/fixtures/tutor-math-shapes.ts` rather than
+`__fixtures__/` beside the test: the i18n guard scans `src/components/chat` and the turns are
+Danish, and `src/test/` is test infrastructure outside its scope (a file inside `__tests__/`
+would be collected by Vitest as an empty suite). The prompt lines (6) and (7) are in
+`backend/skills/preambles/math_notation.md`, guarded by
+`test_preamble_forbids_maths_in_backticks_and_text_mode_degrees`; they reach prod by
+**deploy**. Open question 6 (the raw `skillId` byline on the streaming bubble) was not folded in
+here; it was fixed on 2026-10-08 — see the answer under *Open questions*.
+
+**M1 — auto-scroll.** `ChatMessageList` keeps `stickRef` (true on mount and on a session
+change) and only the student's own scroll changes it; growth obeys it. Our own scrolls set a
+short programmatic guard (150 ms for the instant pin, 800 ms for the smooth badge scroll,
+cleared early once the scroll lands at the bottom), so a late scroll event measured after more
+content arrived cannot read as "scrolled up". Both the content and the scroll container are
+observed. A new `role: "user"` message at the tail re-attaches (a `useLayoutEffect` on its
+id), so no new prop on the page was needed. The badge reads `ChatMessageList.newMessage` with
+a lucide `ArrowDown`. Tests: `ChatMessageList.scroll.test.tsx`, which fakes
+`scrollHeight`/`clientHeight`/`scrollTop` and a controllable `ResizeObserver` and asserts on
+`scrollTop`.
+
+**M3 — reader-first documents, M3a, M3b.** `DocumentsPanel` opens the remembered choice (if
+still shared) or the first shared document in `materials[]` order; a `DocumentSwitcher`
+(`role="tablist"`, arrows/Home/End, title as `aria-label`; a `<select>` below 400 px) appears
+for two or more; one document shows just its title. The close button is gone — the reader is
+the surface. Not-shared materials sit below in a `<details>` with the M3a line
+(`DocumentsPanel.notShared`), open by default when nothing is shared. Telemetry: the automatic
+open emits `document.default_shown` (with `detail.remembered`) once per chat session across
+remounts; a tab, select or chat chip emits `document.open`. The choice is remembered in
+`localStorage` under `aipla.documents.selected:<activityId>`, every access in try/catch.
+Caveat: `default_shown` fires when the panel *mounts*; on a phone the workspace column is
+mounted but CSS-hidden behind the chat tab, so there it means "opened in the reader", not
+"seen". Teacher side: each cited document says *Eleverne kan åbne den* / *Kun tutoren*, and
+the first shared one carries *Åbnes først for eleverne* (images keep their existing
+Synlig/Skjult toggle — they are not opened in the reader).
+
+M3b goes through `components/workspace/documentRequest.tsx`, a tiny external store the chat
+page owns (`useState(createDocumentRequestStore)`). The page passes `navigateToBlock` to
+`ChatMessageList` (request + switch the mobile tab to the workspace) and wraps the workspace
+children in `DocumentRequestProvider` — three small edits to `app/chat/[...path]/page.tsx`.
+`WorkbenchTabs` (now controlled) brings *Documents* forward on a pending request;
+`DocumentsPanel` opens a shared doc or shows the not-shared notice (`role="status"`, nothing
+fetched) and **consumes** the request, so a remount does not replay it. Tests:
+`DocumentsPanel.test.tsx` (extended; the click-to-open tests became open-by-default),
+`chatDocumentNavigation.test.tsx`, and a `MaterialsSection` row-state test.
+
+**Not done.** M2 (data; owner fixes the table). Browser verification on dev (the doc's
+*Browser verification* step) is left for after merge.
+
+## Implementation notes — M3c (2026-10-08)
+
+**Decision (M, 2026-10-08):** the tutor links the documents it names, so a named document is one
+click away — but only documents the teacher has shared with students. `studentVisible` is a
+copyright control; a link is an invitation to open, so the student must never be handed one for a
+document they may not read, even though the reader would refuse it (M3a).
+
+Not deployed; nothing read from or written to any deployed environment. Both halves are in
+`backend/adk/document_links.py`:
+
+- **Prompt.** `build_document_links_block(cfg)` lists, for STUDENT turns only, the
+  student-visible reader materials (`curriculum` / `context`; images open elsewhere) as
+  `- [Title](aitana://doc/{docId}/block/0)`, tells the tutor to link a document when it mentions
+  it, and to never write an `aitana://` link to anything else. A not-shared material's id and
+  title are not in the block. `""` when nothing is shared, so those activities compose
+  byte-identically. Composed in `adk/agent.py` right after the sources-honesty block.
+- **Guard (the control).** `make_document_link_guard(allowed)` is an after-model callback, wired
+  for students in `_composed_after_model` after the 1.1.122 marker strip. It rewrites every
+  streamed chunk AND the final aggregated response — the one the session store keeps — so the
+  live SSE stream, `GET /api/sessions/{id}/messages`, `MESSAGES_SNAPSHOT` and proactive turns
+  are all covered by one rewrite, rather than an SSE-only filter that would leave the stored
+  transcript holding the link. A Markdown link to a not-shared (or unknown, or non-document)
+  `aitana://` target becomes its label; a bare or `<…>` one is removed (keeping a sentence's
+  full stop). A link can straddle chunks, so the stream side holds back an unclosed `[…](…`
+  (at most 300 chars — past that an unclosed `[` is prose, e.g. an interval) or a trailing word
+  that is becoming `aitana://`, and releases it on the next chunk or on the chunk carrying the
+  model's `finish_reason` — necessary because ag_ui_adk drops the consolidated response while
+  streaming, so a tail released any later would never reach the live bubble.
+- **Click → open** needed no frontend change: M3b's `navigateToBlock` on the chat page opens the
+  document in the reader and switches the phone to the workspace tab.
+
+Tests:
+- `backend/tests/unit/test_document_links.py` — the rewrite table, every two-way split of a
+  reply plus several fixed chunk sizes (no emitted piece may contain the secret id), the
+  finish-chunk release, the prompt block (only shared ids; a bracket in a title cannot break the
+  link; every link the block teaches survives the guard).
+- `backend/tests/api_tests/test_document_links_end_to_end.py` — a REAL group token through the
+  REAL dispatcher and `/api/skill/{id}/stream`, the real agent factory and ag_ui_adk runner,
+  with only the model faked — as a hostile one that streams a link to a not-shared document
+  split across chunks. The secret id is absent from the SSE body and from the stored transcript;
+  the shared link arrives intact; the prompt carried the shared id and not the secret one.
+- `frontend/src/components/workspace/__tests__/chatDocumentNavigation.test.tsx` — the exact link
+  the tutor is taught, in a finished tutor turn, opens the document; the guard's plain-text
+  output is not a control.
+
+Known limit: a link written while a document WAS shared stays in the stored transcript if the
+teacher later unshares it. Clicking it then shows M3a's "not shared" notice and fetches nothing,
+so the content stays protected; only the chip remains.

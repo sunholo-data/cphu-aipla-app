@@ -256,6 +256,9 @@ export interface SessionTurnPayload {
   timestamp: string;
   role: "student" | "tutor";
   content: string;
+  /** 1.1.148 — the emitter's turn number, the `#N` the transcript shows. Sparse
+   *  (tool events take numbers too). Null on a row that carries none. */
+  turnIndex?: number | null;
 }
 
 export interface WorkbenchEventPayload {
@@ -318,9 +321,207 @@ export interface FidelityPayload {
   promptVersion: string;
   /** Researcher-only — absent for a teacher (fit is not quality; 1.1.65 R1). */
   overallBand?: "absent" | "partial" | "strong" | null;
-  constructs?: Record<string, { band: string; score: number; rationale: string; evidence: number[] }>;
-  evidenceSummary?: Record<string, number>;
+  constructs?: Record<string, FidelityConstruct>;
+  evidenceSummary?: Record<string, number | string>;
   model?: string;
+  // ── 1.1.148, researcher-only ──
+  /** The run-store id reviews are keyed to. */
+  runId?: string;
+  /** `fidelity-r3+fw<criteria version>`; a pre-r3 run keeps its bare prompt version. */
+  rubricVersion?: string;
+  criteriaVersion?: string | null;
+  currentCriteriaVersion?: string;
+  /** True when the framework's criteria were edited after this run was judged. */
+  criteriaChanged?: boolean;
+  /** How the run's turn ids were read: `turn_index` (the transcript's own
+   *  numbers), `position-translated` (an older run, mapped), `position`. */
+  idScheme?: "turn_index" | "position" | "position-translated";
+  /** The criteria the judge was given, per construct. */
+  criteria?: Record<string, FidelityCriterion>;
+  notAssessed?: Record<string, string>;
+  basedOnMessageCount?: number;
+  sessionMessageCount?: number;
+  scoredAt?: string | null;
+}
+
+/** One cited turn, resolved to the transcript (1.1.148 M1). `transcriptTurn`
+ *  null = no honest link (the UI shows the citation unlinked). */
+export interface FidelityCitation {
+  turn: number;
+  transcriptTurn?: number | null;
+  position?: number;
+  role?: "student" | "tutor";
+  snippet?: string;
+  /** The judge's verbatim quote (r3 runs). */
+  quote?: string | null;
+  /** False = the quote is not in that turn. Absent = nothing to verify (older run). */
+  verified?: boolean;
+}
+
+export interface FidelityConstruct {
+  band: string;
+  score: number;
+  rationale: string;
+  evidence: FidelityCitation[];
+  moves?: string[];
+  downgraded?: string;
+  /** Ids the judge gave that are not turns of the scored dialogue — never links. */
+  rejectedEvidence?: { turn: number | string; quote?: string | null; reason?: string }[];
+}
+
+export interface FidelityCriterion {
+  name: string;
+  summary: string;
+  moves: { id: string; text: string }[];
+  avoid: string[];
+  evaluationHint: string;
+}
+
+/** One judgement of a session (1.1.148): the run store's row per version, or a
+ *  BigQuery-mirror emission (every judgement). */
+export interface FidelityRunRow {
+  runId: string;
+  rubricVersion: string;
+  promptVersion?: string;
+  criteriaVersion?: string | null;
+  scoredAt: string | null;
+  model?: string;
+  abstained?: boolean;
+  abstainReason?: string;
+  overallBand?: string | null;
+  constructs?: Record<string, FidelityConstruct>;
+  idScheme?: string | null;
+  basedOnMessageCount?: number;
+  source: "store" | "log";
+  unreadable?: boolean;
+}
+
+export interface FidelityRunHistory {
+  sessionId: string;
+  stored: FidelityRunRow[];
+  emissions: FidelityRunRow[];
+  /** "unreadable" = the mirror could not be read. NOT "judged once". */
+  emissionsStatus: "ok" | "unreadable";
+}
+
+/** A researcher's correction of one construct (or `overall`) of a run. */
+export interface RubricReview {
+  review_id: string;
+  run_id: string;
+  construct_key: string;
+  band: string;
+  evidence: number[];
+  reason: string;
+  reviewer_uid: string;
+  reviewer_email: string;
+  supersedes: string | null;
+  created_at: string;
+  judged: { band?: string | null; rationale?: string; evidence?: unknown[] };
+}
+
+export interface RubricReviews {
+  runId: string;
+  reviews: RubricReview[];
+  effective: Record<
+    string,
+    { band: string | null; source: "judge" | "review"; judgedBand: string | null; reviewId?: string; reviewedAgainstEarlier?: boolean }
+  >;
+}
+
+export interface RubricReviewInput {
+  constructKey: string;
+  band: "absent" | "partial" | "strong";
+  evidence: number[];
+  reason: string;
+  supersedes?: string | null;
+}
+
+/** Every fidelity judgement of one session — researcher-only (1.1.148). */
+export async function listFidelityRuns(sessionId: string): Promise<FidelityRunHistory> {
+  const resp = await fetchWithAuth(
+    `/api/proxy/api/research/sessions/${encodeURIComponent(sessionId)}/fidelity-runs`,
+  );
+  return readJson<FidelityRunHistory>(resp, "list fidelity runs");
+}
+
+/** The reviews of one run, with the effective band per construct. */
+export async function listRubricReviews(runId: string): Promise<RubricReviews> {
+  const resp = await fetchWithAuth(`/api/proxy/api/research/rubric-runs/${encodeURIComponent(runId)}/reviews`);
+  return readJson<RubricReviews>(resp, "list rubric reviews");
+}
+
+/** Record a correction. Create-only: there is no edit or delete. */
+/** One labelled example in the judge's calibration set (1.1.148, M 2026-10-08). */
+export interface CalibrationRow {
+  reviewId: string;
+  runId: string;
+  sessionId: string;
+  frameworkId: string | null;
+  construct: string;
+  aiBand: string | null;
+  researcherBand: string;
+  agrees: boolean;
+  direction: "agree" | "researcher_higher" | "researcher_lower" | "unknown";
+  aiRationale: string;
+  aiCitations: { turn: number | string; quote: string | null; verified: boolean | null }[];
+  aiMoves: string[];
+  researcherEvidence: number[];
+  researcherRationale: string;
+  rubricVersion: string | null;
+  promptVersion: string | null;
+  criteriaVersion: string | null;
+  model: string | null;
+  modelSource: "judged-snapshot" | "run-current" | null;
+  judgedAt: string | null;
+  reviewedAt: string | null;
+  reviewerUid: string | null;
+  supersedes: string | null;
+  [key: string]: unknown;
+}
+
+export interface AgreementCell {
+  n: number;
+  agree: number;
+  researcherHigher: number;
+  researcherLower: number;
+  unknown: number;
+  /** agree / (n − unknown); null when nothing is comparable — never 0. */
+  agreement: number | null;
+  confusion: Record<string, number>;
+}
+
+export interface CalibrationSet {
+  format: string;
+  generatedAt: string;
+  frameworkId: string | null;
+  rows: CalibrationRow[];
+  stats: {
+    overall: AgreementCell;
+    byFramework: Record<string, AgreementCell>;
+    byConstruct: Record<string, Record<string, AgreementCell>>;
+    reviewers: number;
+    multiRated: number;
+  };
+}
+
+/** Every current researcher correction as a calibration example, with
+ *  agreement stats — researcher-only, read-only (1.1.148). */
+export async function fetchCalibrationSet(frameworkId?: string | null): Promise<CalibrationSet> {
+  const q = frameworkId ? `?framework=${encodeURIComponent(frameworkId)}` : "";
+  const resp = await fetchWithAuth(`/api/proxy/api/research/calibration-set${q}`);
+  return readJson<CalibrationSet>(resp, "read calibration set");
+}
+
+export async function postRubricReview(
+  runId: string,
+  body: RubricReviewInput,
+): Promise<RubricReviews & { review: RubricReview }> {
+  const resp = await fetchWithAuth(`/api/proxy/api/research/rubric-runs/${encodeURIComponent(runId)}/reviews`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  return readJson<RubricReviews & { review: RubricReview }>(resp, "save rubric review");
 }
 
 export class NotFoundError extends Error {
@@ -789,7 +990,16 @@ export interface ClassPayload {
   /** ALS-1 M0/M1 — the class-independent activities (act- ids) this class runs.
    *  Optional in the type (older fixtures omit it); the backend always sends it. */
   activityIds?: string[];
+  /** EVERY code ever minted under the class, revoked or not (1.1.146) — the
+   *  historical roster evidence surfaces read. For codes that still work use
+   *  `activeGroupCodes()` from `@/lib/classCodes`. */
   groupCodes: string[];
+  /** 1.1.146 — the subset of `groupCodes` that has been revoked: it no longer
+   *  joins, but its sessions stay reviewable. Optional for older fixtures. */
+  revokedGroupCodes?: string[];
+  /** 1.1.146 — ISO revoke time per revoked code (may be missing for a code
+   *  restored by the repair script). */
+  revokedGroupCodesAt?: Record<string, string>;
   voice?: ClassVoiceSettingsPayload | null;
   persona?: string | null;
   /** 1.1.91 M1 — the class's bundled tutor (persona + framework + style).
@@ -1331,7 +1541,30 @@ export async function previewFrameworkStructure(
  *  (ESRU)"). Never re-derive it in the UI: a teacher should not have to know
  *  what an acronym stands for, and the mapping belongs in one place.          */
 
-export interface TutorPayload {
+/** 1.1.150 — how a record came to exist. Server-set; a client may only ever
+ *  claim `ui` or `copilot`. */
+export type CreatedVia = "ui" | "copilot" | "seed" | "sync" | "adopt";
+
+/** 1.1.150 — who made an authored row, as THIS viewer may see it. Shared by
+ *  tutors, custom approaches and custom personas so the three lists cannot
+ *  drift. Every field is computed server-side:
+ *   - `isOwn` — did I make it. NOT `canEdit`: a researcher may edit every row,
+ *     and reading that as "mine" is what put a pilot teacher's approach under
+ *     a researcher's "Yours" at the 2026-10-05 seminar.
+ *   - `authorEmail` — sent to researchers only; a teacher's payload has no key.
+ *   - `createdBy`/`createdVia`/`createdAt` — stamped on create, never rewritten.
+ *     Null means "not recorded" and is shown as such, never guessed. */
+export interface AuthorshipFields {
+  isOwn?: boolean;
+  isBuiltIn?: boolean;
+  authorRole?: "researcher" | "teacher" | null;
+  authorEmail?: string | null;
+  createdBy?: string | null;
+  createdVia?: CreatedVia | null;
+  createdAt?: string | null;
+}
+
+export interface TutorPayload extends AuthorshipFields {
   id: string;
   displayName: string;
   summary?: string | null;
@@ -1373,7 +1606,16 @@ export interface TutorCatalogue {
   skillBoundTutors?: TutorPayload[];
   /** The seven published approaches, then the custom ones this caller may see
    *  (their own + shared), flagged `isCustom`. */
-  frameworks: { id: string; name: string; summary: string; isPlaceholder: boolean; isCustom?: boolean }[];
+  frameworks: {
+    id: string;
+    name: string;
+    summary: string;
+    isPlaceholder: boolean;
+    isCustom?: boolean;
+    /** 1.1.150 M3 — what a CUSTOM approach is derived from, as its author
+     *  states it. Never present on the seven (they carry vouched provenance). */
+    sources?: ApproachSource[];
+  }[];
 }
 
 /** Every pickable tutor, bases before variants, plus the framework list. */
@@ -1473,7 +1715,7 @@ export async function deleteTutor(tutorId: string): Promise<void> {
 // Firestore layer as "a v1.2 follow-up". A teacher cannot write a file in git,
 // so without this "give your tutor a face" was not a thing a teacher could do.
 
-export interface CustomPersona {
+export interface CustomPersona extends AuthorshipFields {
   id: string;
   name: string;
   title?: string | null;
@@ -1816,7 +2058,26 @@ export async function fetchChatLogExport(
 // no claim to either. It replaces the hand-written-instruction editor that used
 // to sit on the seven published frameworks and made exactly that false claim.
 
-export interface CustomApproach {
+/** 1.1.150 M3 — one thing a custom approach is derived from.
+ *
+ *  ⚠️ Not `provenance`: that is a VOUCHED citation on the seven published
+ *  frameworks. A source is the author's own statement, metadata for the people
+ *  who author and study approaches — never in the tutor's prompt, never on a
+ *  student's wire. `addedBy`/`addedAt` are stamped by the server. */
+export interface ApproachSource {
+  citation: string;
+  url?: string | null;
+  /** A literature-corpus file; researchers only (1.1.150 M4 adds the picker). */
+  corpusRef?: string | null;
+  note?: string | null;
+  addedBy?: string | null;
+  addedAt?: string | null;
+}
+
+/** A source as a client sends it — the server stamps who added it. */
+export type ApproachSourceInput = Pick<ApproachSource, "citation" | "url" | "note" | "corpusRef">;
+
+export interface CustomApproach extends AuthorshipFields {
   id: string;
   label: string;
   summary: string;
@@ -1827,6 +2088,8 @@ export interface CustomApproach {
   authorUid: string | null;
   authorRole: "researcher" | "teacher" | null;
   materialRefs: { docId?: string; title?: string | null; origin?: string | null }[];
+  /** 1.1.150 M3. Absent on a server that predates the field. */
+  sources?: ApproachSource[];
   /** Computed SERVER-side per row. Never re-derive it here: a second copy of an
    *  access rule disagrees with the first the moment one changes. */
   canEdit: boolean;
@@ -1841,6 +2104,8 @@ export interface CustomApproachInput {
   instructionText: string;
   register?: FrameworkRegister | null;
   materialRefs?: { docId?: string; title?: string | null; origin?: string | null }[];
+  /** Omit to keep the stored sources; `[]` clears them. */
+  sources?: ApproachSourceInput[];
 }
 
 /** One published approach as a TEACHER reads it (TUTOR-2 M1).

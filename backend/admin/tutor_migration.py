@@ -26,13 +26,14 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from db.models.authorship import SEED_AUTHOR
 from db.models.tutor import Tutor
 from db.tutors import get_authored_tutor, save_tutor
 
 log = logging.getLogger(__name__)
 
 #: The seed runs as the platform, not as a person.
-_SEED_AUTHOR = "platform-seed"
+_SEED_AUTHOR = SEED_AUTHOR
 
 
 def tutor_from_template(parsed: dict[str, Any]) -> Tutor:
@@ -72,15 +73,20 @@ def sync_tutor_for_template(parsed: dict[str, Any]) -> str | None:
 
     tutor = tutor_from_template(parsed)
     existing = get_authored_tutor(tutor.id)
-    if existing is not None and existing.author_uid not in (None, _SEED_AUTHOR):
-        log.info(
-            "tutor_migration: %s was edited by %s — leaving it alone",
-            tutor.id,
-            existing.author_uid,
-        )
+    # 1.1.150: ``save_tutor`` no longer reassigns the author on every write, so
+    # a human edit of a seeded row leaves ``author_uid`` as the seed. Who last
+    # wrote it is ``updated_by`` — both are checked, so neither a human-made row
+    # nor a human edit of a seeded one is ever reverted.
+    human = (
+        next((u for u in (existing.updated_by, existing.author_uid) if u not in (None, _SEED_AUTHOR)), None)
+        if existing
+        else None
+    )
+    if human is not None:
+        log.info("tutor_migration: %s was edited by %s — leaving it alone", tutor.id, human)
         return None
 
-    save_tutor(tutor, updated_by=_SEED_AUTHOR)
+    save_tutor(tutor, updated_by=_SEED_AUTHOR, created_via="seed")
     log.info("tutor_migration: synced tutor %s from SKILL.md", tutor.id)
     return tutor.id
 

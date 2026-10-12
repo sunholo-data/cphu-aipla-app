@@ -215,6 +215,14 @@ def test_ids_are_slug_shaped():
     assert c.post("/api/research/tutors", json={"id": "Not A Slug", "displayName": "X"}).status_code == 400
 
 
+def _override_base(tutor_id: str, display_name: str) -> None:
+    """A researcher's private authored row over a base tutor, made in the store."""
+    from db.models.tutor import Tutor
+    from db.tutors import save_tutor
+
+    save_tutor(Tutor(id=tutor_id, displayName=display_name, visibility="private"), updated_by=RESEARCHER.uid)
+
+
 def test_deleting_an_authored_tutor_falls_back_to_the_yaml_base():
     """The YAML catalogue is the floor — deleting can never empty the list.
 
@@ -222,9 +230,14 @@ def test_deleting_an_authored_tutor_falls_back_to_the_yaml_base():
     an override only reaches other people once it is shared. That is the whole
     flow now — author, then share — and asserting it here keeps the two halves
     from drifting.
+
+    1.1.150: the create ROUTE now refuses a base id (409), because a teacher
+    typing "Sofie" was shadowing the base for every class. An authored row over a
+    base is still a store-level mechanism (the M7 seed writes exactly that), so
+    the override is made through the store here.
     """
+    _override_base("sofie", "Sofie (overridden)")
     c = _client(RESEARCHER)
-    c.post("/api/research/tutors", json={"id": "sofie", "displayName": "Sofie (overridden)"})
     c.put("/api/research/tutors/sofie/visibility", json={"visibility": "shared"})
     assert _client(TEACHER).get("/api/tutors/sofie").json()["displayName"] == "Sofie (overridden)"
     c.delete("/api/research/tutors/sofie")
@@ -238,7 +251,7 @@ def test_an_unshared_override_hides_itself_not_the_base_tutor():
     If keeping it private removed the id, one researcher's private draft of
     "Sofie" would delete Sofie for every teacher in the deployment.
     """
-    _client(RESEARCHER).post("/api/research/tutors", json={"id": "sofie", "displayName": "Sofie (private draft)"})
+    _override_base("sofie", "Sofie (private draft)")
     body = _client(TEACHER).get("/api/tutors/sofie").json()
     assert body["displayName"].startswith("Sofie —")
 
@@ -555,3 +568,136 @@ def test_one_to_one_tutor_never_needs_recording():
     cls = _class_owned_by("t-1", recording=False)
     resp = _client(TEACHER).put(f"/api/tutors/class/{cls.class_id}", json={"tutorId": "esru-tutor"})
     assert resp.status_code == 200, resp.text
+
+
+# ── 1.1.150 — who made a tutor, and whether it is yours ──────────────────────
+#
+# 2026-10-05: a pilot teacher's private work sat under a researcher's "Yours"
+# heading, because the UI grouped on `canEdit` and a researcher may edit every
+# authored row. `isOwn` answers "did I make it"; `canEdit` stays the answer to
+# "may I change it".
+
+OTHER_TEACHER = User(uid="t-2", email="t2@x.dk", is_teacher=True)
+
+
+def test_create_refuses_a_taken_id():
+    """F4: the create route had no existence check, so two teachers typing the
+    same name produced ONE row owned by whoever saved last — and naming a tutor
+    "Sofie" shadowed the base tutor for every class."""
+    from db.tutors import get_authored_tutor
+
+    first = _client(TEACHER).post(
+        "/api/research/tutors", json={"id": "didaktisk-tutor", "displayName": "Didaktisk", "frameworkId": "esru"}
+    )
+    assert first.status_code == 200, first.text
+
+    # Authored, by someone else.
+    taken = _client(OTHER_TEACHER).post(
+        "/api/research/tutors", json={"id": "didaktisk-tutor", "displayName": "Mine now", "frameworkId": "cer"}
+    )
+    assert taken.status_code == 409
+    row = get_authored_tutor("didaktisk-tutor")
+    assert (row.author_uid, row.display_name, row.framework_id) == ("t-1", "Didaktisk", "esru")
+
+    # A base tutor: refused, and nothing written.
+    base = _client(RESEARCHER).post(
+        "/api/research/tutors", json={"id": "sofie", "displayName": "Sofie", "frameworkId": "esru"}
+    )
+    assert base.status_code == 409
+    assert get_authored_tutor("sofie") is None
+
+
+def test_save_preserves_original_author():
+    """F4's second half: a save by someone else must not reassign the tutor."""
+    from db.tutors import get_authored_tutor, save_tutor
+
+    _client(TEACHER).post("/api/research/tutors", json={"id": "mine-1", "displayName": "Mine", "frameworkId": "esru"})
+    created = get_authored_tutor("mine-1")
+    save_tutor(created.model_copy(update={"display_name": "Edited"}), updated_by="r-1")
+
+    after = get_authored_tutor("mine-1")
+    assert after.display_name == "Edited"
+    assert (after.author_uid, after.author_role, after.updated_by) == ("t-1", "teacher", "r-1")
+    assert (after.created_by, after.created_via, after.created_at) == (
+        created.created_by,
+        created.created_via,
+        created.created_at,
+    )
+
+
+def test_researcher_sees_others_tutors_as_not_own(monkeypatch):
+    """The seminar finding, as a test: the researcher may edit a teacher's tutor
+    (`canEdit` true) and it is NOT theirs (`isOwn` false), and the row names the
+    teacher's email — for a researcher only."""
+    monkeypatch.setattr(
+        "protocols.authorship.resolve_owner_emails",
+        lambda uids: {u: f"{u}@example.dk" for u in uids},
+    )
+    _client(TEACHER).post("/api/research/tutors", json={"id": "t1-tutor", "displayName": "T1", "frameworkId": "esru"})
+    _client(RESEARCHER).post(
+        "/api/research/tutors", json={"id": "r1-tutor", "displayName": "R1", "frameworkId": "esru"}
+    )
+
+    rows = {t["id"]: t for t in _client(RESEARCHER).get("/api/tutors").json()["tutors"]}
+    theirs, mine = rows["t1-tutor"], rows["r1-tutor"]
+    assert theirs["canEdit"] is True
+    assert theirs["isOwn"] is False
+    assert theirs["authorRole"] == "teacher"
+    assert theirs["authorEmail"] == "t-1@example.dk"
+    assert theirs["isBuiltIn"] is False
+    assert mine["isOwn"] is True
+    # A base tutor is nobody's, and says so rather than crediting a researcher.
+    assert rows["sofie"]["isOwn"] is False
+    assert rows["sofie"]["isBuiltIn"] is True
+
+    # A teacher never receives an email — not even an empty key.
+    teacher_rows = {t["id"]: t for t in _client(TEACHER).get("/api/tutors").json()["tutors"]}
+    assert teacher_rows["t1-tutor"]["isOwn"] is True
+    assert all("authorEmail" not in t for t in teacher_rows.values())
+
+
+def test_provenance_is_stamped_per_route_and_never_rewritten():
+    """M2: each creating route records its channel; nothing later changes it."""
+    from db.tutors import get_authored_tutor, save_tutor
+
+    _client(TEACHER).post("/api/research/tutors", json={"id": "ui-1", "displayName": "UI", "frameworkId": "esru"})
+    _client(RESEARCHER).post(
+        "/api/research/tutors",
+        json={"id": "cp-1", "displayName": "Copilot", "frameworkId": "esru", "createdVia": "copilot"},
+    )
+    _client(TEACHER).post("/api/research/tutors/variant", json={"parentId": "sofie", "id": "var-1", "displayName": "V"})
+    _seed_tutors()
+
+    expect = {
+        "ui-1": ("t-1", "ui"),
+        "cp-1": ("r-1", "copilot"),
+        "var-1": ("t-1", "ui"),
+        "concept-dialogue": ("platform-seed", "seed"),
+    }
+    for tid, (by, via) in expect.items():
+        row = get_authored_tutor(tid)
+        assert (row.created_by, row.created_via) == (by, via), tid
+        assert row.created_at is not None, tid
+
+    # An edit, a visibility change and a reseed change none of it.
+    before = {tid: get_authored_tutor(tid) for tid in expect}
+    save_tutor(before["ui-1"].model_copy(update={"display_name": "Edited"}), updated_by="r-1")
+    _client(TEACHER).put("/api/research/tutors/ui-1/visibility", json={"visibility": "shared"})
+    _seed_tutors()
+    for tid in expect:
+        after = get_authored_tutor(tid)
+        assert (after.created_by, after.created_via, after.created_at) == (
+            before[tid].created_by,
+            before[tid].created_via,
+            before[tid].created_at,
+        ), tid
+
+
+def test_a_client_cannot_claim_a_server_only_channel():
+    """`seed`, `sync` and `adopt` are never accepted from a request body."""
+    for via in ("seed", "sync", "adopt"):
+        r = _client(RESEARCHER).post(
+            "/api/research/tutors",
+            json={"id": f"x-{via}", "displayName": "X", "frameworkId": "esru", "createdVia": via},
+        )
+        assert r.status_code == 422, via

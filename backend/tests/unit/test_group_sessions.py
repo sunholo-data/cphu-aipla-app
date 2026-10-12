@@ -495,3 +495,46 @@ def test_presence_does_not_disturb_revision_or_lock():
     pulse = read_group_pulse("grp", activity_id="act-1")
     assert pulse["in_flight"] is True
     assert pulse["revision"] == 0
+
+
+# ---------------------------------------------------------------------------
+# 1.1.145 M3 — legacy lessons are scoped per skill, never group-level
+# ---------------------------------------------------------------------------
+
+
+def test_legacy_lesson_scope_is_the_skill_id_never_the_group_doc():
+    """A legacy lesson (no act- id on the wire) used to key its lock, revision and
+    pulse on ``group_sessions/{group}`` — shared by EVERY legacy lesson of the
+    group. Its scope is now its skill id."""
+    from db.group_sessions import _doc_key, scope_key
+
+    assert scope_key(None, "skill-a") == "skill-a"
+    assert scope_key("", "skill-a") == "skill-a"
+    assert scope_key("act-1", "skill-a") == "act-1"
+    assert _doc_key("grp", scope_key(None, "skill-a")) == "grp:skill-a"
+    assert _doc_key("grp", scope_key(None, "skill-a")) != "grp"
+
+
+def test_two_legacy_lessons_on_one_code_do_not_lock_each_other():
+    from db import firestore
+    from db.group_sessions import acquire_turn_lock, scope_key
+
+    assert acquire_turn_lock("grp", "tok-a", activity_id=scope_key(None, "skill-a")) is True
+    # A different legacy lesson of the same group is NOT blocked…
+    assert acquire_turn_lock("grp", "tok-b", activity_id=scope_key(None, "skill-b")) is True
+    # …while the same lesson still is.
+    assert acquire_turn_lock("grp", "tok-c", activity_id=scope_key(None, "skill-a")) is False
+    # And neither touched the group-level doc.
+    assert firestore.get_document("group_sessions", "grp") is None
+
+
+def test_count_present_devices_reads_without_heartbeating():
+    from db.group_sessions import count_present_devices, touch_presence
+
+    assert count_present_devices("grp", activity_id="act-1") == 0
+    touch_presence("grp", "tab-1", activity_id="act-1")
+    touch_presence("grp", "tab-2", activity_id="act-1")
+    assert count_present_devices("grp", activity_id="act-1") == 2
+    # Reading does not add a device.
+    assert count_present_devices("grp", activity_id="act-1") == 2
+    assert count_present_devices("grp", activity_id="act-2") == 0

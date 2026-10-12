@@ -52,7 +52,7 @@ export default async function ProjectPageRoute({ params }: ProjectPageProps) {
           <p className="mb-4 text-sm font-semibold uppercase tracking-[0.16em] text-brand">{page.eyebrow}</p>
           <ProjectMarkdown>{page.body}</ProjectMarkdown>
 
-          <dl className="mt-12 grid gap-4 rounded-lg border border-border bg-muted/40 p-5 text-sm sm:grid-cols-3">
+          <dl className="mt-12 grid gap-4 rounded-lg border border-border bg-muted/40 p-5 text-sm sm:grid-cols-2 lg:grid-cols-4">
             <div>
               <dt className="font-medium text-foreground">Content status</dt>
               <dd className="mt-1 text-muted-foreground">{page.status}</dd>
@@ -64,6 +64,12 @@ export default async function ProjectPageRoute({ params }: ProjectPageProps) {
             <div>
               <dt className="font-medium text-foreground">Last reviewed</dt>
               <dd className="mt-1 text-muted-foreground"><time dateTime={page.reviewed}>{page.reviewed}</time></dd>
+            </div>
+            {/* The deadline the content check already enforces at build time —
+                shown so a reader can tell how fresh a snapshot is meant to be. */}
+            <div>
+              <dt className="font-medium text-foreground">Next review</dt>
+              <dd className="mt-1 text-muted-foreground"><time dateTime={page.reviewBy}>{page.reviewBy}</time></dd>
             </div>
           </dl>
 

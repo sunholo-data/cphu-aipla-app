@@ -11,6 +11,8 @@
     "rateLimited": "Too many tries. Try again in {seconds}s.",
     "atCapacity": "This group is at capacity for today. Try again tomorrow or ask your teacher.",
     "unknownCode": "Code not found, expired, or revoked. Ask your teacher for a fresh code.",
+    "didYouMean": "Did you mean <strong>{code}</strong>?",
+    "yesJoin": "Yes, join",
     "network": "Couldn't reach the server. {detail}",
     "wrongSite": "Codes only work on the site they were created on. You are on <strong>{where}</strong> ({host}). Check the address with your teacher."
   }

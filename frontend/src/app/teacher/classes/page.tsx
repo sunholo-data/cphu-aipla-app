@@ -55,6 +55,7 @@ import { GettingStartedCard } from "./_GettingStartedCard";
 import { SetUpForTeacherDialog } from "./_SetUpForTeacherDialog";
 import { StageChip } from "@/components/teacher/StageChip";
 import { classStage } from "@/lib/onboardingStage";
+import { activeGroupCodes } from "@/lib/classCodes";
 // 1.1.108: teacher surfaces are English until M2 extracts them; pinned so the
 // relative time does not turn Danish inside an English sentence.
 import { formatRelativeTime } from "@/lib/relativeTime";
@@ -815,6 +816,17 @@ function ClassRow({
         >
           {cls.name}
         </Link>
+        {/* 1.1.146 M4 — a class its teacher deleted stays in the research
+            view (its sessions are still evidence), marked so it is not
+            mistaken for a running class. Owners never see their own here. */}
+        {cls.revoked ? (
+          <span
+            className="ml-2 rounded border border-border bg-muted px-1.5 py-0.5 text-xs text-muted-foreground"
+            data-testid="class-deleted"
+          >
+            {t("deletedByTeacher")}
+          </span>
+        ) : null}
         {showOwner ? (
           <div
             className="max-w-[15rem] truncate text-xs text-muted-foreground"
@@ -858,7 +870,7 @@ function ClassRow({
       <td className="px-3 py-3 text-muted-foreground">
         <span className="inline-flex items-center gap-1">
           <Users className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-          {cls.groupCodes.length}
+          {activeGroupCodes(cls).length}
         </span>
       </td>
       <td className="max-w-[20rem] px-3 py-3 text-muted-foreground">
@@ -968,7 +980,7 @@ function DeleteClassDialog({
           {t("deleteTitle", { name: cls.name })}
         </h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          {t("deleteBody", { n: cls.groupCodes.length })}
+          {t("deleteBody", { n: activeGroupCodes(cls).length })}
         </p>
         <div className="mt-5 flex justify-end gap-2">
           <button

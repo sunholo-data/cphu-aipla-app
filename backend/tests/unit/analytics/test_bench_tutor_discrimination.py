@@ -68,9 +68,9 @@ def test_dry_run_prints_the_plan_and_makes_no_calls(bench, no_model_calls, capsy
     out = capsys.readouterr().out
     assert rc == 0 and calls == []
     assert "TOTAL CALLS" in out and "no model was called" in out
-    assert "tutor calls   : 560" in out  # 8 scenarios x 5 turns x 7 approaches x 2 models
-    assert "tone          : 112" in out  # every transcript
-    assert "n = 8 per cell" in out
+    assert "tutor calls   : 630" in out  # 9 scenarios (1.1.151 F5) x 5 turns x 7 approaches x 2 models
+    assert "tone          : 126" in out  # every transcript
+    assert "n = 9 per cell" in out
 
 
 def test_without_go_it_refuses(bench, no_model_calls, capsys):
@@ -129,21 +129,21 @@ def test_a_mocked_go_run_is_blind_and_writes_the_three_outputs(bench, no_model_c
     for name in ("report.md", "transcripts.jsonl", "raw_scores.jsonl"):
         assert (tmp_path / name).exists()
     transcripts = [json.loads(line) for line in (tmp_path / "transcripts.jsonl").read_text().splitlines()]
-    assert len(transcripts) == 8 * 3  # scenarios x approaches
+    assert len(transcripts) == 9 * 3  # scenarios (9 since 1.1.151 F5) x approaches
     assert all(len(t["turns"]) == 10 for t in transcripts)
     # 24 transcripts x (3 fit calls + 1 tone call) + 4 probe scenarios x 3 approaches x 1 sycophancy call
-    assert len(judge_prompts) == 24 * 4 + 4 * 3
+    assert len(judge_prompts) == 27 * 4 + 5 * 3  # 9 scenarios, 5 probes since 1.1.151 F5
     for p in judge_prompts:
         assert "approach:" + "esru" not in p and "approach:poe" not in p and "approach:cer" not in p
         assert "INSTRUCTION FOR" not in p
     report = (tmp_path / "report.md").read_text()
     assert "## Tutor model: `gemini-3.5-flash-lite`" in report
     # Every transcript best-fits ESRU: 8 of 24 are right (the ESRU ones) — argmax, kept for the record.
-    assert "diagonal accuracy 0.33 (n=24" in report
+    assert "diagonal accuracy 0.33 (n=27" in report
     # Read down the columns, ESRU's tutor is not ahead (every tutor reads 1.0 there): the headline says so.
     assert "## Headline (column-normalised)" in report
     assert "top of its own column 0 of 3 clear, 3 tied" in report
-    assert "Tone probe" in report and "| esru | 0 | 8 | 0 | 0 | 1.00 |" in report
+    assert "Tone probe" in report and "| esru | 0 | 9 | 0 | 0 | 1.00 |" in report
     assert "Sycophancy probe" in report and "challenged" in report
     # Scores carry the arm in 1.1.92 M0's field names; the version is unknown, not guessed.
     scores = [json.loads(line) for line in (tmp_path / "raw_scores.jsonl").read_text().splitlines()]

@@ -175,7 +175,19 @@ function GroupJoinForm() {
           </div>
         ) : null}
 
-        {error && <ErrorBlock error={error} />}
+        {error && (
+          <ErrorBlock
+            error={error}
+            disabled={isJoining}
+            onAcceptSuggestion={(suggested) => {
+              // 1.1.151 F4 — the student CONFIRMED the suggestion; only now join.
+              setCode(suggested);
+              join(suggested).catch(() => {
+                /* Provider already set `error` — the form renders it. */
+              });
+            }}
+          />
+        )}
 
         <button
           type="submit"
@@ -208,8 +220,12 @@ function GroupJoinForm() {
 
 function ErrorBlock({
   error,
+  disabled,
+  onAcceptSuggestion,
 }: {
   error: NonNullable<ReturnType<typeof useAnonymousGroupAuth>["error"]>;
+  disabled?: boolean;
+  onAcceptSuggestion?: (code: string) => void;
 }) {
   const t = useT("JoinPage");
   const body = (): string => {
@@ -227,10 +243,31 @@ function ErrorBlock({
   };
   return (
     <div id="group-error" role="alert" className="flex flex-col gap-1.5">
-      <p className="text-sm text-destructive">
-        {body()}
-      </p>
-      {error.kind === "unknown_or_revoked" && <WrongSiteHint />}
+      {error.kind === "unknown_or_revoked" && error.suggestion ? (
+        // 1.1.151 F4 — one deterministic typo fix the server confirmed is live.
+        // A question, not an answer: a near-miss could be another class's code.
+        <div className="flex flex-wrap items-center gap-2 rounded border border-border bg-muted/40 px-3 py-2 text-sm">
+          <span>
+            {t.rich("didYouMean", {
+              code: error.suggestion,
+              strong: (chunks) => <strong className="font-mono">{chunks}</strong>,
+            })}
+          </span>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => onAcceptSuggestion?.(error.suggestion as string)}
+            className="rounded bg-primary px-3 py-1 text-sm text-primary-foreground disabled:opacity-50"
+          >
+            {t("yesJoin")}
+          </button>
+        </div>
+      ) : (
+        <p className="text-sm text-destructive">
+          {body()}
+        </p>
+      )}
+      {error.kind === "unknown_or_revoked" && !error.suggestion && <WrongSiteHint />}
     </div>
   );
 }

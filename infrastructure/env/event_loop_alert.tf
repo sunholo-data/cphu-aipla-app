@@ -75,7 +75,9 @@ resource "google_monitoring_notification_channel" "ops_alert" {
     email_address = each.value
   }
 
-  depends_on = [google_project_service.apis]
+  # The runner's monitoring roles must exist before it creates monitoring
+  # resources — in a fresh project both land in the same apply.
+  depends_on = [google_project_service.apis, google_project_iam_member.terraform]
 }
 
 resource "google_monitoring_alert_policy" "run_query_on_event_loop" {

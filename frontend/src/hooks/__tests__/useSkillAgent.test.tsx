@@ -136,6 +136,7 @@ describe("useSkillAgent — core", () => {
     const { result } = renderHook(() => useSkillAgent());
     expect(Object.keys(result.current).sort()).toEqual([
       "clearError",
+      "clearTurnRefused",
       "compactions",
       "error",
       "isLoading",
@@ -151,6 +152,7 @@ describe("useSkillAgent — core", () => {
       "thinkingContent",
       "tidyingUp",
       "toolCalls",
+      "turnRefused",
     ]);
   });
 
@@ -660,6 +662,51 @@ describe("useSkillAgent — F1 (chat-history-fixes): monotonic message list", ()
       fake.subscribers.forEach((s) => s.onMessagesChanged?.({}));
     });
     await waitFor(() => expect(result.current.messages).toHaveLength(4));
+  });
+});
+
+describe("useSkillAgent — group turn-lock refusal (1.1.145)", () => {
+  it("a 409 thrown by runAgent sets NO error, takes the bubble back, and hands the text back", async () => {
+    fake.runAgent.mockRejectedValue(new Error('HTTP 409: {"detail":{"error":"turn_in_progress"}}'));
+    const { result } = renderHook(() => useSkillAgent());
+
+    await act(async () => {
+      await result.current.sendMessage("Hvor bliver energien af?");
+    });
+
+    await waitFor(() => expect(result.current.turnRefused).toBe("Hvor bliver energien af?"));
+    expect(result.current.error).toBeNull();
+    // The refused message never reached the tutor, so it is not in the transcript.
+    expect(result.current.messages.find((m) => m.content === "Hvor bliver energien af?")).toBeUndefined();
+    expect(result.current.isLoading).toBe(false);
+
+    act(() => result.current.clearTurnRefused());
+    expect(result.current.turnRefused).toBeNull();
+  });
+
+  it("a 409 reported through onRunFailed is handled the same way", async () => {
+    fake.runAgent.mockImplementation(async () => {
+      fake.emitRunFailed({ error: new Error("HTTP 409: turn_in_progress") });
+      throw new Error("HTTP 409: turn_in_progress");
+    });
+    const { result } = renderHook(() => useSkillAgent());
+
+    await act(async () => {
+      await result.current.sendMessage("igen");
+    });
+
+    await waitFor(() => expect(result.current.turnRefused).toBe("igen"));
+    expect(result.current.error).toBeNull();
+  });
+
+  it("other HTTP failures still show an error and keep turnRefused null", async () => {
+    fake.runAgent.mockRejectedValue(new Error("HTTP 500: boom"));
+    const { result } = renderHook(() => useSkillAgent());
+    await act(async () => {
+      await result.current.sendMessage("x");
+    });
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    expect(result.current.turnRefused).toBeNull();
   });
 });
 

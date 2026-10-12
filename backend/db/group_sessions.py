@@ -17,12 +17,14 @@ Schema:
 Read semantics: a record is "active" iff ``archived_at is None`` AND
 ``expires_at > utcnow()``.
 
-Write semantics (called from ``POST /api/sessions/{id}/bootstrap``):
-    - ``set_active_session_for_group`` upserts the record unconditionally.
-      The race window between a simultaneous-join and bootstrap is very small
-      in practice (sub-second) and last-writer-wins is acceptable for v1.
-      Production Firestore could use a transaction here for strict
-      once-only semantics — noted for the 1.1 Terraform runbook.
+Write semantics:
+    - ``get_or_create_active_session`` (1.1.145 M1, called from
+      ``POST /api/auth/group/session``) is THE way a group's session comes into
+      being: a create-if-absent in a Firestore transaction, so devices opening
+      one activity in the same second share one session by construction.
+    - ``set_active_session_for_group`` is the older first-wins write. The
+      bootstrap route no longer calls it (1.1.145); it is kept for tests and
+      tooling that seed a pointer directly.
 
 Archive semantics (called from teacher [Reset session]):
     - ``archive_session_for_group`` is a no-op when no record exists (the
@@ -31,9 +33,11 @@ Archive semantics (called from teacher [Reset session]):
 
 from __future__ import annotations
 
+import uuid
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
-from db.firestore import get_document, query_documents, set_document, update_document
+from db.firestore import get_document, query_documents, set_document, transact_document, update_document
 
 _COLLECTION = "group_sessions"
 
@@ -47,6 +51,21 @@ TURN_LOCK_TTL_SECONDS = 90
 # The pulse poll (~2.5s) is the heartbeat; 15s tolerates a couple of missed polls
 # before a closed tab drops out of the "N here" count.
 PRESENCE_WINDOW_SECONDS = 15
+
+
+def scope_key(activity_id: str | None, skill_id: str) -> str:
+    """The key a group's shared conversation is scoped by (1.1.145 M3).
+
+    An ALS-1 activity (``act-…``) is its own scope. A legacy lesson has no
+    activity on the wire, and used to fall through to the GROUP-level doc
+    ``group_sessions/{group}`` for its turn-lock and revision — so two legacy
+    lessons on one code locked each other ("a groupmate is answering" on a
+    different lesson) and shared a revision counter. The lesson's skill id is
+    its scope instead: the frontend already falls back to it for the session
+    pointer, so lock, pulse, pointer and presence now all land on ONE doc,
+    ``group_sessions/{group}:{skill_id}``, and never on the group-level one.
+    """
+    return activity_id or skill_id
 
 
 def _doc_key(group_id: str, activity_id: str | None) -> str:
@@ -139,6 +158,68 @@ def set_active_session_for_group(
             "archived_at": None,
         },
     )
+
+
+def _pointer_is_active(data: dict[str, Any] | None, now: datetime) -> bool:
+    """Same "active" rule as ``get_active_session_for_group``, on data in hand."""
+    if not data or not data.get("session_id"):
+        return False
+    if _parse_dt(data.get("archived_at")) is not None:
+        return False
+    expires_at = _parse_dt(data.get("expires_at"))
+    return expires_at is None or expires_at >= now
+
+
+def get_or_create_active_session(
+    group_id: str,
+    activity_id: str,
+    *,
+    ttl_days: int = 30,
+) -> tuple[str, bool]:
+    """THE session for *(group_id, activity_id)* — returned if active, created if
+    not, in ONE transaction (1.1.145 D2 / M1).
+
+    Replaces the client race: every device used to mint its own UUID, bootstrap
+    it, and ask in parallel whether the group already had one; the pointer write
+    was first-wins, so a device that lost a simultaneous open chatted on a
+    private session nobody else watched — and on reload was moved onto the
+    winner's (V2). Here the server decides, and a create-if-absent under a
+    transaction means two devices opening one activity in the same second get
+    the same id by construction, not by narrowing a window.
+
+    Merges into the existing doc so the turn-lock, revision and presence fields
+    riding on it survive. An archived (teacher reset) or expired pointer yields
+    a NEW session, which is the only way a group reaches a fresh conversation.
+
+    Returns ``(session_id, created)``; ``created`` is True only for the caller
+    whose transaction minted it.
+    """
+    if not activity_id:
+        # The group-level doc is the legacy pre-ALS-1 pointer; nothing new may
+        # be created there (see ``scope_key``).
+        raise ValueError("get_or_create_active_session needs an activity/skill scope")
+
+    # Same shape as the client-minted ids every existing session carries.
+    candidate = str(uuid.uuid4())
+
+    def _decide(data: dict[str, Any] | None) -> tuple[dict[str, Any] | None, tuple[str, bool]]:
+        now = _utcnow()
+        if _pointer_is_active(data, now):
+            assert data is not None
+            return None, (str(data["session_id"]), False)
+        return (
+            {
+                "session_id": candidate,
+                "group_id": group_id,
+                "activity_id": activity_id,
+                "created_at": now.isoformat(),
+                "expires_at": (now + timedelta(days=ttl_days)).isoformat(),
+                "archived_at": None,
+            },
+            (candidate, True),
+        )
+
+    return transact_document(_COLLECTION, _doc_key(group_id, activity_id), _decide)
 
 
 def archive_session_for_group(group_id: str, activity_id: str | None = None) -> None:
@@ -354,6 +435,29 @@ def touch_presence(
     return len(fresh)
 
 
+def count_present_devices(
+    group_id: str,
+    *,
+    activity_id: str | None = None,
+    window_seconds: int = PRESENCE_WINDOW_SECONDS,
+) -> int:
+    """How many devices are on *(group_id, activity_id)* right now — READ-ONLY
+    (1.1.145). Same window as ``touch_presence``, without heartbeating anyone.
+
+    The turn path reads this so the tutor can be told the conversation is
+    shared. It is a count of ephemeral per-tab tokens, never an identity, and it
+    is NOT written to the research log (D3 / M4 is gated on JB).
+    """
+    data = get_document(_COLLECTION, _doc_key(group_id, activity_id)) or {}
+    now = _utcnow()
+    count = 0
+    for ts in (data.get("presence") or {}).values():
+        seen = _parse_dt(ts) if isinstance(ts, str) else None
+        if seen is not None and (now - seen) < timedelta(seconds=window_seconds):
+            count += 1
+    return count
+
+
 def read_group_pulse(
     group_id: str,
     *,
@@ -383,10 +487,13 @@ __all__ = [
     "archive_session_for_group",
     "bump_turn_revision",
     "bump_turn_revision_for_session",
+    "count_present_devices",
     "get_active_session_for_group",
+    "get_or_create_active_session",
     "get_turn_lock",
     "read_group_pulse",
     "release_turn_lock",
+    "scope_key",
     "set_active_session_for_group",
     "touch_presence",
 ]
