@@ -1,0 +1,28 @@
+# The hard brief. Reference: infrastructure/mcp-sandbox/figures/otto-engine/model.mjs
+id: otto-engine
+difficulty: hard
+reference_sim: otto-engine
+hidden_terms: [η, eta, virkningsgrad, efficiency, nyttevirkning]
+brief: |
+  ID: otto-engine
+  A single-cylinder four-stroke petrol engine cut in half lengthways, so the
+  student sees the piston, connecting rod, crank, intake and exhaust valves and
+  spark plug moving together, with a live p-V diagram beside it. Fysik A/B.
+
+  The student can: start and pause the engine, step one stroke at a time
+  (intake, compression, power, exhaust), and set the compression ratio r with a
+  slider (6 to 12). A "measure one cycle" action records r, the heat added Q (J)
+  and the work W (J) for one cycle into a small table.
+
+  Model: the ideal air-standard Otto cycle. gamma = 1.4, swept volume 500 cm^3,
+  intake 1 bar and 300 K, combustion is instant at top dead centre and raises the
+  temperature by 1800 K, exhaust blow-down is instant at bottom dead centre.
+  Piston motion from real crank-and-rod geometry. The spark fires at the top of
+  the compression stroke; valves open only in their own strokes.
+
+  Show live readouts of the stroke, p (bar), V (cm^3) and T (K), and put the
+  crank angle, stroke, p, V, T and r in the state you share with the tutor.
+
+  The student DERIVES the efficiency eta = W/Q and how it depends on r
+  (eta = 1 - r^(1-gamma)). Do NOT show eta, the efficiency formula or a
+  percentage anywhere.

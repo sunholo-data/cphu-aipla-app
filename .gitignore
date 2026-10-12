@@ -112,3 +112,6 @@ docs/literature/**/parsed/
 # student dialogue). Anchored, per the footgun table — an unanchored rule matches
 # at every depth.
 /backend/exports/
+
+# SIM-BENCH run outputs (generated sims, screenshots); commit a report deliberately if needed
+research/sim-bench/runs/

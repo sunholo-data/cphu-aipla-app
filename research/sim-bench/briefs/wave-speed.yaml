@@ -1,0 +1,19 @@
+id: wave-speed
+difficulty: easy
+reference_sim: wave-speed
+hidden_terms: [fart, speed, "m/s", bølgefart, hastighed]
+brief: |
+  ID: wave-speed
+  A travelling wave on a 10 m span. The student sets the frequency f
+  (0.5-5 Hz), the wavelength lambda (0.5-5 m) and the amplitude, presses play,
+  and records readings of f, lambda and the period T into a small table. A
+  marker oscillates at one fixed position so the frequency is visible as motion.
+  Fysik B/C.
+
+  f and lambda are set independently. T = 1/f is shown as a reading, so the
+  student can notice that relationship themselves.
+
+  Put f, lambda, T and the amplitude in the state you share with the tutor.
+
+  The student DERIVES the wave speed v = f * lambda. Do NOT show the speed, the
+  formula, or any value in m/s anywhere, and do not put the speed in any event.

@@ -1,0 +1,21 @@
+id: boldkast
+difficulty: medium
+reference_sim: boldkast
+hidden_terms: ["sin(2", "sin 2", "v²/g", "v^2/g", rækkeviddeformel]
+brief: |
+  ID: boldkast
+  A ball thrown from ground level. The student sets the launch angle (5-85
+  degrees) and the launch speed (5-30 m/s), throws, and watches the trajectory
+  drawn to scale on a field with a distance scale. After landing, the range and
+  the maximum height are shown, and the student can record them with the angle
+  and speed into a table. Fysik B/C.
+
+  Model: no air resistance, g = 9.82 m/s^2 (Denmark), launched and landing at
+  the same height.
+
+  Put the angle, speed, range, maximum height and flight time in the state you
+  share with the tutor.
+
+  The student DERIVES which angle gives the longest range and how range depends
+  on speed. Do NOT show the range formula, and do not mark or hint at the best
+  angle anywhere.

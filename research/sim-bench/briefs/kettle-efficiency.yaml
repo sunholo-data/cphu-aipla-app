@@ -1,0 +1,21 @@
+id: kettle-efficiency
+difficulty: easy
+reference_sim: kettle-efficiency
+hidden_terms: [nyttevirkning, efficiency, virkningsgrad, η, "86 %", "86%", "0.86", "0,86"]
+brief: |
+  ID: kettle-efficiency
+  An electric kettle on a bench with a kWh meter, a thermometer and a
+  stopwatch. The student chooses a power setting (1000-2200 W) and an amount of
+  water (0.5-1.7 L), runs the kettle, and records one set of readings into a
+  table: P, the water mass, the start and end temperature, the elapsed time and
+  the energy the meter counted. Fysik B/C.
+
+  Model: the kettle delivers 86 % of the electrical energy into the water; the
+  rest heats the kettle and the room. c = 4180 J/(kg*K), 1 L of water = 1 kg,
+  water starts at 15 C and boiling stops the run at 100 C.
+
+  Put P, the mass, the temperatures, the time and the metered energy in the
+  state you share with the tutor.
+
+  The student DERIVES the efficiency from E = P*t and Q = c*m*dT. Do NOT show
+  E = P*t, the useful energy, the efficiency, or 86 % anywhere.

@@ -682,6 +682,10 @@ check-tutor-docs: ## Fail if the tutor docs have drifted from the framework YAML
 # seven. ARGS=--dry-run prints the plan, call count and cost with ZERO model
 # calls; without --go it refuses to call anything. Reads the env's Firestore
 # (skill + approach instructions) and calls Vertex as your ADC.
+.PHONY: bench-sims
+bench-sims: ## Sim authoring benchmark (ARGS=--dry-run | ARGS=--go …; ENV=dev by default)
+	@cd backend && GOOGLE_CLOUD_PROJECT=aipla-$(or $(ENV),dev)-2026 uv run python ../scripts/bench-sims.py $(ARGS)
+
 .PHONY: bench-tutors
 bench-tutors: ## Tutor discrimination benchmark (ARGS=--dry-run | ARGS=--go; ENV=dev by default)
 	@# PLATFORM_OWNER_UID: the deployed services set aipla-platform; a laptop falls back to the

@@ -22,6 +22,9 @@
  * Usage:
  *   node verify_sim.mjs <id> [--drive] [--headed] [--out <dir>]
  *   node verify_sim.mjs --path /abs/path/to/index.html [--drive]
+ *   ... [--json <file>]   also write every verdict, the events and the screenshot
+ *                         paths as JSON, for a program to read (the sim benchmark,
+ *                         the in-app authoring agent's verify tool, the service)
  *
  * The artefact is served over HTTP, not file://, with the CSP it really runs
  * under in the app (sandbox.html's, from serve.ts buildCspHeader({})) and with
@@ -33,7 +36,7 @@
  * A check that could not run is NEVER reported as a pass.
  */
 
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
@@ -78,8 +81,9 @@ const value = (name) => {
 };
 
 const explicitPath = value("--path");
-const id = argv.find((a) => !a.startsWith("--") && argv[argv.indexOf(a) - 1] !== "--path" &&
-  argv[argv.indexOf(a) - 1] !== "--out");
+const VALUE_FLAGS = ["--path", "--out", "--json"];
+const id = argv.find((a) => !a.startsWith("--") && !VALUE_FLAGS.includes(argv[argv.indexOf(a) - 1]));
+const jsonOut = value("--json");
 const drive = flag("--drive");
 const headed = flag("--headed");
 // Screenshots land outside the repo by default — they are a debugging aid, not
@@ -238,8 +242,10 @@ const server = createServer((req, res) => {
 await new Promise((r) => server.listen(0, "127.0.0.1", r));
 const url = `http://127.0.0.1:${server.address().port}/artefact/index.html`;
 let failures = 0;
-const fail = (msg) => { failures++; console.log(`  FAIL  ${msg}`); };
-const pass = (msg) => console.log(`  OK    ${msg}`);
+// Everything the text output says, as data. Written with --json.
+const result = { artefact: artefactId, file: artefactFile, checks: [], selfTest: null, pageErrors: [], screenshots: {}, events: [] };
+const fail = (msg) => { failures++; result.checks.push({ ok: false, msg }); console.log(`  FAIL  ${msg}`); };
+const pass = (msg) => { result.checks.push({ ok: true, msg }); console.log(`  OK    ${msg}`); };
 
 console.log(`\nVerifying ${artefactId}\n  ${artefactFile}\n`);
 
@@ -252,12 +258,14 @@ console.log(`\nVerifying ${artefactId}\n  ${artefactFile}\n`);
   await page.goto(`${url}?test=1`);
   await page.waitForTimeout(500);
   const title = await page.title();
+  result.selfTest = title.startsWith("TEST PASS") ? "pass" : title.startsWith("TEST FAIL") ? "fail" : "missing";
 
   if (title.startsWith("TEST PASS")) pass(`self-test: ${title}`);
   else if (title.startsWith("TEST FAIL")) fail(`self-test: ${title}`);
   else fail(`self-test did not run — title is "${title}". Implement the ?test=1 block.`);
 
   if (vendorProblems.length) fail(`vendored library: ${vendorProblems.join(" | ")}`);
+  result.pageErrors = errors;
   if (errors.length) fail(`page errors: ${errors.join(" | ")}`);
   else pass("no page or console errors");
   await page.close();
@@ -277,6 +285,7 @@ for (const width of [390, 700, 1024]) {
   if (overflow > 1) fail(`${width}px: overflows by ${overflow}px (content height ${m.height}px)`);
   else pass(`${width}px: fits (content height ${m.height}px)`);
   await page.screenshot({ path: join(outDir, `${artefactId}-${width}.png`), fullPage: true });
+  result.screenshots[String(width)] = join(outDir, `${artefactId}-${width}.png`);
   await page.close();
 }
 console.log(`  ...    screenshots in ${outDir}`);
@@ -372,6 +381,8 @@ if (drive) {
 
   const events = await page.evaluate(() => window.__simEvents);
   await page.screenshot({ path: join(outDir, `${artefactId}-driven.png`), fullPage: true });
+  result.screenshots.driven = join(outDir, `${artefactId}-driven.png`);
+  result.events = events;
   await page.close();
 
   if (!events.length) {
@@ -419,6 +430,11 @@ if (drive) {
 
 await browser.close();
 server.close();
+
+if (jsonOut) {
+  result.failures = failures;
+  writeFileSync(jsonOut, JSON.stringify(result, null, 1));
+}
 
 console.log(
   failures
