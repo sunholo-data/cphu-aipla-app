@@ -1,0 +1,56 @@
+<main class="eng">
+  <figure class="iso-figure">
+    <div class="iso-plate">
+      <div class="iso-plate-corners" aria-hidden="true">
+        <span class="iso-plate-corner" data-corner="fig" data-t="figNo"></span>
+        <span class="iso-plate-corner" data-corner="title" data-t="title"></span>
+        <span class="iso-plate-corner" data-corner="hint" data-t="hint"></span>
+        <span class="iso-plate-corner" data-corner="readout" id="corner-readout"></span>
+      </div>
+      <div class="iso-stage">{{FIGURE}}</div>
+    </div>
+    <figcaption class="iso-legend">
+      <span class="iso-keys">
+        <span class="iso-key"><i class="sw sw-fresh"></i><span data-t="keyFresh"></span></span>
+        <span class="iso-key"><i class="sw sw-burning"></i><span data-t="keyBurning"></span></span>
+        <span class="iso-key"><i class="sw sw-exhaust"></i><span data-t="keyExhaust"></span></span>
+      </span>
+    </figcaption>
+  </figure>
+
+  <div class="lower">
+    <section class="pv-box" aria-labelledby="pv-title">
+      <h2 id="pv-title" data-t="pvTitle"></h2>
+      <svg id="pv" viewBox="0 0 320 214" role="img"></svg>
+      <p class="hint" data-t="areaHint"></p>
+    </section>
+
+    <section class="panel">
+      <div class="buttons">
+        <button type="button" id="btn-run" class="primary"></button>
+        <button type="button" id="btn-step" data-t="step"></button>
+        <button type="button" id="btn-measure" class="commit"></button>
+      </div>
+      <label class="ratio">
+        <span data-t="ratio"></span>
+        <input id="ratio" type="range" min="6" max="12" step="0.5" value="8">
+        <output id="ratio-out"></output>
+      </label>
+      <dl class="readings">
+        <div><dt data-t="strokeL"></dt><dd id="r-stroke"></dd></div>
+        <div><dt data-t="pressure"></dt><dd id="r-p"></dd></div>
+        <div><dt data-t="volumeL"></dt><dd id="r-v"></dd></div>
+        <div><dt data-t="temperature"></dt><dd id="r-t"></dd></div>
+      </dl>
+      <table class="record">
+        <caption data-t="recordTitle"></caption>
+        <thead><tr><th data-t="colR"></th><th data-t="colQ"></th><th data-t="colW"></th></tr></thead>
+        <tbody id="record-body"></tbody>
+      </table>
+      <div class="foot">
+        <button type="button" id="btn-reset" class="quiet" data-t="reset"></button>
+        <span class="lang"><button type="button" class="quiet" data-lang="da">DA</button><button type="button" class="quiet" data-lang="en">EN</button></span>
+      </div>
+    </section>
+  </div>
+</main>

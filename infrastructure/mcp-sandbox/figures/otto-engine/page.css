@@ -1,0 +1,75 @@
+
+/* AIPLA visual standard tokens (mcp-app-artefact resources/visual-standard.md),
+   laid over the anatomy kit's light theme. */
+:root {
+  --bg: #ffffff; --fg: #0f172a; --muted: #64748b; --border: #e2e8f0;
+  --accent: #2563eb; --accent-soft: #eff6ff; --ok: #16a34a; --surface: #f8fafc;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* The gas IS the subject, so it carries colour: fresh charge, burning, exhaust. */
+  --gas-fresh: #bfdbfe; --gas-fresh-d: #93c5fd;
+  --gas-burning: #fdba74; --gas-burning-d: #fb923c;
+  --gas-burnt: #fed7aa; --gas-burnt-d: #fdba74;
+  --gas-exhaust: #d6d3d1; --gas-exhaust-d: #a8a29e;
+}
+html, body { margin: 0; background: var(--bg); color: var(--fg); }
+body.iso { --anatomy-page: var(--bg); font: 14px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.eng { max-width: 760px; margin: 0 auto; padding: 10px; box-sizing: border-box; }
+.iso-figure { margin: 0; }
+.iso-plate { position: relative; }
+.iso-stage svg { width: 100%; height: auto; display: block; }
+.iso-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 6px; color: var(--muted); font-size: 12px; }
+.iso-keys { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+.iso-key { display: inline-flex; align-items: center; gap: 6px; }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; border: 1px solid #0000001f; }
+.sw-fresh { background: var(--gas-fresh-d); }
+.sw-burning { background: var(--gas-burning-d); }
+.sw-exhaust { background: var(--gas-exhaust-d); }
+
+/* The gas column: the cavity token trick from anatomy craft.md §7 — the kit's
+   tone tokens are redefined inside the group, so it keeps its form. */
+[data-part="gas"] .iso-solid { --anatomy-paper: var(--g); --anatomy-top: var(--g); --anatomy-face: var(--g);
+  --anatomy-shade-0: var(--gd); --anatomy-shade-1: var(--gd); --anatomy-shade-2: var(--g); --anatomy-shade-3: var(--g); }
+[data-part="gas"][data-phase="fresh"] { --g: var(--gas-fresh); --gd: var(--gas-fresh-d); }
+[data-part="gas"][data-phase="burning"] { --g: var(--gas-burning); --gd: var(--gas-burning-d); }
+[data-part="gas"][data-phase="burnt"] { --g: var(--gas-burnt); --gd: var(--gas-burnt-d); }
+[data-part="gas"][data-phase="exhaust"] { --g: var(--gas-exhaust); --gd: var(--gas-exhaust-d); }
+.spark { fill: #f59e0b; stroke: #b45309; stroke-width: .5; }
+.flow { fill: none; stroke-width: 1.4; stroke-linecap: round; stroke-dasharray: 2 4; transition: opacity .25s; }
+.flow-in { stroke: var(--gas-fresh-d); }
+.flow-out { stroke: var(--gas-exhaust-d); }
+
+.lower { display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 10px; }
+@media (min-width: 600px) { .lower { grid-template-columns: 1.1fr 1fr; } }
+.pv-box, .panel { border: 1px solid var(--border); border-radius: 10px; padding: 10px; background: var(--bg); min-width: 0; }
+h2 { font-size: 13px; margin: 0 0 4px; font-weight: 600; }
+.hint { color: var(--muted); font-size: 12px; margin: 4px 0 0; }
+#pv { width: 100%; height: auto; display: block; }
+#pv .axis { stroke: var(--muted); stroke-width: 1; fill: none; }
+#pv .grid { stroke: var(--border); stroke-width: .6; }
+#pv .tick { fill: var(--muted); font-size: 11px; font-family: var(--mono); }
+#pv .loop { fill: none; stroke: #cbd5e1; stroke-width: 1.2; }
+#pv .loop.measured { fill: #dbeafe; fill-opacity: .7; stroke: var(--accent); }
+#pv .trail { fill: none; stroke: var(--accent); stroke-width: 1.8; }
+#pv .dot { fill: #ea580c; stroke: #fff; stroke-width: 1.2; }
+
+.buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+button { font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 7px; border: 1px solid var(--border); background: var(--surface); color: var(--fg); cursor: pointer; min-height: 32px; }
+button:disabled { opacity: .5; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.commit { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+button.quiet { background: transparent; border-color: transparent; color: var(--muted); padding: 4px 6px; min-height: 0; }
+button.quiet[aria-pressed="true"] { color: var(--fg); font-weight: 600; }
+.ratio { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; margin: 10px 0 6px; font-size: 13px; }
+.ratio input { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); }
+.ratio output { font-family: var(--mono); }
+.readings { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; margin: 6px 0; }
+.readings div { background: var(--surface); border-radius: 6px; padding: 4px 6px; }
+.readings dt { font-size: 11px; color: var(--muted); }
+.readings dd { margin: 0; font-family: var(--mono); font-size: 13px; }
+.record { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 6px; }
+.record caption { text-align: left; font-weight: 600; font-size: 12px; padding-bottom: 2px; }
+.record th, .record td { border-bottom: 1px solid var(--border); padding: 3px 4px; text-align: right; }
+.record th:first-child, .record td:first-child { text-align: left; }
+.record td { font-family: var(--mono); }
+.record .empty td { color: var(--muted); font-family: inherit; text-align: left; }
+.foot { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }

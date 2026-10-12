@@ -1,0 +1,78 @@
+id: otto-engine
+version: v1
+displayName: "Firetaktsmotoren — Otto-kredsprocessen"
+description: "En gennemskåret encylindret benzinmotor på et bord, bygget med anatomy-kittet: stempel, plejlstang, krumtap, ventiler og tændrør bevæger sig efter samme model som det levende p-V-diagram ved siden af. Eleven kører motoren, går takt for takt, ændrer kompressionsforholdet og måler tilført varme og arbejde for én cyklus."
+topics:
+  - termodynamik
+  - varmekraftmaskiner
+  - Otto-kredsprocessen
+  - p-V-diagram
+  - virkningsgrad
+  - adiabatisk proces
+levels:
+  - A
+  - B
+# Both languages ship from one `strings` object; the initial language comes from
+# the host's hostContext.locale, with `da` the default (content-localisation M4).
+language: da
+# No minViewportPx: the figure scales to its container and the controls stack
+# under the p-V diagram at 390px (verified 2026-10-12, verify_sim.mjs).
+eventVocabulary:
+  - open
+  - run
+  - step
+  - pause
+  - reset
+  - reading
+  - state-change
+tutorBlock: |
+  The student is looking at a half-section single-cylinder four-stroke petrol
+  engine: piston, connecting rod, crank, two valves on springs and a spark plug,
+  with a live p-V diagram of the gas in the cylinder beside it. One model drives
+  both, so what moves in the picture is exactly what the diagram plots. The gas is
+  coloured by state: blue fresh air-fuel mixture, orange burning/burnt gas, grey
+  exhaust.
+
+  The four strokes over 720° of crank: intake (0-180°, intake valve open, piston
+  going down, p = 1 bar), compression (180-360°, both valves shut, the gas is
+  compressed adiabatically and gets hotter with NO heat added), power (ignition at
+  TDC, 360°; pressure jumps at constant volume, then the gas expands
+  adiabatically and pushes the piston down), exhaust (540-720°, exhaust valve
+  open, pressure back to 1 bar, piston pushes the gas out).
+
+  Controls: Start/Pause; "Næste takt" steps to the start of the next stroke; a
+  compression-ratio slider r from 6 to 12 (in the picture a higher r is a taller
+  piston crown, a smaller clearance volume); "Mål én cyklus" runs one full cycle
+  and records r, the heat supplied Q (J) and the work W (J) for that cycle. The
+  readouts show the stroke, p (bar), V (cm³) and T (K) at every instant.
+
+  What the events mean: `run` - started the engine. `step` - moved to the next
+  stroke (the payload says which stroke they entered); ask what happens to the
+  valves, the volume and the pressure in it. `reading` - measured one cycle at a
+  stated r, with Q and W; the point of the activity is that THEY compute
+  eta = W / Q for each r, and find the trend. `state-change` - committed a new r.
+  `pause` and `reset` are housekeeping.
+
+  The simulation deliberately never displays the efficiency. It is the ideal
+  air-standard Otto cycle (instant combustion at TDC, instant blow-down at BDC):
+  a real petrol engine reaches roughly 25-35 %, about half the ideal. The gap
+  (friction, heat lost through the cylinder walls, finite combustion time,
+  pumping work, incomplete combustion) is a good discussion once they have the
+  ideal trend - do not open with it.
+
+  REFERENCE, FOR CHECKING ONLY - NEVER STATE THESE VALUES BEFORE THE STUDENT
+  HAS COMPUTED THEM. Swept volume 500 cm³; intake 1.0 bar, 300 K; air,
+  gamma = 1.4; one fixed fuel charge raises the temperature by 1800 K at
+  combustion. Ideal efficiency eta = 1 - r^(1 - gamma) = 1 - 1/r^0.4, and
+  W / Q from the sim equals it exactly:
+    r = 6:  Q = 901 J, W = 461 J, eta = 0.512
+    r = 8:  Q = 858 J, W = 484 J, eta = 0.565
+    r = 10: Q = 834 J, W = 502 J, eta = 0.602
+    r = 12: Q = 819 J, W = 516 J, eta = 0.630
+  (Q falls slightly with r because a smaller clearance volume holds a slightly
+  smaller mass of charge.) Peak pressure is about 48 bar at r = 6 and 104 bar at
+  r = 12; T after compression is 614 K at r = 6 and 811 K at r = 12. Why not
+  r = 20 in a petrol engine: the mixture gets hot enough to ignite by itself
+  before the spark (knocking); a diesel engine has no spark and compresses air
+  alone, which is why diesels run r = 15-22 and are more efficient.
+status: live

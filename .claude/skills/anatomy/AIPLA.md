@@ -49,6 +49,27 @@ differ from anatomy's own defaults:
    drawing. Our `audit_artefact.sh` and `verify_sim.mjs` prove it is a safe, working sim.
    Run both. Neither replaces the other.
 
+## The worked example: `otto-engine`
+
+The first anatomy figure in the library (2026-10-12) — a half-section four-stroke
+engine with a live p-V diagram. Its sources are the pattern to copy:
+`infrastructure/mcp-sandbox/figures/otto-engine/` (`model.mjs` the physics,
+`geom.mjs` the helpers the kit lacks — convex prisms off the z axis, a vertical
+helix, half-section rings with hatching — `live.js` the page, `build.mjs` the
+assembly). Lessons it paid for:
+
+- **Inline only the kit's drawing half.** The page needs `iso`, `extrude`,
+  `solidSvg` and friends, not `pageHtml`/`plateHtml` or the CSS-as-a-string;
+  dropping them saved ~10 KB.
+- **Escape `</script` in the inlined kit.** Its source contains the literal in a
+  string; unescaped, the page's script ends early.
+- **Raise the kit's 10.5 px corner text to 11 px** (AIPLA's floor) in the build,
+  not in the vendored kit.
+- **Section everything the cut plane passes through**, the piston included: a
+  whole piston in front of a sectioned block hides the very chamber the figure
+  exists to show.
+- **Route pipes behind the cut.** A near-side manifold crosses the cutaway.
+
 ## Running it safely
 
 This is third-party code. It is MIT-licensed, and a static scan found no network access

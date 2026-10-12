@@ -1422,4 +1422,166 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
         "Skriv din agent-instruks i chatten, og design så dine tests sammen med tutoren.",
     },
   },
+  {
+    // The otto-engine sim (2026-10-12): a half-section four-stroke engine built
+    // with the anatomy kit beside a live p-V diagram, one model driving both.
+    // The sim shows Q and W per measured cycle and NEVER the efficiency — the
+    // student computes eta = W/Q in the table and finds the trend with r. The
+    // reference values are in the catalogue tutorBlock (server-side only).
+    id: "otto-engine",
+    name: "Firetaktsmotoren — hvorfor højere kompression?",
+    summary:
+      "Gennemskåret benzinmotor + p-V-diagram — mål Q og W, beregn virkningsgraden, og find sammenhængen med kompressionsforholdet.",
+    language: "da",
+    subject: "Fysik",
+    title: "Firetaktsmotoren",
+    artefactId: "otto-engine",
+    teachingGoal:
+      "Eleven undersøger, hvordan en firetakts benzinmotor omsætter varme til arbejde, med simulationen af en " +
+      "gennemskåret motor og dens p-V-diagram. Lad først eleven gå én takt ad gangen og beskrive, hvad ventilerne, " +
+      "stemplet og gassen gør, og hvad der sker i p-V-diagrammet. Derefter måler eleven én cyklus ved mindst fire " +
+      "forskellige kompressionsforhold, beregner selv virkningsgraden η = W/Q og afsætter den mod r. Pointen er at " +
+      "opdage, at virkningsgraden vokser med kompressionsforholdet, og at kunne forklare hvorfor. Oplys aldrig en " +
+      "virkningsgrad, før eleven selv har regnet den ud, og skriv aldrig teksten for eleven. Når eleven har " +
+      "tendensen, så tal om, hvorfor en rigtig motor kun når omkring halvdelen af den ideelle virkningsgrad.",
+    checklist: [
+      "Gå én takt ad gangen, og beskriv hvad ventiler, stempel og gas gør i hver takt",
+      "Find i p-V-diagrammet, hvor gassen udfører arbejde, og hvor stemplet udfører arbejde på gassen",
+      "Mål én cyklus ved mindst fire forskellige kompressionsforhold",
+      "Beregn virkningsgraden η = W/Q for hver måling",
+      "Beskriv og forklar, hvordan virkningsgraden afhænger af r",
+    ],
+    table: {
+      title: "Målinger",
+      columns: [
+        { label: "r", kind: "number" },
+        { label: "Q", unit: "J", kind: "number" },
+        { label: "W", unit: "J", kind: "number" },
+        { label: "η", kind: "number" },
+      ],
+      rows: 6,
+    },
+    chart: { title: "Virkningsgrad mod kompressionsforhold", chartKind: "scatter" },
+    note: {
+      title: "Sådan bruger du motoren",
+      body:
+        "**Næste takt** stopper ved starten af hver takt. **Mål én cyklus** kører motoren én gang rundt og " +
+        "noterer den tilførte varme Q og arbejdet W.\n\n" +
+        "Kompressionsforholdet r = V_max / V_min ændrer du med skyderen — i motoren ses det som et højere stempel.",
+    },
+    writing: [
+      {
+        title: "Konklusion",
+        prompt:
+          "Hvordan afhænger virkningsgraden af kompressionsforholdet? Brug dine målinger, og forklar sammenhængen " +
+          "med det, der sker med gassen under kompressionen.",
+        minWords: 60,
+      },
+    ],
+    conceptMap: {
+      title: "Firetaktsmotoren",
+      nodes: [
+        {
+          id: "takter",
+          label: "De fire takter",
+          doneWhen: "kan for hver takt sige, hvad stemplet og de to ventiler gør, og hvad der sker med gassen",
+          questions: [
+            {
+              prompt: "Hvad gør stemplet og ventilerne i kompressionstakten, og hvorfor skal begge ventiler være lukkede?",
+              expectedAnswer:
+                "Stemplet går op, og begge ventiler er lukkede, så gassen ikke kan slippe ud — den bliver presset sammen.",
+            },
+          ],
+        },
+        {
+          id: "tilstand",
+          label: "Tryk, volumen og temperatur",
+          doneWhen: "kan aflæse p og V i diagrammet og bruge idealgasloven til at forklare, hvordan T følger med",
+          questions: [
+            {
+              prompt:
+                "Under indsugningen er trykket konstant, men volumenet vokser. Hvad betyder det for stofmængden i cylinderen?",
+              expectedAnswer: "pV = nRT: ved konstant p og T vokser n — der suges frisk gas ind.",
+            },
+          ],
+        },
+        {
+          id: "adiabatisk",
+          label: "Adiabatisk kompression",
+          dependsOn: ["takter", "tilstand"],
+          doneWhen:
+            "kan forklare, at gassen bliver varmere under kompressionen uden tilført varme, fordi stemplet udfører arbejde på den",
+          questions: [
+            {
+              prompt:
+                "Temperaturen stiger fra 300 K til omkring 700 K under kompressionen. Hvor kommer energien fra, når der ikke tilføres varme?",
+              expectedAnswer:
+                "Fra stemplets arbejde på gassen: Q = 0, så ΔU = W, og den indre energi og dermed temperaturen stiger.",
+            },
+          ],
+        },
+        {
+          id: "arbejde",
+          label: "Arbejde som areal",
+          dependsOn: ["tilstand"],
+          doneWhen:
+            "kan forklare, at arealet inden for løkken er nettoarbejdet for én cyklus, og hvorfor det er positivt",
+          questions: [
+            {
+              prompt:
+                "Hvorfor er nettoarbejdet arealet inden for løkken og ikke arealet under arbejdstaktens kurve?",
+              expectedAnswer:
+                "Under kompressionen udfører stemplet arbejde på gassen (arealet under kompressionskurven); det trækkes fra gassens arbejde i arbejdstakten, og forskellen er arealet inden for løkken.",
+            },
+          ],
+        },
+        {
+          id: "virkningsgrad",
+          label: "Virkningsgrad",
+          dependsOn: ["arbejde"],
+          doneWhen: "kan beregne η = W/Q for en målt cyklus og forklare, hvor resten af energien bliver af",
+          questions: [
+            {
+              prompt:
+                "Du har målt Q og W for én cyklus. Hvordan finder du virkningsgraden, og hvor bliver den energi af, der ikke bliver til arbejde?",
+              expectedAnswer: "η = W/Q; resten, Q − W, afgives som varme med udstødningsgassen.",
+            },
+          ],
+        },
+        {
+          id: "kompressionsforhold",
+          label: "Kompressionsforholdets betydning",
+          dependsOn: ["adiabatisk", "virkningsgrad"],
+          doneWhen:
+            "kan ud fra egne målinger beskrive, hvordan η afhænger af r, og forklare tendensen med gassens tilstand efter kompressionen",
+          questions: [
+            {
+              prompt: "Hvordan ændrer virkningsgraden sig, når r øges fra 6 til 12, og hvorfor?",
+              expectedAnswer:
+                "Den stiger (ca. 51 % til 63 % i den ideelle proces), fordi gassen er varmere og mere sammenpresset, når forbrændingen sker, så mere af varmen bliver til arbejde under ekspansionen; η = 1 − 1/r^(γ−1).",
+            },
+            {
+              prompt: "Hvorfor bygger man så ikke en benzinmotor med r = 20?",
+              expectedAnswer:
+                "Blandingen bliver så varm under kompressionen, at den selvantænder før gnisten (bankning); en dieselmotor komprimerer kun luft og kan derfor have et højere r.",
+            },
+          ],
+        },
+        {
+          id: "virkelighed",
+          label: "Ideel og virkelig motor",
+          dependsOn: ["kompressionsforhold"],
+          doneWhen: "kan nævne mindst to grunde til, at en rigtig benzinmotor kun når omkring halvdelen af den ideelle η",
+          questions: [
+            {
+              prompt:
+                "En rigtig benzinmotor har en virkningsgrad på omkring 30 %. Hvorfor er det mindre end det, du har beregnet?",
+              expectedAnswer:
+                "Gnidning, varmetab gennem cylindervæggen, forbrændingen tager tid i stedet for at ske øjeblikkeligt, pumpearbejde ved ind- og udstødning og ufuldstændig forbrænding.",
+            },
+          ],
+        },
+      ],
+    },
+  },
 ];
