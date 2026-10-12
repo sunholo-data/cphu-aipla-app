@@ -3,7 +3,7 @@
 **Status**: **PROPOSED** 2026-10-12
 **Priority**: **P1 for this sprint.** The benchmark (M0–M2) is the gate: it decides which model and harness the in-app path is built on, and what one build costs, which sets the quota
 **Estimated**: **~6–8d** in all. Benchmark M0–M2 ~3d · in-app authoring M3–M5 ~3–4d · quota and meter M6 ~1d. M3 onward is re-sized after the benchmark, since the winning harness decides how much has to be built
-**Scope**: Research: a new `research/sim-bench/` harness (`make bench-sims`). Backend: the static gates as one Python module (this is [sim-verify-mcp](sim-verify-mcp.md) M0), an authoring agent, a sim-authoring budget on the existing enforcer. Frontend: a teacher authoring surface with a preview and a cost meter. Infra: a headless-browser verify job (sim-verify-mcp M3, brought forward)
+**Scope**: Research: a new `research/sim-bench/` harness (`make bench-sims`). Backend: the static gates as one Python module (this is [sim-verify-mcp](sim-verify-mcp.md) M0), an authoring agent as an ADK skill, a sim-authoring budget on the existing enforcer. Frontend: a teacher authoring surface with a preview and a cost meter. Infra: `aipla-v01-sim-verify`, a separate headless-Chromium Cloud Run service on all three environments (sim-verify-mcp M3, brought forward)
 **Source**: M, 2026-10-12, after `otto-engine` was built with the `anatomy` skill in Claude Code: *"we are going to do some evals and benchmarks for this simulation (and perhaps others) - do we have robust harness in place to assess this? I am first going to see if our gemini models can replicate or get something usable … this sprint we are looking at adding in app creation of simulations"*, and *"we will have a cost quota per month and have a way to display that as we go."*
 **Related**: [sim-build-cost-log.md](sim-build-cost-log.md) (the first data point: Opus 5.5, 21.6 min, $9.74) · [sim-verify-mcp.md](sim-verify-mcp.md) (the gate port this depends on) · [tutor-controls-sims.md](tutor-controls-sims.md) · `.claude/skills/mcp-app-artefact/` (the gates and the authoring prompt) · `.claude/skills/anatomy/AIPLA.md` · [research/tutor-discrimination/](../../../../research/tutor-discrimination/) (the harness shape to copy) · [public-access-tiers-and-spend-control.md](../v1.1.0-feedback/public-access-tiers-and-spend-control.md) and [cost-dashboard.md](../v1.1.0-feedback/cost-dashboard.md) (the spend machinery the quota reuses)
 
@@ -166,8 +166,10 @@ The shape the benchmark is expected to point to, to be confirmed by it:
 - **M3: an authoring agent.** An ADK skill for teachers (not students) that takes a
   brief and runs the winning harness: draft → `verify_sim` → repair, up to a
   fixed attempt cap, the same capped loop svg-illustrator uses. The browser half
-  of the gates runs as a Cloud Run job (sim-verify-mcp M3, brought forward from
-  "deferred").
+  of the gates runs in the **sim-verify service** below (sim-verify-mcp M3,
+  brought forward from "deferred"). Its screenshots go back to the model as
+  images inside the tool result, as svg-illustrator's PNG does, so the model
+  sees what it drew.
 - **M4: a preview.** The teacher tries the draft in a sandboxed frame before
   anything is catalogued. This is sim-verify-mcp M4, and it **needs an ADR-013
   decision first**: unreviewed HTML on the artefact origin is a posture change,
@@ -176,6 +178,32 @@ The shape the benchmark is expected to point to, to be confirmed by it:
   live for a class goes through review, with the physics sign-off ADR-013
   already asks for and nothing yet records, now recorded on the draft. A
   generated sim never reaches students unreviewed.
+
+### The sim-verify service (decided 2026-10-12)
+
+**A separate Cloud Run service on dev, test and prod**, `aipla-v01-sim-verify`.
+It is not a sidecar. M chose it to keep things simple, and it also isolates
+better: a sidecar shares the frontend instance's identity (Firestore access) and
+its CPU with live student turns, while a separate service can run as a
+service account with **no IAM roles** and scales on its own.
+
+- **What it is:** the official Playwright image (Node + Chromium), `verify_sim.mjs`
+  and the static gates, behind a small HTTP endpoint. `POST /verify` with the
+  draft HTML returns the per-check verdicts, the captured bridge events (which
+  the physics probe reads) and PNG screenshots at the requested moments.
+- **Why real Chromium:** most sims draw on a canvas. Obscura, the lightweight
+  headless browser we use from Claude Code, was tried on a generated sim
+  (2026-10-12). It ran the JavaScript and the self-test correctly, but drew the
+  canvas as solid blocks, so it cannot serve the visual check.
+- **Access:** private (`--no-allow-unauthenticated`); only the backend's
+  service account gets `run.invoker`. Egress denied. The page also runs under
+  the sandbox CSP, as in `verify_sim.mjs` today.
+- **Deploy:** built on the dev pipeline and carried to test and prod by the tag
+  and promote pipelines. ⚠️ That needs a `cloudbuild.promote.yaml` twin, the
+  footgun CLAUDE.md lists.
+- **Portable:** a plain container behind an HTTP contract, so it runs unchanged
+  under Docker Compose or Kubernetes on UCPH hardware. Leaving Google means
+  changing where it runs, not the agent.
 
 ## Part 3 — a monthly quota, shown as you go (M6)
 
@@ -212,6 +240,28 @@ block mode (`db/programme_budget.py`), and the cost dashboard at
 | | What | Est. | Gate |
 |---|---|---|---|
 | **M6** | Authoring purpose on the enforcer; monthly quotas (per teacher, programme); the before/during meter; a stop that keeps the draft; the dashboard line | ~1d | a test with two teachers and one programme quota: each teacher's lesson spend is untouched by authoring, and the programme quota stops both |
+
+## First runs (2026-10-12, by hand)
+
+Harness H1 (one call, the published authoring prompt), the `otto-engine` brief,
+on **gemini-3.8-flash**, the strongest Gemini on the app's `eu` endpoint.
+There is no Pro there; the only Pro on `global` is `gemini-3.1-pro-preview`.
+Scored by running the existing gates and reading the code and screenshots, before
+the runner existed:
+
+| | No thinking | Thinking HIGH |
+|---|---|---|
+| Time · tokens (in / out / thinking) | 85 s · 5.6k / 14.6k / 0 | 230 s · 5.6k / 16.1k / 22.4k |
+| Static gates, self-test, fit, events | All pass | All pass |
+| Numbers vs the reference model (Q, W, peak p and T at r = 9.5) | Exact | Exact |
+| Spark timing | **Wrong**: `theta >= 355 \|\| theta <= 5` on a 720° cycle, so it fires at the intake TDC too | Right: only near 360° |
+| Drawing agrees with the numbers | Yes (a crude 2D schematic) | **No**: at point 3 (V minimum) the piston is drawn at BDC |
+| Level reached | L3 | L3 |
+
+Neither physics fault was caught by any automated check; both were found by a
+person. They are the two cases M2's probe and visual rubric must fail, and good
+fixtures for it. Thinking fixed the logic, not the picture, which argues for a
+loop where the model sees its own screenshot (H2) over a bigger single call.
 
 ## Open for a human
 
