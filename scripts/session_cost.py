@@ -92,7 +92,9 @@ def main() -> None:
     for k in TOKEN_KEYS:
         print(f"{k:<29}{tokens[k]:>12,}")
     if calls:
-        context = (tokens["input_tokens"] + tokens["cache_creation_input_tokens"] + tokens["cache_read_input_tokens"]) / calls
+        context = (
+            tokens["input_tokens"] + tokens["cache_creation_input_tokens"] + tokens["cache_read_input_tokens"]
+        ) / calls
         print(f"mean context per call        {context:>12,.0f}")
     print(f"tools    {dict(tools.most_common())}")
 
