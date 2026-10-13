@@ -47,6 +47,18 @@ describe("SimPicker", () => {
     listArtefactsMock.mockResolvedValue(CATALOGUE);
   });
 
+  it("marks teacher-made sims: the teacher's own, and reviewed library ones", async () => {
+    listArtefactsMock.mockResolvedValue([
+      ...CATALOGUE,
+      { ...CATALOGUE[0], id: "pendul", displayName: "Pendul", source: "teacher", scope: "classes" },
+      { ...CATALOGUE[0], id: "otto-mine", displayName: "Otto", source: "teacher", scope: "library" },
+    ]);
+    render(<SimPicker value={null} onChange={vi.fn()} />);
+    expect(await screen.findByTestId("sim-picker-teacher-pendul")).toHaveTextContent("Your sim");
+    expect(screen.getByTestId("sim-picker-teacher-otto-mine")).toHaveTextContent("reviewed");
+    expect(screen.queryByTestId("sim-picker-teacher-boldkast")).toBeNull();
+  });
+
   it("lists the catalogue and selects one", async () => {
     const onChange = vi.fn();
     render(<SimPicker value={null} onChange={onChange} />);

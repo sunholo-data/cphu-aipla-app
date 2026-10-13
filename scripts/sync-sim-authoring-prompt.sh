@@ -67,8 +67,21 @@ WANT_PAGE="$(awk -v start="$START" -v end="$END" -v blockfile="$BLOCK_FILE" '
   !skipping   { print }
 ' "$PAGE")"$'\n'
 
+# The backend image is built from backend/ alone, so the files the sim gates and
+# publishing need from infrastructure/ ride along as copies (2026-10-13: without
+# them, deployed gates could not check the bridge or vendor hashes, and a
+# published teacher sim could not be stamped with the bridge).
+COPIES=(
+  "infrastructure/mcp-sandbox/bridge/aipla-mcp-bridge.js:backend/sim_authoring/references/aipla-mcp-bridge.js"
+  "infrastructure/mcp-sandbox/vendor.json:backend/sim_authoring/references/vendor.json"
+)
+
 if [ "$MODE" = "--check" ]; then
   rc=0
+  for pair in "${COPIES[@]}"; do
+    src="${pair%%:*}"; dst="${pair#*:}"
+    cmp -s "$src" "$dst" || { echo "DRIFT: $dst does not match $src" >&2; rc=1; }
+  done
   if [ ! -f "$TXT" ] || [ "$(cat "$TXT")" != "$PROMPT" ]; then
     echo "DRIFT: $TXT does not match the prompt in $SRC" >&2; rc=1
   fi
@@ -83,6 +96,7 @@ if [ "$MODE" = "--check" ]; then
   exit $rc
 fi
 
+for pair in "${COPIES[@]}"; do cp "${pair%%:*}" "${pair#*:}"; done
 printf '%s' "$WANT_TXT" > "$TXT"
 printf '%s' "$WANT_TXT" > "$BACKEND_TXT"
 printf '%s' "$WANT_PAGE" > "$PAGE"

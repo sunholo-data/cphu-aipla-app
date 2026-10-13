@@ -30,7 +30,7 @@ from adk.teacher_focus import (
     resolve_active_config,
 )
 from adk.tutor_resolution import resolve_active_teaching
-from artefacts.loader import is_known_artefact, load_artefact
+from artefacts.loader import can_attach, is_known_artefact, load_artefact
 from auth import User, get_current_user
 from db.activity_configs import (
     delete_activity_config,
@@ -128,11 +128,15 @@ def _assert_owns(user: User, teacher_uid: str) -> None:
         raise HTTPException(status_code=403, detail="teacher_uid mismatch")
 
 
-def _assert_known_artefact(artefact_id: str | None) -> None:
-    """Reject an unknown artefact reference (1.1.41) — the catalogue is the
-    vetting gate, so only a catalogued artefact id may be attached."""
-    if artefact_id and not is_known_artefact(artefact_id):
+def _assert_known_artefact(artefact_id: str | None, user: User) -> None:
+    """Reject an artefact the caller may not attach: unknown, or another
+    teacher's class-level sim (in-app-sim-authoring M6)."""
+    if not artefact_id:
+        return
+    if not is_known_artefact(artefact_id):
         raise HTTPException(status_code=400, detail=f"unknown artefact: {artefact_id}")
+    if not can_attach(artefact_id, user.uid, is_researcher=bool(getattr(user, "is_researcher", False))):
+        raise HTTPException(status_code=403, detail=f"artefact not available to you: {artefact_id}")
 
 
 def _assert_chart_bindings(body: ActivityConfigUpsert) -> None:
@@ -183,7 +187,7 @@ async def post_activity_config(
     ``activityId`` is omitted, a teacher-namespaced id is minted (a
     from-scratch teacher-authored activity).
     """
-    _assert_known_artefact(body.artefact_id)
+    _assert_known_artefact(body.artefact_id, user)
     _assert_chart_bindings(body)
     activity_id = body.activity_id or _mint_activity_id()
     # Day-0 overwrite guard (ALS-1 M0.5-guard). Today the create page sends the
@@ -448,7 +452,7 @@ async def patch_activity_config(
             status_code=400,
             detail="body class_id/activity_id does not match URL",
         )
-    _assert_known_artefact(body.artefact_id)
+    _assert_known_artefact(body.artefact_id, user)
     _assert_chart_bindings(body)
     cfg = upsert_activity_config(
         teacher_uid=teacher_uid,

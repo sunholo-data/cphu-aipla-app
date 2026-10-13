@@ -31,7 +31,10 @@ function captureProxyPostMessage() {
     const iframe = document.querySelector("iframe") as HTMLIFrameElement | null;
     if (!iframe?.contentWindow) return false;
     const orig = iframe.contentWindow.postMessage.bind(iframe.contentWindow);
-    iframe.contentWindow.postMessage = ((msg: unknown, target: string | StructuredSerializeOptions) => {
+    iframe.contentWindow.postMessage = ((
+      msg: unknown,
+      target: string | StructuredSerializeOptions,
+    ) => {
       captured.push({
         msg,
         targetOrigin: typeof target === "string" ? target : "(opts)",
@@ -45,8 +48,13 @@ function captureProxyPostMessage() {
 }
 
 // Helper to dispatch a synthetic event "from the proxy" (origin == SANDBOX_ORIGIN).
-function dispatchFromProxy(data: unknown) {
-  window.dispatchEvent(new MessageEvent("message", { data, origin: SANDBOX_ORIGIN }));
+// ``source`` is the frame's own iframe: the component answers only that one.
+function dispatchFromProxy(data: unknown, iframe?: HTMLIFrameElement) {
+  const source =
+    (iframe ?? document.querySelector("iframe"))?.contentWindow ?? null;
+  window.dispatchEvent(
+    new MessageEvent("message", { data, origin: SANDBOX_ORIGIN, source }),
+  );
 }
 
 describe("StaticArtefactFrame", () => {
@@ -56,7 +64,11 @@ describe("StaticArtefactFrame", () => {
 
   beforeEach(() => {
     global.fetch = vi.fn(() =>
-      Promise.resolve(new Response("<!doctype html><html><body>art</body></html>", { status: 200 })),
+      Promise.resolve(
+        new Response("<!doctype html><html><body>art</body></html>", {
+          status: 200,
+        }),
+      ),
     ) as unknown as typeof fetch;
   });
 
@@ -126,7 +138,9 @@ describe("StaticArtefactFrame", () => {
     dispatchFromProxy({
       jsonrpc: "2.0",
       method: "ui/update-model-context",
-      params: { structuredContent: { kind: "boldkast.show_value", marker: "y_max" } },
+      params: {
+        structuredContent: { kind: "boldkast.show_value", marker: "y_max" },
+      },
     });
     expect(onUpdateModelContext).toHaveBeenCalledTimes(1);
     expect(onUpdateModelContext.mock.calls[0][0]).toEqual({
@@ -167,7 +181,10 @@ describe("StaticArtefactFrame", () => {
       method: "ui/notifications/initialized",
       params: { clientInfo: { name: "boldkast", version: "1.0.0" } },
     });
-    expect(onInitialized).toHaveBeenCalledWith({ name: "boldkast", version: "1.0.0" });
+    expect(onInitialized).toHaveBeenCalledWith({
+      name: "boldkast",
+      version: "1.0.0",
+    });
   });
 
   it("fetches artefact HTML and sends sandbox-resource-ready when proxy says it's ready", async () => {
@@ -190,17 +207,22 @@ describe("StaticArtefactFrame", () => {
     });
 
     await waitFor(() => {
-      expect(global.fetch).toHaveBeenCalledWith(`${SANDBOX_ORIGIN}/artefacts/boldkast/v1/index.html`);
+      expect(global.fetch).toHaveBeenCalledWith(
+        `${SANDBOX_ORIGIN}/artefacts/boldkast/v1/index.html`,
+      );
     });
     await waitFor(() => {
       const resourceReady = cap.captured.find(
         (m) =>
           typeof m.msg === "object" &&
           m.msg !== null &&
-          (m.msg as { method?: string }).method === "ui/notifications/sandbox-resource-ready",
+          (m.msg as { method?: string }).method ===
+            "ui/notifications/sandbox-resource-ready",
       );
       expect(resourceReady).toBeDefined();
-      const params = (resourceReady?.msg as { params?: { html?: string; sandbox?: string } })?.params;
+      const params = (
+        resourceReady?.msg as { params?: { html?: string; sandbox?: string } }
+      )?.params;
       expect(params?.html).toContain("<!doctype html>");
       expect(params?.sandbox).toContain("allow-scripts");
     });
@@ -208,7 +230,9 @@ describe("StaticArtefactFrame", () => {
 
   it("takes the HTML from loadHtml instead of the sandbox when given one (the Sim workshop preview)", async () => {
     const cap = captureProxyPostMessage();
-    const loadHtml = vi.fn(() => Promise.resolve("<!doctype html><p>draft v3</p>"));
+    const loadHtml = vi.fn(() =>
+      Promise.resolve("<!doctype html><p>draft v3</p>"),
+    );
     render(
       <StaticArtefactFrame
         sandboxOrigin={SANDBOX_ORIGIN}
@@ -218,12 +242,20 @@ describe("StaticArtefactFrame", () => {
       />,
     );
     await waitFor(() => expect(cap.setup()).toBe(true));
-    dispatchFromProxy({ jsonrpc: "2.0", method: "ui/notifications/sandbox-proxy-ready", params: {} });
+    dispatchFromProxy({
+      jsonrpc: "2.0",
+      method: "ui/notifications/sandbox-proxy-ready",
+      params: {},
+    });
     await waitFor(() => {
       const resourceReady = cap.captured.find(
-        (m) => (m.msg as { method?: string } | null)?.method === "ui/notifications/sandbox-resource-ready",
+        (m) =>
+          (m.msg as { method?: string } | null)?.method ===
+          "ui/notifications/sandbox-resource-ready",
       );
-      expect((resourceReady?.msg as { params?: { html?: string } })?.params?.html).toBe("<!doctype html><p>draft v3</p>");
+      expect(
+        (resourceReady?.msg as { params?: { html?: string } })?.params?.html,
+      ).toBe("<!doctype html><p>draft v3</p>");
     });
     expect(loadHtml).toHaveBeenCalledTimes(1);
     expect(global.fetch).not.toHaveBeenCalled();
@@ -254,11 +286,15 @@ describe("StaticArtefactFrame", () => {
 
     await waitFor(() => {
       const response = cap.captured.find(
-        (m) => typeof m.msg === "object" && m.msg !== null && (m.msg as { id?: number }).id === 1,
+        (m) =>
+          typeof m.msg === "object" &&
+          m.msg !== null &&
+          (m.msg as { id?: number }).id === 1,
       );
       expect(response).toBeDefined();
-      const result = (response?.msg as { result?: { hostContext?: Record<string, unknown> } })
-        ?.result;
+      const result = (
+        response?.msg as { result?: { hostContext?: Record<string, unknown> } }
+      )?.result;
       expect(result?.hostContext).toMatchObject({
         theme: "dark",
         locale: "da-DK",
@@ -282,7 +318,10 @@ describe("StaticArtefactFrame", () => {
 
     await waitFor(() => {
       const response = cap.captured.find(
-        (m) => typeof m.msg === "object" && m.msg !== null && (m.msg as { id?: number }).id === 42,
+        (m) =>
+          typeof m.msg === "object" &&
+          m.msg !== null &&
+          (m.msg as { id?: number }).id === 42,
       );
       expect(response).toBeDefined();
       expect((response?.msg as { result?: unknown }).result).toEqual({});
@@ -299,7 +338,10 @@ describe("StaticArtefactFrame", () => {
       />,
     );
     // Same origin, valid method, no jsonrpc field → rejected
-    dispatchFromProxy({ method: "ui/update-model-context", params: { structuredContent: {} } });
+    dispatchFromProxy({
+      method: "ui/update-model-context",
+      params: { structuredContent: {} },
+    });
     // Same origin, valid method, wrong jsonrpc version → rejected
     dispatchFromProxy({
       jsonrpc: "1.0",
@@ -307,5 +349,39 @@ describe("StaticArtefactFrame", () => {
       params: { structuredContent: {} },
     });
     expect(onUpdateModelContext).not.toHaveBeenCalled();
+  });
+
+  it("answers only its own iframe when two frames share the sandbox origin", async () => {
+    const loadA = vi.fn(() => Promise.resolve("<!doctype html><p>a</p>"));
+    const loadB = vi.fn(() => Promise.resolve("<!doctype html><p>b</p>"));
+    render(
+      <>
+        <StaticArtefactFrame
+          sandboxOrigin={SANDBOX_ORIGIN}
+          artefactPath="a"
+          loadHtml={loadA}
+          onUpdateModelContext={() => {}}
+          title="A"
+        />
+        <StaticArtefactFrame
+          sandboxOrigin={SANDBOX_ORIGIN}
+          artefactPath="b"
+          loadHtml={loadB}
+          onUpdateModelContext={() => {}}
+          title="B"
+        />
+      </>,
+    );
+    dispatchFromProxy(
+      {
+        jsonrpc: "2.0",
+        method: "ui/notifications/sandbox-proxy-ready",
+        params: {},
+      },
+      screen.getByTitle("B") as HTMLIFrameElement,
+    );
+    await new Promise((r) => setTimeout(r, 0));
+    expect(loadB).toHaveBeenCalledTimes(1);
+    expect(loadA).not.toHaveBeenCalled();
   });
 });

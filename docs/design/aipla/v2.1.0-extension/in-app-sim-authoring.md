@@ -1,6 +1,6 @@
 # In-app sim authoring — benchmark first, then build, under a monthly quota
 
-**Status**: **RELEASED to test and prod (v0.1.90, 2026-10-13; v0.1.91 with live feedback and cost on test).** The Sim workshop: per-teacher access (researchers have it; a researcher or programme admin switches it on per teacher in the programme section; others see it greyed with a way to ask), a workbench (live preview in the shared sandbox frame beside a docked assistant), editing instead of rewriting, streamed thinking and progress, cost per sim. sim-verify runs on all three envs. Not built: publishing to classes, M2 (physics probe), M7 (quota). Decisions in [Decisions](#decisions)
+**Status**: **Self-service publishing built (M6, 2026-10-13, local; next release).** Released before it: v0.1.90 on test and prod (the workshop, per-teacher access, sim-verify on all envs), v0.1.91 on test (streamed thinking, cost per sim). A teacher now publishes a checked version to their own classes with a recorded approval, asks for the shared library, and a researcher signs off. Not built: M2 (physics probe), M7 (quota), MCP listing of library sims. Decisions in [Decisions](#decisions)
 **Priority**: **P1 for this sprint.** The benchmark (M0–M2) is the gate: it decides which model and harness the in-app path is built on, and what one build costs, which sets the quota
 **Estimated**: **~9–10d** in all. Benchmark M0–M2 ~3d · sim-verify service M3 ~1d · in-app authoring M4–M6 ~4–5d · quota and meter M7 ~1d. M4 onward is re-sized after the benchmark, since the winning harness decides how much has to be built
 **Scope**: Research: a new `research/sim-bench/` harness (`make bench-sims`). Backend: the static gates as one Python module (this is [sim-verify-mcp](sim-verify-mcp.md) M0), an authoring agent as an ADK skill, a sim-authoring budget on the existing enforcer. Frontend: a teacher authoring surface with a preview and a cost meter. Infra: `aipla-v01-sim-verify`, a separate headless-Chromium Cloud Run service on all three environments (sim-verify-mcp M3, brought forward)
@@ -193,7 +193,7 @@ The shape the benchmark is expected to point to, to be confirmed by it:
 | **M3** ✅ dev 2026-10-13 | `infrastructure/sim-verify/`: Playwright 1.63 image, `POST /verify`, private (`run.invoker` only for `aipla-v6@`), running as `aipla-sim-verify@` with no project roles. Dev trigger `aipla-sim-verify-deploy` (hand-made, like the other dev triggers). **Test/prod not wired**: needs terraform triggers + the SA there | ~1d | ✅ on dev: authenticated `/ready` 200, unauthenticated 403, `/verify` on a real draft returns the verdict, motion and three screenshots |
 | **M4** ✅ 2026-10-13 | `skills/templates/sim-author` (teacher-only, gemini-3.8-flash, per-skill `thinkingBudget` 16384); tools `verify_sim` (stores a version per check, screenshots attached inside the function response, cap 5 per turn, refuses fragments) and `read_reference` (authoring rules, anatomy-lite). Drafts in **Firestore** (`db/sim_drafts.py`: one draft per conversation, one version per check), not ADK artifacts: the teacher page needs to list them across sessions | ~1.5–2d | ✅ unit + route tests; the bench's h2 runs show the loop repairing from checks and screenshots |
 | **M5** partial 2026-10-13 | `/teacher/sims`, the Sim workshop: drafts and versions (level, what stopped it, screenshots at rest / after clicking / on a phone, downloads) beside the floating sim-author assistant; DA/EN; behind `NEXT_PUBLIC_SIM_WORKSHOP` ('1' on dev only). **Live preview not built**: it is the first piece of publishing (below) | ~1–2d | ADR-013 decision ✅ recorded; a teacher drives a build to screenshots on dev |
-| **M6** | Publishing (as decided below): live preview on the sandbox under a draft path; publish-to-my-classes with the teacher's recorded approval; the shared library with a physics reviewer's recorded sign-off; the catalogue merges built-in and teacher-published sims | ~2–3d | a draft cannot reach students without a recorded approval; a class-only sim never appears on the public MCP server |
+| **M6** ✅ 2026-10-13 (local) | Publishing: `db/teacher_sims.py` (frozen versions, stamped bridge, recorded approval); `sim_authoring/publish.py` (level 3 required, built-in ids refused, bridge stamped, tiers A–C re-run on the exact page, D when the version recorded its hidden terms); `artefacts/loader.py` merges teacher sims (30 s cache, built-ins only if Firestore does not answer) and `can_attach` (class sims: owner or researcher); routes in `protocols/teacher_sim_routes.py`; the workshop's Publish panel, the researcher's Library requests, picker badges. **Served differently from the plan:** not a sandbox `/teacher-sims/` route on a bucket but the backend page route, written into the same sandbox frame with a `connect-src 'none'` meta CSP — no new bucket, no sandbox change, one fewer deploy surface | ~2–3d | ✅ `test_teacher_sim_publishing.py` (one store, real routes, a real sim: owner-only catalogue, attach refused for others, student fetch, refusals, library sign-off, withdraw, the tutor read sites); a browser walkthrough locally (publish → library request → review → builder picker → the student frame runs it). A class sim never reaches the MCP server because the MCP server does not read teacher sims at all yet |
 
 ### The sim-verify service (decided 2026-10-12)
 
@@ -276,6 +276,33 @@ three hard-coded sims (`protocols/sim_apps.py` `KNOWN_SIMS`: Boldkast, KineBot,
 LED Planck), because the artefact files are not in the backend image. The seven
 newer catalogue sims, otto-engine included, are not offered to external hosts
 at all. Discovery should read the catalogue (`status: live`) instead.
+
+### What M6 found and fixed on the way (2026-10-13)
+
+- **The deployed backend had no bridge and no vendor manifest.** Its image is built
+  from `backend/` alone, so on test and prod the bridge-conformance and
+  vendor-hash gates had nothing to check against (they reported *skipped*), and a
+  publish could not have stamped the bridge. Both now ride along as generated
+  copies in `backend/sim_authoring/references/`, drift-checked by
+  `make check-sim-prompt`, the authoring prompt's existing CI gate.
+- **Two sandbox frames on one page answered each other.** `StaticArtefactFrame`
+  checked the sender's origin, which every sandbox frame shares, so one frame's
+  proxy-ready made the other re-write its page into a live document. Now it
+  answers only its own iframe. Affects any page with two frames (the workshop, the
+  activity builder beside its preview).
+- **The workshop preview ran without the bridge** (drafts store a placeholder), so
+  a sim that calls the bridge at start-up threw. The preview route now stamps it.
+- **The builder preview rebuilt the sim entry and dropped `source`**, sending a
+  teacher sim to the sandbox's `/artefacts/` route (404). Fixed, and the frame
+  also recognises a teacher sim by its `teacher-sims/…` path.
+
+**Residuals, recorded:** the inner frame is same-origin with the sandbox proxy (as
+for built-in sims), so a hostile script could call the proxy's own `fetch`; that
+reaches only the sandbox origin, a static file server, never our API or the
+internet (verified in Chromium: the meta CSP blocks fetch, beacon and WebSocket in
+the frame itself). An activity *adopted* from another teacher keeps its
+`artefactId` without re-validation, so a class-level sim can travel that way;
+withdrawing the sim still removes it everywhere.
 
 ## Part 3 — a monthly quota, shown as you go (M7)
 

@@ -45,12 +45,18 @@ export interface SimDraft {
 }
 
 export async function listSimDrafts(): Promise<SimDraftSummary[]> {
-  const body = await readJson<{ drafts: SimDraftSummary[] }>(await fetchWithTeacherAuth(BASE), "load sim drafts");
+  const body = await readJson<{ drafts: SimDraftSummary[] }>(
+    await fetchWithTeacherAuth(BASE),
+    "load sim drafts",
+  );
   return body.drafts;
 }
 
 export async function getSimDraft(id: string): Promise<SimDraft> {
-  return readJson<SimDraft>(await fetchWithTeacherAuth(`${BASE}/${encodeURIComponent(id)}`), "load sim draft");
+  return readJson<SimDraft>(
+    await fetchWithTeacherAuth(`${BASE}/${encodeURIComponent(id)}`),
+    "load sim draft",
+  );
 }
 
 async function blobOf(path: string, what: string): Promise<Blob> {
@@ -59,10 +65,32 @@ async function blobOf(path: string, what: string): Promise<Blob> {
   return resp.blob();
 }
 
-export function fetchSimScreenshot(id: string, version: number, shot: string): Promise<Blob> {
-  return blobOf(`${encodeURIComponent(id)}/versions/${version}/screenshot/${encodeURIComponent(shot)}`, "load screenshot");
+export function fetchSimScreenshot(
+  id: string,
+  version: number,
+  shot: string,
+): Promise<Blob> {
+  return blobOf(
+    `${encodeURIComponent(id)}/versions/${version}/screenshot/${encodeURIComponent(shot)}`,
+    "load screenshot",
+  );
 }
 
-export function fetchSimFile(id: string, version: number, name: "index.html" | "catalogue.yaml"): Promise<Blob> {
-  return blobOf(`${encodeURIComponent(id)}/versions/${version}/files/${name}`, "download file");
+/** A version's page with the real bridge stamped in, for the live preview. */
+export function fetchSimPreview(id: string, version: number): Promise<Blob> {
+  return blobOf(
+    `${encodeURIComponent(id)}/versions/${version}/preview`,
+    "load preview",
+  );
+}
+
+export function fetchSimFile(
+  id: string,
+  version: number,
+  name: "index.html" | "catalogue.yaml",
+): Promise<Blob> {
+  return blobOf(
+    `${encodeURIComponent(id)}/versions/${version}/files/${name}`,
+    "download file",
+  );
 }

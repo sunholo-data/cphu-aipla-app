@@ -85,7 +85,9 @@
     "none": "No simulations available in this environment yet.",
     "tablet": "Tablet or laptop",
     "cramped": "Cramped on a phone",
-    "help": "Host a vetted simulation in this activity — your lesson goal, checklist, and notes wrap it. The same sim can power many activities with different goals."
+    "help": "Host a vetted simulation in this activity — your lesson goal, checklist, and notes wrap it. The same sim can power many activities with different goals.",
+    "teacherMine": "Your sim · for your classes",
+    "teacherLibrary": "Made by a teacher · reviewed"
   },
   "TableEditor": {
     "fallbackLabel": "Table {n}",

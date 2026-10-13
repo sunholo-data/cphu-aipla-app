@@ -15,7 +15,11 @@ import {
   type ActivityElementDefs,
   type BuilderElements,
 } from "@/lib/activityPreview";
-import { listArtefacts, type ArtefactSummary, type MaterialRef } from "@/lib/teacherApi";
+import {
+  listArtefacts,
+  type ArtefactSummary,
+  type MaterialRef,
+} from "@/lib/teacherApi";
 
 interface ActivityPreviewProps {
   state: BuilderElements;
@@ -84,7 +88,9 @@ export function ActivityPreview({
   }, [artefactId]);
 
   const t = useT("ActivityPreview");
-  const sim = artefactId ? (catalogue.find((a) => a.id === artefactId) ?? null) : null;
+  const sim = artefactId
+    ? (catalogue.find((a) => a.id === artefactId) ?? null)
+    : null;
   const showElements = hasAnyElement(defs);
   const hasContent = !!artefactId || showElements || materials.length > 0;
 
@@ -98,7 +104,9 @@ export function ActivityPreview({
           className="flex flex-1 items-center gap-1.5 text-sm font-medium text-slate-700"
         >
           <Eye className="h-4 w-4 text-slate-500" /> {t("title")}
-          <ChevronDown className={`h-4 w-4 transition-transform ${open ? "" : "-rotate-90"}`} />
+          <ChevronDown
+            className={`h-4 w-4 transition-transform ${open ? "" : "-rotate-90"}`}
+          />
         </button>
         {hasContent ? (
           <button
@@ -119,15 +127,31 @@ export function ActivityPreview({
               {t("empty")}
             </p>
           ) : expanded ? (
-            <p className="px-4 py-6 text-center text-xs text-slate-400">{t("expanded")}</p>
+            <p className="px-4 py-6 text-center text-xs text-slate-400">
+              {t("expanded")}
+            </p>
           ) : (
-            <PreviewBody artefactId={artefactId} sim={sim} defs={defs} materials={materials} activityId={activityId} language={language} />
+            <PreviewBody
+              artefactId={artefactId}
+              sim={sim}
+              defs={defs}
+              materials={materials}
+              activityId={activityId}
+              language={language}
+            />
           )}
         </div>
       )}
 
       <PreviewModal open={expanded} onOpenChange={setExpanded}>
-        <PreviewBody artefactId={artefactId} sim={sim} defs={defs} materials={materials} activityId={activityId} language={language} />
+        <PreviewBody
+          artefactId={artefactId}
+          sim={sim}
+          defs={defs}
+          materials={materials}
+          activityId={activityId}
+          language={language}
+        />
       </PreviewModal>
     </div>
   );
@@ -159,43 +183,49 @@ function PreviewBody({
   // student's — only the embedded workspace switches language.
   return (
     <LocaleProvider locale={toLocale(language)}>
-    <HumanToolEventsProvider>
-      {artefactId && !SANDBOX_ORIGIN ? (
-        <div className="flex items-start gap-2.5 border-b border-slate-200 px-4 py-3 text-xs text-slate-500">
-          <SimThumbnail id={sim?.id ?? artefactId} displayName={sim?.displayName ?? artefactId} thumbnail={sim?.thumbnail} />
-          <span>
-            {t.rich("simAttached", {
-              name: sim?.displayName ?? artefactId,
-              b: (chunks) => <span className="font-medium text-slate-700">{chunks}</span>,
-            })}
-          </span>
-        </div>
-      ) : null}
-      <StudentWorkspace
-        skillId={PREVIEW_SKILL_ID}
-        sessionId={null}
-        sandboxOrigin={SANDBOX_ORIGIN}
-        artefact={sim ? simToArtefact(sim) : null}
-        checklist={defs.checklist}
-        table={defs.table}
-        chart={defs.chart}
-        calculator={defs.calculator}
-        note={defs.note}
-        writing={defs.writing}
-        solution={defs.solution}
-        document={defs.document}
-        conceptMap={defs.conceptMap}
-        materials={materials.map((m) => ({
-          // Preserve the full ref — dropping kind/materialId made image
-          // materials (1.1.44) render as (empty-docId) curriculum docs that
-          // 404 ("Couldn't load this document") instead of showing the image.
-          ...m,
-          studentVisible: m.studentVisible ?? false,
-        }))}
-        activityId={activityId ?? PREVIEW_SKILL_ID}
-        documentViewerRole="teacher"
-      />
-    </HumanToolEventsProvider>
+      <HumanToolEventsProvider>
+        {artefactId && !SANDBOX_ORIGIN ? (
+          <div className="flex items-start gap-2.5 border-b border-slate-200 px-4 py-3 text-xs text-slate-500">
+            <SimThumbnail
+              id={sim?.id ?? artefactId}
+              displayName={sim?.displayName ?? artefactId}
+              thumbnail={sim?.thumbnail}
+            />
+            <span>
+              {t.rich("simAttached", {
+                name: sim?.displayName ?? artefactId,
+                b: (chunks) => (
+                  <span className="font-medium text-slate-700">{chunks}</span>
+                ),
+              })}
+            </span>
+          </div>
+        ) : null}
+        <StudentWorkspace
+          skillId={PREVIEW_SKILL_ID}
+          sessionId={null}
+          sandboxOrigin={SANDBOX_ORIGIN}
+          artefact={sim ? simToArtefact(sim) : null}
+          checklist={defs.checklist}
+          table={defs.table}
+          chart={defs.chart}
+          calculator={defs.calculator}
+          note={defs.note}
+          writing={defs.writing}
+          solution={defs.solution}
+          document={defs.document}
+          conceptMap={defs.conceptMap}
+          materials={materials.map((m) => ({
+            // Preserve the full ref — dropping kind/materialId made image
+            // materials (1.1.44) render as (empty-docId) curriculum docs that
+            // 404 ("Couldn't load this document") instead of showing the image.
+            ...m,
+            studentVisible: m.studentVisible ?? false,
+          }))}
+          activityId={activityId ?? PREVIEW_SKILL_ID}
+          documentViewerRole="teacher"
+        />
+      </HumanToolEventsProvider>
     </LocaleProvider>
   );
 }
@@ -240,7 +270,9 @@ function PreviewModal({
               <X className="h-4 w-4" />
             </Dialog.Close>
           </div>
-          <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50">{children}</div>
+          <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50">
+            {children}
+          </div>
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
@@ -260,5 +292,7 @@ function simToArtefact(s: ArtefactSummary): ActivityArtefact {
     // existing to stop preview/live drift is the whole reason it is here.
     minViewportPx: s.minViewportPx,
     status: s.status,
+    // M6 — a teacher sim's page comes from the backend, not the sandbox.
+    source: s.source,
   };
 }

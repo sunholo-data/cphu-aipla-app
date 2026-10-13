@@ -47,6 +47,7 @@ def add_version(
     reasons: list[str],
     screenshots: dict[str, str],
     artefact_id: str | None,
+    hidden_terms: list[str] | None = None,
 ) -> int:
     """Record one checked submission; returns its version number (1-based)."""
     _check_id(draft_id)
@@ -80,6 +81,9 @@ def add_version(
             "level": level,
             "reasons": reasons[:10],
             "screenshots": screenshots,
+            # What the student must work out, as checked: publishing re-runs the
+            # leak gate on exactly this version with exactly these terms.
+            "hiddenTerms": list(hidden_terms or [])[:20],
             "createdAt": now,
         },
     )

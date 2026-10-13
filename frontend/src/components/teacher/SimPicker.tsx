@@ -87,6 +87,14 @@ export function SimPicker({ value, onChange }: SimPickerProps) {
               <span className="flex min-w-0 flex-col gap-0.5">
                 <span className="text-sm font-medium text-slate-800">{a.displayName}</span>
                 <span className="text-xs text-slate-500">{a.description}</span>
+                {a.source === "teacher" ? (
+                  <span
+                    data-testid={`sim-picker-teacher-${a.id}`}
+                    className="mt-0.5 inline-flex w-fit rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 text-[11px] font-medium text-slate-700"
+                  >
+                    {a.scope === "library" ? t("teacherLibrary") : t("teacherMine")}
+                  </span>
+                ) : null}
                 {/* MOBILE-1 — device requirement at the point of CHOOSING, not
                     at the point a class of thirty phones fails to open it. */}
                 {a.minViewportPx ? (

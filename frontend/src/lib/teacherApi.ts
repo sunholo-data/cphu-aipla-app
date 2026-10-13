@@ -164,6 +164,10 @@ export interface ArtefactSummary {
    *  built around a sim the class cannot open. */
   minViewportPx?: number | null;
   status: string;
+  /** in-app-sim-authoring M6 — "teacher": published from the Sim workshop, by
+   *  this teacher (scope "classes") or shared after review (scope "library"). */
+  source?: "builtin" | "teacher";
+  scope?: "classes" | "library";
 }
 
 /** Danish stx physics level — the primary curriculum browse axis (1.1.25). */

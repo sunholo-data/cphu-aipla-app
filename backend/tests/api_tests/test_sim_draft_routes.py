@@ -118,3 +118,21 @@ def test_unknown_file_names_and_bad_ids_are_404():
     c = _client(OWNER)
     assert c.get("/api/sim-drafts/sess-1/versions/1/files/secrets.txt").status_code == 404
     assert c.get("/api/sim-drafts/bad id!").status_code == 404
+
+
+def test_preview_has_the_real_bridge_stamped_and_cannot_render_on_the_app_origin():
+    sim_drafts.add_version(
+        draft_id="sess-1",
+        owner_uid="t-1",
+        index_html="<!doctype html><head>\n  <!-- @aipla-bridge:start -->\n<script>/* placeholder */</script>\n  <!-- @aipla-bridge:end -->\n</head>",
+        catalogue_yaml="id: demo\ndisplayName: Demo pendulum\n",
+        level=3,
+        reasons=[],
+        screenshots={},
+        artefact_id="demo",
+    )
+    r = _client(OWNER).get("/api/sim-drafts/sess-1/versions/2/preview")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("text/plain")
+    assert "sandbox" in r.headers["content-security-policy"] and "placeholder" not in r.text
+    assert "AIPLA_BRIDGE" in r.text
+    assert _client(OTHER).get("/api/sim-drafts/sess-1/versions/2/preview").status_code == 404

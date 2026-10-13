@@ -115,6 +115,32 @@ async def screenshot_route(
     )
 
 
+@router.get("/{draft_id}/versions/{version}/preview")
+async def preview_route(
+    draft_id: str = Path(...),
+    version: int = Path(..., ge=1),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> Response:
+    """A version's page with the real guest bridge stamped in, for the workshop's
+    live preview, so the try-out runs exactly as students will get it (a draft
+    stores only the bridge placeholder, and a sim that calls the bridge at start-up
+    throws without it). Text, never rendered on the app origin; the frame writes it
+    into the sandbox."""
+    uid = _owner(user)
+    doc = await asyncio.to_thread(_version_or_404, draft_id, version, uid)
+    html = doc.get("html") or ""
+    from sim_authoring.publish import NotPublishable, stamp_bridge
+    from sim_gates import load_bridge
+
+    bridge = load_bridge()
+    if bridge:
+        try:
+            html = stamp_bridge(html, bridge)
+        except NotPublishable:
+            pass  # no markers: preview the page as it is
+    return Response(html.encode("utf-8"), media_type="text/plain; charset=utf-8", headers={**_DOWNLOAD_HEADERS})
+
+
 @router.get("/{draft_id}/versions/{version}/files/{name}")
 async def download_route(
     draft_id: str = Path(...),

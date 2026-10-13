@@ -154,17 +154,24 @@ export const StaticArtefactFrame = forwardRef<
   loadHtmlRef.current = loadHtml;
 
   // Helper to push a JSON-RPC message to the proxy iframe.
-  const sendToProxy = useCallback((msg: JsonRpcMessage) => {
-    const target = iframeRef.current?.contentWindow;
-    if (!target) return;
-    target.postMessage(msg, sandboxOrigin.replace(/\/$/, ""));
-  }, [sandboxOrigin]);
-
-  useImperativeHandle(ref, () => ({
-    sendNotification: (method, params) => {
-      sendToProxy({ jsonrpc: "2.0", method, params });
+  const sendToProxy = useCallback(
+    (msg: JsonRpcMessage) => {
+      const target = iframeRef.current?.contentWindow;
+      if (!target) return;
+      target.postMessage(msg, sandboxOrigin.replace(/\/$/, ""));
     },
-  }), [sendToProxy]);
+    [sandboxOrigin],
+  );
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      sendNotification: (method, params) => {
+        sendToProxy({ jsonrpc: "2.0", method, params });
+      },
+    }),
+    [sendToProxy],
+  );
 
   useEffect(() => {
     const expectedOrigin = sandboxOrigin.replace(/\/$/, "");
@@ -175,6 +182,13 @@ export const StaticArtefactFrame = forwardRef<
       // origin before reading payload. Because the sandbox runs with
       // allow-same-origin, its events have a real origin (not "null").
       if (event.origin !== expectedOrigin) return;
+      // Every sandbox frame shares that origin, so the origin alone does not say
+      // WHICH frame spoke. With two frames on one page (the Sim workshop's preview
+      // beside a review frame; the activity builder beside its preview), one
+      // frame's proxy-ready made the other write its HTML a second time into a
+      // live document ("Identifier … has already been declared", 2026-10-13).
+      // Answer only our own iframe.
+      if (event.source !== iframeRef.current?.contentWindow) return;
       const data = event.data as JsonRpcMessage | null;
       if (!data || data.jsonrpc !== "2.0") return;
 
@@ -186,11 +200,17 @@ export const StaticArtefactFrame = forwardRef<
             if (loadHtmlRef.current) {
               html = await loadHtmlRef.current();
             } else {
-              const res = await fetch(`${expectedOrigin}/artefacts/${artefactPath}/index.html`);
+              const res = await fetch(
+                `${expectedOrigin}/artefacts/${artefactPath}/index.html`,
+              );
               if (!res.ok) {
                 if (process.env.NODE_ENV !== "production") {
                   // eslint-disable-next-line no-console
-                  console.warn("[static-artefact] fetch failed:", res.status, res.statusText);
+                  console.warn(
+                    "[static-artefact] fetch failed:",
+                    res.status,
+                    res.statusText,
+                  );
                 }
                 return;
               }
@@ -212,7 +232,11 @@ export const StaticArtefactFrame = forwardRef<
       }
 
       // --- Handshake: artefact sent ui/initialize, we respond with hostContext ---
-      if (data.method === INITIALIZE && data.id !== undefined && data.id !== null) {
+      if (
+        data.method === INITIALIZE &&
+        data.id !== undefined &&
+        data.id !== null
+      ) {
         const ctx = hostContextRef.current ?? {};
         const result: McpUiInitializeResult = {
           protocolVersion: PROTOCOL_VERSION,
@@ -231,7 +255,10 @@ export const StaticArtefactFrame = forwardRef<
 
       // --- Artefact has finished initialising; fire callback ---
       if (data.method === INITIALIZED) {
-        const clientInfo = (data.params?.clientInfo as { name: string; version: string }) ?? {
+        const clientInfo = (data.params?.clientInfo as {
+          name: string;
+          version: string;
+        }) ?? {
           name: "unknown",
           version: "0",
         };
@@ -242,14 +269,17 @@ export const StaticArtefactFrame = forwardRef<
       // --- The notification this whole pipeline exists for ---
       if (data.method === UPDATE_MODEL_CONTEXT) {
         const structuredContent = data.params?.structuredContent as
-          | Record<string, unknown>
-          | undefined;
+          Record<string, unknown> | undefined;
         if (structuredContent && typeof structuredContent === "object") {
           onUpdateRef.current(structuredContent);
         }
         if (process.env.NODE_ENV !== "production") {
           // eslint-disable-next-line no-console
-          console.log("[static-artefact]", UPDATE_MODEL_CONTEXT, structuredContent);
+          console.log(
+            "[static-artefact]",
+            UPDATE_MODEL_CONTEXT,
+            structuredContent,
+          );
         }
         return;
       }

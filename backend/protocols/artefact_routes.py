@@ -30,7 +30,7 @@ async def list_artefacts_route(
     Optional ``status`` filter (e.g. ``live``) so the builder picker can show
     only pilot-visible artefacts.
     """
-    items = load_artefacts()
+    items = load_artefacts(for_uid=user.uid)
     if status:
         items = [a for a in items if a.status == status]
     return {"artefacts": [a.public() for a in items]}

@@ -36,7 +36,11 @@ import {
   type SimDraftUsage,
   type SimDraftVersion,
 } from "@/lib/simDraftsApi";
+import { fetchMyFeatures } from "@/lib/teacherFeaturesApi";
+import { listMyTeacherSims, type TeacherSim } from "@/lib/teacherSimsApi";
 
+import { LibraryReview } from "./_LibraryReview";
+import { PublishPanel } from "./_PublishPanel";
 import { SimDraftPreview } from "./_SimDraftPreview";
 
 /** Where a teacher without the feature asks for it; the same inbox the help co-pilot's "report a bug" uses. */
@@ -96,9 +100,20 @@ function SimWorkshop() {
   const [selected, setSelected] = useState<string | null>(null);
   const [draft, setDraft] = useState<SimDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [mySims, setMySims] = useState<TeacherSim[]>([]);
+  const [researcher, setResearcher] = useState(false);
+
+  useEffect(() => {
+    fetchMyFeatures()
+      .then((f) => setResearcher(!!f.researcher))
+      .catch(() => setResearcher(false));
+  }, []);
 
   const load = useCallback(async () => {
     try {
+      listMyTeacherSims()
+        .then(setMySims)
+        .catch(() => {});
       const list = await listSimDrafts();
       setDrafts(list);
       setError(null);
@@ -119,6 +134,13 @@ function SimWorkshop() {
   }, [load]);
 
   const latest = draft?.versions[draft.versions.length - 1] ?? null;
+  // A draft's published sim (live first, else its last withdrawn one).
+  const publishedFor = (draftId: string): TeacherSim | null =>
+    mySims.find((s) => s.draftId === draftId && s.status === "live") ??
+    mySims.find((s) => s.draftId === draftId) ??
+    null;
+  const onPublished = (sim: TeacherSim) =>
+    setMySims((prev) => [sim, ...prev.filter((s) => s.id !== sim.id)]);
 
   return (
     <TeacherPage
@@ -206,6 +228,12 @@ function SimWorkshop() {
                 </h2>
                 <SimDraftPreview draftId={draft.id} version={latest.version} />
               </section>
+              <PublishPanel
+                draftId={draft.id}
+                latest={latest}
+                published={publishedFor(draft.id)}
+                onChange={onPublished}
+              />
               <VersionPanel draftId={draft.id} version={latest} />
             </>
           ) : (
@@ -233,6 +261,7 @@ function SimWorkshop() {
               </div>
             </details>
           ) : null}
+          {researcher ? <LibraryReview /> : null}
         </section>
 
         <div className="xl:sticky xl:top-4 xl:self-start">

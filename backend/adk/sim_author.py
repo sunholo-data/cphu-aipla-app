@@ -156,6 +156,7 @@ async def _check_and_store(
             reasons=verdict.reasons,
             screenshots={k: v for k, v in shots.items() if k in (*MODEL_SHOTS, "390")},
             artefact_id=artefact_id,
+            hidden_terms=_clean_terms(hidden_terms),
         )
     except Exception as exc:  # storage failing must not hide the verdict from the model
         logger.warning("sim draft not stored: %s", type(exc).__name__)

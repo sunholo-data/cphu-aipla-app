@@ -25,7 +25,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from opentelemetry import trace
 from pydantic import BaseModel, ConfigDict, Field
 
-from artefacts.loader import is_known_artefact
+from artefacts.loader import can_attach, is_known_artefact
 from auth import User, get_current_user
 from auth import assert_teacher as _assert_teacher
 from auth.owner_labels import resolve_owner_labels
@@ -117,9 +117,15 @@ class ActivityUpsert(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="forbid")
 
 
-def _assert_known_artefact(artefact_id: str | None) -> None:
-    if artefact_id and not is_known_artefact(artefact_id):
+def _assert_known_artefact(artefact_id: str | None, user: User) -> None:
+    """Reject an artefact the caller may not attach: unknown, or another
+    teacher's class-level sim (in-app-sim-authoring M6)."""
+    if not artefact_id:
+        return
+    if not is_known_artefact(artefact_id):
         raise HTTPException(status_code=400, detail=f"unknown artefact: {artefact_id}")
+    if not can_attach(artefact_id, user.uid, is_researcher=bool(getattr(user, "is_researcher", False))):
+        raise HTTPException(status_code=403, detail=f"artefact not available to you: {artefact_id}")
 
 
 def _load_for_modify(activity_id: str, user: User) -> Activity:
@@ -235,7 +241,7 @@ async def post_activity(
     set — that field means *adapted from*, and this is *authored for*.
     """
     _assert_teacher(user)
-    _assert_known_artefact(body.artefact_id)
+    _assert_known_artefact(body.artefact_id, user)
     owner_uid = user.uid
     cls = None
     if body.class_id:
@@ -417,7 +423,7 @@ async def patch_activity(
     """
     _assert_teacher(user)
     existing = _load_for_modify(activity_id, user)
-    _assert_known_artefact(body.artefact_id)
+    _assert_known_artefact(body.artefact_id, user)
     preserved_visibility: Visibility = "private" if existing.visibility == "draft" else existing.visibility
     updated = _activity_from_body(body, owner_uid=existing.owner_uid, activity_id=activity_id).model_copy(
         update={

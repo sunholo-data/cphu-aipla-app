@@ -6,8 +6,13 @@ import { useHumanToolEvents } from "@/hooks/useHumanToolEvents";
 import { useSimSnapshotPush } from "@/hooks/useSimSnapshotPush";
 import { DEFAULT_LOCALE, useLocaleMode } from "@/i18n";
 import { subscribeSimCommands, type SimCommand } from "@/lib/simCommandBus";
+import { loadTeacherSimPage, teacherSimPageUrl } from "@/lib/teacherSimPage";
 
-import { StaticArtefactFrame, type McpAppHostContext, type StaticArtefactFrameHandle } from "./StaticArtefactFrame";
+import {
+  StaticArtefactFrame,
+  type McpAppHostContext,
+  type StaticArtefactFrameHandle,
+} from "./StaticArtefactFrame";
 
 // Host → artefact signal sent right before a student chat message goes out, so
 // an artefact that buffers continuous input (e.g. Boldkast's commit-on-submit
@@ -17,7 +22,8 @@ import { StaticArtefactFrame, type McpAppHostContext, type StaticArtefactFrameHa
 const CHAT_FLUSH_NOTIFICATION = "ui/notifications/chat-flush";
 
 // MCP Apps spec: host → view, a PARTIAL HostContext the view merges.
-const HOST_CONTEXT_CHANGED_NOTIFICATION = "ui/notifications/host-context-changed";
+const HOST_CONTEXT_CHANGED_NOTIFICATION =
+  "ui/notifications/host-context-changed";
 
 // Upper bound the chat page waits for a flush to commit before sending the
 // message anyway. A buffering artefact emits its pending state-change within a
@@ -40,6 +46,9 @@ export interface ActivityArtefact {
    *  catalogue (`backend/artefacts/*.yaml`), never per activity. */
   minViewportPx?: number | null;
   status?: string;
+  /** "teacher": published from the Sim workshop; its page comes from the backend
+   *  (with a no-network CSP), not the sandbox's /artefacts/ route. */
+  source?: "builtin" | "teacher";
 }
 
 interface GenericArtefactFrameProps {
@@ -63,7 +72,8 @@ interface GenericArtefactFrameProps {
 // pushing to the tutor. Matched by suffix so it works for ANY artefact's
 // vocabulary (boldkast.pause / led-planck.reset / …).
 const NOISE_SUFFIXES = [".pause", ".reset", "-error", ".sync"];
-const isNoise = (kind: string): boolean => NOISE_SUFFIXES.some((s) => kind.endsWith(s));
+const isNoise = (kind: string): boolean =>
+  NOISE_SUFFIXES.some((s) => kind.endsWith(s));
 
 // The human-readable label for the in-chat trust card ("Afspillede med
 // v₀=15 m/s, θ=40°"): the student's visible confirmation that THIS action
@@ -124,7 +134,9 @@ export function GenericArtefactFrame({
   useEffect(() => {
     if (sentLocaleRef.current === hostContext.locale) return;
     sentLocaleRef.current = hostContext.locale;
-    frameRef.current?.sendNotification(HOST_CONTEXT_CHANGED_NOTIFICATION, { locale: hostContext.locale });
+    frameRef.current?.sendNotification(HOST_CONTEXT_CHANGED_NOTIFICATION, {
+      locale: hostContext.locale,
+    });
   }, [hostContext.locale]);
   // 1.1.133 M1 — tutor → sim. A `control_sim` call published by the chat card
   // arrives here and goes to the sim as the host notification
@@ -135,7 +147,11 @@ export function GenericArtefactFrame({
   const simReadyRef = useRef(false);
   const heldCommandsRef = useRef<SimCommand[]>([]);
   useEffect(() => {
-    const send = (c: SimCommand) => frameRef.current?.sendNotification(`${artefact.id}.cmd-${c.command}`, c.args);
+    const send = (c: SimCommand) =>
+      frameRef.current?.sendNotification(
+        `${artefact.id}.cmd-${c.command}`,
+        c.args,
+      );
     return subscribeSimCommands(artefact.id, (c) => {
       if (simReadyRef.current) send(c);
       else heldCommandsRef.current.push(c);
@@ -145,16 +161,26 @@ export function GenericArtefactFrame({
     simReadyRef.current = true;
     const held = heldCommandsRef.current;
     heldCommandsRef.current = [];
-    held.forEach((c) => frameRef.current?.sendNotification(`${artefact.id}.cmd-${c.command}`, c.args));
+    held.forEach((c) =>
+      frameRef.current?.sendNotification(
+        `${artefact.id}.cmd-${c.command}`,
+        c.args,
+      ),
+    );
   };
-  const pushSnapshot = useSimSnapshotPush<Record<string, unknown>>(sessionId ?? null, artefact.id);
+  const pushSnapshot = useSimSnapshotPush<Record<string, unknown>>(
+    sessionId ?? null,
+    artefact.id,
+  );
   // Trust-card dispatcher. No-op fallback when rendered outside a
   // HumanToolEventsProvider (the builder preview), so this stays safe there.
   const humanToolEvents = useHumanToolEvents();
   // Set while a flush is awaiting its resulting push. `handleStructuredContent`
   // settles it with the push promise so the chat page's `await flush()` resolves
   // only once the flushed state has actually committed to the backend.
-  const flushAwaitRef = useRef<((push: Promise<Response> | null) => void) | null>(null);
+  const flushAwaitRef = useRef<
+    ((push: Promise<Response> | null) => void) | null
+  >(null);
 
   // Hand the chat page an awaitable "flush before send" hook. The returned
   // promise resolves once the artefact's flushed state-change has committed
@@ -221,11 +247,23 @@ export function GenericArtefactFrame({
   };
 
   return (
-    <div className="flex min-h-0 flex-col bg-background" aria-label={artefact.displayName}>
+    <div
+      className="flex min-h-0 flex-col bg-background"
+      aria-label={artefact.displayName}
+    >
       <StaticArtefactFrame
         ref={frameRef}
         sandboxOrigin={sandboxOrigin}
         artefactPath={artefact.artefactPath}
+        loadHtml={
+          // By source, and by the path itself: a caller that rebuilds the entry
+          // and drops `source` (the builder preview did, 2026-10-13) must still
+          // not send a teacher sim to the sandbox's /artefacts/ route.
+          artefact.source === "teacher" ||
+          teacherSimPageUrl(artefact.artefactPath)
+            ? () => loadTeacherSimPage(artefact.artefactPath)
+            : undefined
+        }
         hostContext={hostContext}
         onUpdateModelContext={handleStructuredContent}
         onInitialized={handleInitialized}

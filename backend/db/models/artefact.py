@@ -174,6 +174,13 @@ class ArtefactMeta(BaseModel):
     # 1.1.133 M3 — the construct map's vocabulary, for ``record_assessment``.
     # Server-side only, like tutor_block: excluded from ``public()``.
     assessment: ArtefactAssessment | None = None
+    # in-app-sim-authoring M6 — where the entry comes from. Set by the loader,
+    # never read from a YAML: "builtin" is a reviewed file in this repo; "teacher"
+    # was published from the Sim workshop (db/teacher_sims.py) and its page is
+    # served by the backend, not the sandbox's /artefacts/ route.
+    source: Literal["builtin", "teacher"] = "builtin"
+    owner_uid: str | None = Field(default=None, alias="ownerUid")
+    scope: Literal["classes", "library"] | None = None
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -191,6 +198,8 @@ class ArtefactMeta(BaseModel):
     @property
     def artefact_path(self) -> str:
         """The sandbox path the frontend ``StaticArtefactFrame`` mounts (e.g. ``boldkast/v1``)."""
+        if self.source == "teacher":
+            return f"teacher-sims/{self.id}/{self.version}"
         return f"{self.id}/{self.version}"
 
     def public(self) -> dict:
@@ -209,6 +218,8 @@ class ArtefactMeta(BaseModel):
             "minViewportPx": self.min_viewport_px,
             "status": self.status,
             "commands": [c.public() for c in self.commands],
+            "source": self.source,
+            **({"scope": self.scope} if self.source == "teacher" else {}),
         }
 
 

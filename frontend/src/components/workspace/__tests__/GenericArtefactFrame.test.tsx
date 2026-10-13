@@ -2,10 +2,15 @@ import { act, render, waitFor } from "@testing-library/react";
 import { useEffect } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ProactiveSimProvider, useSetProactiveSimWiring } from "@/contexts/ProactiveSimContext";
+import {
+  ProactiveSimProvider,
+  useSetProactiveSimWiring,
+} from "@/contexts/ProactiveSimContext";
 
 vi.mock("@/lib/apiClient", () => ({
-  fetchWithAuth: vi.fn(() => Promise.resolve(new Response(null, { status: 204 }))),
+  fetchWithAuth: vi.fn(() =>
+    Promise.resolve(new Response(null, { status: 204 })),
+  ),
 }));
 import { fetchWithAuth } from "@/lib/apiClient";
 
@@ -22,7 +27,9 @@ vi.mock("../StaticArtefactFrame", async () => {
   return {
     StaticArtefactFrame: forwardRef((props: Record<string, unknown>, ref) => {
       frameSpy(props);
-      useImperativeHandle(ref, () => ({ sendNotification: sendNotificationSpy }));
+      useImperativeHandle(ref, () => ({
+        sendNotification: sendNotificationSpy,
+      }));
       return <div data-testid="static-frame" />;
     }),
   };
@@ -33,13 +40,25 @@ vi.mock("@/hooks/useHumanToolEvents", () => ({
 }));
 
 import { LocaleProvider } from "@/i18n";
-import { __resetSimCommandBusForTests, dispatchSimCommand } from "@/lib/simCommandBus";
-import { GenericArtefactFrame, type ActivityArtefact } from "../GenericArtefactFrame";
+import {
+  __resetSimCommandBusForTests,
+  dispatchSimCommand,
+} from "@/lib/simCommandBus";
+import {
+  GenericArtefactFrame,
+  type ActivityArtefact,
+} from "../GenericArtefactFrame";
 
-const ARTEFACT: ActivityArtefact = { id: "boldkast", displayName: "Boldkast", artefactPath: "boldkast/v1" };
+const ARTEFACT: ActivityArtefact = {
+  id: "boldkast",
+  displayName: "Boldkast",
+  artefactPath: "boldkast/v1",
+};
 
 function onUpdate(): (sc: Record<string, unknown>) => void {
-  return frameSpy.mock.calls[0][0].onUpdateModelContext as (sc: Record<string, unknown>) => void;
+  return frameSpy.mock.calls[0][0].onUpdateModelContext as (
+    sc: Record<string, unknown>,
+  ) => void;
 }
 
 describe("GenericArtefactFrame", () => {
@@ -51,37 +70,106 @@ describe("GenericArtefactFrame", () => {
   });
 
   it("mounts the artefact by its catalogue path", () => {
-    render(<GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={ARTEFACT} sessionId="s1" />);
-    expect(frameSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ artefactPath: "boldkast/v1", title: "Boldkast" }),
+    render(
+      <GenericArtefactFrame
+        sandboxOrigin="https://sandbox"
+        artefact={ARTEFACT}
+        sessionId="s1"
+      />,
     );
+    expect(frameSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        artefactPath: "boldkast/v1",
+        title: "Boldkast",
+      }),
+    );
+  });
+
+  it("loads a teacher sim's page from the backend, locked down, even when `source` was dropped", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValue(
+      new Response("<!doctype html><head></head><p>x</p>"),
+    );
+    render(
+      <GenericArtefactFrame
+        sandboxOrigin="https://sandbox"
+        artefact={ARTEFACT}
+        sessionId="s1"
+      />,
+    );
+    expect(frameSpy.mock.calls.at(-1)?.[0].loadHtml).toBeUndefined(); // a built-in: the sandbox serves it
+    frameSpy.mockClear();
+    const teacherSim = {
+      id: "pendul",
+      displayName: "Pendul",
+      artefactPath: "teacher-sims/pendul/v2",
+    };
+    render(
+      <GenericArtefactFrame
+        sandboxOrigin="https://sandbox"
+        artefact={teacherSim}
+        sessionId="s1"
+      />,
+    );
+    const load = frameSpy.mock.calls.at(-1)?.[0]
+      .loadHtml as () => Promise<string>;
+    const html = await load();
+    expect(fetchWithAuth).toHaveBeenCalledWith(
+      "/api/proxy/api/teacher-sims/pendul/v2/index.html",
+    );
+    expect(html).toContain("connect-src 'none'");
   });
 
   it("hands the sim the activity's locale in its host context (1.1.108 rule 5)", () => {
     render(
       <LocaleProvider locale="en">
-        <GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={ARTEFACT} sessionId="s1" />
+        <GenericArtefactFrame
+          sandboxOrigin="https://sandbox"
+          artefact={ARTEFACT}
+          sessionId="s1"
+        />
       </LocaleProvider>,
     );
     expect(frameSpy).toHaveBeenCalledWith(
-      expect.objectContaining({ hostContext: expect.objectContaining({ locale: "en" }) }),
+      expect.objectContaining({
+        hostContext: expect.objectContaining({ locale: "en" }),
+      }),
     );
   });
 
   it("defaults the sim to Danish with no provider and when the surface is bilingual", () => {
-    render(<GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={ARTEFACT} sessionId="s1" />);
-    expect(frameSpy.mock.calls.at(-1)?.[0].hostContext).toMatchObject({ locale: "da" });
+    render(
+      <GenericArtefactFrame
+        sandboxOrigin="https://sandbox"
+        artefact={ARTEFACT}
+        sessionId="s1"
+      />,
+    );
+    expect(frameSpy.mock.calls.at(-1)?.[0].hostContext).toMatchObject({
+      locale: "da",
+    });
     frameSpy.mockClear();
     render(
       <LocaleProvider locale="bilingual">
-        <GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={ARTEFACT} sessionId="s1" />
+        <GenericArtefactFrame
+          sandboxOrigin="https://sandbox"
+          artefact={ARTEFACT}
+          sessionId="s1"
+        />
       </LocaleProvider>,
     );
-    expect(frameSpy.mock.calls.at(-1)?.[0].hostContext).toMatchObject({ locale: "da" });
+    expect(frameSpy.mock.calls.at(-1)?.[0].hostContext).toMatchObject({
+      locale: "da",
+    });
   });
 
   it("pushes a non-noise event to the tutor with the FULL structured content", () => {
-    render(<GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={ARTEFACT} sessionId="s1" />);
+    render(
+      <GenericArtefactFrame
+        sandboxOrigin="https://sandbox"
+        artefact={ARTEFACT}
+        sessionId="s1"
+      />,
+    );
     onUpdate()({ kind: "boldkast.state-change", state: { theta: 45 } });
     expect(fetchWithAuth).toHaveBeenCalledTimes(1);
     const [url, opts] = vi.mocked(fetchWithAuth).mock.calls[0];
@@ -93,7 +181,13 @@ describe("GenericArtefactFrame", () => {
   });
 
   it("drops noise events (pause / reset)", () => {
-    render(<GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={ARTEFACT} sessionId="s1" />);
+    render(
+      <GenericArtefactFrame
+        sandboxOrigin="https://sandbox"
+        artefact={ARTEFACT}
+        sessionId="s1"
+      />,
+    );
     onUpdate()({ kind: "boldkast.pause" });
     onUpdate()({ kind: "led-planck.reset" });
     expect(fetchWithAuth).not.toHaveBeenCalled();
@@ -103,7 +197,13 @@ describe("GenericArtefactFrame", () => {
   it("dispatches the in-chat trust card with the artefact's own label", () => {
     // The regression USR-1 reintroduced: the bespoke frames rendered a card
     // showing what reached the tutor; the generic mount must do the same.
-    render(<GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={ARTEFACT} sessionId="s1" />);
+    render(
+      <GenericArtefactFrame
+        sandboxOrigin="https://sandbox"
+        artefact={ARTEFACT}
+        sessionId="s1"
+      />,
+    );
     onUpdate()({
       kind: "boldkast.state-change",
       state: { v0: 15, theta: 40 },
@@ -114,26 +214,46 @@ describe("GenericArtefactFrame", () => {
     expect(arg.label).toBe("Afspillede med v₀=15 m/s, θ=40°");
     expect(typeof arg.push).toBe("function");
     // The label is also persisted on the push so the transcript re-renders it.
-    const body = JSON.parse((vi.mocked(fetchWithAuth).mock.calls[0][1] as RequestInit).body as string);
+    const body = JSON.parse(
+      (vi.mocked(fetchWithAuth).mock.calls[0][1] as RequestInit).body as string,
+    );
     expect(body.label).toBe("Afspillede med v₀=15 m/s, θ=40°");
   });
 
   it("falls back to a generic key=value label when the artefact emits none", () => {
-    render(<GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={ARTEFACT} sessionId="s1" />);
+    render(
+      <GenericArtefactFrame
+        sandboxOrigin="https://sandbox"
+        artefact={ARTEFACT}
+        sessionId="s1"
+      />,
+    );
     onUpdate()({ kind: "boldkast.state-change", state: { v0: 15, theta: 40 } });
     expect(dispatchSpy).toHaveBeenCalledTimes(1);
     expect(dispatchSpy.mock.calls[0][0].label).toBe("v0=15, theta=40");
   });
 
   it("pushes but renders NO card when there's nothing to show (no label, no state)", () => {
-    render(<GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={ARTEFACT} sessionId="s1" />);
+    render(
+      <GenericArtefactFrame
+        sandboxOrigin="https://sandbox"
+        artefact={ARTEFACT}
+        sessionId="s1"
+      />,
+    );
     onUpdate()({ kind: "boldkast.open" });
     expect(fetchWithAuth).toHaveBeenCalledTimes(1); // still informs the tutor
     expect(dispatchSpy).not.toHaveBeenCalled(); // but no trust card
   });
 
   it("does not push before a session exists", () => {
-    render(<GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={ARTEFACT} sessionId={null} />);
+    render(
+      <GenericArtefactFrame
+        sandboxOrigin="https://sandbox"
+        artefact={ARTEFACT}
+        sessionId={null}
+      />,
+    );
     onUpdate()({ kind: "boldkast.state-change", state: {} });
     expect(fetchWithAuth).not.toHaveBeenCalled();
   });
@@ -155,7 +275,10 @@ describe("GenericArtefactFrame", () => {
     );
     expect(flush).toBeTypeOf("function");
     void flush!();
-    expect(sendNotificationSpy).toHaveBeenCalledWith("ui/notifications/chat-flush", {});
+    expect(sendNotificationSpy).toHaveBeenCalledWith(
+      "ui/notifications/chat-flush",
+      {},
+    );
   });
 
   it("flush resolves once the post-flush push commits (closes the send race)", async () => {
@@ -172,7 +295,11 @@ describe("GenericArtefactFrame", () => {
     );
     const settled = flush!(); // sends chat-flush, awaits the resulting push
     // The artefact responds by emitting its flushed state-change.
-    onUpdate()({ kind: "boldkast.state-change", state: { v0: 15 }, label: "Sendte" });
+    onUpdate()({
+      kind: "boldkast.state-change",
+      state: { v0: 15 },
+      label: "Sendte",
+    });
     await settled; // resolves only after the (mocked 204) push settles
     expect(fetchWithAuth).toHaveBeenCalledTimes(1);
   });
@@ -213,16 +340,27 @@ describe("GenericArtefactFrame", () => {
     // remount, which would reset the sim's state.
     const { rerender } = render(
       <LocaleProvider locale="da">
-        <GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={ARTEFACT} sessionId="s1" />
+        <GenericArtefactFrame
+          sandboxOrigin="https://sandbox"
+          artefact={ARTEFACT}
+          sessionId="s1"
+        />
       </LocaleProvider>,
     );
     expect(sendNotificationSpy).not.toHaveBeenCalled(); // nothing to say on mount
     rerender(
       <LocaleProvider locale="en">
-        <GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={ARTEFACT} sessionId="s1" />
+        <GenericArtefactFrame
+          sandboxOrigin="https://sandbox"
+          artefact={ARTEFACT}
+          sessionId="s1"
+        />
       </LocaleProvider>,
     );
-    expect(sendNotificationSpy).toHaveBeenCalledWith("ui/notifications/host-context-changed", { locale: "en" });
+    expect(sendNotificationSpy).toHaveBeenCalledWith(
+      "ui/notifications/host-context-changed",
+      { locale: "en" },
+    );
   });
 
   it("a finished mission (`<id>.complete`) asks the gate for a completion turn and fires it (1.1.140 M0)", async () => {
@@ -230,22 +368,35 @@ describe("GenericArtefactFrame", () => {
     vi.mocked(fetchWithAuth).mockImplementation((url) =>
       Promise.resolve(
         String(url).includes("/proactive-event-check")
-          ? new Response(JSON.stringify({ shouldFire: true, trigger: "[event_reactive:completion]" }), {
-              status: 200,
-              headers: { "Content-Type": "application/json" },
-            })
+          ? new Response(
+              JSON.stringify({
+                shouldFire: true,
+                trigger: "[event_reactive:completion]",
+              }),
+              {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+              },
+            )
           : new Response(null, { status: 204 }),
       ),
     );
     function Wire() {
       const set = useSetProactiveSimWiring();
-      useEffect(() => set({ skillId: "skill-sol", onProactiveTrigger: onTrigger }), [set]);
+      useEffect(
+        () => set({ skillId: "skill-sol", onProactiveTrigger: onTrigger }),
+        [set],
+      );
       return null;
     }
     render(
       <ProactiveSimProvider>
         <Wire />
-        <GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={ARTEFACT} sessionId="s1" />
+        <GenericArtefactFrame
+          sandboxOrigin="https://sandbox"
+          artefact={ARTEFACT}
+          sessionId="s1"
+        />
       </ProactiveSimProvider>,
     );
     onUpdate()({
@@ -253,25 +404,41 @@ describe("GenericArtefactFrame", () => {
       label: "Fuldførte mission 3: 4 af 5 rigtige",
       state: { mission: 3, score: 4, of: 5, tier: 2, maxTier: 3 },
     });
-    await waitFor(() => expect(onTrigger).toHaveBeenCalledWith("[event_reactive:completion]"));
+    await waitFor(() =>
+      expect(onTrigger).toHaveBeenCalledWith("[event_reactive:completion]"),
+    );
     const check = vi
       .mocked(fetchWithAuth)
       .mock.calls.find(([u]) => String(u).includes("/proactive-event-check"));
     expect(check).toBeDefined();
-    expect(JSON.parse((check![1] as RequestInit).body as string)).toMatchObject({
-      skillId: "skill-sol",
-      eventKind: "completion",
-    });
-    vi.mocked(fetchWithAuth).mockImplementation(() => Promise.resolve(new Response(null, { status: 204 })));
+    expect(JSON.parse((check![1] as RequestInit).body as string)).toMatchObject(
+      {
+        skillId: "skill-sol",
+        eventKind: "completion",
+      },
+    );
+    vi.mocked(fetchWithAuth).mockImplementation(() =>
+      Promise.resolve(new Response(null, { status: 204 })),
+    );
   });
 });
 
 // 1.1.133 M1 — tutor → sim. The chat card publishes a `control_sim` call on the
 // bus; the frame sends it to the sim as `<id>.cmd-<command>` over the bridge.
 describe("GenericArtefactFrame — tutor commands", () => {
-  const SOL: ActivityArtefact = { id: "sol-jord-maane", displayName: "Sol, Jord og Måne", artefactPath: "sol-jord-maane/v1" };
-  const initialized = () => act(() => (frameSpy.mock.calls.at(-1)![0].onInitialized as () => void)());
-  const jump = { toolCallId: "tc-1", artefactId: "sol-jord-maane", command: "jump", args: { event: "solform" } };
+  const SOL: ActivityArtefact = {
+    id: "sol-jord-maane",
+    displayName: "Sol, Jord og Måne",
+    artefactPath: "sol-jord-maane/v1",
+  };
+  const initialized = () =>
+    act(() => (frameSpy.mock.calls.at(-1)![0].onInitialized as () => void)());
+  const jump = {
+    toolCallId: "tc-1",
+    artefactId: "sol-jord-maane",
+    command: "jump",
+    args: { event: "solform" },
+  };
 
   beforeEach(() => {
     __resetSimCommandBusForTests();
@@ -280,30 +447,66 @@ describe("GenericArtefactFrame — tutor commands", () => {
   });
 
   it("delivers a command as the sim's host notification once the sim is initialised", () => {
-    render(<GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={SOL} sessionId="s1" />);
+    render(
+      <GenericArtefactFrame
+        sandboxOrigin="https://sandbox"
+        artefact={SOL}
+        sessionId="s1"
+      />,
+    );
     initialized();
     act(() => void dispatchSimCommand(jump));
-    expect(sendNotificationSpy).toHaveBeenCalledWith("sol-jord-maane.cmd-jump", { event: "solform" });
+    expect(sendNotificationSpy).toHaveBeenCalledWith(
+      "sol-jord-maane.cmd-jump",
+      { event: "solform" },
+    );
   });
 
   it("holds a command that arrives before the handshake, then sends it", () => {
-    render(<GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={SOL} sessionId="s1" />);
+    render(
+      <GenericArtefactFrame
+        sandboxOrigin="https://sandbox"
+        artefact={SOL}
+        sessionId="s1"
+      />,
+    );
     act(() => void dispatchSimCommand(jump));
-    expect(sendNotificationSpy).not.toHaveBeenCalledWith("sol-jord-maane.cmd-jump", expect.anything());
+    expect(sendNotificationSpy).not.toHaveBeenCalledWith(
+      "sol-jord-maane.cmd-jump",
+      expect.anything(),
+    );
     initialized();
-    expect(sendNotificationSpy).toHaveBeenCalledWith("sol-jord-maane.cmd-jump", { event: "solform" });
+    expect(sendNotificationSpy).toHaveBeenCalledWith(
+      "sol-jord-maane.cmd-jump",
+      { event: "solform" },
+    );
   });
 
   it("delivers a command issued while the sim was closed when it opens", () => {
     act(() => void dispatchSimCommand(jump));
-    render(<GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={SOL} sessionId="s1" />);
+    render(
+      <GenericArtefactFrame
+        sandboxOrigin="https://sandbox"
+        artefact={SOL}
+        sessionId="s1"
+      />,
+    );
     initialized();
     expect(sendNotificationSpy).toHaveBeenCalledTimes(1);
-    expect(sendNotificationSpy).toHaveBeenCalledWith("sol-jord-maane.cmd-jump", { event: "solform" });
+    expect(sendNotificationSpy).toHaveBeenCalledWith(
+      "sol-jord-maane.cmd-jump",
+      { event: "solform" },
+    );
   });
 
   it("ignores a command for a different sim", () => {
-    render(<GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={ARTEFACT} sessionId="s1" />);
+    render(
+      <GenericArtefactFrame
+        sandboxOrigin="https://sandbox"
+        artefact={ARTEFACT}
+        sessionId="s1"
+      />,
+    );
     initialized();
     act(() => void dispatchSimCommand(jump));
     expect(sendNotificationSpy).not.toHaveBeenCalled();

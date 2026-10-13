@@ -405,18 +405,18 @@ def set_artefact(
         artefact_id: a catalogued sim id (e.g. ``boldkast``).
         activity_id: the activity being authored (the teacher owns it).
     """
-    from artefacts.loader import load_artefact, load_artefacts
+    from artefacts.loader import can_attach, load_artefact, load_artefacts
 
     uid = _caller_uid(tool_context)
     if not uid:
         return dict(_DENY)
 
     meta = load_artefact(artefact_id) if artefact_id else None
-    if meta is None:
+    if meta is None or not can_attach(meta.id, uid):
         return {
             "ok": False,
             "error": f"unknown sim {artefact_id!r}",
-            "available": [{"id": a.id, "label": _artefact_label(a)} for a in load_artefacts()],
+            "available": [{"id": a.id, "label": _artefact_label(a)} for a in load_artefacts(for_uid=uid)],
         }
 
     if not _can_author(activity_id, uid):

@@ -35,6 +35,19 @@ MAX_INPUT_BYTES = 256 * 1024
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
+# Copies of infrastructure/ files for the deployed backend image, which is built
+# from backend/ alone (`make sim-prompt` writes them; `make check-sim-prompt` is the CI gate).
+BACKEND_COPIES = Path(__file__).resolve().parents[1] / "sim_authoring" / "references"
+
+
+def load_bridge() -> str | None:
+    """The canonical guest bridge: the repo copy, else the backend image's copy."""
+    found = conformance.load_canonical_bridge(REPO_ROOT)
+    if found is None and (BACKEND_COPIES / "aipla-mcp-bridge.js").is_file():
+        found = (BACKEND_COPIES / "aipla-mcp-bridge.js").read_text()
+    return found
+
+
 def run(
     index_html: str,
     *,
@@ -67,8 +80,10 @@ def run(
     app = strip_bridge(index_html)
     if vendor_manifest is None:
         vendor_manifest = REPO_ROOT / "infrastructure" / "mcp-sandbox" / "vendor.json"
+        if not vendor_manifest.is_file():  # the deployed backend image carries a copy
+            vendor_manifest = BACKEND_COPIES / "vendor.json"
     if canonical_bridge is None:
-        canonical_bridge = conformance.load_canonical_bridge(REPO_ROOT)
+        canonical_bridge = load_bridge()
 
     report = VerifyReport()
     for tier, fn in (

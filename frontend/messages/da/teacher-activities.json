@@ -85,7 +85,9 @@
     "none": "Der er endnu ingen simulationer i dette miljø.",
     "tablet": "Tablet eller computer",
     "cramped": "Trangt på en telefon",
-    "help": "Brug en gennemgået simulation i denne aktivitet — dit undervisningsmål, din tjekliste og dine instruktioner rammer den ind. Den samme simulation kan bruges i mange aktiviteter med forskellige mål."
+    "help": "Brug en gennemgået simulation i denne aktivitet — dit undervisningsmål, din tjekliste og dine instruktioner rammer den ind. Den samme simulation kan bruges i mange aktiviteter med forskellige mål.",
+    "teacherMine": "Din simulering · til dine klasser",
+    "teacherLibrary": "Lavet af en lærer · gennemgået"
   },
   "TableEditor": {
     "fallbackLabel": "Tabel {n}",
