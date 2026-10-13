@@ -60,6 +60,16 @@ substitutions:
   # iframe shell; static artefacts are reached separately at
   # ${origin}/artefacts/<name>/v<version>/index.html.
   _MCP_SANDBOX_URL: 'https://aipla-v01-sandbox-wgwhd7mspa-lz.a.run.app/sandbox.html'
+  # in-app-sim-authoring M3/M4: the private sim-verify service the sim-author
+  # skill calls to run a draft in Chromium. EMPTY by default, deliberately: only
+  # dev runs the service so far, and an empty value makes the skill stop at
+  # level 1 and say "no browser check configured" rather than call a service it
+  # cannot reach. Dev sets it on its trigger; test/prod need the service first.
+  _SIM_VERIFY_URL: ''
+  # The teacher Sim workshop page (/teacher/sims). Baked at build time
+  # (NEXT_PUBLIC_*). EMPTY by default: '1' on the dev trigger only, until the
+  # sim-verify service and the publication path exist on test/prod.
+  _SIM_WORKSHOP: ''
   # COPILOT-1/2 — show the activity-authoring co-pilot in the teacher builder.
   # '1' for dev ("for dev we always want to see what we built"); test/prod
   # override to '' until AR/JB's teaching framework lands. Baked at build time
@@ -180,6 +190,7 @@ steps:
           --build-arg NEXT_PUBLIC_AUTHORING_COPILOT=${_AUTHORING_COPILOT} \
           --build-arg NEXT_PUBLIC_CONCEPT_MAP=${_CONCEPT_MAP} \
           --build-arg NEXT_PUBLIC_AIPLA_HELP=${_AIPLA_HELP} \
+          --build-arg NEXT_PUBLIC_SIM_WORKSHOP=${_SIM_WORKSHOP} \
           -t ${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/ui:${_IMAGE_TAG} \
           -f frontend/Dockerfile \
           frontend/
@@ -390,6 +401,7 @@ steps:
       # default "aitana-platform" — see backend/skills/platform.py.
       - '--set-env-vars=PLATFORM_OWNER_UID=aipla-platform'
       - '--set-env-vars=PLATFORM_OWNER_EMAIL=platform@aipla.dev'
+      - '--set-env-vars=SIM_VERIFY_URL=${_SIM_VERIFY_URL}'
       # Sprint VOICE-PROVIDER (1.1.11) — Cloud TTS WaveNet for Danish
       # read-aloud, content-hash cache to gs://${_PROJECT_ID}-tts-cache.
       # The registry falls back to "browser" (window.speechSynthesis)

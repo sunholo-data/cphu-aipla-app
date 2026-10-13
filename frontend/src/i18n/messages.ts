@@ -18,6 +18,7 @@ import daTeacherClasses from "../../messages/da/teacher-classes.json";
 import daTeacherActivities from "../../messages/da/teacher-activities.json";
 import daTeacherResearch from "../../messages/da/teacher-research.json";
 import daTeacherHints from "../../messages/da/teacher-hints.json";
+import daTeacherSims from "../../messages/da/teacher-sims.json";
 import daWorkspace from "../../messages/da/workspace.json";
 import enChatPage from "../../messages/en/chat-page.json";
 import enChat from "../../messages/en/chat.json";
@@ -29,6 +30,7 @@ import enTeacherClasses from "../../messages/en/teacher-classes.json";
 import enTeacherActivities from "../../messages/en/teacher-activities.json";
 import enTeacherResearch from "../../messages/en/teacher-research.json";
 import enTeacherHints from "../../messages/en/teacher-hints.json";
+import enTeacherSims from "../../messages/en/teacher-sims.json";
 import enWorkspace from "../../messages/en/workspace.json";
 
 import type { Locale } from "./locale";
@@ -46,6 +48,7 @@ export const MESSAGE_AREAS = {
     teacherActivities: daTeacherActivities,
     teacherResearch: daTeacherResearch,
     teacherHints: daTeacherHints,
+    teacherSims: daTeacherSims,
     workspace: daWorkspace,
   },
   en: {
@@ -59,6 +62,7 @@ export const MESSAGE_AREAS = {
     teacherActivities: enTeacherActivities,
     teacherResearch: enTeacherResearch,
     teacherHints: enTeacherHints,
+    teacherSims: enTeacherSims,
     workspace: enWorkspace,
   },
 } as const;
@@ -74,6 +78,7 @@ const da = {
   ...daTeacherActivities,
   ...daTeacherResearch,
   ...daTeacherHints,
+  ...daTeacherSims,
   ...daWorkspace,
 };
 
@@ -93,6 +98,7 @@ const en: Messages = {
   ...enTeacherActivities,
   ...enTeacherResearch,
   ...enTeacherHints,
+  ...enTeacherSims,
   ...enWorkspace,
 };
 

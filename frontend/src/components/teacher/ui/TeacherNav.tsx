@@ -3,11 +3,22 @@
 import { type ComponentType, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, BookOpen, ClipboardList, Library, PanelLeftClose, PanelLeftOpen, ShieldCheck, Users } from "lucide-react";
+import {
+  BarChart3,
+  BookOpen,
+  ClipboardList,
+  FlaskConical,
+  Library,
+  PanelLeftClose,
+  PanelLeftOpen,
+  ShieldCheck,
+  Users,
+} from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useIsProgrammeAdmin } from "@/hooks/useIsProgrammeAdmin";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
+import { useTeacherFeature } from "@/hooks/useTeacherFeature";
 import { useT, type MessageKey } from "@/i18n";
 
 const COLLAPSE_KEY = "teacher-nav-collapsed";
@@ -74,6 +85,14 @@ const PROGRAMME_DESTINATION: Destination = {
   match: ["/teacher/programme"],
 };
 
+/** The Sim workshop (in-app-sim-authoring): behind NEXT_PUBLIC_SIM_WORKSHOP, '1' on dev only. */
+const SIMS_DESTINATION: Destination = {
+  href: "/teacher/sims",
+  label: "sims",
+  icon: FlaskConical,
+  match: ["/teacher/sims"],
+};
+
 function isActive(pathname: string, match: string[]): boolean {
   return match.some((m) => pathname === m || pathname.startsWith(`${m}/`));
 }
@@ -95,8 +114,11 @@ export function TeacherNav() {
   // Conversations is an Insights tab, Approaches is in the account menu.
   const isResearcher = useIsResearcher();
   const isProgrammeAdmin = useIsProgrammeAdmin();
+  const simsEnabled = useTeacherFeature("simWorkshop", process.env.NEXT_PUBLIC_SIM_WORKSHOP);
   const destinations = [
-    ...DESTINATIONS,
+    ...DESTINATIONS.slice(0, 3),
+    ...(simsEnabled ? [SIMS_DESTINATION] : []),
+    ...DESTINATIONS.slice(3),
     ...(isResearcher || isProgrammeAdmin ? [PROGRAMME_DESTINATION] : []),
   ];
   // Collapse the desktop rail to an icon strip to give app-like surfaces (the

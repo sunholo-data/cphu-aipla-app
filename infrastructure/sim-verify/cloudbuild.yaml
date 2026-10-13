@@ -79,7 +79,9 @@ steps:
       - |
         set -e
         URL=$(gcloud run services describe ${_SERVICE_NAME} --region=${_REGION} --project=${_PROJECT_ID} --format='value(status.url)')
-        TOKEN=$(curl -s -H 'Metadata-Flavor: Google' "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=$${URL}")
+        # --include-email: the form that works for a build's user-specified SA
+        # (the bare metadata identity endpoint returned a token Cloud Run 401'd).
+        TOKEN=$(gcloud auth print-identity-token --audiences="$${URL}" --include-email)
         S=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $${TOKEN}" "$${URL}/ready")
         echo "authenticated /ready: $${S}"
         [ "$${S}" = "200" ] || { echo "ERROR: expected 200" >&2; exit 1; }

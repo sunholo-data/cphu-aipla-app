@@ -1,0 +1,26 @@
+{
+  "SimWorkshopPage": {
+    "title": "Sim workshop",
+    "subtitle": "Describe a simulation and build it together with the assistant. Every version is checked and kept here, so you can compare, go back and download.",
+    "draftsHeading": "Your drafts",
+    "empty": "No drafts yet. Open the assistant and describe the simulation you want: what students should do and measure, the level, and the quantity they should work out themselves.",
+    "loading": "Loading drafts…",
+    "loadError": "Could not load your drafts.",
+    "version": "Version {n}",
+    "level": "Level {n} of 3",
+    "levelHelp": "Level 3 means the sim is valid, runs, fits the screen and talks to the tutor. It does NOT mean the physics is right — that is for you to check.",
+    "notReached": "What stopped it",
+    "atRest": "At rest",
+    "afterClicking": "After clicking through",
+    "phone": "On a phone (390 px)",
+    "downloadHtml": "Download index.html",
+    "downloadYaml": "Download catalogue entry",
+    "noScreenshots": "No screenshots for this version: the browser check did not run.",
+    "draftOnly": "Drafts are visible only to you. Publishing to your classes comes in a later version.",
+    "assistantTitle": "Sim workshop assistant",
+    "assistantPlaceholder": "Describe a simulation, or what to change",
+    "assistantEmpty": "Describe the simulation you want. For example: “A four-stroke engine cut in half, with a p-V diagram. Students vary the compression ratio and measure heat and work for one cycle; they work out the efficiency themselves.”",
+    "refresh": "Refresh",
+    "unavailable": "The Sim workshop is not switched on in this environment yet."
+  }
+}

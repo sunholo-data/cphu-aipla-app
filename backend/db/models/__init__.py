@@ -73,6 +73,11 @@ class SkillMetadata(BaseModel):
     version: str = "1.0"
     model: str = Field(default_factory=default_model)
     thinking_model: str | None = Field(default=None, alias="thinkingModel")
+    # Per-skill Gemini thinking budget, overriding AIPLA_THINKING_BUDGET (which is 0,
+    # thinking off, on every deployed env for tutor latency). For a skill where
+    # depth beats first-token time: sim-author, where thinking fixed physics logic
+    # one-shot generation got wrong (in-app-sim-authoring "First runs").
+    thinking_budget: int | None = Field(default=None, alias="thinkingBudget", ge=-1, le=32768)
 
     @field_validator("model", mode="after")
     @classmethod

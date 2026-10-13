@@ -209,3 +209,70 @@ class LocalBrowserCheck:
         except TimeoutError:
             proc.kill()
             return None
+
+
+class ServiceBrowserCheck:
+    """The sim-verify Cloud Run service (in-app-sim-authoring M3), for the deployed app.
+
+    Private service: the request carries a Google ID token for the service URL,
+    minted from the runtime service account (the only identity granted
+    ``run.invoker``). Screenshots come back as base64 and are written to
+    ``out_dir`` so the verdict has the same shape as the local check's.
+    """
+
+    def __init__(self, url: str, timeout_s: float = 170.0) -> None:
+        self.url = url.rstrip("/")
+        self.timeout_s = timeout_s
+
+    def _token(self) -> str:
+        import google.auth.transport.requests
+        import google.oauth2.id_token
+
+        return google.oauth2.id_token.fetch_id_token(google.auth.transport.requests.Request(), self.url)
+
+    async def check(self, index_html: str, artefact_id: str, out_dir: Path) -> dict | None:
+        import base64
+        import logging
+
+        import httpx
+
+        log = logging.getLogger(__name__)
+        try:
+            token = await asyncio.to_thread(self._token)
+            async with httpx.AsyncClient(timeout=self.timeout_s) as client:
+                resp = await client.post(
+                    f"{self.url}/verify",
+                    json={"index_html": index_html, "artefact_id": artefact_id},
+                    headers={"Authorization": f"Bearer {token}"},
+                )
+        except Exception as exc:  # unreachable service = could not run, never a pass
+            log.warning("sim-verify call failed: %s", type(exc).__name__)
+            return None
+        if resp.status_code != 200:
+            log.warning("sim-verify returned %s", resp.status_code)
+            return None
+        body = resp.json()
+        result = body.get("result") or {}
+        out_dir.mkdir(parents=True, exist_ok=True)
+        paths = {}
+        for name, b64 in (body.get("screenshots") or {}).items():
+            if b64:
+                p = out_dir / f"{name}.png"
+                p.write_bytes(base64.b64decode(b64))
+                paths[name] = str(p)
+        result["screenshots"] = paths
+        return result
+
+
+def browser_from_env() -> BrowserCheck | None:
+    """The service when ``SIM_VERIFY_URL`` is set (deployed), else the local script when the repo
+    and Node are present (a laptop), else None — the verdict then stops at L1 and says why."""
+    import os
+
+    url = os.environ.get("SIM_VERIFY_URL", "").strip()
+    if url:
+        return ServiceBrowserCheck(url)
+    try:
+        return LocalBrowserCheck()
+    except RuntimeError:
+        return None

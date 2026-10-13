@@ -55,7 +55,8 @@
     "sections": "Teacher sections",
     "expand": "Expand navigation",
     "collapse": "Collapse navigation",
-    "collapseShort": "Collapse"
+    "collapseShort": "Collapse",
+    "sims": "Sim workshop"
   },
   "SettingsMap": {
     "heading": "Where settings live",

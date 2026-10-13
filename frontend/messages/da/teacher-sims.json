@@ -1,0 +1,26 @@
+{
+  "SimWorkshopPage": {
+    "title": "Simuleringsværksted",
+    "subtitle": "Beskriv en simulering, og byg den sammen med assistenten. Hver version bliver tjekket og gemt her, så du kan sammenligne, gå tilbage og downloade.",
+    "draftsHeading": "Dine kladder",
+    "empty": "Ingen kladder endnu. Åbn assistenten, og beskriv den simulering, du vil have: hvad eleverne skal gøre og måle, niveauet, og den størrelse, de selv skal finde.",
+    "loading": "Henter kladder…",
+    "loadError": "Kunne ikke hente dine kladder.",
+    "version": "Version {n}",
+    "level": "Niveau {n} af 3",
+    "levelHelp": "Niveau 3 betyder, at simuleringen er gyldig, kører, passer til skærmen og taler med tutoren. Det betyder IKKE, at fysikken er rigtig — det skal du selv tjekke.",
+    "notReached": "Hvad der stoppede den",
+    "atRest": "I hvile",
+    "afterClicking": "Efter gennemklik",
+    "phone": "På en telefon (390 px)",
+    "downloadHtml": "Download index.html",
+    "downloadYaml": "Download katalogpost",
+    "noScreenshots": "Ingen skærmbilleder for denne version: browsertjekket kørte ikke.",
+    "draftOnly": "Kladder kan kun ses af dig. Udgivelse til dine hold kommer i en senere version.",
+    "assistantTitle": "Værkstedsassistent",
+    "assistantPlaceholder": "Beskriv en simulering, eller hvad der skal ændres",
+    "assistantEmpty": "Beskriv den simulering, du vil have. For eksempel: “En firetaktsmotor skåret over, med et p-V-diagram. Eleverne ændrer kompressionsforholdet og måler varme og arbejde for én cyklus; de finder selv virkningsgraden.”",
+    "refresh": "Opdater",
+    "unavailable": "Simuleringsværkstedet er ikke slået til i dette miljø endnu."
+  }
+}

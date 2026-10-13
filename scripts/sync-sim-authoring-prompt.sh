@@ -11,6 +11,10 @@
 #                                                     fetch by URL
 #   frontend/content/project/build-a-simulation.md    the /project page, between
 #                                                     the sim-prompt markers
+#   backend/sim_authoring/references/authoring-prompt.txt
+#                                                     the same text, for the in-app
+#                                                     sim-author skill (the backend
+#                                                     image carries only backend/)
 #
 # Generated, never hand-edited — same discipline as the tutor docs
 # (`make tutor-docs` / `make check-tutor-docs`). Edit the skill resource, run
@@ -21,6 +25,7 @@ cd "$(dirname "$0")/.."
 SRC=.claude/skills/mcp-app-artefact/resources/authoring-prompt.md
 TXT=frontend/public/sim-authoring-prompt.txt
 PAGE=frontend/content/project/build-a-simulation.md
+BACKEND_TXT=backend/sim_authoring/references/authoring-prompt.txt
 START='<!-- sim-prompt:start -->'
 END='<!-- sim-prompt:end -->'
 
@@ -67,6 +72,9 @@ if [ "$MODE" = "--check" ]; then
   if [ ! -f "$TXT" ] || [ "$(cat "$TXT")" != "$PROMPT" ]; then
     echo "DRIFT: $TXT does not match the prompt in $SRC" >&2; rc=1
   fi
+  if [ ! -f "$BACKEND_TXT" ] || [ "$(cat "$BACKEND_TXT")" != "$PROMPT" ]; then
+    echo "DRIFT: $BACKEND_TXT does not match the prompt in $SRC" >&2; rc=1
+  fi
   if [ "$(cat "$PAGE")" != "${WANT_PAGE%$'\n'}" ]; then
     echo "DRIFT: $PAGE's sim-prompt block does not match $SRC" >&2; rc=1
   fi
@@ -76,5 +84,6 @@ if [ "$MODE" = "--check" ]; then
 fi
 
 printf '%s' "$WANT_TXT" > "$TXT"
+printf '%s' "$WANT_TXT" > "$BACKEND_TXT"
 printf '%s' "$WANT_PAGE" > "$PAGE"
 echo "wrote $TXT ($(wc -c <"$TXT" | tr -d ' ') bytes) and updated $PAGE"

@@ -346,6 +346,7 @@ from protocols.rubric_review_routes import router as rubric_review_router  # noq
 from protocols.session_bootstrap_routes import router as session_bootstrap_router  # noqa: E402
 from protocols.session_restore_routes import router as session_restore_router  # noqa: E402
 from protocols.sessions_route import router as sessions_router  # noqa: E402
+from protocols.sim_draft_routes import router as sim_draft_router  # noqa: E402
 from protocols.table_progress_routes import router as table_progress_router  # noqa: E402
 from protocols.teacher_bootstrap_routes import router as teacher_bootstrap_router  # noqa: E402
 from protocols.teacher_prefs_routes import router as teacher_prefs_router  # noqa: E402
@@ -398,6 +399,7 @@ app.include_router(personas_router)
 app.include_router(frameworks_router)
 app.include_router(tutors_router)
 app.include_router(artefact_router)
+app.include_router(sim_draft_router)
 app.include_router(classes_router)
 app.include_router(client_error_router)
 app.include_router(teacher_bootstrap_router)

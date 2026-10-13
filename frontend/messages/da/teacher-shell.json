@@ -55,7 +55,8 @@
     "sections": "Lærerafsnit",
     "expand": "Udvid navigationen",
     "collapse": "Skjul navigationen",
-    "collapseShort": "Skjul"
+    "collapseShort": "Skjul",
+    "sims": "Simuleringer"
   },
   "SettingsMap": {
     "heading": "Hvor indstillingerne ligger",

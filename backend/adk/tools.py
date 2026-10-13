@@ -26,6 +26,7 @@ from google.adk.tools import FunctionTool, ToolContext
 
 from adk import authoring_tools as _authoring_tools
 from adk import physics_diagram as _physics_diagram
+from adk import sim_author as _sim_author
 from adk import svg_preview as _svg_preview
 from adk import tutor_authoring_tools as _tutor_authoring
 from analytics import summarise as _analytics_summarise
@@ -186,6 +187,11 @@ TOOL_REGISTRY: dict[str, Callable[[dict], FunctionTool]] = {
     # ...and draw_physics_diagram (adk/physics_diagram.py): the agent gives the
     # physics, code computes every coordinate — angles, proportions, normals.
     "draw_physics_diagram": lambda _config: FunctionTool(_physics_diagram.draw_physics_diagram),
+    # sim-author (adk/sim_author.py, in-app-sim-authoring M4): check a sim draft
+    # (static gates + the sim-verify browser service), store it as a version,
+    # attach its screenshots for the model; and read the authoring references.
+    "verify_sim": lambda _config: FunctionTool(_sim_author.verify_sim),
+    "read_reference": lambda _config: FunctionTool(_sim_author.read_reference),
 }
 
 # Tools handled entirely outside this registry (no ValueError for these)

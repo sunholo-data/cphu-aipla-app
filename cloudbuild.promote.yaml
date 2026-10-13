@@ -50,6 +50,9 @@ substitutions:
   _AUTHORING_COPILOT: '1'
   _CONCEPT_MAP: '1'
   _AIPLA_HELP: '1'
+  # The Sim workshop page — empty on test/prod until sim-verify runs there
+  # (in-app-sim-authoring). The build-arg twin of cloudbuild.yaml's.
+  _SIM_WORKSHOP: ''
   # Runtime SA the post-promote seed job runs as (writes Firestore via ADC).
   _ADMIN_SEED_ALLOWED_SAS: terraform_managed
   # PROGADMIN-1 (1.1.76) — the delegated-admin bounds twin. `services update`
@@ -169,6 +172,7 @@ steps:
           --build-arg NEXT_PUBLIC_AUTHORING_COPILOT=${_AUTHORING_COPILOT} \
           --build-arg NEXT_PUBLIC_CONCEPT_MAP=${_CONCEPT_MAP} \
           --build-arg NEXT_PUBLIC_AIPLA_HELP=${_AIPLA_HELP} \
+          --build-arg NEXT_PUBLIC_SIM_WORKSHOP=${_SIM_WORKSHOP} \
           -t ${_REGION}-docker.pkg.dev/${_TARGET_PROJECT}/${_REPO}/${_SERVICE_NAME}/ui:${_VERSION} \
           -f frontend/Dockerfile frontend/
         # ^ Mirrors cloudbuild.yaml's build-frontend arg-for-arg. Both expand the
