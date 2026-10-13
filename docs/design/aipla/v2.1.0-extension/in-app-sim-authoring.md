@@ -1,6 +1,6 @@
 # In-app sim authoring — benchmark first, then build, under a monthly quota
 
-**Status**: **PROPOSED** 2026-10-12 · **in build** from 2026-10-12 (M0 first). Decisions so far are in [Decisions](#decisions)
+**Status**: **IN BUILD.** On dev 2026-10-13: M0 ✅ · M1 ✅ · M3 ✅ (dev only) · M4 ✅ · M5 partial (the Sim workshop page, no live preview yet). Not built: M2 (physics probe, visual rubric), publishing, M7 (quota). Decisions in [Decisions](#decisions); ADR-013 amended for teacher sims in [Publication and security](#publication-and-security-decided-2026-10-13)
 **Priority**: **P1 for this sprint.** The benchmark (M0–M2) is the gate: it decides which model and harness the in-app path is built on, and what one build costs, which sets the quota
 **Estimated**: **~9–10d** in all. Benchmark M0–M2 ~3d · sim-verify service M3 ~1d · in-app authoring M4–M6 ~4–5d · quota and meter M7 ~1d. M4 onward is re-sized after the benchmark, since the winning harness decides how much has to be built
 **Scope**: Research: a new `research/sim-bench/` harness (`make bench-sims`). Backend: the static gates as one Python module (this is [sim-verify-mcp](sim-verify-mcp.md) M0), an authoring agent as an ADK skill, a sim-authoring budget on the existing enforcer. Frontend: a teacher authoring surface with a preview and a cost meter. Infra: `aipla-v01-sim-verify`, a separate headless-Chromium Cloud Run service on all three environments (sim-verify-mcp M3, brought forward)
@@ -155,7 +155,7 @@ works:
 | | What | Est. | Gate |
 |---|---|---|---|
 | **M0** ✅ 2026-10-12 | Static gates as one Python module, `backend/sim_gates/` (sim-verify-mcp M0), so the runner, the MCP tool and the in-app path share one implementation. `audit_artefact.sh` is now a wrapper | ~0.75d | ✅ `tests/unit/test_sim_gates.py`: every live artefact passes tier A; tiers B–C pass except gaps named per sim (four pre-prompt sims, and sekant-intro's missing reference block); one broken fixture per gate. **Found on the way:** the bash gate 1 (no external fetches) had never checked anything — an invalid lookahead made grep exit 2, which `2>/dev/null` hid. Both Gemini drafts pass every static gate, which is the point: their faults are physics |
-| **M1** | `research/sim-bench/` runner: briefs, H1 and H2, Gemini + Claude through one interface, cost capture, `--dry-run`/`--go`/`--report-only`, L0–L3 scoring | ~1.25d | a dry run prints a plan; a one-cell `--go` produces a row and an artefact |
+| **M1** ✅ 2026-10-13 | `research/sim-bench/` runner (`make bench-sims`): five briefs, harnesses h1/h2/h3, cost capture at the rate card, `--dry-run`/`--go`/`--report-only --rescore`, L0–L3 scoring via `backend/sim_authoring/verify.py`. Gemini only so far (Claude through LiteLLM is a follow-up). `verify_sim.mjs` gained `--json` and a **motion check** (pressing start must move the drawing; part of L2) | ~1.25d | ✅ dry run plans; real cells produce rows, artefacts, screenshots. Results in [Benchmark runs](#benchmark-runs-2026-10-13) |
 | **M2** | The physics probe and state contracts for the five briefs; the visual rubric; the first full run; a report with a recommendation | ~1d | **the probe fails the deliberately broken fixtures** (spark at BDC, pV linear, η on screen) and passes the reference sims. A probe that passes everything has not been tested |
 
 H2 in the benchmark calls `verify_sim.mjs` locally until M3's service exists,
@@ -190,10 +190,10 @@ The shape the benchmark is expected to point to, to be confirmed by it:
 
 | | What | Est. | Gate |
 |---|---|---|---|
-| **M3** | `infrastructure/sim-verify/`: Playwright image, `POST /verify`, the deploy on all three pipelines (dev build + tag + promote twin), private with a no-role service account | ~1d | `make smoke-sim-verify ENV=<env>` posts a live artefact and gets every check back, on all three envs; an unauthenticated call is refused |
-| **M4** | The `sim-author` ADK skill and its `verify_sim` tool; screenshots in the function response; drafts as artifacts; attempt cap | ~1.5–2d | a local run on the otto brief reaches L3 and repairs at least one failure from a screenshot or a check |
-| **M5** | Teacher authoring surface: brief in, live progress, preview of the draft | ~1–2d | **ADR-013 decision recorded first** (see below); then a teacher drives a build to a preview on dev |
-| **M6** | Route to the library: a draft is private, going live needs a recorded review (who, when, physics sign-off) | ~1d | a draft cannot reach `status: live` without a review record |
+| **M3** ✅ dev 2026-10-13 | `infrastructure/sim-verify/`: Playwright 1.63 image, `POST /verify`, private (`run.invoker` only for `aipla-v6@`), running as `aipla-sim-verify@` with no project roles. Dev trigger `aipla-sim-verify-deploy` (hand-made, like the other dev triggers). **Test/prod not wired**: needs terraform triggers + the SA there | ~1d | ✅ on dev: authenticated `/ready` 200, unauthenticated 403, `/verify` on a real draft returns the verdict, motion and three screenshots |
+| **M4** ✅ 2026-10-13 | `skills/templates/sim-author` (teacher-only, gemini-3.8-flash, per-skill `thinkingBudget` 16384); tools `verify_sim` (stores a version per check, screenshots attached inside the function response, cap 5 per turn, refuses fragments) and `read_reference` (authoring rules, anatomy-lite). Drafts in **Firestore** (`db/sim_drafts.py`: one draft per conversation, one version per check), not ADK artifacts: the teacher page needs to list them across sessions | ~1.5–2d | ✅ unit + route tests; the bench's h2 runs show the loop repairing from checks and screenshots |
+| **M5** partial 2026-10-13 | `/teacher/sims`, the Sim workshop: drafts and versions (level, what stopped it, screenshots at rest / after clicking / on a phone, downloads) beside the floating sim-author assistant; DA/EN; behind `NEXT_PUBLIC_SIM_WORKSHOP` ('1' on dev only). **Live preview not built**: it is the first piece of publishing (below) | ~1–2d | ADR-013 decision ✅ recorded; a teacher drives a build to screenshots on dev |
+| **M6** | Publishing (as decided below): live preview on the sandbox under a draft path; publish-to-my-classes with the teacher's recorded approval; the shared library with a physics reviewer's recorded sign-off; the catalogue merges built-in and teacher-published sims | ~2–3d | a draft cannot reach students without a recorded approval; a class-only sim never appears on the public MCP server |
 
 ### The sim-verify service (decided 2026-10-12)
 
@@ -220,6 +220,62 @@ service account with **no IAM roles** and scales on its own.
 - **Portable:** a plain container behind an HTTP contract, so it runs unchanged
   under Docker Compose or Kubernetes on UCPH hardware. Leaving Google means
   changing where it runs, not the agent.
+
+## Publication and security (decided 2026-10-13)
+
+M, 2026-10-13: teachers iterate with the skill and **verify the sim themselves
+before publication**; *"the html we generate in this process can be served to
+students. we will put in place security audits to be sure we can trust it"*;
+*"go with your recommendations"*.
+
+**ADR-013, amended for teacher sims (option A).** HTML a teacher generated and
+approved, which we have not reviewed, may be served to students from the
+sandbox origin under its own path (`/teacher-sims/<id>/<version>/`), with the
+teacher as reviewer of record **for their own classes only**. The shared library
+still needs a physics reviewer's recorded sign-off. (Rejected: B, a second
+sandbox origin for teacher sims, stronger isolation for one more service and
+domain; C, no teacher publishing.)
+
+**Security baseline** (what makes A acceptable):
+
+1. **No network, ever.** A sim needs none: everything is inline apart from the
+   hash-pinned `/vendor/` libraries, and it talks to the tutor by `postMessage`
+   to the parent frame, which is not a network call. Static gate (tier A): no
+   URLs, `fetch`, `XMLHttpRequest`, `WebSocket`, `EventSource`, `sendBeacon`,
+   `eval`, dynamic `import()` — now a real check (the old bash gate 1 never ran).
+2. **Runtime lockdown for teacher sims:** served with `connect-src 'none'`
+   (built-in sims have `'self'`) and scripts limited to the page plus the
+   SRI-pinned vendor files, so code that slipped the static check still cannot
+   call anything, our server included.
+3. **Every version runs in sim-verify** under that policy before anyone sees it;
+   blocked requests and page errors are recorded.
+4. **Recorded approval** (who, when, which version) before it reaches a class,
+   and a re-audit of everything published whenever the gates change.
+5. Known residual: a sim's event labels and state reach the tutor's prompt, so
+   a careless sim can mislead the tutor. Teachers can already write tutor
+   prompts; this is the same trust, by a new route.
+
+**Publication levels:**
+
+| Level | Who sees it | Stored | Served |
+|---|---|---|---|
+| Draft | its teacher | `sim_drafts` + versions (Firestore) | screenshots now; live preview under a short-lived draft path (M6) |
+| Published to my classes | the teacher's classes, after their recorded approval | a frozen version (bucket) + a catalogue row (Firestore) | sandbox `/teacher-sims/<id>/<version>/` |
+| Shared library | all teachers, after a physics reviewer's recorded sign-off | the same | the same |
+
+**Services stay at three:** the main app (frontend + backend sidecar: the skill,
+drafts, the catalogue `SimPicker` reads), the sandbox (serves sim HTML; gains the
+`/teacher-sims/` route), and sim-verify. There is no separate publisher.
+
+**The public MCP server** (`/api/mcp`, no sign-in) lists sims as MCP Apps for
+Claude, ChatGPT, Copilot and Codex. A teacher sim appears there **only at the
+shared-library level** (reviewed); class-only sims never do, and a later
+"share publicly" switch would be opt-in and recorded, because the listing
+carries KU's name. ⚠️ Found 2026-10-13: on deployed envs the server lists only
+three hard-coded sims (`protocols/sim_apps.py` `KNOWN_SIMS`: Boldkast, KineBot,
+LED Planck), because the artefact files are not in the backend image. The seven
+newer catalogue sims, otto-engine included, are not offered to external hosts
+at all. Discovery should read the catalogue (`status: live`) instead.
 
 ## Part 3 — a monthly quota, shown as you go (M7)
 
@@ -266,6 +322,46 @@ block mode (`db/programme_budget.py`), and the cost dashboard at
 | 2026-10-12 | **The browser checker is a separate Cloud Run service on dev, test and prod**, not a sidecar | M: keep it simple. It also isolates better (no IAM roles, no shared CPU with student turns) |
 | 2026-10-12 | **Real Chromium (Playwright), not Obscura** | Obscura draws canvases as solid blocks; the visual check is the point |
 | 2026-10-12 | **First model to benchmark: gemini-3.8-flash with thinking** | The strongest model on the app's `eu` endpoint; there is no current Pro there |
+| 2026-10-13 | **ADR-013 amended: teacher-approved sims may be served to students** from the sandbox under their own path, teacher as reviewer of record for their classes (option A) | M: teachers verify before publication; security audits make it trustworthy. See [Publication and security](#publication-and-security-decided-2026-10-13) |
+| 2026-10-13 | **Security baseline**: no network (static gate + `connect-src 'none'` at runtime), every version run in sim-verify, recorded approval, re-audit on gate changes | A sim needs no network; locking it out costs nothing |
+| 2026-10-13 | **The in-app skill uses a variation of anatomy, not the skill as-is**: the kit's drawing half as a vendored library (`/vendor/anatomy-kit/689dcf9/`, hash-pinned, exception to the npm rule recorded) and an AIPLA guide (`anatomy-lite.md`) served by `read_reference` | The upstream skill assumes Node, Chrome and multi-hour builds; the drawing code and craft rules are what transfer |
+| 2026-10-13 | **Public MCP listing only for reviewed (shared-library) sims** | The public server carries KU's name and needs no sign-in |
+| 2026-10-13 | **Drafts in Firestore, not ADK artifacts** | The workshop lists a teacher's drafts across conversations; artifacts are per session |
+
+## Benchmark runs (2026-10-13)
+
+`make bench-sims`, gemini-3.8-flash, thinking HIGH, one sample per cell, graded
+by `sim_authoring/verify.py` with the motion check. Cost at the app's rate card
+(the 3.8-flash rate is marked provisional there).
+
+| Brief | Harness | Level | EUR | Time | Checks used | Drew with the kit |
+|---|---|---|---|---|---|---|
+| otto-engine | h1 (one call) | 3 | 0.14 | 212 s | — | — |
+| otto-engine | h2 (check + screenshots) | 3 | 0.43 | 576 s | 2 | — |
+| otto-engine | h3 (h2 + anatomy kit offered) | 3 | 0.42 | 514 s | 2 | **no** |
+| wave-speed | h1 | 3 | 0.12 | 178 s | — | — |
+| wave-speed | h2 | 3 | 0.81 | 810 s | 6 (cap) | — |
+| wave-speed | h3 | 3 | 0.86 | 1090 s | 6 (cap) | **no** |
+
+Plus the 2026-10-12 h2 engine cell: L1 → L3 → L3, EUR 0.57, 610 s; after seeing
+its screenshots it drew a coherent crank linkage, where both one-shots had not.
+
+What the runs taught, and what changed because of them:
+
+- **Every cell reached L3, so L3 does not discriminate.** Valid, running,
+  animated and wired to the tutor is now the floor, not the bar. What separates
+  them is physics and drawing, which is M2's probe and rubric, still unbuilt.
+- **Offered the kit, Gemini ignored it** (h3, both briefs): the prompt said
+  "you may". The h3 preamble and the skill now make the kit mandatory for the
+  apparatus. A re-run is below.
+- **Repair loops wasted checks after L3** (wave-speed h2/h3): the model kept
+  submitting, several times only a fragment that scored L0. `verify_draft` now
+  refuses a page that is not whole without a browser run, and the prompt and
+  skill say to stop at L3 unless a screenshot shows the picture disagreeing
+  with the physics.
+- **Cost per build: EUR 0.12–0.14 one-shot, 0.4–0.9 with the loop.** Against
+  the EUR ~9 (USD 9.74) of the hand-built Opus 5.5 engine. With the waste above
+  removed, expect the loop at about EUR 0.4–0.5.
 
 ## First runs (2026-10-12, by hand)
 
@@ -297,13 +393,10 @@ loop where the model sees its own screenshot (H2) over a bigger single call.
 - **Is anatomy in scope for the app?** Only if H3 clearly beats H2 on L4–L5 and
   a per-build code sandbox is worth running (option B in Decisions). Otherwise
   the kit stays a developer tool and in-app sims are plain ones.
-- **The preview's origin (M5).** Unreviewed generated HTML on the sandbox
-  origin, even under the same CSP, changes ADR-013's posture. The alternatives
-  are a separate preview origin, or a preview served only by the sim-verify
-  service. Decide before M5 is built.
-- **Who reviews a generated sim** before it is live for a class, and is that
-  review recorded on the draft (M6)? ADR-013 says a physics reviewer; today that
-  is AR and nothing enforces it.
+- **Who signs off the shared library**: AR alone, or a rota? (Class-only
+  publishing is the teacher's own call, decided 2026-10-13.)
+- **Test/prod rollout of sim-verify**: terraform triggers, the runtime SA and
+  the promote twin, when the workshop is ready to leave dev.
 - **The authoring surface's audience.** Teachers on the pilot tier only, or
   researchers first? Starting with researchers keeps the first month's spend and
   review load small.
