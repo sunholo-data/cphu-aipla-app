@@ -409,6 +409,27 @@ Found and fixed by the run and the dev smoke that followed:
   language tag was present. The workshop always sends one (`TeacherCopilot`
   prefixes `[ui_language=…]`), so it is a harness artefact, but worth watching.
 
+## Turn speed (2026-10-13)
+
+Measured on the streamed path (`make sim-author-local` + `smoke-sim-author.sh`),
+same brief and the same follow-up ("round metal ball, metre ruler behind the
+string"):
+
+| How the skill changes a sim | First turn | Follow-up |
+|---|---|---|
+| Rewrite the whole page every time (dev) | ~10 min | ~5–8 min |
+| `read_sim` + `edit_sim`, several small reads | ~9 min | ~3.8 min |
+| **Edits with one batched `read_sim`** | **5.7 min** | **92 s** |
+| (thinking 4096 instead of 16384) | 7.8 min, first draft failed L0 | 5.8 min |
+
+Every model call re-reads the whole context (guides + draft), so round trips,
+not output, dominate an edit. A follow-up is now about a minute and a half, with
+live progress ("Applying 1 edit(s) to version 3…", "Checking version 4 in the
+browser…"). The first draft stays at several minutes: it writes a whole
+simulation. Iterating locally on the streamed path, not by deploying to dev,
+is the loop from here (a dev deploy is ~29 min, of which the frontend CI gate
+is 24; a larger Cloud Build machine type would cut that).
+
 ## First runs (2026-10-12, by hand)
 
 Harness H1 (one call, the published authoring prompt), the `otto-engine` brief,
