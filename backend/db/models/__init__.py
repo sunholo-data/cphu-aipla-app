@@ -78,6 +78,11 @@ class SkillMetadata(BaseModel):
     # depth beats first-token time: sim-author, where thinking fixed physics logic
     # one-shot generation got wrong (in-app-sim-authoring "First runs").
     thinking_budget: int | None = Field(default=None, alias="thinkingBudget", ge=-1, le=32768)
+    # Per-skill first-token deadline (s) for the Gemini wrapper; None = the 10 s
+    # tutor default (AIPLA_FIRST_TOKEN_DEADLINE_S), 0 = none. A thinking skill
+    # that writes long artefacts is silent for longer than a tutor ever should be:
+    # on dev, sim-author's first build turn died at 10 s (MODEL_SILENT_STALL).
+    first_token_deadline_s: float | None = Field(default=None, alias="firstTokenDeadlineS", ge=0, le=600)
 
     @field_validator("model", mode="after")
     @classmethod

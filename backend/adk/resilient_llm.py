@@ -250,6 +250,11 @@ class ResilientLlm(BaseLlm):
     event_sink: Any = None
     max_retries_per_model: int = 2
     budget_s: float = FAILOVER_BUDGET_SECONDS
+    #: Per-agent first-token deadline in seconds, overriding the env/default
+    #: (``None`` = use ``first_token_deadline()``; ``0`` = no deadline). For a
+    #: skill whose turns legitimately think before speaking (sim-author writes a
+    #: whole simulation with thinking on); the 10 s default is tuned to tutors.
+    first_token_deadline_s: float | None = None
 
     def __init__(
         self,
@@ -257,6 +262,7 @@ class ResilientLlm(BaseLlm):
         event_sink: Any = None,
         max_retries_per_model: int = 2,
         budget_s: float = FAILOVER_BUDGET_SECONDS,
+        first_token_deadline_s: float | None = None,
         **kwargs: Any,
     ) -> None:
         if not chain:
@@ -267,6 +273,7 @@ class ResilientLlm(BaseLlm):
             event_sink=event_sink,
             max_retries_per_model=max_retries_per_model,
             budget_s=budget_s,
+            first_token_deadline_s=first_token_deadline_s,
             **kwargs,
         )
 
@@ -476,6 +483,11 @@ class ResilientLlm(BaseLlm):
         """
         if not stream:
             return None
+        if self.first_token_deadline_s is not None:
+            if self.first_token_deadline_s <= 0:
+                return None
+            # An agent that set its own deadline also owns the budget it needs.
+            return self.first_token_deadline_s if idx == 0 else max(remaining, self.first_token_deadline_s)
         configured = first_token_deadline()
         if configured is None:
             return None

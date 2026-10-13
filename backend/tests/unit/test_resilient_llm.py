@@ -668,3 +668,18 @@ def test_a_model_turn_error_reads_as_a_student_message_not_a_stack():
     assert code == "MODEL_UNAVAILABLE"
     assert "prøv igen" in message.lower()
     assert SMART not in message
+
+
+# --- per-agent first-token deadline (sim-author thinks before it speaks) ---
+
+
+def test_an_agent_deadline_overrides_the_default_and_zero_disables_it():
+    from adk.resilient_llm import ResilientLlm
+
+    m = ResilientLlm(chain=[_ScriptedLlm(LITE, [[]])], first_token_deadline_s=180)
+    assert m._first_token_deadline(0, True, 25.0) == 180
+    assert m._first_token_deadline(0, False, 25.0) is None  # non-streamed: never a stall
+    off = ResilientLlm(chain=[_ScriptedLlm(LITE, [[]])], first_token_deadline_s=0)
+    assert off._first_token_deadline(0, True, 25.0) is None
+    default = ResilientLlm(chain=[_ScriptedLlm(LITE, [[]])])
+    assert default._first_token_deadline(0, True, 25.0) == 10.0

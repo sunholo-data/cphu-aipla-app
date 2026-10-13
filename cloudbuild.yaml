@@ -238,6 +238,11 @@ steps:
       - '--platform=managed'
       - '--allow-unauthenticated'
       - '--max-instances=3'
+      # 900 s request timeout (Cloud Run's default is 300): a Sim workshop build
+      # turn (draft, browser check, repair, check, answer) streams for minutes on
+      # one request. Student turns take seconds, so nothing relies on the 300 s cut.
+      # Twin in cloudbuild.promote.yaml (`services update` keeps it otherwise).
+      - '--timeout=900'
       # No warm instance on dev or test (M, 2026-09-21: prod only). Explicit
       # because `run deploy` PRESERVES an unmentioned minScale, and dev had
       # been carrying a hand-set 1 since April that no pipeline knew about.

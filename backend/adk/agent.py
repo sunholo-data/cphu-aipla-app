@@ -110,7 +110,7 @@ logger = logging.getLogger(__name__)
 # --- Model routing ---
 
 
-def resolve_model(model_id: str) -> ResilientLlm | Claude | LiteLlm:
+def resolve_model(model_id: str, first_token_deadline_s: float | None = None) -> ResilientLlm | Claude | LiteLlm:
     """Create the correct ADK model wrapper for the given model ID.
 
     - `gemini-*` -> `ResilientLlm` over `Gemini(model=...)` members (Vertex AI
@@ -124,7 +124,10 @@ def resolve_model(model_id: str) -> ResilientLlm | Claude | LiteLlm:
         ValueError: If the model_id does not match a known provider prefix.
     """
     if model_id.startswith("gemini-"):
-        return ResilientLlm(chain=[Gemini(model=member) for member in _gemini_chain_for(model_id)])
+        return ResilientLlm(
+            chain=[Gemini(model=member) for member in _gemini_chain_for(model_id)],
+            first_token_deadline_s=first_token_deadline_s,
+        )
     if model_id.startswith("claude-"):
         return Claude(model=model_id)
     if model_id.startswith("gpt-") or model_id.startswith("o3"):
@@ -472,7 +475,7 @@ def create_agent(
 
     md = skill_config.skill_metadata
     effective_model = _model_override or md.model
-    model = resolve_model(effective_model)
+    model = resolve_model(effective_model, first_token_deadline_s=md.first_token_deadline_s)
     # Default tools every skill gets (unless opted out via
     # `tool_configs.defaults.<flag>: false` in SKILL.md):
     #   load_artifacts_tool  - LLM-driven artifact retrieval (legacy path; the

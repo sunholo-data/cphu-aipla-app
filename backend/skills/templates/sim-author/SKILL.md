@@ -19,6 +19,9 @@ metadata:
   # one-shot without thinking got wrong.
   model: gemini-3.8-flash
   thinkingBudget: 16384
+  # Writing a whole sim with thinking on is silent for a minute or more before
+  # the first token; the 10 s tutor stall deadline killed the first dev turn.
+  firstTokenDeadlineS: 180
   tools:
     - verify_sim
     - read_reference
