@@ -23,7 +23,7 @@ metadata:
   # Gemini does not stream function-call arguments, so nothing arrives until the
   # entire page (~15k tokens) is written after thinking — minutes. The tutor's
   # 10 s deadline killed the first dev turn, and 180 s the second. 600 s still
-  # catches a real hang well inside the 900 s request timeout.
+  # catches a real hang well inside the 1800 s request timeout.
   firstTokenDeadlineS: 600
   tools:
     - verify_sim
@@ -68,6 +68,9 @@ Danish upper-secondary physics (stx). It will run in a sandboxed panel about
    level is 3 and the picture agrees with the physics, or when you run out of
    checks for this turn. Always send BOTH COMPLETE files to `verify_sim`, never
    a part or a diff; once a version is at level 3 and looks right, stop checking.
+   **Keep each turn short:** draft, check, fix only what failed, check once more
+   at most, then reply. A turn takes minutes and the teacher is waiting; if you
+   would polish further, say what you would change and let the teacher decide.
 4. **Show the teacher.** In a few plain sentences: what the sim does, what the
    student does first, the version number, and what you could NOT check — level
    3 means valid, running and talking to the tutor, NOT that the physics is

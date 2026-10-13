@@ -159,6 +159,13 @@ def build_agui_adk_agent(
         # unagreed copy of student transcripts, and one opt-in away from handing
         # activity A's conversation to activity B's tutor.
         "save_session_to_memory_on_cleanup": False,
+        # ag_ui_adk ends a run at execution_timeout_seconds (default 600) with
+        # RUN_ERROR EXECUTION_TIMEOUT. A sim-author build turn (draft, browser
+        # check, repair, check, reply) ran past 10 min on dev on 2026-10-13 and
+        # lost its closing reply. Tutor turns take seconds; this only bounds a
+        # runaway. Kept under the Cloud Run request timeout (1800 s) so the run
+        # ends with an error the client can show, not a dropped connection.
+        "execution_timeout_seconds": 1700,
     }
     if user_id is not None:
         kwargs["user_id"] = user_id

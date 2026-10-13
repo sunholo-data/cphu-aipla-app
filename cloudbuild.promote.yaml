@@ -215,7 +215,7 @@ steps:
         gcloud run services update ${_SERVICE_NAME} \
           --project=${_TARGET_PROJECT} --region=${_REGION} \
           --min-instances=$$MIN_INSTANCES \
-          --timeout=900 \
+          --timeout=1800 \
           --container=main \
           --image=${_REGION}-docker.pkg.dev/${_TARGET_PROJECT}/${_REPO}/${_SERVICE_NAME}/ui:${_VERSION} \
           --container=sidecar \

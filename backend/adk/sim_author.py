@@ -33,7 +33,7 @@ SHOTS_KEY = "temp:sim_verify_pngs"
 ATTEMPTS_KEY = "temp:sim_verify_attempts"
 #: Checks per teacher turn. Each one is a browser run plus a model call with
 #: images; past this the model is told to answer with what it has.
-MAX_CHECKS_PER_TURN = 5
+MAX_CHECKS_PER_TURN = 3
 MODEL_SHOTS = ("700", "driven")
 REFERENCES = Path(__file__).resolve().parents[1] / "sim_authoring" / "references"
 _REFERENCE_FILES = {
