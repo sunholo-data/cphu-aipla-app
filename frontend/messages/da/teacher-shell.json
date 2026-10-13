@@ -125,7 +125,11 @@
     "applied": "Anvendt ✓",
     "thinking": "Tænker…",
     "editAriaLabel": "Redigér forslaget",
-    "send": "Send"
+    "send": "Send",
+    "stage_simReading": "Læser vejledningen ({topic})…",
+    "stage_simChecking": "Tjekker version {version} i browseren…",
+    "stage_simChecked": "Version {version}: niveau {level} af 3. Ser på skærmbillederne…",
+    "stage_simEditing": "Retter {count} sted(er)…"
   },
   "DefaultsCard": {
     "flagAuthoringCopilot": "Aktivitets-medbygger (AI co-pilot i aktivitetsbyggeren)",

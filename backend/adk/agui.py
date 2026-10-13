@@ -22,6 +22,7 @@ this module integrates instead.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncGenerator
 from typing import Any
 
@@ -217,6 +218,36 @@ async def stream_agui_events(
             await drain_pending_session_writes()
 
 
+async def _with_progress_flush(events: Any, tracker: Any, poll_s: float = 1.0) -> AsyncGenerator[Any, None]:
+    """The agent's events, plus queued STAGE_PROGRESS flushed while waiting for the next one.
+
+    Stage labels used to reach the wire only BETWEEN agent events, so a label a
+    tool set as it started ("Checking version 2 in the browser…") sat queued for
+    the whole step. A sim-author step lasts minutes; tutors' steps never did.
+    Yields agent events unchanged and stage events as ready-to-send dicts.
+    """
+    it = events.__aiter__()
+    pending: asyncio.Task | None = None
+    try:
+        while True:
+            if pending is None:
+                pending = asyncio.ensure_future(it.__anext__())
+            done, _ = await asyncio.wait({pending}, timeout=poll_s)
+            if not done:
+                for stage_event in tracker.drain_stage_events():
+                    yield stage_event.model_dump(by_alias=True, exclude_none=True)
+                continue
+            task, pending = pending, None
+            try:
+                event = task.result()
+            except StopAsyncIteration:
+                return
+            yield event
+    finally:
+        if pending is not None and not pending.done():
+            pending.cancel()
+
+
 async def _run_with_stage_marks(
     agui_agent: ADKAgent, run_input: RunAgentInput, tracker: Any
 ) -> AsyncGenerator[dict, None]:
@@ -226,7 +257,10 @@ async def _run_with_stage_marks(
     first_agui_event_seen = False
     first_model_token_seen = False
 
-    async for event in agui_agent.run(run_input):
+    async for event in _with_progress_flush(agui_agent.run(run_input), tracker):
+        if isinstance(event, dict):  # a STAGE_PROGRESS flushed while the agent was busy
+            yield event
+            continue
         if not first_agui_event_seen:
             tracker.mark(STAGE_FIRST_AGUI_EVENT)
             first_agui_event_seen = True

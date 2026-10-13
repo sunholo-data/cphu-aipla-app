@@ -13,6 +13,10 @@
 #      teacher asking for a change after looking at the screenshots; a NEW
 #      version must be stored (iteration works, not just generation)
 #
+# Local: SIM_TOKEN=local-mode-stub-token SIM_API=http://localhost:1966 against a
+# LOCAL_MODE backend (`make sim-author-local`), or SIM_API=http://localhost:3456/api/proxy
+# to go through the Next.js proxy too. No deploy needed.
+#
 # Env: SIM_BRIEF (first turn), SIM_FOLLOWUP (second turn), SIM_THREAD (reuse a
 # conversation: then only SIM_FOLLOWUP is sent), SMOKE_OUT (dir to save each
 # version's screenshots and index.html for a person to inspect).
@@ -24,14 +28,15 @@ set -euo pipefail
 
 URL="${1:-${AIPLATFORM_API_URL:-https://aipla-v01-frontend-wgwhd7mspa-lz.a.run.app}}"
 URL="${URL%/}"
-PROXY="$URL/api/proxy"
+PROXY="${SIM_API:-$URL/api/proxy}"
 FIREBASE_WEB_API_KEY="${FIREBASE_WEB_API_KEY:-AIzaSyBKcyTUDafaqwohqEjmqlx2feCrCAWob5I}"
 TEACHER_EMAIL="${TEST_TEACHER_EMAIL:-test-teacher@example.dk}"
 TEACHER_PASSWORD="${TEST_TEACHER_PASSWORD:-aipla-demo-1}"
 BRIEF="${SIM_BRIEF:-Build a simple pendulum sim. ID: pendul-smoke. The student sets the string length (0.2-1.5 m), releases the bob from 10 degrees, and records the period from a stopwatch into a small table. Fysik C. g = 9.82 m/s^2. Do NOT show g or the period formula.}"
 
-echo "== smoke-sim-author: $URL =="
-TOKEN="$(curl -sS -X POST "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=$FIREBASE_WEB_API_KEY" \
+echo "== smoke-sim-author: ${SIM_API:-$URL} =="
+TOKEN="${SIM_TOKEN:-}"
+[ -n "$TOKEN" ] || TOKEN="$(curl -sS -X POST "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=$FIREBASE_WEB_API_KEY" \
   -H "Content-Type: application/json" \
   -d "{\"email\":\"$TEACHER_EMAIL\",\"password\":\"$TEACHER_PASSWORD\",\"returnSecureToken\":true}" \
   | python3 -c "import json,sys; print(json.load(sys.stdin).get('idToken') or '')")"
@@ -57,6 +62,7 @@ print(json.dumps({'threadId': os.environ['THREAD'], 'runId': f'r{int(time.time()
   'messages': [{'id': f'm{int(time.time())}', 'role': 'user', 'content': '[ui_language=en] ' + os.environ['MSG']}],
   'state': {}, 'tools': [], 'context': [], 'forwardedProps': {}}))")"
   echo "..    turn on $THREAD (minutes): ${message:0:90}"
+  local t0=$SECONDS
   curl -sS -N --max-time 1200 -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
     -H "Accept: text/event-stream" -d "$body" "$PROXY/api/skill/$SKILL_ID/stream" > "$stream" || true
   python3 - "$stream" <<'PY'
@@ -71,14 +77,17 @@ for line in open(sys.argv[1]):
 calls = [e.get("toolCallName") for e in events if e.get("type") == "TOOL_CALL_START"]
 errors = [e for e in events if e.get("type") == "RUN_ERROR"]
 text = "".join(e.get("delta", "") for e in events if e.get("type") == "TEXT_MESSAGE_CONTENT")
+stages = [e.get("value", {}).get("label") for e in events if e.get("type") == "CUSTOM" and e.get("name") == "STAGE_PROGRESS"]
 print(f"OK    {len(events)} events; tool calls: {calls}")
+print(f"OK    progress shown: {stages}")
 if errors:
     sys.exit(f"FAIL: RUN_ERROR {errors[0]}")
-if "verify_sim" not in calls:
-    sys.exit("FAIL: the skill never called verify_sim this turn")
+if not {"verify_sim", "edit_sim"} & set(calls):
+    sys.exit("FAIL: the skill never checked a version this turn (no verify_sim / edit_sim)")
 print("OK    reply: " + text.strip().replace("\n", " ")[:600])
 PY
   local rc=$?
+  echo "OK    turn took $((SECONDS - t0)) s"
   rm -f "$stream"
   return $rc
 }

@@ -686,6 +686,10 @@ check-tutor-docs: ## Fail if the tutor docs have drifted from the framework YAML
 smoke-sim-verify: ## Authenticated end-to-end check of the private sim-verify service (ENV=dev)
 	@scripts/smoke-sim-verify.sh $(or $(ENV),dev)
 
+.PHONY: sim-author-local
+sim-author-local: ## Local backend for iterating on the Sim workshop: LOCAL_MODE store, real Gemini (Vertex eu), local browser check; then SIM_TOKEN=local-mode-stub-token SIM_API=http://localhost:1966 scripts/smoke-sim-author.sh (PORT=1966; 1956 is often another project)
+	@cd backend && env -u GOOGLE_API_KEY -u GEMINI_API_KEY LOCAL_MODE=1 GOOGLE_GENAI_USE_VERTEXAI=True GOOGLE_CLOUD_PROJECT=aipla-dev-2026 GOOGLE_CLOUD_LOCATION=eu PLATFORM_OWNER_UID=aipla-platform uv run uvicorn fast_api_app:app --port $(or $(PORT),1966)
+
 .PHONY: smoke-sim-author
 smoke-sim-author: ## End-to-end Sim workshop check on a deployed env: one real build as the test teacher (COSTS ~EUR 0.5)
 	@scripts/smoke-sim-author.sh $(URL)

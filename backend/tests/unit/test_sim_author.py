@@ -167,3 +167,62 @@ async def test_hidden_terms_reach_the_check():
     r = await sim_author.verify_sim(shown, GOOD_YAML, hidden_terms=["9,82"], tool_context=ctx())
     assert r["ok"] is False  # level may be 3; a leaked answer is still not ok
     assert any(f["id"] == "D.hidden_terms" for f in r["static_failures"])
+
+
+# ---- editing instead of rewriting ----------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_edit_sim_changes_the_stored_draft_and_stores_a_new_version():
+    await sim_author.verify_sim(GOOD_HTML, GOOD_YAML, tool_context=ctx(invocation="a"))
+    r = await sim_author.edit_sim(
+        [{"find": 'intro: "Et pendul."', "replace": 'intro: "Et matematisk pendul."'}],
+        tool_context=ctx(invocation="b"),
+    )
+    assert r["applied"] == 1 and r["edited_from_version"] == 1 and r["version"] == 2 and r["level"] == 3
+    v2 = sim_drafts.get_version("sess-1", 2, "teacher-1")
+    assert 'intro: "Et matematisk pendul."' in v2["html"] and v2["yaml"] == GOOD_YAML
+
+
+@pytest.mark.asyncio
+async def test_a_missing_or_ambiguous_find_changes_nothing():
+    await sim_author.verify_sim(GOOD_HTML, GOOD_YAML, tool_context=ctx(invocation="a"))
+    missing = await sim_author.edit_sim([{"find": "no such text", "replace": "x"}], tool_context=ctx(invocation="b"))
+    assert missing["ok"] is False and "not found" in missing["refused"]
+    twice = await sim_author.edit_sim([{"find": "Start", "replace": "Go"}], tool_context=ctx(invocation="c"))
+    assert twice["ok"] is False and "times" in twice["refused"]
+    partly = await sim_author.edit_sim(
+        [{"find": 'intro: "Et pendul."', "replace": "ok"}, {"find": "no such text", "replace": "x"}],
+        tool_context=ctx(invocation="d"),
+    )
+    assert partly["ok"] is False
+    assert sim_drafts.get_draft("sess-1", "teacher-1")["latestVersion"] == 1  # nothing stored
+
+
+@pytest.mark.asyncio
+async def test_edit_sim_without_a_draft_says_to_write_one_first():
+    r = await sim_author.edit_sim([{"find": "a", "replace": "b"}], tool_context=ctx())
+    assert r["ok"] is False and "verify_sim" in r["refused"]
+
+
+@pytest.mark.asyncio
+async def test_read_sim_serves_line_ranges_and_search():
+    await sim_author.verify_sim(GOOD_HTML, GOOD_YAML, tool_context=ctx())
+    page = await sim_author.read_sim(start_line=1, end_line=3, tool_context=ctx(invocation="r"))
+    assert page["version"] == 1 and page["lines"].startswith("1: <!doctype html>")
+    hit = await sim_author.read_sim(search="ARTEFACT_NAME =", tool_context=ctx(invocation="r2"))
+    assert 'const ARTEFACT_NAME = "demo-sim";' in hit["lines"]
+    yml = await sim_author.read_sim(file="catalogue.yaml", tool_context=ctx(invocation="r3"))
+    assert "id: demo-sim" in yml["lines"]
+
+
+@pytest.mark.asyncio
+async def test_screenshots_attach_to_edit_sim_responses_too():
+    from google.genai import types
+
+    await sim_author.verify_sim(GOOD_HTML, GOOD_YAML, tool_context=ctx(invocation="a"))
+    c = ctx(invocation="b")
+    await sim_author.edit_sim([{"find": 'intro: "Et pendul."', "replace": 'intro: "Pendul."'}], tool_context=c)
+    fr = types.FunctionResponse(name="edit_sim", response={"level": 3})
+    request = SimpleNamespace(contents=[types.Content(role="user", parts=[types.Part(function_response=fr)])])
+    assert await sim_author.attach_sim_screenshots(c, request) is True

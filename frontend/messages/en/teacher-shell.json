@@ -125,7 +125,11 @@
     "applied": "Applied ✓",
     "thinking": "Thinking…",
     "editAriaLabel": "Edit proposal",
-    "send": "Send"
+    "send": "Send",
+    "stage_simReading": "Reading the {topic} guide…",
+    "stage_simChecking": "Checking version {version} in the browser…",
+    "stage_simChecked": "Version {version}: level {level} of 3. Looking at the screenshots…",
+    "stage_simEditing": "Applying {count} edit(s)…"
   },
   "DefaultsCard": {
     "flagAuthoringCopilot": "Activity co-pilot (AI helper in the activity builder)",

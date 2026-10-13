@@ -96,6 +96,29 @@ afterEach(() => {
 });
 
 describe("TeacherCopilot (shared shell)", () => {
+  it("shows the server's progress stage while busy, in the teacher's language for known keys", () => {
+    hook = {
+      ...defaultHook,
+      isLoading: true,
+      stage: { label: "Checking version 2 in the browser…", key: "simChecking", params: { version: 2 } },
+    } as unknown as UseSkillAgentReturn;
+    render(<TeacherCopilot {...config()} />);
+    expect(screen.getByTestId("copilot-progress")).toHaveTextContent("Checking version 2 in the browser…");
+  });
+
+  it("falls back to the server's label for an unknown stage, and to Thinking with none", () => {
+    hook = {
+      ...defaultHook,
+      isLoading: true,
+      stage: { label: "Reading 2 documents…", key: "readingDocuments", params: {} },
+    } as unknown as UseSkillAgentReturn;
+    const { rerender } = render(<TeacherCopilot {...config()} />);
+    expect(screen.getByTestId("copilot-progress")).toHaveTextContent("Reading 2 documents…");
+    hook = { ...defaultHook, isLoading: true, stage: null } as unknown as UseSkillAgentReturn;
+    rerender(<TeacherCopilot {...config()} />);
+    expect(screen.getByTestId("copilot-progress")).toHaveTextContent("Thinking…");
+  });
+
   it("shows the loading state while the skill slug resolves", () => {
     resolver = { skillId: null, resolveError: null };
     render(<TeacherCopilot {...config()} />);

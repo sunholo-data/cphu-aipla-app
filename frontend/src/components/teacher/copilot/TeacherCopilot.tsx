@@ -132,6 +132,25 @@ function CopilotResolver<P>({
   );
 }
 
+/** Server stage keys a co-pilot knows how to say in the teacher's language
+ *  (the sim workshop's progress); any other stage shows the server's English
+ *  label, and no stage shows "Thinking…". */
+const STAGE_KEYS = {
+  simReading: "stage_simReading",
+  simChecking: "stage_simChecking",
+  simChecked: "stage_simChecked",
+  simEditing: "stage_simEditing",
+} as const;
+
+function stageText(
+  stage: { label: string; key: string | null; params: Record<string, string | number> } | null,
+  t: ReturnType<typeof useT<"TeacherCopilot">>,
+): string | null {
+  if (!stage) return null;
+  const key = stage.key ? STAGE_KEYS[stage.key as keyof typeof STAGE_KEYS] : undefined;
+  return key ? t(key, stage.params) : stage.label;
+}
+
 function CopilotChat<P>({
   config,
   threadId,
@@ -145,7 +164,7 @@ function CopilotChat<P>({
 }) {
   const labels = useCopilotLabels(config.labels);
   const t = useT("TeacherCopilot");
-  const { messages: liveMessages, toolCalls, sendMessage, isLoading, error } = useSkillAgent();
+  const { messages: liveMessages, toolCalls, sendMessage, isLoading, error, stage } = useSkillAgent();
   const localeMode = useLocaleMode();
   const langTag = `[ui_language=${localeMode === "bilingual" ? "da" : localeMode}] `;
   // Prior turns for a resumed thread (empty for a fresh one — a 404 lands as
@@ -227,7 +246,11 @@ function CopilotChat<P>({
               />
             ))
           : null}
-        {isLoading ? <p className="text-xs text-muted-foreground">{labels.thinking}</p> : null}
+        {isLoading ? (
+          <p data-testid="copilot-progress" className="text-xs text-muted-foreground">
+            {stageText(stage, t) ?? labels.thinking}
+          </p>
+        ) : null}
       </div>
 
       {error ? (

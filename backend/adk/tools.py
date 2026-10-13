@@ -192,6 +192,10 @@ TOOL_REGISTRY: dict[str, Callable[[dict], FunctionTool]] = {
     # attach its screenshots for the model; and read the authoring references.
     "verify_sim": lambda _config: FunctionTool(_sim_author.verify_sim),
     "read_reference": lambda _config: FunctionTool(_sim_author.read_reference),
+    # ...and the coding-agent pair for iterating: look up the stored draft's exact
+    # text, then change only what needs changing (re-checked, stored as a version).
+    "read_sim": lambda _config: FunctionTool(_sim_author.read_sim),
+    "edit_sim": lambda _config: FunctionTool(_sim_author.edit_sim),
 }
 
 # Tools handled entirely outside this registry (no ValueError for these)

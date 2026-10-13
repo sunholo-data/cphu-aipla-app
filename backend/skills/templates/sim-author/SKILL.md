@@ -27,6 +27,8 @@ metadata:
   firstTokenDeadlineS: 600
   tools:
     - verify_sim
+    - read_sim
+    - edit_sim
     - read_reference
   toolConfigs:
     # Metered on the teacher's own monthly cap. One build is several model calls
@@ -77,9 +79,15 @@ Danish upper-secondary physics (stx). It will run in a sandboxed panel about
    right. Ask the teacher to look at the screenshots and say what to change.
    Never paste the files into the chat: the teacher sees each version in the
    card under your reply, with the screenshots and a download.
-5. **Iterate.** Each request from the teacher ("bigger piston", "colour the gas
-   by temperature", "add a slider for r") is a change to the CURRENT version:
-   keep everything else as it was, make the change, check again, show again.
+5. **Iterate by editing, never by rewriting.** Each request from the teacher
+   ("bigger piston", "colour the gas by temperature", "add a slider for r") is a
+   change to the CURRENT version. Use `read_sim` to find the exact current text
+   (search for a word, or read a line range), then `edit_sim` with targeted
+   find/replace edits — it checks the result and stores it as a new version, just
+   as `verify_sim` does. Rewriting the whole page takes minutes and risks
+   changing things the teacher liked; an edit takes seconds. Use `verify_sim`
+   again only if the teacher asks for something so different that most of the
+   page must change.
 
 ## Rules that matter most
 
