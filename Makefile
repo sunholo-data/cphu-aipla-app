@@ -686,6 +686,10 @@ check-tutor-docs: ## Fail if the tutor docs have drifted from the framework YAML
 smoke-sim-verify: ## Authenticated end-to-end check of the private sim-verify service (ENV=dev)
 	@scripts/smoke-sim-verify.sh $(or $(ENV),dev)
 
+.PHONY: smoke-sim-author
+smoke-sim-author: ## End-to-end Sim workshop check on a deployed env: one real build as the test teacher (COSTS ~EUR 0.5)
+	@scripts/smoke-sim-author.sh $(URL)
+
 .PHONY: bench-sims
 bench-sims: ## Sim authoring benchmark (ARGS=--dry-run | ARGS=--go …; ENV=dev by default)
 	@cd backend && GOOGLE_CLOUD_PROJECT=aipla-$(or $(ENV),dev)-2026 uv run python ../scripts/bench-sims.py $(ARGS)
