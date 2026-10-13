@@ -359,6 +359,14 @@ What the runs taught, and what changed because of them:
   refuses a page that is not whole without a browser run, and the prompt and
   skill say to stop at L3 unless a screenshot shows the picture disagreeing
   with the physics.
+- **Made to use the kit, Gemini draws a real apparatus** (h3 re-run, engine,
+  EUR 0.46, 534 s, L1 → L3 → L3: its first draft drew NaN paths, 19 page
+  errors, and the verdict fixed them). An isometric engine on a base plate with
+  feet: block, cylinder, posts, valve springs, a lit spark plug at point 3, a
+  crank disc, the p-V chart beside it; readouts exact (81.3 bar, 2541 K at
+  point 3). Short of the hand-built figure (cooling fins came out as a coil
+  round the cylinder; the rod is a thin line), but a recognisable machine, not
+  a box diagram. **So the anatomy-lite variation earns its place in the skill.**
 - **Cost per build: EUR 0.12–0.14 one-shot, 0.4–0.9 with the loop.** Against
   the EUR ~9 (USD 9.74) of the hand-built Opus 5.5 engine. With the waste above
   removed, expect the loop at about EUR 0.4–0.5.
