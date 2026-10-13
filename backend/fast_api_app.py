@@ -347,6 +347,7 @@ from protocols.session_bootstrap_routes import router as session_bootstrap_route
 from protocols.session_restore_routes import router as session_restore_router  # noqa: E402
 from protocols.sessions_route import router as sessions_router  # noqa: E402
 from protocols.sim_draft_routes import router as sim_draft_router  # noqa: E402
+from protocols.sse_keepalive import with_keepalive  # noqa: E402
 from protocols.table_progress_routes import router as table_progress_router  # noqa: E402
 from protocols.teacher_bootstrap_routes import router as teacher_bootstrap_router  # noqa: E402
 from protocols.teacher_prefs_routes import router as teacher_prefs_router  # noqa: E402
@@ -867,7 +868,10 @@ async def stream_skill(
             tracker.emit_log()
             reset_current_tracker(_tracker_token)
 
-    return StreamingResponse(_sse(), media_type="text/event-stream")
+    # Keep-alive comments through long silences (a sim-author draft turn writes
+    # for minutes before its first chunk); without them the proxy's idle body
+    # timeout cut the stream at 300 s (protocols/sse_keepalive.py).
+    return StreamingResponse(with_keepalive(_sse()), media_type="text/event-stream")
 
 
 # TODO: Direct API endpoints (backward compat with v5 CLI)
