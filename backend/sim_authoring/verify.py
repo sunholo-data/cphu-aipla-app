@@ -99,6 +99,11 @@ async def verify_draft(
         empty = sim_gates.VerifyReport([sim_gates.Gate("A.parse", "fail", f"missing: {', '.join(missing)}")])
         return DraftVerdict(-1, empty, None, [f"L0: {', '.join(missing)} not found in the answer"])
 
+    fragment = looks_like_fragment(index_html)
+    if fragment:
+        empty = sim_gates.VerifyReport([sim_gates.Gate("A.parse", "fail", fragment)])
+        return DraftVerdict(-1, empty, None, [f"L0: {fragment}. Send the COMPLETE index.html, not a part or a diff."])
+
     static = sim_gates.run(index_html, catalogue_yaml=catalogue_yaml, hidden_terms=hidden_terms)
     level, reasons = 0, []
     blocking = [g for g in static.gates if g.tier in "ABC" and g.status not in ("pass", "warning")]
@@ -152,6 +157,18 @@ async def verify_draft(
         reasons.append("L3: " + "; ".join(why))
         return DraftVerdict(level, static, result, reasons, shots)
     return DraftVerdict(3, static, result, reasons, shots)
+
+
+def looks_like_fragment(index_html: str) -> str | None:
+    """Why ``index_html`` is not a whole page, or None. Models in a repair loop
+    sometimes submit only the part they changed; grading that as a sim wastes a
+    browser run and reports nonsense failures (benchmark 2026-10-13)."""
+    head = index_html.lstrip()[:200].lower()
+    if not (head.startswith("<!doctype html") or head.startswith("<html")):
+        return "it does not start with <!doctype html>"
+    if "</html>" not in index_html[-500:].lower():
+        return "it does not end with </html>"
+    return None
 
 
 class LocalBrowserCheck:

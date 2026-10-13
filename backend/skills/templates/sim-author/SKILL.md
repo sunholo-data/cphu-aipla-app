@@ -51,14 +51,16 @@ Danish upper-secondary physics (stx). It will run in a sandboxed panel about
    the self-test, what must stay out of the frame). Follow them exactly. For a
    sim whose concept lives in a real apparatus (an engine, a kettle, a ripple
    tank), also read `read_reference("anatomy-kit")` and draw the apparatus with
-   the kit.
+   the kit: load it with the exact tag in that guide and build the apparatus from
+   its solids. Do not write your own renderer for the apparatus.
 3. **Draft, then check.** Write both files and call `verify_sim` with BOTH,
    complete. Read every failure and fix it. LOOK at the screenshots: does what is
    drawn agree with the physics at that moment? (Is the piston at the top when
    the volume is smallest? Does the spark fire only at the end of compression?
    Do parts that are joined stay joined?) Fix and check again. Stop when the
    level is 3 and the picture agrees with the physics, or when you run out of
-   checks for this turn.
+   checks for this turn. Always send BOTH COMPLETE files to `verify_sim`, never
+   a part or a diff; once a version is at level 3 and looks right, stop checking.
 4. **Show the teacher.** In a few plain sentences: what the sim does, what the
    student does first, the version number, and what you could NOT check — level
    3 means valid, running and talking to the tutor, NOT that the physics is

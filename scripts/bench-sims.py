@@ -60,10 +60,13 @@ KIT_PREAMBLE = """
 
 --- A SECOND PERMITTED LIBRARY: THE ANATOMY KIT ---
 
-Besides three.js you may load ONE more vendored library, the anatomy kit, to
-draw the apparatus as a crafted isometric figure. Use it for the apparatus
-drawing. It is served same-origin and hash-checked, exactly like three.js.
-Charts (p-V, T-t) stay plain SVG or canvas. Its guide follows.
+Besides three.js there is ONE more vendored library, the anatomy kit. For this
+sim you MUST draw the apparatus with it, as a crafted isometric figure: load it
+with the exact script tag in its guide and build the apparatus from its solids
+(slabOf, cylinder, extrude, …) rendered with solidSvg and figureSvg. Do not
+write your own renderer for the apparatus. Charts (p-V, T-t) stay plain SVG or
+canvas. It is served same-origin and hash-checked, exactly like three.js. Its
+guide follows.
 
 """
 DEFAULT_MODEL = "gemini-3.8-flash"
@@ -81,8 +84,10 @@ events it emits, and returns the verdict with screenshots of the page.
 Call it with BOTH complete files before you answer. Read the failures and fixes,
 and LOOK AT THE SCREENSHOTS: check that what is drawn agrees with the numbers
 your model computes at that moment (positions, directions, which parts move).
-Fix what is wrong and call it again. When the level is 3 and the picture agrees
-with the physics, answer with the two final files in the format above.
+Fix what is wrong and call it again, always with BOTH COMPLETE files, never a
+part or a diff. STOP checking once the level is 3, unless a screenshot shows the
+picture disagreeing with the physics; then answer with the two final files in
+the format above.
 """
 
 VERIFY_DECL = {

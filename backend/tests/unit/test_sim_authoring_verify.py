@@ -114,3 +114,11 @@ async def test_anything_wrong_in_the_run_stops_at_l1(tmp_path, result):
 @pytest.mark.asyncio
 async def test_events_that_do_not_reach_the_tutor_stop_at_l2(tmp_path, events):
     assert (await level(tmp_path, browser=FakeBrowser(browser_result(events=events))))[0] == 2
+
+
+@pytest.mark.asyncio
+async def test_a_fragment_is_refused_before_any_check(tmp_path):
+    browser = FakeBrowser(browser_result())
+    lvl, reasons = await level(tmp_path, html="<script>const x = 1;</script>", browser=browser)
+    assert lvl == -1 and "COMPLETE" in reasons[0]
+    assert browser.calls == 0
