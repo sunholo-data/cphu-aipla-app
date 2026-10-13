@@ -19,9 +19,12 @@ metadata:
   # one-shot without thinking got wrong.
   model: gemini-3.8-flash
   thinkingBudget: 16384
-  # Writing a whole sim with thinking on is silent for a minute or more before
-  # the first token; the 10 s tutor stall deadline killed the first dev turn.
-  firstTokenDeadlineS: 180
+  # The first streamed chunk of a draft turn is the WHOLE verify_sim call:
+  # Gemini does not stream function-call arguments, so nothing arrives until the
+  # entire page (~15k tokens) is written after thinking — minutes. The tutor's
+  # 10 s deadline killed the first dev turn, and 180 s the second. 600 s still
+  # catches a real hang well inside the 900 s request timeout.
+  firstTokenDeadlineS: 600
   tools:
     - verify_sim
     - read_reference
