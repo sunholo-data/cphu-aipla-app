@@ -350,6 +350,7 @@ from protocols.sim_draft_routes import router as sim_draft_router  # noqa: E402
 from protocols.sse_keepalive import with_keepalive  # noqa: E402
 from protocols.table_progress_routes import router as table_progress_router  # noqa: E402
 from protocols.teacher_bootstrap_routes import router as teacher_bootstrap_router  # noqa: E402
+from protocols.teacher_features_routes import router as teacher_features_router  # noqa: E402
 from protocols.teacher_prefs_routes import router as teacher_prefs_router  # noqa: E402
 from protocols.tutors_routes import router as tutors_router  # noqa: E402
 from protocols.voice_routes import router as voice_router  # noqa: E402
@@ -401,6 +402,7 @@ app.include_router(frameworks_router)
 app.include_router(tutors_router)
 app.include_router(artefact_router)
 app.include_router(sim_draft_router)
+app.include_router(teacher_features_router)
 app.include_router(classes_router)
 app.include_router(client_error_router)
 app.include_router(teacher_bootstrap_router)

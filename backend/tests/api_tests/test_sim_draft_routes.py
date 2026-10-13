@@ -27,6 +27,12 @@ PNG_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEh
 def _local_mode(monkeypatch):
     monkeypatch.setenv("LOCAL_MODE", "1")
     fs_module._reset_client_for_testing()
+    from db.teacher_access import grant_access, set_feature
+
+    for email, uid in (("t1@example.dk", "t-1"), ("t2@example.dk", "t-2"), ("t3@example.dk", "t-3")):
+        grant_access(email, uid=uid)
+    set_feature("t1@example.dk", "simWorkshop", True)
+    set_feature("t2@example.dk", "simWorkshop", True)
     sim_drafts.add_version(
         draft_id="sess-1",
         owner_uid="t-1",
@@ -56,6 +62,17 @@ def _client(user: User) -> TestClient:
 
 OWNER = User(uid="t-1", is_teacher=True)
 OTHER = User(uid="t-2", is_teacher=True)
+NO_FEATURE = User(uid="t-3", is_teacher=True)
+
+
+def test_a_teacher_without_the_feature_is_refused_with_a_reason():
+    r = _client(NO_FEATURE).get("/api/sim-drafts")
+    assert r.status_code == 403 and r.json()["detail"]["error"] == "feature_not_enabled"
+
+
+def test_a_researcher_has_the_feature_without_a_switch():
+    researcher = User(uid="r-1", is_teacher=True, is_researcher=True)
+    assert _client(researcher).get("/api/sim-drafts").status_code == 200
 
 
 def test_owner_lists_and_reads_their_draft():

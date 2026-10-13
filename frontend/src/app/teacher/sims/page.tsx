@@ -23,6 +23,7 @@ import { RefreshCw } from "lucide-react";
 
 import { TeacherCopilot } from "@/components/teacher/copilot";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
+import { useMyFeature } from "@/hooks/useMyFeature";
 import { useTeacherFeature } from "@/hooks/useTeacherFeature";
 import { useT } from "@/i18n";
 import {
@@ -35,16 +36,43 @@ import {
   type SimDraftVersion,
 } from "@/lib/simDraftsApi";
 
+import { SimDraftPreview } from "./_SimDraftPreview";
+
+/** Where a teacher without the feature asks for it; the same inbox the help co-pilot's "report a bug" uses. */
+const ASK_MAILTO =
+  "mailto:mark.edmondson@ind.ku.dk?subject=" + encodeURIComponent("AIPLA: Sim workshop access");
+
 /** While the assistant works, new versions land every minute or two. */
 const POLL_MS = 8000;
 
 export default function SimWorkshopPage() {
   const enabled = useTeacherFeature("simWorkshop", process.env.NEXT_PUBLIC_SIM_WORKSHOP);
   const t = useT("SimWorkshopPage");
+  const access = useMyFeature("simWorkshop");
   if (!enabled) {
     return (
       <TeacherPage title={t("title")}>
         <p className="text-sm text-muted-foreground">{t("unavailable")}</p>
+      </TeacherPage>
+    );
+  }
+  if (access === "loading") {
+    return (
+      <TeacherPage title={t("title")}>
+        <p className="text-sm text-muted-foreground">{t("loading")}</p>
+      </TeacherPage>
+    );
+  }
+  if (access === "off") {
+    return (
+      <TeacherPage title={t("title")} subtitle={t("subtitle")}>
+        <section data-testid="sim-workshop-locked" className="flex max-w-prose flex-col gap-3 rounded border border-border p-4">
+          <h2 className="text-sm font-semibold">{t("lockedHeading")}</h2>
+          <p className="text-sm text-muted-foreground">{t("lockedBody")}</p>
+          <a href={ASK_MAILTO} className="self-start rounded border border-border bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground">
+            {t("lockedAsk")}
+          </a>
+        </section>
       </TeacherPage>
     );
   }
@@ -131,6 +159,14 @@ function SimWorkshop() {
             ))}
           </nav>
           <section className="flex min-w-0 flex-1 flex-col gap-4">
+            {draft && latest ? (
+              <section className="flex flex-col gap-2" aria-label={t("tryIt")}>
+                <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {t("tryIt")} · {t("version", { n: latest.version })}
+                </h2>
+                <SimDraftPreview draftId={draft.id} version={latest.version} />
+              </section>
+            ) : null}
             {draft && latest ? <VersionPanel draftId={draft.id} version={latest} /> : null}
             {draft && draft.versions.length > 1 ? (
               <details className="rounded border border-border p-3">

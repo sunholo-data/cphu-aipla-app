@@ -9,6 +9,7 @@ import {
   ClipboardList,
   FlaskConical,
   Library,
+  Lock,
   PanelLeftClose,
   PanelLeftOpen,
   ShieldCheck,
@@ -18,6 +19,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useIsProgrammeAdmin } from "@/hooks/useIsProgrammeAdmin";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
+import { useMyFeature } from "@/hooks/useMyFeature";
 import { useTeacherFeature } from "@/hooks/useTeacherFeature";
 import { useT, type MessageKey } from "@/i18n";
 
@@ -30,6 +32,9 @@ interface Destination {
   icon: ComponentType<{ className?: string; "aria-hidden"?: boolean | "true" | "false" }>;
   /** Path prefixes that mark this destination active. */
   match: string[];
+  /** Shown greyed with a lock: a per-teacher feature this teacher does not have
+   *  yet. Still a link — its page says how to ask for it. */
+  locked?: boolean;
 }
 
 /**
@@ -115,9 +120,11 @@ export function TeacherNav() {
   const isResearcher = useIsResearcher();
   const isProgrammeAdmin = useIsProgrammeAdmin();
   const simsEnabled = useTeacherFeature("simWorkshop", process.env.NEXT_PUBLIC_SIM_WORKSHOP);
-  const destinations = [
+  // Released to everyone in the menu; per-teacher access decides greyed or not.
+  const simsAccess = useMyFeature("simWorkshop");
+  const destinations: Destination[] = [
     ...DESTINATIONS.slice(0, 3),
-    ...(simsEnabled ? [SIMS_DESTINATION] : []),
+    ...(simsEnabled ? [{ ...SIMS_DESTINATION, locked: simsAccess === "off" }] : []),
     ...DESTINATIONS.slice(3),
     ...(isResearcher || isProgrammeAdmin ? [PROGRAMME_DESTINATION] : []),
   ];
@@ -179,17 +186,20 @@ export function TeacherNav() {
               key={d.href}
               href={d.href}
               aria-current={active ? "page" : undefined}
-              title={collapsed ? t(d.label) : undefined}
+              title={d.locked ? t("lockedHint") : collapsed ? t(d.label) : undefined}
+              data-locked={d.locked ? "true" : undefined}
               className={cn(
                 "flex items-center rounded text-sm font-medium",
                 collapsed ? "justify-center px-0 py-2" : "gap-2 px-3 py-2",
                 active
                   ? "bg-accent text-foreground"
                   : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                d.locked && "opacity-50",
               )}
             >
               <Icon className="h-4 w-4" aria-hidden="true" />
               {!collapsed ? t(d.label) : null}
+              {!collapsed && d.locked ? <Lock className="ml-auto h-3 w-3" aria-hidden="true" /> : null}
             </Link>
           );
         })}
@@ -208,9 +218,12 @@ export function TeacherNav() {
               key={d.href}
               href={d.href}
               aria-current={active ? "page" : undefined}
+              title={d.locked ? t("lockedHint") : undefined}
+              data-locked={d.locked ? "true" : undefined}
               className={cn(
                 "flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium",
                 active ? "text-primary" : "text-muted-foreground hover:text-foreground",
+                d.locked && "opacity-50",
               )}
             >
               <Icon className="h-5 w-5" aria-hidden="true" />

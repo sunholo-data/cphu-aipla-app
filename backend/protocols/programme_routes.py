@@ -121,6 +121,7 @@ async def programme_access_list(
                 "firstSeenAt": g.first_seen_at,
                 "note": g.note,
                 "spentThisPeriodUsd": spend.get(g.email),
+                "features": dict(g.features),
             }
             for g in grants
         ],
@@ -498,6 +499,37 @@ class ProgrammeBudgetBody(BaseModel):
     action: str = "warn"
 
     model_config = ConfigDict(populate_by_name=True)
+
+
+class FeatureBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    email: str = Field(min_length=3, max_length=320)
+    feature: str = Field(min_length=1, max_length=40)
+    enabled: bool
+
+
+@router.post("/access/features")
+async def programme_set_feature(
+    body: FeatureBody,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict[str, Any]:
+    """Switch a feature on or off for one teacher on the register (2026-10-13).
+
+    Open to a researcher OR a programme admin — unlike grants and caps, which
+    are programme-admin only. Decided by M: researchers turn the Sim workshop on
+    for the teachers they work with. It commits no money beyond the teacher's
+    existing monthly cap, which still meters every model call the feature makes.
+    """
+    from db.teacher_access import KNOWN_FEATURES, set_feature
+
+    _assert_programme_reader(user)
+    if body.feature not in KNOWN_FEATURES:
+        raise HTTPException(status_code=422, detail=f"unknown feature; known: {sorted(KNOWN_FEATURES)}")
+    try:
+        grant = set_feature(body.email, body.feature, body.enabled, changed_by=getattr(user, "email", "") or user.uid)
+    except KeyError:
+        raise HTTPException(status_code=404, detail="no register row for that email: grant access first") from None
+    return {"email": grant.email, "features": dict(grant.features)}
 
 
 @router.get("/budget")

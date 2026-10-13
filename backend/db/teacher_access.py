@@ -29,7 +29,7 @@ WHY A CUSTOM CLAIM MIRRORS IT
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
@@ -110,6 +110,10 @@ class AccessGrant:
     revoked: bool = False
     uid: str | None = None
     first_seen_at: str | None = None
+    #: Per-teacher feature switches (2026-10-13; first: ``simWorkshop``), set by
+    #: a researcher or programme admin on the programme page. Absent = off.
+    #: Researchers get every feature regardless (``auth.features``).
+    features: dict[str, bool] = field(default_factory=dict)
 
     @property
     def is_active(self) -> bool:
@@ -148,6 +152,7 @@ class AccessGrant:
             "revoked": self.revoked,
             "uid": self.uid,
             "firstSeenAt": self.first_seen_at,
+            "features": dict(self.features),
         }
 
     @classmethod
@@ -179,6 +184,7 @@ class AccessGrant:
             revoked=bool(doc.get("revoked", False)),
             uid=doc.get("uid"),
             first_seen_at=doc.get("firstSeenAt"),
+            features={k: bool(v) for k, v in (doc.get("features") or {}).items() if isinstance(k, str)},
         )
 
 
@@ -355,6 +361,9 @@ def grant_access(
         # argument is a weaker claim than what the row already witnessed.
         uid=(existing.uid if existing and existing.uid else uid),
         first_seen_at=existing.first_seen_at if existing else None,
+        # A re-grant (a cap edit, an un-revoke) rewrites the row; the feature
+        # switches a researcher set are not part of that decision and must survive.
+        features=dict(existing.features) if existing else {},
     )
     set_document(_COLLECTION, key, grant.to_doc(), merge=False)
     logger.info(
@@ -367,6 +376,31 @@ def grant_access(
         expires_at or "never",
     )
     return grant
+
+
+#: Features a researcher may switch on per teacher. A name outside this set is
+#: refused, so a typo cannot create a switch nothing reads.
+KNOWN_FEATURES = frozenset({"simWorkshop"})
+
+
+def set_feature(email: str, feature: str, enabled: bool, *, changed_by: str = "") -> AccessGrant:
+    """Turn one feature on or off for a teacher already on the register.
+
+    Raises ``KeyError`` when the email has no register row (a feature confers
+    nothing to someone who may not use the platform: grant access first) and
+    ``ValueError`` for an unknown feature.
+    """
+    if feature not in KNOWN_FEATURES:
+        raise ValueError(f"unknown feature {feature!r}; known: {sorted(KNOWN_FEATURES)}")
+    key = normalise_email(email)
+    existing = get_grant(key)
+    if existing is None:
+        raise KeyError(key)
+    features = dict(existing.features)
+    features[feature] = bool(enabled)
+    set_document(_COLLECTION, key, {"features": features}, merge=True)
+    logger.info("teacher_access.feature email=%s %s=%s by=%s", key, feature, enabled, changed_by or "?")
+    return get_grant(key) or existing
 
 
 def revoke_access(email: str, *, revoked_by: str = "") -> bool:

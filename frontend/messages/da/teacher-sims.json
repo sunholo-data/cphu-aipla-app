@@ -21,6 +21,12 @@
     "assistantPlaceholder": "Beskriv en simulering, eller hvad der skal ændres",
     "assistantEmpty": "Beskriv den simulering, du vil have. For eksempel: “En firetaktsmotor skåret over, med et p-V-diagram. Eleverne ændrer kompressionsforholdet og måler varme og arbejde for én cyklus; de finder selv virkningsgraden.”",
     "refresh": "Opdater",
-    "unavailable": "Simuleringsværkstedet er ikke slået til i dette miljø endnu."
+    "unavailable": "Simuleringsværkstedet er ikke slået til i dette miljø endnu.",
+    "lockedHeading": "Ikke slået til for dig endnu",
+    "lockedBody": "Simuleringsværkstedet lader dig beskrive en simulering og bygge den sammen med en assistent, der tjekker hver version. Det slås til for den enkelte lærer af en forsker i projektet. Spørg, så kan de slå det til for dig.",
+    "lockedAsk": "Bed om at få det slået til",
+    "tryIt": "Prøv den",
+    "previewTitle": "Forhåndsvisning af version {n}",
+    "previewUnavailable": "Der er ingen sandkasse i dette miljø, så den levende forhåndsvisning kan ikke køre. Skærmbillederne nedenfor viser stadig hver version."
   }
 }

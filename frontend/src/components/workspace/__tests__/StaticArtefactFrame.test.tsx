@@ -206,6 +206,29 @@ describe("StaticArtefactFrame", () => {
     });
   });
 
+  it("takes the HTML from loadHtml instead of the sandbox when given one (the Sim workshop preview)", async () => {
+    const cap = captureProxyPostMessage();
+    const loadHtml = vi.fn(() => Promise.resolve("<!doctype html><p>draft v3</p>"));
+    render(
+      <StaticArtefactFrame
+        sandboxOrigin={SANDBOX_ORIGIN}
+        artefactPath="__draft__"
+        loadHtml={loadHtml}
+        onUpdateModelContext={() => {}}
+      />,
+    );
+    await waitFor(() => expect(cap.setup()).toBe(true));
+    dispatchFromProxy({ jsonrpc: "2.0", method: "ui/notifications/sandbox-proxy-ready", params: {} });
+    await waitFor(() => {
+      const resourceReady = cap.captured.find(
+        (m) => (m.msg as { method?: string } | null)?.method === "ui/notifications/sandbox-resource-ready",
+      );
+      expect((resourceReady?.msg as { params?: { html?: string } })?.params?.html).toBe("<!doctype html><p>draft v3</p>");
+    });
+    expect(loadHtml).toHaveBeenCalledTimes(1);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
   it("responds to ui/initialize with hostContext (handshake completion)", async () => {
     const cap = captureProxyPostMessage();
     render(

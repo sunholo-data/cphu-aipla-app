@@ -56,7 +56,8 @@
     "expand": "Udvid navigationen",
     "collapse": "Skjul navigationen",
     "collapseShort": "Skjul",
-    "sims": "Simuleringer"
+    "sims": "Simuleringer",
+    "lockedHint": "Ikke slået til for dig endnu — åbn den for at se, hvordan du spørger"
   },
   "SettingsMap": {
     "heading": "Hvor indstillingerne ligger",
@@ -307,7 +308,12 @@
     "tabRegister": "Register",
     "tabRequests": "Anmodninger",
     "nobodyNotified": "Ingen får besked, når nogen beder om adgang. Tjek denne kø efter hver omgang omtale, eller når nogen siger, at de har spurgt.",
-    "loading": "Indlæser…"
+    "loading": "Indlæser…",
+    "colSimWorkshop": "Simuleringsværksted",
+    "featureOn": "Til",
+    "featureOff": "Fra",
+    "featureSaveFailed": "Ikke gemt — prøv igen",
+    "featureSimWorkshopFor": "Simuleringsværksted for {email}"
   },
   "PrivacyNoticeGate": {
     "title": "Sådan behandler vi dine data",

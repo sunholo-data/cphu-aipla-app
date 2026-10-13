@@ -38,6 +38,8 @@ export interface RegisterRow {
   /** Spend so far this period, USD. `null` means the total could NOT be read —
    *  which is a different fact from zero, and must not render as "$0.00". */
   spentThisPeriodUsd: number | null;
+  /** Per-teacher feature switches (2026-10-13), e.g. `{ simWorkshop: true }`. */
+  features?: Record<string, boolean>;
 }
 
 export interface RegisterPayload {
@@ -113,6 +115,22 @@ export async function grantAccess(input: GrantInput): Promise<RegisterRow> {
     body: JSON.stringify(input),
   });
   return readJson<RegisterRow>(res, "Could not grant access");
+}
+
+/** Switch one feature on or off for a teacher on the register. Researchers AND
+ *  programme admins may (unlike grants and caps): it commits no money beyond
+ *  the teacher's existing cap. */
+export async function setTeacherFeature(
+  email: string,
+  feature: string,
+  enabled: boolean,
+): Promise<{ email: string; features: Record<string, boolean> }> {
+  const res = await fetchWithTeacherAuth("/api/proxy/api/programme/access/features", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, feature, enabled }),
+  });
+  return readJson<{ email: string; features: Record<string, boolean> }>(res, "Could not change the feature");
 }
 
 export async function revokeAccess(email: string): Promise<{ email: string; revoked: boolean }> {

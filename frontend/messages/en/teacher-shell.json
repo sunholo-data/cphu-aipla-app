@@ -56,7 +56,8 @@
     "expand": "Expand navigation",
     "collapse": "Collapse navigation",
     "collapseShort": "Collapse",
-    "sims": "Sim workshop"
+    "sims": "Sim workshop",
+    "lockedHint": "Not switched on for you yet — open it to see how to ask"
   },
   "SettingsMap": {
     "heading": "Where settings live",
@@ -307,7 +308,12 @@
     "tabRegister": "Register",
     "tabRequests": "Requests",
     "nobodyNotified": "Nobody is notified when someone asks for access. Check this queue after any round of publicity, or when someone says they asked.",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "colSimWorkshop": "Sim workshop",
+    "featureOn": "On",
+    "featureOff": "Off",
+    "featureSaveFailed": "Not saved — try again",
+    "featureSimWorkshopFor": "Sim workshop for {email}"
   },
   "PrivacyNoticeGate": {
     "title": "How we handle your data",

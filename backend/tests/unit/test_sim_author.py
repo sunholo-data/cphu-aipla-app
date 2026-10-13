@@ -233,3 +233,17 @@ async def test_read_sim_takes_several_search_terms_in_one_call():
     await sim_author.verify_sim(GOOD_HTML, GOOD_YAML, tool_context=ctx())
     hit = await sim_author.read_sim(search=["ARTEFACT_NAME =", "TEST PASS"], tool_context=ctx(invocation="r"))
     assert "ARTEFACT_NAME" in hit["lines"] and "TEST PASS" in hit["lines"]
+
+
+@pytest.mark.asyncio
+async def test_a_teacher_without_the_feature_is_refused_by_every_tool(monkeypatch):
+    import auth.features
+
+    monkeypatch.setattr(auth.features, "has_feature_for_uid", lambda uid, feature: False)
+    for result in (
+        await sim_author.verify_sim(GOOD_HTML, GOOD_YAML, tool_context=ctx(invocation="a")),
+        await sim_author.read_sim(tool_context=ctx(invocation="b")),
+        await sim_author.edit_sim([{"find": "a", "replace": "b"}], tool_context=ctx(invocation="c")),
+    ):
+        assert result["ok"] is False and result["refused"] == sim_author.NOT_ENABLED
+    assert sim_drafts.get_draft("sess-1", "teacher-1") is None  # nothing ran, nothing stored

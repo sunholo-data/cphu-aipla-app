@@ -35,6 +35,10 @@ _DOWNLOAD_HEADERS = {
 
 def _owner(user: User) -> str:
     assert_teacher(user)
+    from auth.features import SIM_WORKSHOP, has_feature
+
+    if not has_feature(user, SIM_WORKSHOP):
+        raise HTTPException(status_code=403, detail={"error": "feature_not_enabled", "feature": SIM_WORKSHOP})
     return user.uid
 
 

@@ -4,8 +4,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LocaleProvider } from "@/i18n";
 
-const feature = vi.hoisted(() => ({ on: true }));
+// The preview reads the sandbox origin when its module loads, so set it before any import.
+vi.hoisted(() => {
+});
+const feature = vi.hoisted(() => ({ on: true, access: "on" as "on" | "off" | "loading" }));
 vi.mock("@/hooks/useTeacherFeature", () => ({ useTeacherFeature: () => feature.on }));
+vi.mock("@/hooks/useMyFeature", () => ({ useMyFeature: () => feature.access }));
+// The live preview is the shared sandbox frame (its own suite); stub it and record what it was given.
+const frames = vi.hoisted(() => ({ loads: [] as Array<() => Promise<string>> }));
+vi.mock("@/components/workspace/StaticArtefactFrame", () => ({
+  StaticArtefactFrame: (p: { loadHtml?: () => Promise<string>; title?: string }) => {
+    if (p.loadHtml) frames.loads.push(p.loadHtml);
+    return <div data-testid="sim-preview">{p.title}</div>;
+  },
+}));
 // The floating assistant is the shared TeacherCopilot (its own suite); stub it here.
 vi.mock("@/components/teacher/copilot", () => ({
   TeacherCopilot: (p: { skillName: string }) => <div data-testid="copilot">{p.skillName}</div>,
@@ -26,6 +38,9 @@ function render(ui: ReactElement) {
 
 beforeEach(() => {
   feature.on = true;
+  feature.access = "on";
+  frames.loads = [];
+  process.env.NEXT_PUBLIC_MCP_SANDBOX_URL = "https://sandbox.example/sandbox.html";
   api.fetchSimScreenshot.mockResolvedValue(new Blob(["png"], { type: "image/png" }));
   api.fetchSimFile.mockResolvedValue(new Blob(["<html>"], { type: "application/octet-stream" }));
   globalThis.URL.createObjectURL = vi.fn(() => "blob:x");
@@ -38,6 +53,18 @@ describe("Sim workshop page", () => {
     feature.on = false;
     render(<SimWorkshopPage />);
     expect(screen.getByText(/not switched on/)).toBeInTheDocument();
+    expect(api.listSimDrafts).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("copilot")).toBeNull();
+  });
+
+  it("shows a teacher without the feature how to ask, and calls nothing", () => {
+    feature.access = "off";
+    render(<SimWorkshopPage />);
+    expect(screen.getByTestId("sim-workshop-locked")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Ask to have it switched on" })).toHaveAttribute(
+      "href",
+      expect.stringContaining("mailto:"),
+    );
     expect(api.listSimDrafts).not.toHaveBeenCalled();
     expect(screen.queryByTestId("copilot")).toBeNull();
   });
@@ -71,6 +98,10 @@ describe("Sim workshop page", () => {
     await waitFor(() => expect(api.fetchSimFile).toHaveBeenCalledWith("d1", 2, "index.html"));
     // older versions stay reachable
     expect(screen.getByTestId("sim-version-1")).toBeInTheDocument();
+    // the live preview runs the latest version through the shared sandbox frame
+    expect(screen.getByTestId("sim-preview")).toHaveTextContent("Preview of version 2");
+    await frames.loads[0]();
+    expect(api.fetchSimFile).toHaveBeenCalledWith("d1", 2, "index.html");
   });
 
   it("shows an error when the drafts cannot be loaded", async () => {

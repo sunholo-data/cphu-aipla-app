@@ -39,6 +39,7 @@ import {
   isUncapped,
   revokeAccess,
   spendState,
+  setTeacherFeature,
 } from "@/lib/programmeApi";
 import { STAGE_ORDER, describeStage } from "@/lib/onboardingStage";
 import { StageChip } from "@/components/teacher/StageChip";
@@ -274,14 +275,55 @@ function RolesTable({ rows }: { rows: RoleRow[] }) {
   );
 }
 
+/** The per-teacher Sim workshop switch (2026-10-13). Researchers AND programme
+ *  admins may flip it (it commits no money beyond the teacher's own cap); the
+ *  server re-checks. A failed save puts the box back and says so. */
+function FeatureToggle({ row, feature, onSaved }: { row: RegisterRow; feature: string; onSaved: () => void }) {
+  const t = useT("TeacherProgrammePage");
+  const [on, setOn] = useState(Boolean(row.features?.[feature]));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const toggle = async () => {
+    const next = !on;
+    setBusy(true);
+    setError(null);
+    setOn(next);
+    try {
+      await setTeacherFeature(row.email, feature, next);
+      onSaved();
+    } catch {
+      setOn(!next);
+      setError(t("featureSaveFailed"));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <label className="flex items-center gap-1.5 text-xs">
+      <input
+        type="checkbox"
+        checked={on}
+        disabled={busy || !row.active}
+        onChange={() => void toggle()}
+        aria-label={t("featureSimWorkshopFor", { email: row.email })}
+      />
+      {on ? t("featureOn") : t("featureOff")}
+      {error ? <span role="alert" className="text-destructive">{error}</span> : null}
+    </label>
+  );
+}
+
 function RegisterTable({
   rows,
   canWrite,
+  canSetFeatures = false,
   onChanged,
   stages,
 }: {
   rows: RegisterRow[];
   canWrite: boolean;
+  /** Researcher or programme admin: may switch per-teacher features. */
+  canSetFeatures?: boolean;
   onChanged: () => void;
   /** Onboarding stage by email (1.1.124 M0); absent while loading or on a
    *  read failure — the column then shows a dash, never a guessed stage. */
@@ -332,6 +374,7 @@ function RegisterTable({
             <th className="py-2 pr-3 font-medium">{t("colExpires")}</th>
             <th className="py-2 pr-3 font-medium">{t("colGrantedBy")}</th>
             <th className="py-2 pr-3 font-medium">{t("colNote")}</th>
+            <th className="py-2 pr-3 font-medium">{t("colSimWorkshop")}</th>
             {canWrite ? <th className="py-2 pr-3 font-medium">{t("colActions")}</th> : null}
           </tr>
         </thead>
@@ -392,6 +435,15 @@ function RegisterTable({
                 <GrantedViaBadge via={row.grantedVia} />
               </td>
               <td className="py-2 pr-3 text-muted-foreground">{row.note || "—"}</td>
+              <td className="py-2 pr-3" data-testid="feature-cell">
+                {canSetFeatures ? (
+                  <FeatureToggle row={row} feature="simWorkshop" onSaved={onChanged} />
+                ) : row.features?.simWorkshop ? (
+                  t("featureOn")
+                ) : (
+                  t("featureOff")
+                )}
+              </td>
               {canWrite ? (
                 <td className="py-2 pr-3">
                   {row.active ? <RevokeButton row={row} onRevoked={onChanged} /> : null}
@@ -572,7 +624,13 @@ export default function TeacherProgrammePage() {
           ) : loading ? (
             <p className="text-sm text-muted-foreground">{t("loading")}</p>
           ) : tab === "register" ? (
-            <RegisterTable rows={register ?? []} canWrite={isProgrammeAdmin} onChanged={load} stages={stages} />
+            <RegisterTable
+              rows={register ?? []}
+              canWrite={isProgrammeAdmin}
+              canSetFeatures={mayRead}
+              onChanged={load}
+              stages={stages}
+            />
           ) : tab === "requests" ? (
             <RequestsTable rows={requests ?? []} />
           ) : (

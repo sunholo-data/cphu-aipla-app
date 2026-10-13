@@ -10,6 +10,11 @@ vi.mock("next/navigation", () => ({ usePathname: () => mockPathname() }));
 const { researcherRef } = vi.hoisted(() => ({ researcherRef: { current: false } }));
 vi.mock("@/hooks/useIsResearcher", () => ({ useIsResearcher: () => researcherRef.current }));
 
+// The Sim workshop entry: the build flag (released or not) and the teacher's own access.
+const { simsRef } = vi.hoisted(() => ({ simsRef: { built: false, access: "off" as "on" | "off" | "loading" } }));
+vi.mock("@/hooks/useTeacherFeature", () => ({ useTeacherFeature: () => simsRef.built }));
+vi.mock("@/hooks/useMyFeature", () => ({ useMyFeature: () => simsRef.access }));
+
 import { TeacherNav } from "@/components/teacher/ui/TeacherNav";
 
 // 1.1.108 M2 — these tests assert the English copy; a teacher's default
@@ -22,6 +27,35 @@ function render(ui: ReactElement, options?: Parameters<typeof rtlRender>[1]) {
 
 beforeEach(() => {
   researcherRef.current = false;
+  simsRef.built = false;
+  simsRef.access = "off";
+});
+
+describe("TeacherNav — the Sim workshop entry", () => {
+  it("is absent while the feature is not released", () => {
+    render(<TeacherNav />);
+    expect(screen.queryByRole("link", { name: /Sim workshop/ })).not.toBeInTheDocument();
+  });
+
+  it("is greyed with a lock for a teacher who has not been given it, and still links to how to ask", () => {
+    simsRef.built = true;
+    render(<TeacherNav />);
+    const links = screen.getAllByRole("link", { name: /Sim workshop/ });
+    expect(links).toHaveLength(2);
+    for (const link of links) {
+      expect(link).toHaveAttribute("data-locked", "true");
+      expect(link).toHaveAttribute("href", "/teacher/sims");
+    }
+  });
+
+  it("is a normal entry for a teacher who has it", () => {
+    simsRef.built = true;
+    simsRef.access = "on";
+    render(<TeacherNav />);
+    for (const link of screen.getAllByRole("link", { name: /Sim workshop/ })) {
+      expect(link).not.toHaveAttribute("data-locked");
+    }
+  });
 });
 
 describe("TeacherNav", () => {

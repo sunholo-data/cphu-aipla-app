@@ -40,6 +40,7 @@ const fetchProgrammeBudget = vi.fn();
 const setProgrammeBudget = vi.fn();
 const fetchRoles = vi.fn();
 const fetchOnboarding = vi.fn();
+const setTeacherFeature = vi.fn();
 
 vi.mock("@/lib/programmeApi", async () => {
   const actual = await vi.importActual<typeof import("@/lib/programmeApi")>("@/lib/programmeApi");
@@ -53,6 +54,7 @@ vi.mock("@/lib/programmeApi", async () => {
     setProgrammeBudget: (...a: unknown[]) => setProgrammeBudget(...a),
     fetchRoles: (...a: unknown[]) => fetchRoles(...a),
     fetchOnboarding: (...a: unknown[]) => fetchOnboarding(...a),
+    setTeacherFeature: (...a: unknown[]) => setTeacherFeature(...a),
   };
 });
 
@@ -172,6 +174,29 @@ describe("the gate", () => {
     isProgrammeAdmin = true;
     render(<TeacherProgrammePage />);
     expect(await screen.findByText("lb@toerring-gym.dk")).toBeInTheDocument();
+  });
+});
+
+describe("the Sim workshop switch", () => {
+  it("lets a researcher (not only a programme admin) switch it on for a teacher", async () => {
+    isResearcher = true;
+    setTeacherFeature.mockReset().mockResolvedValue({ email: "lb@toerring-gym.dk", features: { simWorkshop: true } });
+    render(<TeacherProgrammePage />);
+    const box = await screen.findByRole("checkbox", { name: "Sim workshop for lb@toerring-gym.dk" });
+    expect(box).not.toBeChecked();
+    fireEvent.click(box);
+    await waitFor(() => expect(setTeacherFeature).toHaveBeenCalledWith("lb@toerring-gym.dk", "simWorkshop", true));
+    expect(box).toBeChecked();
+  });
+
+  it("puts the box back and says so when the save fails", async () => {
+    isResearcher = true;
+    setTeacherFeature.mockReset().mockRejectedValue(new Error("500"));
+    render(<TeacherProgrammePage />);
+    const box = await screen.findByRole("checkbox", { name: "Sim workshop for lb@toerring-gym.dk" });
+    fireEvent.click(box);
+    expect(await screen.findByText("Not saved — try again")).toBeInTheDocument();
+    expect(box).not.toBeChecked();
   });
 });
 

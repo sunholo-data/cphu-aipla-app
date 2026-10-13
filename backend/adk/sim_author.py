@@ -77,6 +77,26 @@ def _progress(tool_context: Any, key: str, label: str, **params: str | int) -> N
         logger.debug("sim progress label failed", exc_info=True)
 
 
+NOT_ENABLED = (
+    "The Sim workshop is not switched on for this teacher. Tell them, in their language, "
+    "that a researcher can switch it on for them, and do not try to build anything."
+)
+
+
+def _not_enabled(tool_context: Any) -> dict | None:
+    """The refusal for a teacher without the Sim workshop feature, else None."""
+    from auth.features import SIM_WORKSHOP, has_feature_for_uid
+
+    return (
+        None
+        if has_feature_for_uid(caller_uid_or_none(tool_context), SIM_WORKSHOP)
+        else {
+            "ok": False,
+            "refused": NOT_ENABLED,
+        }
+    )
+
+
 def _spend_check(tool_context: Any) -> dict | None:
     """Count one browser check against the per-turn cap; the refusal past it, else None."""
     if tool_context is None:
@@ -186,7 +206,7 @@ async def verify_sim(
         the physics is right), what failed and how to fix it, what was not
         checked, the events the page emitted, and the ``version`` stored.
     """
-    if (refusal := _spend_check(tool_context)) is not None:
+    if (refusal := _not_enabled(tool_context) or _spend_check(tool_context)) is not None:
         return refusal
     return await _check_and_store(index_html, catalogue_yaml, hidden_terms, tool_context)
 
@@ -235,6 +255,8 @@ async def read_sim(
     Returns:
         ``version``, ``total_lines`` and ``lines`` as "number: text".
     """
+    if (refusal := _not_enabled(tool_context)) is not None:
+        return refusal
     files, why = await _current_files(tool_context)
     if files is None:
         return {"ok": False, "refused": why}
@@ -280,6 +302,8 @@ async def edit_sim(
     Returns:
         As ``verify_sim``, plus ``applied`` (the number of edits).
     """
+    if (refusal := _not_enabled(tool_context)) is not None:
+        return refusal
     files, why = await _current_files(tool_context)
     if files is None:
         return {"ok": False, "refused": why}

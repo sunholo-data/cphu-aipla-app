@@ -81,6 +81,11 @@ export interface StaticArtefactFrameProps {
   /** Inner-iframe sandbox attribute the proxy applies to the artefact.
    *  Default `"allow-scripts allow-same-origin"` matches sandbox.ts. */
   innerSandbox?: string;
+  /** Optional: where the artefact HTML comes from, instead of the sandbox's
+   *  `/artefacts/<path>/index.html`. The Sim workshop previews a teacher's draft
+   *  this way — the SAME sandbox frame and policy a student gets, fed HTML the
+   *  backend hands only to its owner. Never rendered on the app origin. */
+  loadHtml?: () => Promise<string>;
   /** Iframe className for sizing. */
   className?: string;
   /** Iframe title for a11y. */
@@ -123,6 +128,7 @@ export const StaticArtefactFrame = forwardRef<
     onInitialized,
     hostContext,
     innerSandbox = "allow-scripts allow-same-origin",
+    loadHtml,
     className,
     title,
   },
@@ -144,6 +150,8 @@ export const StaticArtefactFrame = forwardRef<
   onInitializedRef.current = onInitialized;
   const hostContextRef = useRef(hostContext);
   hostContextRef.current = hostContext;
+  const loadHtmlRef = useRef(loadHtml);
+  loadHtmlRef.current = loadHtml;
 
   // Helper to push a JSON-RPC message to the proxy iframe.
   const sendToProxy = useCallback((msg: JsonRpcMessage) => {
@@ -174,15 +182,20 @@ export const StaticArtefactFrame = forwardRef<
       if (data.method === PROXY_READY) {
         void (async () => {
           try {
-            const res = await fetch(`${expectedOrigin}/artefacts/${artefactPath}/index.html`);
-            if (!res.ok) {
-              if (process.env.NODE_ENV !== "production") {
-                // eslint-disable-next-line no-console
-                console.warn("[static-artefact] fetch failed:", res.status, res.statusText);
+            let html: string;
+            if (loadHtmlRef.current) {
+              html = await loadHtmlRef.current();
+            } else {
+              const res = await fetch(`${expectedOrigin}/artefacts/${artefactPath}/index.html`);
+              if (!res.ok) {
+                if (process.env.NODE_ENV !== "production") {
+                  // eslint-disable-next-line no-console
+                  console.warn("[static-artefact] fetch failed:", res.status, res.statusText);
+                }
+                return;
               }
-              return;
+              html = await res.text();
             }
-            const html = await res.text();
             sendToProxy({
               jsonrpc: "2.0",
               method: RESOURCE_READY,
