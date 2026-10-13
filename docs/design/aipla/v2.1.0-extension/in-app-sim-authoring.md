@@ -1,6 +1,6 @@
 # In-app sim authoring — benchmark first, then build, under a monthly quota
 
-**Status**: **IN BUILD.** On dev 2026-10-13: M0 ✅ · M1 ✅ · M3 ✅ (dev only) · M4 ✅ · M5 partial (the Sim workshop page, no live preview yet). Not built: M2 (physics probe, visual rubric), publishing, M7 (quota). Decisions in [Decisions](#decisions); ADR-013 amended for teacher sims in [Publication and security](#publication-and-security-decided-2026-10-13)
+**Status**: **RELEASED to test and prod (v0.1.90, 2026-10-13; v0.1.91 with live feedback and cost on test).** The Sim workshop: per-teacher access (researchers have it; a researcher or programme admin switches it on per teacher in the programme section; others see it greyed with a way to ask), a workbench (live preview in the shared sandbox frame beside a docked assistant), editing instead of rewriting, streamed thinking and progress, cost per sim. sim-verify runs on all three envs. Not built: publishing to classes, M2 (physics probe), M7 (quota). Decisions in [Decisions](#decisions)
 **Priority**: **P1 for this sprint.** The benchmark (M0–M2) is the gate: it decides which model and harness the in-app path is built on, and what one build costs, which sets the quota
 **Estimated**: **~9–10d** in all. Benchmark M0–M2 ~3d · sim-verify service M3 ~1d · in-app authoring M4–M6 ~4–5d · quota and meter M7 ~1d. M4 onward is re-sized after the benchmark, since the winning harness decides how much has to be built
 **Scope**: Research: a new `research/sim-bench/` harness (`make bench-sims`). Backend: the static gates as one Python module (this is [sim-verify-mcp](sim-verify-mcp.md) M0), an authoring agent as an ADK skill, a sim-authoring budget on the existing enforcer. Frontend: a teacher authoring surface with a preview and a cost meter. Infra: `aipla-v01-sim-verify`, a separate headless-Chromium Cloud Run service on all three environments (sim-verify-mcp M3, brought forward)
@@ -408,6 +408,41 @@ Found and fixed by the run and the dev smoke that followed:
 - **Language:** the skill replied in Danish to an English brief when no UI
   language tag was present. The workshop always sends one (`TeacherCopilot`
   prefixes `[ui_language=…]`), so it is a harness artefact, but worth watching.
+
+## Access, feedback and cost (2026-10-13)
+
+**Access.** The access register gains per-teacher feature switches
+(`features.simWorkshop`); researchers have every feature. A researcher **or**
+programme admin flips it per teacher on the programme page (M: researchers turn
+it on for the teachers they work with; it commits no money beyond the teacher's
+own cap). The menu entry is released to everyone and greyed with a lock for a
+teacher without it; its page explains and offers "Ask to have it switched on".
+Enforced on the server: the drafts routes answer 403 and every sim-author tool
+refuses.
+
+**Workbench.** `/teacher/sims` is a wide app surface like the activity builder:
+drafts as chips, "Try it" running the latest version in `StaticArtefactFrame`
+(the frame students and the activity creator's preview use, fed by the
+owner-only drafts route through its new `loadHtml`), the version panel
+(level, what stopped it, screenshots, downloads), and the assistant docked as a
+column.
+
+**Feedback.** A first draft is minutes of silence on the wire (Gemini does not
+stream function-call arguments). Now: the skill's first output in every turn is
+a short plan; Gemini's thought summaries stream as AG-UI REASONING events
+(`includeThoughts`, sim-author only) and show under the stage label; stage labels
+flush every second while the agent is busy; an elapsed timer. Measured locally:
+first reasoning at 2 s, 170 chunks over a turn.
+
+**Cost.** Each sim-author model call adds its tokens (in, out, thinking) and a
+price (the spend gate's `estimate_cost`) to the draft; the workshop shows
+"≈ $0.42 so far · 312k tokens" per sim.
+
+**Spend gate fix (found here).** `budget/callback` priced only
+`candidates_token_count`; Gemini bills thinking as output and reports it as
+`thoughts_token_count`, so a thinking skill's monthly cap missed most of its
+spend. Fixed for every skill; tutors run with thinking off, so nothing changes
+for them.
 
 ## Turn speed (2026-10-13)
 
