@@ -79,11 +79,16 @@ steps:
       - |
         set -e
         URL=$(gcloud run services describe ${_SERVICE_NAME} --region=${_REGION} --project=${_PROJECT_ID} --format='value(status.url)')
-        # --include-email: the form that works for a build's user-specified SA
-        # (the bare metadata identity endpoint returned a token Cloud Run 401'd).
-        TOKEN=$(gcloud auth print-identity-token --audiences="$${URL}" --include-email)
-        S=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $${TOKEN}" "$${URL}/ready")
-        echo "authenticated /ready: $${S}"
+        # The build SA's own ID token for the service. Retried: the invoker grant
+        # in the deploy step can take a minute or two to propagate.
+        S=000
+        for i in 1 2 3 4 5 6 7 8; do
+          TOKEN=$(gcloud auth print-identity-token --audiences="$${URL}")
+          S=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $${TOKEN}" "$${URL}/ready")
+          echo "authenticated /ready (try $${i}): $${S}"
+          [ "$${S}" = "200" ] && break
+          sleep 15
+        done
         [ "$${S}" = "200" ] || { echo "ERROR: expected 200" >&2; exit 1; }
         U=$(curl -s -o /dev/null -w '%{http_code}' "$${URL}/ready")
         echo "unauthenticated /ready: $${U}"
