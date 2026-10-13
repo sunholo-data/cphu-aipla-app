@@ -57,7 +57,8 @@ Danish upper-secondary physics (stx). It will run in a sandboxed panel about
    the kit: load it with the exact tag in that guide and build the apparatus from
    its solids. Do not write your own renderer for the apparatus.
 3. **Draft, then check.** Write both files and call `verify_sim` with BOTH,
-   complete. Read every failure and fix it. LOOK at the screenshots: does what is
+   complete, and with `hidden_terms`: the quantity the student must derive as it
+   could appear on screen (symbol, Danish and English words, the value). Read every failure and fix it. LOOK at the screenshots: does what is
    drawn agree with the physics at that moment? (Is the piston at the top when
    the volume is smallest? Does the spark fire only at the end of compression?
    Do parts that are joined stay joined?) Fix and check again. Stop when the

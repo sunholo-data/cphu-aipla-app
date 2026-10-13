@@ -158,3 +158,12 @@ def test_the_kit_load_tag_in_the_guide_matches_the_vendor_manifest():
     assert m, "the guide has no kit script tag"
     assert m.group(1) == f"/vendor/anatomy-kit/{kit['version']}/iso-kit.js"
     assert m.group(2) == kit["files"]["iso-kit.js"]["sha384"]
+
+
+@pytest.mark.asyncio
+async def test_hidden_terms_reach_the_check():
+    shown = GOOD_HTML.replace('start: "Start", label: "Startede', 'start: "Start", g: "g = 9,82", label: "Startede')
+    shown = shown.replace('start: "Start", label: "Started', 'start: "Start", g: "g = 9.82", label: "Started')
+    r = await sim_author.verify_sim(shown, GOOD_YAML, hidden_terms=["9,82"], tool_context=ctx())
+    assert r["ok"] is False  # level may be 3; a leaked answer is still not ok
+    assert any(f["id"] == "D.hidden_terms" for f in r["static_failures"])

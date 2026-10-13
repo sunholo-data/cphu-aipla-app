@@ -55,7 +55,9 @@ class DraftVerdict:
         ]
         out: dict = {
             "level": self.level,
-            "ok": self.level >= 3,
+            # Level 3 with the derived quantity on screen is not ok: the sim would
+            # hand the student the answer (tier D sits outside the L0-L3 ladder).
+            "ok": self.level >= 3 and not any(g.tier == "D" and g.status == "fail" for g in self.static.gates),
             "static_failures": failed,
             "not_reached_because": self.reasons,
             "not_checked": self.static.not_checked,

@@ -55,7 +55,9 @@ def _draft_id(ctx: Any) -> str | None:
     return re.sub(r"[^A-Za-z0-9_-]", "_", sid)[:128]
 
 
-async def verify_sim(index_html: str, catalogue_yaml: str, tool_context: Any = None) -> dict:
+async def verify_sim(
+    index_html: str, catalogue_yaml: str, hidden_terms: list[str] | None = None, tool_context: Any = None
+) -> dict:
     """Check a simulation draft and keep it as a new version the teacher can see.
 
     Call this with BOTH complete files every time you change anything, before you
@@ -69,6 +71,11 @@ async def verify_sim(index_html: str, catalogue_yaml: str, tool_context: Any = N
     Args:
         index_html: The complete index.html.
         catalogue_yaml: The complete catalogue entry (YAML).
+        hidden_terms: What the student must work out and must NOT see, as it
+            could appear on screen: the symbol, the word in Danish and English,
+            the value (e.g. ["g", "tyngdeacceleration", "9.82", "9,82"]). Pass
+            them every time; the check fails if any appears in a label, a
+            readout string or an event label.
 
     Returns:
         ``level`` (0-3; 3 means valid, running and wired to the tutor, NOT that
@@ -91,7 +98,13 @@ async def verify_sim(index_html: str, catalogue_yaml: str, tool_context: Any = N
         return {"ok": False, "refused": "No signed-in teacher or conversation for this draft; it was not stored."}
 
     with tempfile.TemporaryDirectory(prefix="simauthor-") as tmp:
-        verdict = await verify_draft(index_html, catalogue_yaml, browser=browser_from_env(), out_dir=Path(tmp))
+        verdict = await verify_draft(
+            index_html,
+            catalogue_yaml,
+            hidden_terms=[t for t in (hidden_terms or []) if isinstance(t, str) and t.strip()][:20] or None,
+            browser=browser_from_env(),
+            out_dir=Path(tmp),
+        )
         shots = {k: base64.b64encode(p.read_bytes()).decode("ascii") for k, p in verdict.screenshots.items()}
     artefact_id = None
     m = re.search(r"\bARTEFACT_NAME\s*=\s*[\"']([^\"']+)[\"']", index_html or "")
