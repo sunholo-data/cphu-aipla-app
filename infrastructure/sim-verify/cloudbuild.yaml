@@ -1,0 +1,90 @@
+# sim-verify — Cloud Build: assemble, build, push, deploy a PRIVATE Cloud Run
+# service, grant the backend's SA run.invoker, smoke it with an ID token.
+# Design: docs/design/aipla/v2.1.0-extension/in-app-sim-authoring.md (M3).
+#
+# Private by construction: --no-allow-unauthenticated, and the only invoker
+# granted is _INVOKER_SA (the backend's runtime SA). It runs as _RUNTIME_SA,
+# an account with NO project roles: the drafts it runs are untrusted code, so
+# the identity they run next to can reach nothing.
+#
+# Dev: trigger aipla-sim-verify-deploy on push to dev touching the inputs.
+# Test/prod: not wired yet (needs terraform triggers + a promote twin, the
+# CLAUDE.md footgun); see the design doc.
+
+substitutions:
+  _SERVICE_NAME: aipla-v01-sim-verify
+  _IMAGE_TAG: '${BRANCH_NAME}'
+  _REGION: trigger_must_set
+  _PROJECT_ID: trigger_must_set
+  _ARTIFACT_REGISTRY_REPO_URL_CLIENT: trigger_must_set
+  _LOGS_BUCKET: gs://trigger_must_set
+  _RUNTIME_SA: trigger_must_set
+  _INVOKER_SA: trigger_must_set
+
+tags: ['${_PROJECT_ID}', '${_SERVICE_NAME}']
+
+options:
+  logging: GCS_ONLY
+logsBucket: ${_LOGS_BUCKET}
+
+steps:
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: assemble
+    entrypoint: bash
+    args: ['scripts/assemble-sim-verify.sh', 'infrastructure/sim-verify/ctx']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: build
+    waitFor: ['assemble']
+    dir: infrastructure/sim-verify
+    args: ['build', '-t', '${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/sim-verify:${_IMAGE_TAG}', '.']
+
+  - name: 'gcr.io/cloud-builders/docker'
+    id: push
+    waitFor: ['build']
+    args: ['push', '${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/sim-verify:${_IMAGE_TAG}']
+
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: deploy
+    waitFor: ['push']
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        set -e
+        gcloud run deploy ${_SERVICE_NAME} \
+          --region=${_REGION} \
+          --project=${_PROJECT_ID} \
+          --platform=managed \
+          --no-allow-unauthenticated \
+          --service-account=${_RUNTIME_SA} \
+          --image='${_ARTIFACT_REGISTRY_REPO_URL_CLIENT}/${_SERVICE_NAME}/sim-verify:${_IMAGE_TAG}' \
+          --port=8080 \
+          --memory=2Gi \
+          --cpu=2 \
+          --concurrency=1 \
+          --max-instances=3 \
+          --timeout=180
+        gcloud run services add-iam-policy-binding ${_SERVICE_NAME} \
+          --region=${_REGION} --project=${_PROJECT_ID} \
+          --member=serviceAccount:${_INVOKER_SA} --role=roles/run.invoker >/dev/null
+
+  # Authenticated readiness probe, then proof that an unauthenticated call is refused.
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: smoke
+    waitFor: ['deploy']
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        set -e
+        URL=$(gcloud run services describe ${_SERVICE_NAME} --region=${_REGION} --project=${_PROJECT_ID} --format='value(status.url)')
+        TOKEN=$(curl -s -H 'Metadata-Flavor: Google' "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=$${URL}")
+        S=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $${TOKEN}" "$${URL}/ready")
+        echo "authenticated /ready: $${S}"
+        [ "$${S}" = "200" ] || { echo "ERROR: expected 200" >&2; exit 1; }
+        U=$(curl -s -o /dev/null -w '%{http_code}' "$${URL}/ready")
+        echo "unauthenticated /ready: $${U}"
+        [ "$${U}" = "403" ] || [ "$${U}" = "401" ] || { echo "ERROR: the service answered an unauthenticated call ($${U})" >&2; exit 1; }
+
+timeout: 1200s
