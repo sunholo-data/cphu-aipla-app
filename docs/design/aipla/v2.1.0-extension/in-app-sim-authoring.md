@@ -396,6 +396,12 @@ Found and fixed by the run and the dev smoke that followed:
   minutes after the request. Per-skill `firstTokenDeadlineS` (sim-author: 600)
   and a 900 s Cloud Run request timeout. The local run had passed because it
   ran non-streamed, where the deadline never applies — **test the streamed path**.
+- **The Next.js proxy cut the stream at 300 s of silence** (undici
+  `UND_ERR_BODY_TIMEOUT`), with no error to the client: the turn just ended
+  after reading the references. `stream_skill` now sends an SSE `: keepalive`
+  comment after 15 s of silence (`protocols/sse_keepalive.py`), which resets
+  every idle timer on the path and is ignored by the AG-UI parser. The agent's
+  background run died with the stream, so no versions were stored.
 - **The hidden-quantity check never ran during a build**: `verify_sim` had no way
   to receive the terms. It now takes `hidden_terms`, and a leak makes `ok`
   false at any level.
