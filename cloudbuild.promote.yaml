@@ -53,6 +53,10 @@ substitutions:
   # The Sim workshop page — empty on test/prod until sim-verify runs there
   # (in-app-sim-authoring). The build-arg twin of cloudbuild.yaml's.
   _SIM_WORKSHOP: ''
+  # The private sim-verify service the Sim workshop calls; stamped on every
+  # promoted revision (`services update` keeps env vars otherwise). Empty = the
+  # workshop's checks stop at level 1.
+  _SIM_VERIFY_URL: ''
   # Runtime SA the post-promote seed job runs as (writes Firestore via ADC).
   _ADMIN_SEED_ALLOWED_SAS: terraform_managed
   # PROGADMIN-1 (1.1.76) — the delegated-admin bounds twin. `services update`
@@ -220,7 +224,7 @@ steps:
           --image=${_REGION}-docker.pkg.dev/${_TARGET_PROJECT}/${_REPO}/${_SERVICE_NAME}/ui:${_VERSION} \
           --container=sidecar \
           --image=${_REGION}-docker.pkg.dev/${_TARGET_PROJECT}/${_REPO}/${_SERVICE_NAME}/backend@$$DIGEST \
-          "--update-env-vars=^|^APP_VERSION=${_VERSION}|MCP_WIDGET_DOMAIN=${_MCP_WIDGET_DOMAIN}|MCP_SANDBOX_URL=${_MCP_SANDBOX_URL}|DOCUMENTS_BUCKET=${_TARGET_PROJECT}-documents|PROGRAMME_ADMIN_MAX_CAP_USD=${_PROGRAMME_ADMIN_MAX_CAP_USD}|PROGRAMME_ADMIN_EMAIL_DOMAINS=${_PROGRAMME_ADMIN_EMAIL_DOMAINS}|GOOGLE_CLOUD_LOCATION=eu|OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=false|VOICE_TTS_ENDPOINT=eu-texttospeech.googleapis.com" \
+          "--update-env-vars=^|^APP_VERSION=${_VERSION}|MCP_WIDGET_DOMAIN=${_MCP_WIDGET_DOMAIN}|MCP_SANDBOX_URL=${_MCP_SANDBOX_URL}|DOCUMENTS_BUCKET=${_TARGET_PROJECT}-documents|PROGRAMME_ADMIN_MAX_CAP_USD=${_PROGRAMME_ADMIN_MAX_CAP_USD}|PROGRAMME_ADMIN_EMAIL_DOMAINS=${_PROGRAMME_ADMIN_EMAIL_DOMAINS}|GOOGLE_CLOUD_LOCATION=eu|OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=false|VOICE_TTS_ENDPOINT=eu-texttospeech.googleapis.com|SIM_VERIFY_URL=${_SIM_VERIFY_URL}" \
           --update-secrets=LITERATURE_RAG_CORPUS_NAME=LITERATURE_RAG_CORPUS_NAME:latest
         # ^ THE QUOTES ARE LOAD-BEARING. This step is a BASH SCRIPT, unlike
         # cloudbuild.yaml's deploy step where every flag is its own quoted YAML

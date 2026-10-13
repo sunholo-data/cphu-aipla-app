@@ -68,3 +68,7 @@ enable_chat_logs_backup = true
 #   gcloud auth login mark.edmondson@ind.ku.dk
 #   gcloud projects get-iam-policy <project> --account=mark.edmondson@ind.ku.dk
 # project_owners = ["user:mark.edmondson@ind.ku.dk"]
+
+# 2026-10-13: the private sim-verify service (Sim workshop). The run.app hash is
+# this project's (same as frontend_url), so the URL is known before its first deploy.
+sim_verify_url = "https://aipla-v01-sim-verify-6vwz657g3a-lz.a.run.app"

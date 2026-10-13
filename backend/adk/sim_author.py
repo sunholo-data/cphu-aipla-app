@@ -362,6 +362,48 @@ async def read_reference(topic: str, tool_context: Any = None) -> str:
     return (REFERENCES / name).read_text(encoding="utf-8")
 
 
+async def record_sim_usage(callback_context: Any, llm_response: Any) -> None:
+    """After each sim-author model call: add its tokens and estimated cost to the
+    draft, so the workshop can show what a simulation has cost so far.
+
+    Priced with the same function the spend gate uses. Thinking tokens are billed
+    as output and counted here. Partial streamed chunks are skipped, so a call is
+    counted once. Fail-open: a rough guide must never break a turn.
+    """
+    try:
+        if getattr(llm_response, "partial", False):
+            return
+        usage = getattr(llm_response, "usage_metadata", None)
+        if usage is None:
+            return
+        tokens_in = int(getattr(usage, "prompt_token_count", 0) or 0)
+        tokens_out = int(getattr(usage, "candidates_token_count", 0) or 0)
+        tokens_thinking = int(getattr(usage, "thoughts_token_count", 0) or 0)
+        if not (tokens_in or tokens_out or tokens_thinking):
+            return
+        owner = caller_uid_or_none(callback_context)
+        draft_id = _draft_id(callback_context)
+        if owner is None or draft_id is None:
+            return
+        from observability.llm_metrics import estimate_cost
+
+        model = getattr(llm_response, "model_version", None) or "gemini-3.8-flash"
+        cost = estimate_cost(str(model), tokens_in, tokens_out + tokens_thinking)
+        from db.sim_drafts import add_usage
+
+        await asyncio.to_thread(
+            add_usage,
+            draft_id=draft_id,
+            owner_uid=owner,
+            tokens_in=tokens_in,
+            tokens_out=tokens_out,
+            tokens_thinking=tokens_thinking,
+            cost_usd=cost,
+        )
+    except Exception:
+        logger.debug("sim usage not recorded", exc_info=True)
+
+
 async def attach_sim_screenshots(callback_context: Any, llm_request: Any) -> bool:
     """Put parked verify_sim screenshots inside their function response; True if attached."""
     state = getattr(callback_context, "state", None)

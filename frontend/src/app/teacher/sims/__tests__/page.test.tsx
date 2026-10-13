@@ -104,6 +104,24 @@ describe("Sim workshop page", () => {
     expect(api.fetchSimFile).toHaveBeenCalledWith("d1", 2, "index.html");
   });
 
+  it("shows what each sim has cost so far, and a draft still being written", async () => {
+    api.listSimDrafts.mockResolvedValue([
+      {
+        id: "d2",
+        title: null,
+        latestVersion: 0,
+        latestLevel: null,
+        artefactId: null,
+        updatedAt: "x",
+        usage: { tokensIn: 250_000, tokensOut: 30_000, tokensThinking: 32_000, costUsd: 0.4231, calls: 4 },
+      },
+    ]);
+    api.getSimDraft.mockResolvedValue({ id: "d2", title: null, artefactId: null, versions: [] });
+    render(<SimWorkshopPage />);
+    expect(await screen.findByTestId("draft-cost")).toHaveTextContent("≈ $0.42 so far · 312k tokens");
+    expect(screen.getByText("Being written…")).toBeInTheDocument();
+  });
+
   it("shows an error when the drafts cannot be loaded", async () => {
     api.listSimDrafts.mockRejectedValue(new Error("500"));
     render(<SimWorkshopPage />);

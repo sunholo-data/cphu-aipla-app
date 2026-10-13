@@ -247,3 +247,34 @@ async def test_a_teacher_without_the_feature_is_refused_by_every_tool(monkeypatc
     ):
         assert result["ok"] is False and result["refused"] == sim_author.NOT_ENABLED
     assert sim_drafts.get_draft("sess-1", "teacher-1") is None  # nothing ran, nothing stored
+
+
+# ---- usage: what a simulation has cost so far ----------------------------------------
+
+
+def _llm_response(tokens_in: int, out: int, thoughts: int, partial: bool = False) -> SimpleNamespace:
+    return SimpleNamespace(
+        partial=partial,
+        model_version="gemini-3.8-flash",
+        usage_metadata=SimpleNamespace(
+            prompt_token_count=tokens_in, candidates_token_count=out, thoughts_token_count=thoughts
+        ),
+    )
+
+
+@pytest.mark.asyncio
+async def test_usage_accumulates_on_the_draft_and_skips_partial_chunks():
+    c = ctx()
+    await sim_author.record_sim_usage(c, _llm_response(50_000, 15_000, 20_000))
+    await sim_author.record_sim_usage(c, _llm_response(60_000, 1_000, 2_000, partial=True))  # not counted
+    await sim_author.record_sim_usage(c, _llm_response(70_000, 2_000, 4_000))
+    usage = sim_drafts.get_draft("sess-1", "teacher-1")["usage"]
+    assert usage["tokensIn"] == 120_000 and usage["tokensOut"] == 17_000 and usage["tokensThinking"] == 24_000
+    assert usage["calls"] == 2 and usage["costUsd"] > 0
+
+
+@pytest.mark.asyncio
+async def test_usage_never_writes_into_another_teachers_draft():
+    await sim_author.verify_sim(GOOD_HTML, GOOD_YAML, tool_context=ctx())
+    await sim_author.record_sim_usage(ctx(uid="teacher-2"), _llm_response(1_000, 100, 0))
+    assert "usage" not in sim_drafts.get_draft("sess-1", "teacher-1")

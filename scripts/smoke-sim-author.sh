@@ -63,17 +63,26 @@ print(json.dumps({'threadId': os.environ['THREAD'], 'runId': f'r{int(time.time()
   'state': {}, 'tools': [], 'context': [], 'forwardedProps': {}}))")"
   echo "..    turn on $THREAD (minutes): ${message:0:90}"
   local t0=$SECONDS
-  curl -sS -N --max-time 1200 -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-    -H "Accept: text/event-stream" -d "$body" "$PROXY/api/skill/$SKILL_ID/stream" > "$stream" || true
+  # Each streamed line is stamped with the second it arrived, to measure how soon
+  # the teacher sees something.
+  curl -sS -N --max-time 1800 -X POST -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
+    -H "Accept: text/event-stream" -d "$body" "$PROXY/api/skill/$SKILL_ID/stream" 2>/dev/null \
+    | while IFS= read -r line; do printf '%s %s\n' "$(date +%s)" "$line"; done > "$stream" || true
   python3 - "$stream" <<'PY'
 import json, sys
-events = []
-for line in open(sys.argv[1]):
+events, stamps = [], []
+for raw in open(sys.argv[1]):
+    ts, _, line = raw.partition(" ")
     if line.startswith("data:"):
         try:
             events.append(json.loads(line[5:].strip()))
+            stamps.append(int(ts))
         except Exception:
             pass
+t0 = stamps[0] if stamps else 0
+first = lambda kind: next((stamps[i] - t0 for i, e in enumerate(events) if e.get("type") == kind), None)
+reasoning = sum(1 for e in events if str(e.get("type", "")).startswith(("REASONING", "THINKING")) and "CONTENT" in str(e.get("type")))
+print(f"OK    first text after {first('TEXT_MESSAGE_CONTENT')} s; first reasoning after {first('REASONING_MESSAGE_CONTENT')} s; reasoning chunks: {reasoning}")
 calls = [e.get("toolCallName") for e in events if e.get("type") == "TOOL_CALL_START"]
 errors = [e for e in events if e.get("type") == "RUN_ERROR"]
 text = "".join(e.get("delta", "") for e in events if e.get("type") == "TEXT_MESSAGE_CONTENT")

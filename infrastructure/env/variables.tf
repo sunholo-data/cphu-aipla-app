@@ -137,6 +137,12 @@ variable "mcp_sandbox_url" {
   default     = ""
 }
 
+variable "sim_verify_url" {
+  type        = string
+  description = "This env's private sim-verify service (https://aipla-v01-sim-verify-<hash>-lz.a.run.app), which the Sim workshop calls to run a draft in Chromium (in-app-sim-authoring M3). The run.app hash is per project, the same as the frontend's, so it is known before the first deploy. Empty = the workshop's checks stop at level 1 and say why."
+  default     = ""
+}
+
 variable "preview_feature_flags" {
   type        = bool
   description = "Preview flags: bakes _AUTHORING_COPILOT/_CONCEPT_MAP/_AIPLA_HELP='1' into the frontend bundle on BOTH the deploy and promote paths. true on all three envs as of 2026-08-04 — while nobody is on test/prod, they should mirror dev. Set false per-env to hold a feature back deliberately."

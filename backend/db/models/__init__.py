@@ -83,6 +83,10 @@ class SkillMetadata(BaseModel):
     # that writes long artefacts is silent for longer than a tutor ever should be:
     # on dev, sim-author's first build turn died at 10 s (MODEL_SILENT_STALL).
     first_token_deadline_s: float | None = Field(default=None, alias="firstTokenDeadlineS", ge=0, le=600)
+    # Stream Gemini's thought summaries (AG-UI REASONING events) so a long silent
+    # step shows what the model is working on. Off by default: tutors answer fast
+    # and a student does not need the model's working.
+    include_thoughts: bool = Field(default=False, alias="includeThoughts")
 
     @field_validator("model", mode="after")
     @classmethod

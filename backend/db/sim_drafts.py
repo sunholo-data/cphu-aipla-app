@@ -86,6 +86,32 @@ def add_version(
     return n
 
 
+def add_usage(
+    *, draft_id: str, owner_uid: str, tokens_in: int, tokens_out: int, tokens_thinking: int, cost_usd: float
+) -> None:
+    """Add one model call's usage to the draft's running total (a rough guide for
+    the teacher). Creates the draft record on its first call, before any version
+    exists, so the cost of a build is visible while it is being written."""
+    _check_id(draft_id)
+    now = datetime.now(UTC).isoformat()
+
+    def bump(current: dict[str, Any] | None) -> tuple[dict[str, Any] | None, None]:
+        if current and current.get("ownerUid") != owner_uid:
+            return None, None  # never write into someone else's draft
+        usage = dict((current or {}).get("usage") or {})
+        usage["tokensIn"] = int(usage.get("tokensIn") or 0) + int(tokens_in)
+        usage["tokensOut"] = int(usage.get("tokensOut") or 0) + int(tokens_out)
+        usage["tokensThinking"] = int(usage.get("tokensThinking") or 0) + int(tokens_thinking)
+        usage["costUsd"] = round(float(usage.get("costUsd") or 0.0) + float(cost_usd), 6)
+        usage["calls"] = int(usage.get("calls") or 0) + 1
+        fields: dict[str, Any] = {"usage": usage, "updatedAt": now}
+        if not current:
+            fields |= {"createdAt": now, "ownerUid": owner_uid, "latestVersion": 0, "latestLevel": None, "title": None}
+        return fields, None
+
+    transact_document(DRAFTS, draft_id, bump)
+
+
 def get_draft(draft_id: str, owner_uid: str) -> dict[str, Any] | None:
     """The draft, if it exists AND belongs to ``owner_uid`` (else None: never reveal someone else's)."""
     _check_id(draft_id)

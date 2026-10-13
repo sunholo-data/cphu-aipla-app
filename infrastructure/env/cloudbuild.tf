@@ -90,6 +90,7 @@ locals {
     _ADMIN_SEED_ALLOWED_SAS            = google_service_account.runtime.email
     _IMAGE_TAG                         = "$${TAG_NAME}"
     _MCP_SANDBOX_URL                   = var.mcp_sandbox_url
+    _SIM_VERIFY_URL                    = var.sim_verify_url
     # This env's own public origin, advertised to external MCP hosts as the
     # sims' widget domain. Stays on the run.app URL until the ku.dk certs are
     # ACTIVE and the app is actually served there — advertising a domain that
@@ -109,6 +110,9 @@ locals {
     _AUTHORING_COPILOT = var.preview_feature_flags ? "1" : ""
     _CONCEPT_MAP       = var.preview_feature_flags ? "1" : ""
     _AIPLA_HELP        = var.preview_feature_flags ? "1" : ""
+    # The Sim workshop menu entry (2026-10-13). Released with the other preview
+    # features; per-teacher access (the register's features) decides greyed or not.
+    _SIM_WORKSHOP = var.preview_feature_flags ? "1" : ""
   }
 
   # Everything the promote pipeline needs on the TARGET env. Factored out because
@@ -122,6 +126,7 @@ locals {
     _REPO            = var.ar_repo
     _SERVICE_NAME    = "aipla-v01-frontend"
     _MCP_SANDBOX_URL = var.mcp_sandbox_url
+    _SIM_VERIFY_URL  = var.sim_verify_url
     # Re-stamped on every promoted revision. `gcloud run services update`
     # preserves env vars, so without this the target keeps the value it was
     # first deployed with — which for prod was DEV's origin (cloudbuild.yaml
@@ -185,6 +190,40 @@ resource "google_cloudbuild_trigger" "test_sandbox_release" {
     _ARTIFACT_REGISTRY_REPO_URL_CLIENT = "${var.region}-docker.pkg.dev/${var.project_id}/${var.ar_repo}"
     _LOGS_BUCKET                       = "gs://${var.project_id}-aipla-v01-logs"
     _ALLOWED_HOST_ORIGINS              = local.sandbox_allowed_host_origins
+    _IMAGE_TAG                         = "$${TAG_NAME}"
+  }
+}
+
+# sim-verify release triggers (in-app-sim-authoring M3, 2026-10-13) — the private
+# Chromium service the Sim workshop runs drafts in. Same shape as the sandbox
+# triggers: on every version tag, deploy this env's copy. It runs as
+# aipla-sim-verify@ (no project roles; the drafts it runs are untrusted code) and
+# only the runtime SA may invoke it. A copy per env, because each env's backend
+# may call only its own.
+resource "google_cloudbuild_trigger" "sim_verify_release" {
+  count = contains(["test", "prod"], var.env) ? 1 : 0
+
+  project         = var.project_id
+  location        = var.region
+  name            = "aipla-${var.env}-sim-verify-release"
+  description     = "Build + deploy aipla-v01-sim-verify (private) on tag push vX.Y.Z (${var.env})."
+  service_account = "projects/${var.project_id}/serviceAccounts/${google_service_account.runtime.email}"
+
+  repository_event_config {
+    repository = google_cloudbuildv2_repository.app.id
+    push {
+      tag = "^v.*$"
+    }
+  }
+
+  filename = "infrastructure/sim-verify/cloudbuild.yaml"
+  substitutions = {
+    _PROJECT_ID                        = var.project_id
+    _REGION                            = var.region
+    _ARTIFACT_REGISTRY_REPO_URL_CLIENT = "${var.region}-docker.pkg.dev/${var.project_id}/${var.ar_repo}"
+    _LOGS_BUCKET                       = "gs://${var.project_id}-aipla-v01-logs"
+    _RUNTIME_SA                        = google_service_account.sim_verify.email
+    _INVOKER_SA                        = google_service_account.runtime.email
     _IMAGE_TAG                         = "$${TAG_NAME}"
   }
 }

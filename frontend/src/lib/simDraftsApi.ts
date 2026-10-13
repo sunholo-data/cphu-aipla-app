@@ -8,6 +8,16 @@ import { readJson } from "@/lib/apiResponse";
 
 const BASE = "/api/proxy/api/sim-drafts";
 
+/** What building this sim has cost so far: every model call's tokens, priced
+ *  with the platform's rate card. A rough guide, not an invoice. */
+export interface SimDraftUsage {
+  tokensIn: number;
+  tokensOut: number;
+  tokensThinking: number;
+  costUsd: number;
+  calls: number;
+}
+
 export interface SimDraftSummary {
   id: string;
   title: string | null;
@@ -15,6 +25,7 @@ export interface SimDraftSummary {
   latestLevel: number | null;
   artefactId: string | null;
   updatedAt: string | null;
+  usage?: SimDraftUsage | null;
 }
 
 export interface SimDraftVersion {
@@ -29,6 +40,7 @@ export interface SimDraft {
   id: string;
   title: string | null;
   artefactId: string | null;
+  usage?: SimDraftUsage | null;
   versions: SimDraftVersion[];
 }
 

@@ -29,6 +29,9 @@
     "previewTitle": "Preview of version {n}",
     "previewUnavailable": "No sandbox is configured in this environment, so the live preview cannot run. The screenshots below still show each version.",
     "previewPlaceholder": "Your simulation appears here as soon as the assistant has checked its first version. Describe it in the assistant panel.",
-    "earlierVersions": "{n, plural, one {# earlier version} other {# earlier versions}}"
+    "earlierVersions": "{n, plural, one {# earlier version} other {# earlier versions}}",
+    "untitled": "Untitled sim",
+    "beingWritten": "Being written…",
+    "costSoFar": "≈ ${cost} so far · {tokens} tokens"
   }
 }
