@@ -105,4 +105,7 @@ export interface TeacherCopilotConfig<P> {
    *  reply, so it doesn't depend on the conversation having started. Omit for
    *  surfaces with nothing to link (the default). */
   helpLink?: { href: string; label: string };
+  /** Render as a column in the page instead of a floating panel — a workbench
+   *  surface (the Sim workshop) where the chat sits beside what it builds. */
+  docked?: boolean;
 }

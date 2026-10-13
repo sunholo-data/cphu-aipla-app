@@ -47,7 +47,9 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
   // The activity builder (new + edit) is an app-like surface — like the student
   // chat it wants the full width for its two-column config + live preview. The
   // list/insight/settings pages stay capped for comfortable reading lengths.
-  const wide = pathname.startsWith("/teacher/activities/");
+  // The Sim workshop is the same kind of surface: a sim designed for ~700 px
+  // beside its assistant.
+  const wide = pathname.startsWith("/teacher/activities/") || pathname.startsWith("/teacher/sims");
   const containerMax = wide ? "max-w-none" : "max-w-6xl";
 
   // Show a minimal loading state while Firebase auth resolves.

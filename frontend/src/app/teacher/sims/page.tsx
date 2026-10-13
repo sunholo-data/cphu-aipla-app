@@ -40,13 +40,17 @@ import { SimDraftPreview } from "./_SimDraftPreview";
 
 /** Where a teacher without the feature asks for it; the same inbox the help co-pilot's "report a bug" uses. */
 const ASK_MAILTO =
-  "mailto:mark.edmondson@ind.ku.dk?subject=" + encodeURIComponent("AIPLA: Sim workshop access");
+  "mailto:mark.edmondson@ind.ku.dk?subject=" +
+  encodeURIComponent("AIPLA: Sim workshop access");
 
 /** While the assistant works, new versions land every minute or two. */
 const POLL_MS = 8000;
 
 export default function SimWorkshopPage() {
-  const enabled = useTeacherFeature("simWorkshop", process.env.NEXT_PUBLIC_SIM_WORKSHOP);
+  const enabled = useTeacherFeature(
+    "simWorkshop",
+    process.env.NEXT_PUBLIC_SIM_WORKSHOP,
+  );
   const t = useT("SimWorkshopPage");
   const access = useMyFeature("simWorkshop");
   if (!enabled) {
@@ -66,10 +70,16 @@ export default function SimWorkshopPage() {
   if (access === "off") {
     return (
       <TeacherPage title={t("title")} subtitle={t("subtitle")}>
-        <section data-testid="sim-workshop-locked" className="flex max-w-prose flex-col gap-3 rounded border border-border p-4">
+        <section
+          data-testid="sim-workshop-locked"
+          className="flex max-w-prose flex-col gap-3 rounded border border-border p-4"
+        >
           <h2 className="text-sm font-semibold">{t("lockedHeading")}</h2>
           <p className="text-sm text-muted-foreground">{t("lockedBody")}</p>
-          <a href={ASK_MAILTO} className="self-start rounded border border-border bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground">
+          <a
+            href={ASK_MAILTO}
+            className="self-start rounded border border-border bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground"
+          >
             {t("lockedAsk")}
           </a>
         </section>
@@ -126,80 +136,118 @@ function SimWorkshop() {
     >
       <p className="text-xs text-muted-foreground">{t("draftOnly")}</p>
       {error ? (
-        <div role="alert" className="rounded border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
+        <div
+          role="alert"
+          className="rounded border border-destructive bg-destructive/10 p-3 text-sm text-destructive"
+        >
           {error}
         </div>
       ) : null}
-      {drafts === null && !error ? <p className="text-sm text-muted-foreground">{t("loading")}</p> : null}
-      {drafts !== null && drafts.length === 0 ? (
-        <p data-testid="sim-workshop-empty" className="max-w-prose text-sm text-muted-foreground">
-          {t("empty")}
-        </p>
-      ) : null}
-
-      {drafts && drafts.length > 0 ? (
-        <div className="flex flex-col gap-4 lg:flex-row">
-          <nav aria-label={t("draftsHeading")} className="flex flex-col gap-1 lg:w-56">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{t("draftsHeading")}</h2>
-            {drafts.map((d) => (
+      {/* The workbench: drafts | the sim (try it, screenshots, versions) | the assistant.
+          Stacks on narrow screens, assistant last. */}
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
+        <section className="flex min-w-0 flex-col gap-4">
+          <nav
+            aria-label={t("draftsHeading")}
+            className="flex flex-wrap items-center gap-2"
+          >
+            <h2 className="mr-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {t("draftsHeading")}
+            </h2>
+            {drafts === null && !error ? (
+              <p className="text-sm text-muted-foreground">{t("loading")}</p>
+            ) : null}
+            {drafts !== null && drafts.length === 0 ? (
+              <p
+                data-testid="sim-workshop-empty"
+                className="text-sm text-muted-foreground"
+              >
+                {t("empty")}
+              </p>
+            ) : null}
+            {(drafts ?? []).map((d) => (
               <button
                 key={d.id}
                 type="button"
                 onClick={() => setSelected(d.id)}
                 aria-current={d.id === selected ? "true" : undefined}
                 className={`rounded border px-3 py-2 text-left text-sm ${
-                  d.id === selected ? "border-primary bg-muted" : "border-border"
+                  d.id === selected
+                    ? "border-primary bg-muted"
+                    : "border-border"
                 }`}
               >
                 <span className="block font-medium">{d.title ?? "—"}</span>
                 <span className="text-xs text-muted-foreground">
-                  {t("version", { n: d.latestVersion ?? 0 })} · {t("level", { n: d.latestLevel ?? 0 })}
+                  {t("version", { n: d.latestVersion ?? 0 })} ·{" "}
+                  {t("level", { n: d.latestLevel ?? 0 })}
                 </span>
               </button>
             ))}
           </nav>
-          <section className="flex min-w-0 flex-1 flex-col gap-4">
-            {draft && latest ? (
+
+          {draft && latest ? (
+            <>
               <section className="flex flex-col gap-2" aria-label={t("tryIt")}>
                 <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   {t("tryIt")} · {t("version", { n: latest.version })}
                 </h2>
                 <SimDraftPreview draftId={draft.id} version={latest.version} />
               </section>
-            ) : null}
-            {draft && latest ? <VersionPanel draftId={draft.id} version={latest} /> : null}
-            {draft && draft.versions.length > 1 ? (
-              <details className="rounded border border-border p-3">
-                <summary className="cursor-pointer text-sm">
-                  {draft.versions.length - 1} × {t("version", { n: "…" })}
-                </summary>
-                <div className="mt-3 flex flex-col gap-4">
-                  {draft.versions
-                    .slice(0, -1)
-                    .reverse()
-                    .map((v) => (
-                      <VersionPanel key={v.version} draftId={draft.id} version={v} compact />
-                    ))}
-                </div>
-              </details>
-            ) : null}
-          </section>
-        </div>
-      ) : null}
+              <VersionPanel draftId={draft.id} version={latest} />
+            </>
+          ) : (
+            <div className="flex min-h-[320px] items-center justify-center rounded border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+              {t("previewPlaceholder")}
+            </div>
+          )}
+          {draft && draft.versions.length > 1 ? (
+            <details className="rounded border border-border p-3">
+              <summary className="cursor-pointer text-sm">
+                {t("earlierVersions", { n: draft.versions.length - 1 })}
+              </summary>
+              <div className="mt-3 flex flex-col gap-4">
+                {draft.versions
+                  .slice(0, -1)
+                  .reverse()
+                  .map((v) => (
+                    <VersionPanel
+                      key={v.version}
+                      draftId={draft.id}
+                      version={v}
+                      compact
+                    />
+                  ))}
+              </div>
+            </details>
+          ) : null}
+        </section>
 
-      <TeacherCopilot
-        skillName="sim-author"
-        title={t("assistantTitle")}
-        persistKey="sim-author"
-        placeholder={t("assistantPlaceholder")}
-        emptyText={t("assistantEmpty")}
-        testId="sim-workshop-copilot"
-      />
+        <div className="xl:sticky xl:top-4 xl:self-start">
+          <TeacherCopilot
+            skillName="sim-author"
+            title={t("assistantTitle")}
+            persistKey="sim-author"
+            placeholder={t("assistantPlaceholder")}
+            emptyText={t("assistantEmpty")}
+            testId="sim-workshop-copilot"
+            docked
+          />
+        </div>
+      </div>
     </TeacherPage>
   );
 }
 
-function VersionPanel({ draftId, version, compact = false }: { draftId: string; version: SimDraftVersion; compact?: boolean }) {
+function VersionPanel({
+  draftId,
+  version,
+  compact = false,
+}: {
+  draftId: string;
+  version: SimDraftVersion;
+  compact?: boolean;
+}) {
   const t = useT("SimWorkshopPage");
   const shots: { key: string; label: string }[] = [
     { key: "700", label: t("atRest") },
@@ -212,27 +260,44 @@ function VersionPanel({ draftId, version, compact = false }: { draftId: string; 
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = name === "index.html" ? `v${version.version}-index.html` : `v${version.version}.yaml`;
+    a.download =
+      name === "index.html"
+        ? `v${version.version}-index.html`
+        : `v${version.version}.yaml`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
   return (
-    <article data-testid={`sim-version-${version.version}`} className="flex flex-col gap-3 rounded border border-border p-3">
+    <article
+      data-testid={`sim-version-${version.version}`}
+      className="flex flex-col gap-3 rounded border border-border p-3"
+    >
       <header className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="text-sm font-semibold">
-          {t("version", { n: version.version })} · {t("level", { n: version.level ?? 0 })}
+          {t("version", { n: version.version })} ·{" "}
+          {t("level", { n: version.level ?? 0 })}
         </h3>
         <div className="flex gap-2">
-          <button type="button" onClick={() => void download("index.html")} className="rounded border border-border px-2 py-1 text-xs">
+          <button
+            type="button"
+            onClick={() => void download("index.html")}
+            className="rounded border border-border px-2 py-1 text-xs"
+          >
             {t("downloadHtml")}
           </button>
-          <button type="button" onClick={() => void download("catalogue.yaml")} className="rounded border border-border px-2 py-1 text-xs">
+          <button
+            type="button"
+            onClick={() => void download("catalogue.yaml")}
+            className="rounded border border-border px-2 py-1 text-xs"
+          >
             {t("downloadYaml")}
           </button>
         </div>
       </header>
-      {!compact ? <p className="text-xs text-muted-foreground">{t("levelHelp")}</p> : null}
+      {!compact ? (
+        <p className="text-xs text-muted-foreground">{t("levelHelp")}</p>
+      ) : null}
       {version.reasons.length ? (
         <div className="text-xs">
           <span className="font-medium">{t("notReached")}: </span>
@@ -240,9 +305,17 @@ function VersionPanel({ draftId, version, compact = false }: { draftId: string; 
         </div>
       ) : null}
       {shots.length ? (
-        <div className={`grid gap-3 ${compact ? "grid-cols-3" : "sm:grid-cols-2"}`}>
+        <div
+          className={`grid gap-3 ${compact ? "grid-cols-3" : "sm:grid-cols-2"}`}
+        >
           {shots.map((s) => (
-            <Screenshot key={s.key} draftId={draftId} version={version.version} shot={s.key} label={s.label} />
+            <Screenshot
+              key={s.key}
+              draftId={draftId}
+              version={version.version}
+              shot={s.key}
+              label={s.label}
+            />
           ))}
         </div>
       ) : (
@@ -252,7 +325,17 @@ function VersionPanel({ draftId, version, compact = false }: { draftId: string; 
   );
 }
 
-function Screenshot({ draftId, version, shot, label }: { draftId: string; version: number; shot: string; label: string }) {
+function Screenshot({
+  draftId,
+  version,
+  shot,
+  label,
+}: {
+  draftId: string;
+  version: number;
+  shot: string;
+  label: string;
+}) {
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => {
     let url: string | null = null;
@@ -274,7 +357,11 @@ function Screenshot({ draftId, version, shot, label }: { draftId: string; versio
       {src ? (
         // A blob: URL of a PNG this teacher's own draft produced; next/image adds nothing here.
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt={label} className="w-full rounded border border-border bg-white" />
+        <img
+          src={src}
+          alt={label}
+          className="w-full rounded border border-border bg-white"
+        />
       ) : (
         <div className="aspect-[4/3] w-full animate-pulse rounded border border-border bg-muted" />
       )}

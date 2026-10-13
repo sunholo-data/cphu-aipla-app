@@ -27,6 +27,8 @@
     "lockedAsk": "Bed om at få det slået til",
     "tryIt": "Prøv den",
     "previewTitle": "Forhåndsvisning af version {n}",
-    "previewUnavailable": "Der er ingen sandkasse i dette miljø, så den levende forhåndsvisning kan ikke køre. Skærmbillederne nedenfor viser stadig hver version."
+    "previewUnavailable": "Der er ingen sandkasse i dette miljø, så den levende forhåndsvisning kan ikke køre. Skærmbillederne nedenfor viser stadig hver version.",
+    "previewPlaceholder": "Din simulering vises her, så snart assistenten har tjekket første version. Beskriv den i assistentpanelet.",
+    "earlierVersions": "{n, plural, one {# tidligere version} other {# tidligere versioner}}"
   }
 }

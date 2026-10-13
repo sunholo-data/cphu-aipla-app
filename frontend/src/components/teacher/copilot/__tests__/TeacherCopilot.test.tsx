@@ -96,6 +96,14 @@ afterEach(() => {
 });
 
 describe("TeacherCopilot (shared shell)", () => {
+  it("docks as a page column when asked (the Sim workshop), with the same chat and New chat", () => {
+    hook = defaultHook;
+    render(<TeacherCopilot {...config()} docked />);
+    expect(screen.getByTestId("docked-copilot")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /new chat/i })).toBeInTheDocument();
+    expect(screen.getByRole("textbox")).toBeInTheDocument();
+  });
+
   it("shows the server's progress stage while busy, in the teacher's language for known keys", () => {
     hook = {
       ...defaultHook,

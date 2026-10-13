@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Send } from "lucide-react";
+import { Send, Sparkles, SquarePen } from "lucide-react";
 
 import { AGUIProvider } from "@/providers/AGUIProvider";
 import { useSkillAgent } from "@/hooks/useSkillAgent";
@@ -56,7 +56,9 @@ export function TeacherCopilot<P>(config: TeacherCopilotConfig<P>) {
   // Mint/restore a stable threadId so the conversation survives leaving the page
   // and coming back (the backend session is keyed on it; useSessionMessages
   // reloads the prior turns). Stable from mount → no URL-writeback rebuild.
-  const [threadId, setThreadId] = useState<string>(() => readOrMintThreadId(storageKey));
+  const [threadId, setThreadId] = useState<string>(() =>
+    readOrMintThreadId(storageKey),
+  );
   // CONCEPT-2 M3 — a question asked from the surface (a button on the page,
   // via `useCopilotEntry().ask`). Held here because the chat that can send it
   // lives several layers down, inside the AG-UI provider. Cleared by the chat
@@ -73,6 +75,18 @@ export function TeacherCopilot<P>(config: TeacherCopilotConfig<P>) {
     setThreadId(fresh);
   }, [storageKey]);
 
+  if (config.docked) {
+    return (
+      <DockedCopilot title={config.title} onNewChat={newChat}>
+        <CopilotResolver
+          config={config}
+          threadId={threadId}
+          pendingAsk={pendingAsk}
+          onAskSent={() => setPendingAsk(null)}
+        />
+      </DockedCopilot>
+    );
+  }
   return (
     <FloatingCopilot
       title={config.title}
@@ -89,6 +103,45 @@ export function TeacherCopilot<P>(config: TeacherCopilotConfig<P>) {
         onAskSent={() => setPendingAsk(null)}
       />
     </FloatingCopilot>
+  );
+}
+
+/** The co-pilot as a page column (same header and chat as the floating panel). */
+function DockedCopilot({
+  title,
+  onNewChat,
+  children,
+}: {
+  title: string;
+  onNewChat: () => void;
+  children: React.ReactNode;
+}) {
+  const t = useT("FloatingCopilot");
+  return (
+    <section
+      aria-label={title}
+      data-testid="docked-copilot"
+      className="flex h-[min(80vh,760px)] min-h-[420px] flex-col overflow-hidden rounded border border-border bg-background"
+    >
+      <div className="flex items-center justify-between border-b border-border bg-muted/40 px-3 py-2">
+        <h2 className="flex items-center gap-2 text-sm font-medium">
+          <Sparkles
+            className="h-4 w-4 text-muted-foreground"
+            aria-hidden="true"
+          />{" "}
+          {title}
+        </h2>
+        <button
+          type="button"
+          onClick={onNewChat}
+          aria-label={t("newChat")}
+          className="rounded p-1 text-muted-foreground hover:bg-muted"
+        >
+          <SquarePen className="h-4 w-4" aria-hidden="true" />
+        </button>
+      </div>
+      {children}
+    </section>
   );
 }
 
@@ -113,21 +166,37 @@ function CopilotResolver<P>({
 
   if (resolveError) {
     return (
-      <div role="alert" className="m-3 rounded border border-destructive bg-destructive/10 p-3 text-xs text-destructive">
+      <div
+        role="alert"
+        className="m-3 rounded border border-destructive bg-destructive/10 p-3 text-xs text-destructive"
+      >
         {resolveError}
       </div>
     );
   }
   if (!skillId) {
     return (
-      <p data-testid="copilot-loading" className="p-3 text-sm text-muted-foreground">
+      <p
+        data-testid="copilot-loading"
+        className="p-3 text-sm text-muted-foreground"
+      >
         {config.loadingText ?? labels.thinking}
       </p>
     );
   }
   return (
-    <AGUIProvider key={skillId} skillId={skillId} sessionId={threadId || undefined} useTeacherAuth>
-      <CopilotChat config={config} threadId={threadId} pendingAsk={pendingAsk} onAskSent={onAskSent} />
+    <AGUIProvider
+      key={skillId}
+      skillId={skillId}
+      sessionId={threadId || undefined}
+      useTeacherAuth
+    >
+      <CopilotChat
+        config={config}
+        threadId={threadId}
+        pendingAsk={pendingAsk}
+        onAskSent={onAskSent}
+      />
     </AGUIProvider>
   );
 }
@@ -143,11 +212,17 @@ const STAGE_KEYS = {
 } as const;
 
 function stageText(
-  stage: { label: string; key: string | null; params: Record<string, string | number> } | null,
+  stage: {
+    label: string;
+    key: string | null;
+    params: Record<string, string | number>;
+  } | null,
   t: ReturnType<typeof useT<"TeacherCopilot">>,
 ): string | null {
   if (!stage) return null;
-  const key = stage.key ? STAGE_KEYS[stage.key as keyof typeof STAGE_KEYS] : undefined;
+  const key = stage.key
+    ? STAGE_KEYS[stage.key as keyof typeof STAGE_KEYS]
+    : undefined;
   return key ? t(key, stage.params) : stage.label;
 }
 
@@ -164,18 +239,29 @@ function CopilotChat<P>({
 }) {
   const labels = useCopilotLabels(config.labels);
   const t = useT("TeacherCopilot");
-  const { messages: liveMessages, toolCalls, sendMessage, isLoading, error, stage } = useSkillAgent();
+  const {
+    messages: liveMessages,
+    toolCalls,
+    sendMessage,
+    isLoading,
+    error,
+    stage,
+  } = useSkillAgent();
   const localeMode = useLocaleMode();
   const langTag = `[ui_language=${localeMode === "bilingual" ? "da" : localeMode}] `;
   // Prior turns for a resumed thread (empty for a fresh one — a 404 lands as
   // sessionGone, not an error). Prepend before the live turns; ids never clash
   // (history ids are `hist-*`, live ids are AG-UI message ids).
   const { initialMessages } = useSessionMessages(threadId || null);
-  const messages = initialMessages.length ? [...initialMessages, ...liveMessages] : liveMessages;
+  const messages = initialMessages.length
+    ? [...initialMessages, ...liveMessages]
+    : liveMessages;
   // AG-UI tool-call turns arrive as assistant messages with empty text content
   // (the proposal card stands in for them) — skip those so they don't render as
   // empty bubbles above the proposals.
-  const visibleMessages = messages.filter((m) => m.content && m.content.trim().length > 0);
+  const visibleMessages = messages.filter(
+    (m) => m.content && m.content.trim().length > 0,
+  );
   const [input, setInput] = useState("");
 
   // Send a surface-asked question as a turn, once. Cleared BEFORE the await so
@@ -206,14 +292,23 @@ function CopilotChat<P>({
         .filter((p): p is { id: string; proposal: P } => p.proposal !== null)
     : [];
 
-  const empty = visibleMessages.length === 0 && proposals.length === 0 && !isLoading;
+  const empty =
+    visibleMessages.length === 0 && proposals.length === 0 && !isLoading;
   const surfaceStrip = config.stripPrefix ?? ((c: string) => c);
   const strip = (c: string) => surfaceStrip(c.replace(UI_LANGUAGE_TAG, ""));
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col" data-testid={config.testId ?? "teacher-copilot"}>
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3" aria-live="polite">
-        {empty ? <p className="text-xs text-muted-foreground">{config.emptyText}</p> : null}
+    <div
+      className="flex min-h-0 flex-1 flex-col"
+      data-testid={config.testId ?? "teacher-copilot"}
+    >
+      <div
+        className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3"
+        aria-live="polite"
+      >
+        {empty ? (
+          <p className="text-xs text-muted-foreground">{config.emptyText}</p>
+        ) : null}
         {visibleMessages.map((m) => (
           <article
             key={m.id}
@@ -247,21 +342,30 @@ function CopilotChat<P>({
             ))
           : null}
         {isLoading ? (
-          <p data-testid="copilot-progress" className="text-xs text-muted-foreground">
+          <p
+            data-testid="copilot-progress"
+            className="text-xs text-muted-foreground"
+          >
             {stageText(stage, t) ?? labels.thinking}
           </p>
         ) : null}
       </div>
 
       {error ? (
-        <div role="alert" className="mx-3 mb-1 rounded border border-destructive bg-destructive/10 p-2 text-xs text-destructive">
+        <div
+          role="alert"
+          className="mx-3 mb-1 rounded border border-destructive bg-destructive/10 p-2 text-xs text-destructive"
+        >
           {error.message}
         </div>
       ) : null}
 
       {config.helpLink ? (
         <div className="border-t border-border px-3 py-1.5 text-center">
-          <a href={config.helpLink.href} className="text-xs text-muted-foreground underline hover:text-foreground">
+          <a
+            href={config.helpLink.href}
+            className="text-xs text-muted-foreground underline hover:text-foreground"
+          >
             {config.helpLink.label}
           </a>
         </div>

@@ -27,6 +27,8 @@
     "lockedAsk": "Ask to have it switched on",
     "tryIt": "Try it",
     "previewTitle": "Preview of version {n}",
-    "previewUnavailable": "No sandbox is configured in this environment, so the live preview cannot run. The screenshots below still show each version."
+    "previewUnavailable": "No sandbox is configured in this environment, so the live preview cannot run. The screenshots below still show each version.",
+    "previewPlaceholder": "Your simulation appears here as soon as the assistant has checked its first version. Describe it in the assistant panel.",
+    "earlierVersions": "{n, plural, one {# earlier version} other {# earlier versions}}"
   }
 }
