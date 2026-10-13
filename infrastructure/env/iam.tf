@@ -1,5 +1,24 @@
 # Runtime service account + project role bindings.
 # Mirrors ensure_sa() in scripts/bootstrap-aipla-dev.sh (14 roles).
+# The sim-verify service's runtime identity (in-app-sim-authoring M3). It holds
+# NO project roles on purpose: the drafts it runs in Chromium are untrusted code,
+# so the identity beside them can reach nothing. The runtime SA deploys the
+# service (via the release trigger) and so must be able to act as it.
+resource "google_service_account" "sim_verify" {
+  project      = var.project_id
+  account_id   = "aipla-sim-verify"
+  display_name = "sim-verify runtime (no roles; runs untrusted sim drafts)"
+  description  = "Runtime identity of aipla-v01-sim-verify. Deliberately holds NO project roles. in-app-sim-authoring M3."
+
+  depends_on = [google_project_service.apis]
+}
+
+resource "google_service_account_iam_member" "runtime_acts_as_sim_verify" {
+  service_account_id = google_service_account.sim_verify.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.runtime.email}"
+}
+
 resource "google_service_account" "runtime" {
   project      = var.project_id
   account_id   = var.sa_name
