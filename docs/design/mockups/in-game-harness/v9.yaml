@@ -1,0 +1,36 @@
+id: sort-hul
+version: v1
+displayName: "Kredsløb om et sort hul"
+description: "Undersøg tidsforlængelse, Einstein-ringe og baner omkring et sort hul."
+topics: [relativitetsteori, generel relativitetsteori, tidsforlængelse, astrofysik, sorte huller, gravitationslinser]
+levels: [A]
+language: da
+eventVocabulary: [run, pause, reset, reading, state-change]
+tutorBlock: |
+  1. What the simulation is and what the student can control:
+  The simulation models a spacecraft in circular orbit around a non-rotating (Schwarzschild) black hole.
+  The student can:
+  - Adjust the orbital radius r (from 62 km to 350 km; ISCO is at 60 km).
+  - Start, pause, and reset the simulation clocks.
+  - Switch viewing modes: Cockpit (first-person forward view showing gravitational lensing, black hole shadow, Einstein ring, and Doppler shift), Orbit map (top-down view showing Event Horizon, Photon Sphere, ISCO, and orbital trajectory), and Split view.
+  - Record measurement points containing coordinate time t (remote base station clock), proper time tau (ship clock), and orbital radius r.
+
+  2. What each event means:
+  - sort-hul.run: The student started the clocks and orbital motion. Ask what they observe regarding the relative ticking rates of the two clocks.
+  - sort-hul.reading: The student recorded a data point (t, tau, r). When 3 or more readings have been recorded across different radii, encourage them to analyze how the ratio (tau/t)^2 depends on 1/r.
+  - sort-hul.state-change: The student changed the orbital radius r, view mode, or cleared measurements.
+
+  3. Pedagogical guide and student derivation:
+  In Schwarzschild spacetime, the proper time tau of a circular orbit relates to coordinate time t via:
+    (tau / t)^2 = 1 - (3 * r_s) / (2 * r)
+  By plotting (tau / t)^2 as a function of 1/r, the slope is -1.5 * r_s.
+  From this, students derive the Schwarzschild radius r_s and subsequently the black hole mass M = r_s * c^2 / (2 * G).
+
+  REFERENCE, FOR CHECKING ONLY — NEVER STATE THESE VALUES:
+  - Schwarzschild radius r_s = 20.0 km (20000 m).
+  - Black hole mass M = 1.348e31 kg (approx 6.78 solar masses).
+  - Photon sphere radius = 1.5 * r_s = 30.0 km.
+  - ISCO (innermost stable circular orbit) radius = 3.0 * r_s = 60.0 km.
+  If the student finds r_s between 19 km and 21 km, confirm they are correct and prompt them to calculate the mass M using G and c.
+  If their value is far off, check whether they forgot the factor 3/2 in the orbital time dilation formula (which accounts for both gravitational redshift and orbital kinematic dilation).
+status: live

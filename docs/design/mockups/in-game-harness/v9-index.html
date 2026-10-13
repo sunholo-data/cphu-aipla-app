@@ -1,0 +1,1389 @@
+<!doctype html>
+<html lang="da">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Kredsløb om et sort hul</title>
+<!-- Black hole orbit simulation: visualization canvas is dark as the subject is deep space. The UI follows AIPLA light theme. Deliberately hides black hole mass M and Schwarzschild radius value. -->
+<style>
+:root {
+  --bg: #ffffff;
+  --fg: #0f172a;
+  --muted: #64748b;
+  --border: #e2e8f0;
+  --accent: #2563eb;
+  --accent-soft: #eff6ff;
+  --ok: #16a34a;
+  --warn: #d97706;
+  --bad: #dc2626;
+  --surface: #f8fafc;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--fg);
+  background: var(--bg);
+  padding: 10px;
+  max-width: 860px;
+  margin: 0 auto;
+  overflow-x: hidden;
+}
+
+.top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.orient-text {
+  font-size: 13px;
+  color: var(--muted);
+  flex: 1;
+}
+
+.lang-switch {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.lang-btn {
+  background: #fff;
+  border: none;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.lang-btn[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.canvas-wrap {
+  position: relative;
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+#sim-canvas {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 400px;
+  display: block;
+  background: #020617;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.action-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  margin-bottom: 10px;
+}
+
+.btn-group {
+  display: inline-flex;
+  gap: 6px;
+}
+
+.btn {
+  background: #fff;
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 6px 10px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  user-select: none;
+}
+
+.btn:hover { background: #f1f5f9; }
+.btn:active { background: #e2e8f0; }
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
+}
+.btn-primary:hover { background: #1d4ed8; }
+.btn-primary:active { background: #1e40af; }
+
+.clocks-inline {
+  display: inline-flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.clock-item {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.clock-val {
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}
+
+.panel {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  margin-bottom: 10px;
+}
+
+.panel-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: #fff;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-radius: 6px;
+}
+
+.panel-header:hover {
+  background: var(--surface);
+}
+
+.chevron {
+  font-size: 11px;
+  transition: transform 0.15s ease;
+}
+
+.panel-body {
+  padding: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.control-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+@media (min-width: 600px) {
+  .control-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.field-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.field-readout {
+  font-family: var(--mono);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--fg);
+}
+
+input[type="range"] {
+  width: 100%;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.segmented {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.seg-btn {
+  flex: 1;
+  background: #fff;
+  border: none;
+  border-right: 1px solid var(--border);
+  font-size: 12px;
+  padding: 6px 8px;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.seg-btn:last-child { border-right: none; }
+
+.seg-btn[aria-pressed="true"] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.readout-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.readout-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.readout-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.readout-number {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  color: var(--fg);
+}
+
+.table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+th, td {
+  padding: 6px 8px;
+  text-align: right;
+  border-bottom: 1px solid var(--border);
+}
+
+th {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--muted);
+  background: var(--surface);
+}
+
+th:first-child, td:first-child { text-align: center; }
+
+td {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 16px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.table-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="orient-text" data-t="orient"></div>
+  <div class="lang-switch" role="group" aria-label="Language">
+    <button type="button" class="lang-btn" id="lang-da" aria-pressed="true">DA</button>
+    <button type="button" class="lang-btn" id="lang-en" aria-pressed="false">EN</button>
+  </div>
+</div>
+
+<div class="canvas-wrap">
+  <canvas id="sim-canvas"></canvas>
+</div>
+
+<div class="action-bar">
+  <div class="btn-group">
+    <button type="button" class="btn btn-primary" id="btn-start" data-t="start"></button>
+    <button type="button" class="btn" id="btn-reset" data-t="reset"></button>
+    <button type="button" class="btn" id="btn-record" data-t="record"></button>
+  </div>
+  <div class="clocks-inline">
+    <div class="clock-item">
+      <span data-t="clock_coord"></span>:
+      <span class="clock-val" id="clock-t"></span>
+      <span data-t="unit_s"></span>
+    </div>
+    <div class="clock-item">
+      <span data-t="clock_proper"></span>:
+      <span class="clock-val" id="clock-tau"></span>
+      <span data-t="unit_s"></span>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <button type="button" class="panel-header" id="panel-params-btn" aria-expanded="true" data-panel="panel-params-body">
+    <span data-t="panel_params"></span>
+    <span class="chevron" id="chevron-params">▲</span>
+  </button>
+  <div class="panel-body" id="panel-params-body">
+    <div class="control-row">
+      <div class="field">
+        <label class="field-label" for="slider-radius">
+          <span data-t="label_radius"></span>
+          <span class="field-readout"><span id="readout-r"></span> <span data-t="unit_km"></span></span>
+        </label>
+        <input type="range" id="slider-radius" min="62" max="350" step="1" value="120">
+      </div>
+      <div class="field">
+        <div class="field-label">
+          <span data-t="view_mode"></span>
+        </div>
+        <div class="segmented" role="radiogroup">
+          <button type="button" class="seg-btn" id="seg-cockpit" aria-pressed="true" data-t="view_cockpit"></button>
+          <button type="button" class="seg-btn" id="seg-orbit" aria-pressed="false" data-t="view_orbit"></button>
+          <button type="button" class="seg-btn" id="seg-split" aria-pressed="false" data-t="view_split"></button>
+        </div>
+      </div>
+    </div>
+    <div class="readout-strip">
+      <div class="readout-card">
+        <span class="readout-title" data-t="card_speed"></span>
+        <span class="readout-number"><span id="readout-v"></span> <span data-t="unit_kms"></span></span>
+      </div>
+      <div class="readout-card">
+        <span class="readout-title" data-t="card_fraction"></span>
+        <span class="readout-number"><span id="readout-fraction"></span> %</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="panel">
+  <button type="button" class="panel-header" id="panel-data-btn" aria-expanded="true" data-panel="panel-data-body">
+    <span data-t="panel_data"></span>
+    <span class="chevron" id="chevron-data">▲</span>
+  </button>
+  <div class="panel-body" id="panel-data-body">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th data-t="th_n"></th>
+            <th data-t="th_r"></th>
+            <th data-t="th_t"></th>
+            <th data-t="th_tau"></th>
+          </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+      </table>
+      <div class="empty-state" id="table-empty" data-t="no_data"></div>
+    </div>
+    <div class="table-footer">
+      <button type="button" class="btn" id="btn-clear" data-t="clear_data"></button>
+    </div>
+  </div>
+</div>
+
+<!-- @aipla-bridge:start -->
+<script>/* The shared AIPLA guest bridge is stamped in here by `make sim-build`.
+            Do not write it. It is absent until that step runs, so reach it
+            only through the guard below. */</script>
+<!-- @aipla-bridge:end -->
+
+<script>
+"use strict";
+
+const ARTEFACT_NAME = "sort-hul";
+const bridge = () => (typeof AIPLA_BRIDGE === "undefined" ? null : AIPLA_BRIDGE);
+function emit(type, extra) {
+  const b = bridge();
+  return b && b.emit(ARTEFACT_NAME + "." + type, extra);
+}
+
+const strings = {
+  da: {
+    title: "Kredsløb om et sort hul",
+    orient: "Undersøg tidsforlængelse og gravitationslinseeffekter i kredsløb om et sort hul.",
+    start: "Start",
+    pause: "Pause",
+    reset: "Nulstil",
+    record: "Registrér måling",
+    clear_data: "Ryd målinger",
+    panel_params: "Bane & visning",
+    panel_data: "Måleserie",
+    view_mode: "Visning",
+    view_cockpit: "Cockpit",
+    view_orbit: "Baneoversigt",
+    view_split: "Delt",
+    label_radius: "Baneradie r",
+    unit_km: "km",
+    unit_s: "s",
+    unit_kms: "km/s",
+    clock_coord: "Koordinattid t",
+    clock_proper: "Egentid \u03c4",
+    card_speed: "Banefart v",
+    card_fraction: "Fart i forhold til c",
+    th_n: "Nr.",
+    th_r: "r (km)",
+    th_t: "t (s)",
+    th_tau: "\u03c4 (s)",
+    no_data: "Ingen målinger endnu. Start uret og tryk på 'Registrér måling'.",
+    lbl_horizon: "Begivenhedshorisont",
+    lbl_photon: "Fotonsfære (1,5 \u00b7 r_H)",
+    lbl_isco: "ISCO (3 \u00b7 r_H)",
+    lbl_base: "Fjern målestation",
+    lbl_ship: "Rumskib",
+    lbl_shadow: "Sort hul-skygge",
+    lbl_ring: "Einstein-ring",
+    lbl_star_true: "Sand stjerne",
+    lbl_behind: "(skjult)",
+    lbl_img1: "Billede 1 (prim\u00e6rt)",
+    lbl_img2: "Billede 2 (sekund\u00e6rt)",
+    lbl_double_img: "Dobbeltbillede af stjerne pga. linseeffekt",
+    lbl_star_source: "Stjerne A",
+    lbl_pov: "Cockpit-synsfelt",
+    lbl_ray1: "Str\u00e5le 1",
+    lbl_ray2: "Str\u00e5le 2"
+  },
+  en: {
+    title: "Orbiting a Black Hole",
+    orient: "Investigate time dilation and gravitational lensing in orbit around a black hole.",
+    start: "Start",
+    pause: "Pause",
+    reset: "Reset",
+    record: "Record reading",
+    clear_data: "Clear readings",
+    panel_params: "Orbit & view",
+    panel_data: "Data log",
+    view_mode: "View",
+    view_cockpit: "Cockpit",
+    view_orbit: "Orbit map",
+    view_split: "Split",
+    label_radius: "Orbital radius r",
+    unit_km: "km",
+    unit_s: "s",
+    unit_kms: "km/s",
+    clock_coord: "Coordinate time t",
+    clock_proper: "Proper time \u03c4",
+    card_speed: "Orbital speed v",
+    card_fraction: "Speed relative to c",
+    th_n: "No.",
+    th_r: "r (km)",
+    th_t: "t (s)",
+    th_tau: "\u03c4 (s)",
+    no_data: "No readings yet. Start the clock and click 'Record reading'.",
+    lbl_horizon: "Event horizon",
+    lbl_photon: "Photon sphere (1.5 \u00b7 r_H)",
+    lbl_isco: "ISCO (3 \u00b7 r_H)",
+    lbl_base: "Remote station",
+    lbl_ship: "Spaceship",
+    lbl_shadow: "Black hole shadow",
+    lbl_ring: "Einstein ring",
+    lbl_star_true: "True star",
+    lbl_behind: "(hidden)",
+    lbl_img1: "Image 1 (primary)",
+    lbl_img2: "Image 2 (secondary)",
+    lbl_double_img: "Double image of star due to lensing",
+    lbl_star_source: "Star A",
+    lbl_pov: "Cockpit POV",
+    lbl_ray1: "Ray 1",
+    lbl_ray2: "Ray 2"
+  }
+};
+
+let lang = "da";
+let langLockedByStudent = false;
+const t = (k) => (strings[lang] || strings.da)[k];
+
+function num(v, dp) {
+  const s = v.toFixed(dp);
+  return lang === "da" ? s.replace(".", ",") : s;
+}
+
+const TEST_MODE = new URLSearchParams(location.search).get("test") === "1";
+
+// Pure physics functions
+const RS_PHYS = 20.0; // km
+const C_KMS = 299792.458; // km/s
+
+function timeDilationFactor(r_km, rs_km) {
+  if (r_km <= 1.5 * rs_km) return 0;
+  return Math.sqrt(1 - (1.5 * rs_km) / r_km);
+}
+
+function orbitalSpeedKms(r_km, rs_km) {
+  if (r_km <= rs_km) return C_KMS;
+  const beta = Math.sqrt(rs_km / (2 * (r_km - rs_km)));
+  return Math.min(C_KMS, C_KMS * beta);
+}
+
+// Self test
+if (TEST_MODE) {
+  // Hand arithmetic check:
+  // For r = 100 km, rs = 20 km:
+  // (1.5 * 20) / 100 = 30 / 100 = 0.30
+  // sqrt(1 - 0.30) = sqrt(0.70) = 0.8366600265
+  const got = timeDilationFactor(100, 20);
+  const expected = 0.8366600265;
+  const ok = Math.abs(got - expected) < 1e-6;
+  document.title = (ok ? "TEST PASS" : "TEST FAIL") + " \u2014 " + strings.da.title;
+  if (!ok) console.error("Self-test failed: got " + got + ", expected " + expected);
+}
+
+// State
+let running = false;
+let orbitalRadius = 120.0; // km
+let viewMode = "cockpit"; // "cockpit" | "orbit" | "split"
+let t_coord = 0.0; // seconds
+let tau_proper = 0.0; // seconds
+let orbitAngle = 0.0; // radians
+let lastTimestamp = 0;
+const measurements = [];
+const pendingChanges = {};
+
+// Featured star for demonstrating double-imaging
+const STAR_A = {
+  az: 0.0,
+  el: 0.06
+};
+
+// Background stars for cockpit view
+const STARS = [];
+const STAR_COUNT = 45;
+for (let i = 0; i < STAR_COUNT; i++) {
+  STARS.push({
+    az: ((i + 1) * 137.5 * Math.PI) / 180,
+    el: Math.sin((i + 1) * 2.3) * 0.42,
+    mag: 0.4 + Math.random() * 0.5,
+    r: 1.0 + Math.random() * 1.2
+  });
+}
+
+function simState() {
+  return {
+    radius_km: orbitalRadius,
+    t_coord_s: Number(t_coord.toFixed(2)),
+    tau_proper_s: Number(tau_proper.toFixed(2)),
+    v_kms: Math.round(orbitalSpeedKms(orbitalRadius, RS_PHYS)),
+    readings_count: measurements.length,
+    view: viewMode
+  };
+}
+
+function flushPendingChanges(triggeredBy) {
+  const changed = Object.keys(pendingChanges);
+  if (!changed.length) return;
+  emit("state-change", { changed, state: simState(), triggeredBy });
+  changed.forEach((k) => delete pendingChanges[k]);
+}
+
+// Canvas & DOM elements
+const canvas = document.getElementById("sim-canvas");
+const ctx = canvas.getContext("2d");
+
+const btnStart = document.getElementById("btn-start");
+const btnReset = document.getElementById("btn-reset");
+const btnRecord = document.getElementById("btn-record");
+const btnClear = document.getElementById("btn-clear");
+
+const sliderRadius = document.getElementById("slider-radius");
+const readoutR = document.getElementById("readout-r");
+const readoutV = document.getElementById("readout-v");
+const readoutFrac = document.getElementById("readout-fraction");
+const clockT = document.getElementById("clock-t");
+const clockTau = document.getElementById("clock-tau");
+
+const segCockpit = document.getElementById("seg-cockpit");
+const segOrbit = document.getElementById("seg-orbit");
+const segSplit = document.getElementById("seg-split");
+
+const tableBody = document.getElementById("table-body");
+const tableEmpty = document.getElementById("table-empty");
+
+function setPanelExpanded(bodyId, expanded) {
+  const body = document.getElementById(bodyId);
+  const btn = document.querySelector(`[data-panel="${bodyId}"]`);
+  if (!body || !btn) return;
+  btn.setAttribute("aria-expanded", expanded ? "true" : "false");
+  body.style.display = expanded ? "block" : "none";
+  const chevron = btn.querySelector(".chevron");
+  if (chevron) chevron.textContent = expanded ? "▲" : "▼";
+}
+
+// Collapsible headers setup
+document.querySelectorAll(".panel-header").forEach((headerBtn) => {
+  headerBtn.addEventListener("click", () => {
+    const targetId = headerBtn.dataset.panel;
+    const isExpanded = headerBtn.getAttribute("aria-expanded") === "true";
+    setPanelExpanded(targetId, !isExpanded);
+  });
+});
+
+// View segmented buttons
+function setView(mode) {
+  viewMode = mode;
+  segCockpit.setAttribute("aria-pressed", mode === "cockpit" ? "true" : "false");
+  segOrbit.setAttribute("aria-pressed", mode === "orbit" ? "true" : "false");
+  segSplit.setAttribute("aria-pressed", mode === "split" ? "true" : "false");
+  pendingChanges.view = true;
+  render();
+}
+
+segCockpit.addEventListener("click", () => setView("cockpit"));
+segOrbit.addEventListener("click", () => setView("orbit"));
+segSplit.addEventListener("click", () => setView("split"));
+
+// Slider interaction
+sliderRadius.addEventListener("input", (e) => {
+  orbitalRadius = parseFloat(e.target.value);
+  pendingChanges.radius_km = true;
+  renderReadouts();
+  render();
+});
+
+// Start/Pause
+btnStart.addEventListener("click", () => {
+  flushPendingChanges("toggle-run");
+  running = !running;
+  btnStart.textContent = running ? t("pause") : t("start");
+  if (running) {
+    lastTimestamp = performance.now();
+    requestAnimationFrame(loop);
+    emit("run", {
+      label: (lang === "da" ? "Bane startet: r = " : "Orbit started: r = ") + num(orbitalRadius, 1) + " km",
+      state: simState()
+    });
+  } else {
+    emit("pause", { state: simState() });
+  }
+});
+
+// Reset
+btnReset.addEventListener("click", () => {
+  running = false;
+  btnStart.textContent = t("start");
+  t_coord = 0.0;
+  tau_proper = 0.0;
+  orbitAngle = 0.0;
+  renderReadouts();
+  render();
+  emit("reset", { state: simState() });
+});
+
+// Record measurement
+btnRecord.addEventListener("click", () => {
+  flushPendingChanges("record");
+  const reading = {
+    n: measurements.length + 1,
+    r: orbitalRadius,
+    t: t_coord,
+    tau: tau_proper
+  };
+  measurements.push(reading);
+  renderTable();
+
+  const lbl = lang === "da"
+    ? "Registrerede måling #" + reading.n + ": t = " + num(reading.t, 2) + " s, \u03c4 = " + num(reading.tau, 2) + " s (r = " + num(reading.r, 1) + " km)"
+    : "Recorded reading #" + reading.n + ": t = " + num(reading.t, 2) + " s, \u03c4 = " + num(reading.tau, 2) + " s (r = " + num(reading.r, 1) + " km)";
+
+  emit("reading", {
+    label: lbl,
+    state: simState()
+  });
+});
+
+// Clear data
+btnClear.addEventListener("click", () => {
+  measurements.length = 0;
+  renderTable();
+  emit("state-change", {
+    cleared: true,
+    state: simState(),
+    triggeredBy: "clear-measurements"
+  });
+});
+
+// Language switcher
+const langDaBtn = document.getElementById("lang-da");
+const langEnBtn = document.getElementById("lang-en");
+
+langDaBtn.addEventListener("click", () => {
+  langLockedByStudent = true;
+  lang = "da";
+  langDaBtn.setAttribute("aria-pressed", "true");
+  langEnBtn.setAttribute("aria-pressed", "false");
+  applyLang();
+});
+
+langEnBtn.addEventListener("click", () => {
+  langLockedByStudent = true;
+  lang = "en";
+  langDaBtn.setAttribute("aria-pressed", "false");
+  langEnBtn.setAttribute("aria-pressed", "true");
+  applyLang();
+});
+
+function applyLang() {
+  document.documentElement.lang = lang;
+  if (!TEST_MODE) document.title = t("title");
+  document.querySelectorAll("[data-t]").forEach((el) => {
+    const v = t(el.dataset.t);
+    if (v !== undefined) el.textContent = v;
+  });
+  btnStart.textContent = running ? t("pause") : t("start");
+  renderReadouts();
+  renderTable();
+  render();
+}
+
+function renderReadouts() {
+  readoutR.textContent = num(orbitalRadius, 1);
+  const v = orbitalSpeedKms(orbitalRadius, RS_PHYS);
+  readoutV.textContent = num(v, 0);
+  const frac = (v / C_KMS) * 100;
+  readoutFrac.textContent = num(frac, 1);
+  clockT.textContent = num(t_coord, 2);
+  clockTau.textContent = num(tau_proper, 2);
+}
+
+function renderTable() {
+  tableBody.innerHTML = "";
+  if (measurements.length === 0) {
+    tableEmpty.style.display = "block";
+    return;
+  }
+  tableEmpty.style.display = "none";
+  measurements.forEach((m) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${m.n}</td><td>${num(m.r, 1)}</td><td>${num(m.t, 2)}</td><td>${num(m.tau, 2)}</td>`;
+    tableBody.appendChild(tr);
+  });
+}
+
+// Animation loop
+function loop(now) {
+  if (!running) return;
+  const dtReal = Math.min(0.1, (now - lastTimestamp) / 1000);
+  lastTimestamp = now;
+
+  // Real coordinate time advance
+  t_coord += dtReal;
+  // Proper time advance using Schwarzschild dilation
+  const dilation = timeDilationFactor(orbitalRadius, RS_PHYS);
+  tau_proper += dtReal * dilation;
+
+  // Visual orbital angular speed (scaled smoothly for clear observation)
+  const omegaVis = 0.85 / Math.pow(orbitalRadius / 100, 1.5);
+  orbitAngle += omegaVis * dtReal;
+
+  renderReadouts();
+  render();
+  requestAnimationFrame(loop);
+}
+
+// Sizing
+function resizeCanvas() {
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const w = Math.round(rect.width * dpr);
+  const h = Math.round(rect.height * dpr);
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w;
+    canvas.height = h;
+  }
+  render();
+}
+
+window.addEventListener("resize", resizeCanvas);
+
+// Rendering views
+function render() {
+  const w = canvas.width;
+  const h = canvas.height;
+  if (!w || !h) return;
+
+  ctx.clearRect(0, 0, w, h);
+
+  if (viewMode === "cockpit") {
+    drawCockpit(0, 0, w, h);
+  } else if (viewMode === "orbit") {
+    drawOrbit(0, 0, w, h);
+  } else {
+    // Split view: Left = Cockpit, Right = Orbit
+    const half = Math.floor(w / 2);
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, half, h);
+    ctx.clip();
+    drawCockpit(0, 0, half, h);
+    ctx.restore();
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(half, 0, w - half, h);
+    ctx.clip();
+    drawOrbit(half, 0, w - half, h);
+    ctx.restore();
+
+    // Divider line
+    ctx.strokeStyle = "#334155";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(half, 0);
+    ctx.lineTo(half, h);
+    ctx.stroke();
+  }
+}
+
+function drawCockpit(ox, oy, w, h) {
+  ctx.save();
+  ctx.translate(ox, oy);
+
+  // Background deep space
+  ctx.fillStyle = "#020617";
+  ctx.fillRect(0, 0, w, h);
+
+  const cx = w * 0.5;
+  const cy = h * 0.5;
+  const dim = Math.min(w, h);
+  const scaleE = dim * 0.52; // screen scale factor (pixels per radian)
+
+  // Physical relativistic angles
+  // Einstein angular radius theta_E = sqrt(2 * rs / r)
+  const thetaE = Math.sqrt((2 * RS_PHYS) / orbitalRadius);
+  const rEinstein = thetaE * scaleE;
+
+  // Angular size of black hole shadow: sin(theta) ~ (b_c / r) * sqrt(1 - rs/r)
+  // where b_c = 2.598 * rs is photon capture impact parameter
+  const bc = 2.598 * RS_PHYS;
+  const shadowAngular = (bc / orbitalRadius) * Math.sqrt(Math.max(0.01, 1 - RS_PHYS / orbitalRadius));
+  const rShadow = Math.min(rEinstein * 0.88, Math.max(12, shadowAngular * scaleE));
+
+  // 1. Einstein ring guide circle (subtle dashed cyan circle)
+  ctx.save();
+  ctx.strokeStyle = "rgba(56, 189, 248, 0.4)";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.arc(cx, cy, rEinstein, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+
+  // Einstein ring label (middle-left edge of ring to avoid top/bottom images)
+  ctx.font = "11px " + getComputedStyle(document.body).fontFamily;
+  ctx.fillStyle = "rgba(56, 189, 248, 0.85)";
+  ctx.textAlign = "right";
+  ctx.fillText(t("lbl_ring"), cx - rEinstein - 6, cy);
+
+  // 2. Background starfield with relativistic lensing
+  STARS.forEach((star) => {
+    let dAz = star.az - orbitAngle;
+    dAz = Math.atan2(Math.sin(dAz), Math.cos(dAz));
+    const dEl = star.el;
+
+    if (Math.abs(dAz) > Math.PI * 0.55) return;
+    const beta = Math.hypot(dAz, dEl);
+    if (beta < 0.001) return;
+
+    // Primary image (outside Einstein ring)
+    const theta1 = (beta + Math.sqrt(beta * beta + 4 * thetaE * thetaE)) * 0.5;
+    const px1 = cx + (dAz / beta) * theta1 * scaleE;
+    const py1 = cy + (dEl / beta) * theta1 * scaleE;
+
+    ctx.fillStyle = `rgba(226, 232, 240, ${Math.min(1, star.mag)})`;
+    ctx.beginPath();
+    ctx.arc(px1, py1, star.r, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Secondary image (inside Einstein ring, opposite side of black hole)
+    const theta2 = (Math.sqrt(beta * beta + 4 * thetaE * thetaE) - beta) * 0.5;
+    const px2 = cx - (dAz / beta) * theta2 * scaleE;
+    const py2 = cy - (dEl / beta) * theta2 * scaleE;
+    const dist2 = Math.hypot(px2 - cx, py2 - cy);
+
+    if (dist2 > rShadow + 1) {
+      ctx.fillStyle = `rgba(186, 230, 253, ${Math.min(0.7, star.mag * 0.6)})`;
+      ctx.beginPath();
+      ctx.arc(px2, py2, star.r * 0.7, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  });
+
+  // 3. Featured Target Star A: explicitly demonstrates that ONE star appears TWICE
+  let dAzA = STAR_A.az - orbitAngle;
+  dAzA = Math.atan2(Math.sin(dAzA), Math.cos(dAzA));
+  const dElA = STAR_A.el;
+
+  if (Math.abs(dAzA) <= Math.PI * 0.55) {
+    const betaA = Math.hypot(dAzA, dElA);
+    const uA = betaA / Math.max(0.0001, thetaE);
+
+    // True (undeflected) position on sky
+    const truePx = cx + dAzA * scaleE;
+    const truePy = cy + dElA * scaleE;
+
+    // Primary Image A1: shifted outward, on same side as source
+    const theta1A = (betaA + Math.sqrt(betaA * betaA + 4 * thetaE * thetaE)) * 0.5;
+    const p1x = cx + (dAzA / betaA) * theta1A * scaleE;
+    const p1y = cy + (dElA / betaA) * theta1A * scaleE;
+
+    // Secondary Image A2: on opposite side of black hole (shifted inward)
+    const theta2A = (Math.sqrt(betaA * betaA + 4 * thetaE * thetaE) - betaA) * 0.5;
+    const p2x = cx - (dAzA / betaA) * theta2A * scaleE;
+    const p2y = cy - (dElA / betaA) * theta2A * scaleE;
+    const dist2A = Math.hypot(p2x - cx, p2y - cy);
+
+    // Dashed alignment axis connecting A1, center, and A2
+    ctx.save();
+    ctx.strokeStyle = "rgba(250, 204, 21, 0.35)";
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath();
+    ctx.moveTo(p1x, p1y);
+    ctx.lineTo(p2x, p2y);
+    ctx.stroke();
+    ctx.restore();
+
+    // True star position marker (unlensed ghost)
+    const distTrue = Math.hypot(truePx - cx, truePy - cy);
+    ctx.strokeStyle = "rgba(148, 163, 184, 0.6)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(truePx, truePy, 4, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(truePx - 3, truePy); ctx.lineTo(truePx + 3, truePy);
+    ctx.moveTo(truePx, truePy - 3); ctx.lineTo(truePx, truePy + 3);
+    ctx.stroke();
+
+    ctx.font = "11px " + getComputedStyle(document.body).fontFamily;
+    ctx.fillStyle = "rgba(148, 163, 184, 0.85)";
+    if (distTrue < rShadow) {
+      // Behind black hole shadow: draw compact label above or to side
+      const compact = w < 420;
+      ctx.textAlign = compact ? "center" : "left";
+      const lblX = compact ? cx : cx + rShadow + 6;
+      const lblY = compact ? cy - rShadow - 8 : cy;
+      ctx.fillText(t("lbl_star_true") + " " + t("lbl_behind"), lblX, lblY);
+      ctx.save();
+      ctx.setLineDash([2, 2]);
+      ctx.strokeStyle = "rgba(148, 163, 184, 0.4)";
+      ctx.beginPath();
+      ctx.moveTo(truePx, truePy);
+      ctx.lineTo(compact ? cx : cx + rShadow + 4, compact ? cy - rShadow - 2 : cy);
+      ctx.stroke();
+      ctx.restore();
+    } else {
+      ctx.textAlign = (truePx > cx) ? "left" : "right";
+      const xOffT = (truePx > cx) ? 7 : -7;
+      ctx.fillText(t("lbl_star_true"), truePx + xOffT, truePy - 6);
+    }
+
+    // When star passes close to optical axis, images stretch into Einstein arcs
+    if (uA < 0.35) {
+      const arcLen = Math.PI * Math.max(0.1, 1 - uA / 0.35);
+      const phiA = Math.atan2(p1y - cy, p1x - cx);
+      ctx.strokeStyle = "rgba(250, 204, 21, 0.85)";
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, rEinstein, phiA - arcLen * 0.45, phiA + arcLen * 0.45);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy, rEinstein, phiA + Math.PI - arcLen * 0.45, phiA + Math.PI + arcLen * 0.45);
+      ctx.stroke();
+    }
+
+    // Draw Primary Image A1 (gold star, outside Einstein ring)
+    ctx.fillStyle = "#facc15";
+    ctx.beginPath();
+    ctx.arc(p1x, p1y, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(250, 204, 21, 0.45)";
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.fillStyle = "#fef08a";
+    ctx.font = "11px " + getComputedStyle(document.body).fontFamily;
+    ctx.textAlign = (p1x > cx) ? "left" : "right";
+    const xOff1 = (p1x > cx) ? 8 : -8;
+    ctx.fillText(t("lbl_img1"), p1x + xOff1, p1y - 6);
+
+    // Draw Secondary Image A2 (mirror star on opposite side, inside Einstein ring)
+    if (dist2A > rShadow) {
+      ctx.fillStyle = "#fef08a";
+      ctx.beginPath();
+      ctx.arc(p2x, p2y, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(250, 204, 21, 0.4)";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.fillStyle = "#fef08a";
+      ctx.font = "11px " + getComputedStyle(document.body).fontFamily;
+      ctx.textAlign = (p2x > cx) ? "left" : "right";
+      const xOff2 = (p2x > cx) ? 8 : -8;
+      const yOff2 = (p2y < cy) ? -6 : 12;
+      ctx.fillText(t("lbl_img2"), p2x + xOff2, p2y + yOff2);
+    }
+  }
+
+  // 4. Black hole shadow (pitch-black disk with glowing purple event horizon boundary)
+  ctx.fillStyle = "#000000";
+  ctx.beginPath();
+  ctx.arc(cx, cy, rShadow, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = "#a855f7";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // Shadow label inside the pitch-black core
+  ctx.font = "11px " + getComputedStyle(document.body).fontFamily;
+  ctx.fillStyle = "rgba(148, 163, 184, 0.75)";
+  ctx.textAlign = "center";
+  ctx.fillText(t("lbl_shadow"), cx, cy + Math.min(rShadow * 0.55, 24));
+
+  // Cockpit HUD reticle
+  ctx.strokeStyle = "rgba(56, 189, 248, 0.25)";
+  ctx.lineWidth = 1;
+  const arm = 12;
+  ctx.beginPath();
+  ctx.moveTo(cx - arm, cy); ctx.lineTo(cx - 3, cy);
+  ctx.moveTo(cx + 3, cy); ctx.lineTo(cx + arm, cy);
+  ctx.moveTo(cx, cy - arm); ctx.lineTo(cx, cy - 3);
+  ctx.moveTo(cx, cy + 3); ctx.lineTo(cx, cy + arm);
+  ctx.stroke();
+
+  // Top header overlay
+  ctx.fillStyle = "rgba(241, 245, 249, 0.9)";
+  ctx.textAlign = "left";
+  ctx.fillText(t("view_cockpit").toUpperCase(), 10, 18);
+
+  // Bottom explanatory banner
+  ctx.fillStyle = "rgba(250, 204, 21, 0.9)";
+  ctx.textAlign = "center";
+  ctx.fillText(t("lbl_double_img"), cx, h - 12);
+
+  ctx.restore();
+}
+
+function drawOrbit(ox, oy, w, h) {
+  ctx.save();
+  ctx.translate(ox, oy);
+
+  ctx.fillStyle = "#020617";
+  ctx.fillRect(0, 0, w, h);
+
+  const cx = w * 0.5;
+  const cy = h * 0.5;
+  const dim = Math.min(w, h);
+
+  // Geometry scale: map up to 360 km into dim * 0.44
+  const scale = (dim * 0.43) / 360.0;
+
+  // Space curvature grid (concentric faint circles)
+  ctx.strokeStyle = "rgba(51, 65, 85, 0.4)";
+  ctx.lineWidth = 1;
+  for (let rG = 50; rG <= 350; rG += 50) {
+    ctx.beginPath();
+    ctx.arc(cx, cy, rG * scale, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Radial grid lines
+  for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.lineTo(cx + Math.cos(a) * 350 * scale, cy + Math.sin(a) * 350 * scale);
+    ctx.stroke();
+  }
+
+  // 1. Event horizon (solid black with purple boundary)
+  const rH = RS_PHYS * scale;
+  ctx.fillStyle = "#000000";
+  ctx.beginPath();
+  ctx.arc(cx, cy, rH, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#a855f7";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  // 2. Photon sphere (1.5 * r_H)
+  const rPh = 1.5 * RS_PHYS * scale;
+  ctx.strokeStyle = "#38bdf8";
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.arc(cx, cy, rPh, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // 3. ISCO (3.0 * r_H)
+  const rISCO = 3.0 * RS_PHYS * scale;
+  ctx.strokeStyle = "#fbbf24";
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([5, 4]);
+  ctx.beginPath();
+  ctx.arc(cx, cy, rISCO, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // 4. Distant Star A source on Orbit Map
+  const starMapX = 20;
+  const starMapY = cy;
+
+  ctx.fillStyle = "#facc15";
+  ctx.beginPath();
+  ctx.arc(starMapX, starMapY, 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "rgba(250, 204, 21, 0.4)";
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  ctx.font = "11px " + getComputedStyle(document.body).fontFamily;
+  ctx.fillStyle = "#fef08a";
+  ctx.textAlign = "left";
+  ctx.fillText(t("lbl_star_source"), starMapX + 8, starMapY - 6);
+
+  // Incoming parallel rays from Star A towards the system
+  ctx.save();
+  ctx.strokeStyle = "rgba(250, 204, 21, 0.18)";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  for (let dy of [-rPh * 1.35, 0, rPh * 1.35]) {
+    ctx.beginPath();
+    ctx.moveTo(starMapX + 10, cy + dy);
+    ctx.lineTo(cx - rISCO * 0.9, cy + dy);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // 5. Spacecraft orbit trajectory
+  const rOrb = orbitalRadius * scale;
+  ctx.strokeStyle = "rgba(59, 130, 246, 0.7)";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(cx, cy, rOrb, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Current spacecraft position
+  const sx = cx + Math.cos(orbitAngle) * rOrb;
+  const sy = cy + Math.sin(orbitAngle) * rOrb;
+
+  // Spacecraft camera FOV wedge towards the black hole
+  const losAngle = Math.atan2(cy - sy, cx - sx);
+  const fovHalf = 0.38;
+  const fovDist = Math.hypot(cx - sx, cy - sy) + rPh * 1.6;
+
+  ctx.save();
+  ctx.fillStyle = "rgba(56, 189, 248, 0.08)";
+  ctx.beginPath();
+  ctx.moveTo(sx, sy);
+  ctx.arc(sx, sy, fovDist, losAngle - fovHalf, losAngle + fovHalf);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.strokeStyle = "rgba(56, 189, 248, 0.25)";
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 3]);
+  ctx.stroke();
+  ctx.restore();
+
+  // Gravitationally bent light rays reaching spacecraft
+  if (Math.cos(orbitAngle) > -0.35) {
+    const phi = orbitAngle;
+    const nx = -Math.sin(phi);
+    const ny = Math.cos(phi);
+    const b1 = rPh * 1.3;
+
+    const cp1x = cx + nx * b1 - Math.cos(phi) * (rPh * 0.35);
+    const cp1y = cy + ny * b1 - Math.sin(phi) * (rPh * 0.35);
+    const cp2x = cx - nx * b1 - Math.cos(phi) * (rPh * 0.35);
+    const cp2y = cy - ny * b1 - Math.sin(phi) * (rPh * 0.35);
+
+    // Ray 1 (solid, primary path)
+    ctx.strokeStyle = "rgba(250, 204, 21, 0.8)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(starMapX + 4, cy - 3);
+    ctx.quadraticCurveTo(cp1x, cp1y, sx, sy);
+    ctx.stroke();
+
+    // Ray 2 (dashed, secondary path on opposite side)
+    ctx.strokeStyle = "rgba(253, 224, 71, 0.8)";
+    ctx.lineWidth = 1.5;
+    ctx.save();
+    ctx.setLineDash([4, 3]);
+    ctx.beginPath();
+    ctx.moveTo(starMapX + 4, cy + 3);
+    ctx.quadraticCurveTo(cp2x, cp2y, sx, sy);
+    ctx.stroke();
+    ctx.restore();
+
+    // Labels for the two bent rays in open space between Star A and black hole
+    const midX = starMapX + (cx - starMapX) * 0.46;
+    ctx.font = "11px " + getComputedStyle(document.body).fontFamily;
+    ctx.textAlign = "center";
+    ctx.fillStyle = "rgba(250, 204, 21, 0.9)";
+    ctx.fillText(t("lbl_ray1"), midX, cy - rPh * 1.0 - 5);
+
+    ctx.fillStyle = "rgba(253, 224, 71, 0.9)";
+    ctx.fillText(t("lbl_ray2"), midX, cy + rPh * 1.0 + 13);
+  }
+
+  // Radial radius line
+  ctx.strokeStyle = "rgba(148, 163, 184, 0.4)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(sx, sy);
+  ctx.stroke();
+
+  // Spacecraft icon (circle with heading chevron)
+  ctx.fillStyle = "#38bdf8";
+  ctx.beginPath();
+  ctx.arc(sx, sy, 5, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Velocity vector tangent
+  const vx = -Math.sin(orbitAngle) * 16;
+  const vy = Math.cos(orbitAngle) * 16;
+  ctx.strokeStyle = "#60a5fa";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(sx, sy);
+  ctx.lineTo(sx + vx, sy + vy);
+  ctx.stroke();
+
+  // Remote base station in upper corner
+  const bsX = w - 24;
+  const bsY = 24;
+  ctx.fillStyle = "#e2e8f0";
+  ctx.beginPath();
+  ctx.arc(bsX, bsY, 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Radio signal sync waves between base station and craft
+  if (running) {
+    const wavePhase = (t_coord * 3) % 20;
+    ctx.strokeStyle = "rgba(96, 165, 250, 0.35)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.arc(bsX, bsY, wavePhase + 6, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // Labels on diagram
+  ctx.font = "11px " + getComputedStyle(document.body).fontFamily;
+  ctx.fillStyle = "rgba(241, 245, 249, 0.9)";
+  ctx.textAlign = "left";
+  ctx.fillText(t("view_orbit").toUpperCase(), 10, 18);
+
+  ctx.fillStyle = "rgba(226, 232, 240, 0.85)";
+  ctx.textAlign = "right";
+  ctx.fillText(t("lbl_base"), bsX - 10, bsY + 4);
+
+  // Legend at bottom left
+  const legY = h - 48;
+  ctx.font = "11px " + getComputedStyle(document.body).fontFamily;
+  ctx.textAlign = "left";
+
+  // ISCO
+  ctx.fillStyle = "#fbbf24";
+  ctx.fillText("--- " + t("lbl_isco"), 10, legY);
+
+  // Photon sphere
+  ctx.fillStyle = "#38bdf8";
+  ctx.fillText("--- " + t("lbl_photon"), 10, legY + 16);
+
+  // Horizon
+  ctx.fillStyle = "#a855f7";
+  ctx.fillText("\u2500\u2500 " + t("lbl_horizon"), 10, legY + 32);
+
+  ctx.restore();
+}
+
+// Host context bridge polling
+let pollCount = 0;
+const pollTimer = setInterval(() => {
+  pollCount++;
+  const b = bridge();
+  if (b && b.hostContext) {
+    const ctx = b.hostContext();
+    if (ctx && ctx.locale && !langLockedByStudent) {
+      const code = ctx.locale.slice(0, 2).toLowerCase();
+      if (code === "da" || code === "en") {
+        lang = code;
+        langDaBtn.setAttribute("aria-pressed", lang === "da" ? "true" : "false");
+        langEnBtn.setAttribute("aria-pressed", lang === "en" ? "true" : "false");
+        applyLang();
+      }
+    }
+  }
+  if (pollCount > 40) clearInterval(pollTimer);
+}, 50);
+
+// Panels open by default
+setPanelExpanded("panel-params-body", true);
+setPanelExpanded("panel-data-body", true);
+
+// Init bridge & render
+applyLang();
+resizeCanvas();
+
+const b = bridge();
+if (b) {
+  b.init({ name: ARTEFACT_NAME, version: "1.0.0" });
+  b.onChatFlush(function () {
+    flushPendingChanges("chat-submit");
+  });
+}
+</script>
+</body>
+</html>
