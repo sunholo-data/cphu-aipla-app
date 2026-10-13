@@ -88,6 +88,13 @@ async def test_a_browser_that_could_not_run_is_not_a_pass(tmp_path):
         browser_result(pageErrors=["ReferenceError: x"]),
         browser_result(checks=[{"ok": False, "msg": "390px: overflows by 40px"}, {"ok": True, "msg": "700px: fits"}]),
         browser_result(checks=[]),  # the viewport checks never ran
+        browser_result(
+            checks=[
+                {"ok": True, "msg": "390px: fits"},
+                {"ok": True, "msg": "700px: fits"},
+                {"ok": False, "msg": 'motion: nothing moved in 1.7 s after "Start"'},
+            ]
+        ),
     ],
 )
 @pytest.mark.asyncio

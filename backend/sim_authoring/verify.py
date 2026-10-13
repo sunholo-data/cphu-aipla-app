@@ -9,7 +9,7 @@ repo's ``verify_sim.mjs``) and in the app (the sim-verify service, M3).
 The verdict carries a **level** (in-app-sim-authoring "Score levels"):
 
     L0 two files parsed · L1 static gates pass · L2 it runs (self-test, no page
-    errors, fits 390 and 700 px) · L3 it talks to the tutor (a labelled event,
+    errors, fits 390 and 700 px, and pressing start moves the drawing) · L3 it talks to the tutor (a labelled event,
     a verb that wakes it, every kind namespaced)
 
 L4 (the physics probe) and L5 (the visual rubric) arrive with M2. A level is
@@ -65,6 +65,7 @@ class DraftVerdict:
                 "self_test": self.browser.get("selfTest"),
                 "page_errors": self.browser.get("pageErrors", [])[:5],
                 "failed_checks": [c["msg"] for c in self.browser.get("checks", []) if not c["ok"]],
+                "motion": self.browser.get("motion"),
                 "events": [
                     {"kind": e.get("kind"), "label": e.get("label"), "state": e.get("state")}
                     for e in self.browser.get("events", [])[:12]
@@ -118,13 +119,17 @@ async def verify_draft(
 
     runs = result.get("selfTest") == "pass" and not result.get("pageErrors")
     fits = [c for c in result.get("checks", []) if c["msg"].startswith(("390px", "700px"))]
-    if not runs or not fits or not all(c["ok"] for c in fits):
+    # Pressing start must move the drawing. A sim with no start control is not
+    # failed here (some are driven by dragging); the report says it went unchecked.
+    still = [c for c in result.get("checks", []) if c["msg"].startswith("motion:") and not c["ok"]]
+    if not runs or not fits or not all(c["ok"] for c in fits) or still:
         why = []
         if result.get("selfTest") != "pass":
             why.append(f"self-test {result.get('selfTest')}")
         if result.get("pageErrors"):
             why.append(f"{len(result['pageErrors'])} page error(s)")
         why += [c["msg"] for c in fits if not c["ok"]] or ([] if fits else ["viewport checks did not run"])
+        why += [c["msg"] for c in still]
         reasons.append("L2: " + "; ".join(why))
         return DraftVerdict(level, static, result, reasons, shots)
     level = 2

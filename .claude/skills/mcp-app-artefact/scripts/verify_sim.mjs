@@ -290,6 +290,59 @@ for (const width of [390, 700, 1024]) {
 }
 console.log(`  ...    screenshots in ${outDir}`);
 
+// ---------------------------------------------------------------- 2b. motion
+// Does the sim move once started? Open folded panels as a student would, press
+// the start control, and diff two frames of the main drawing 1.7 s apart. A sim
+// with no start control is reported, not failed: some are driven by dragging.
+if (drive) {
+  const page = await browser.newPage({ viewport: { width: 700, height: 900 } });
+  await page.goto(url);
+  await page.waitForTimeout(400);
+  await page.evaluate(() => document.querySelectorAll('[aria-expanded="false"]').forEach((b) => b.click()));
+  await page.waitForTimeout(200);
+  const started = await page.evaluate(() => {
+    const re = /^(▶\s*)?(start|kør|afspil|play|run|slip|kast|throw|release|launch|tænd|turn on)\b/i;
+    const b = [...document.querySelectorAll("button")].find(
+      (el) => !el.disabled && el.offsetParent && re.test((el.textContent || "").trim()),
+    );
+    if (!b) return null;
+    const label = b.textContent.trim();
+    b.click();
+    return label;
+  });
+  if (!started) {
+    result.motion = { started: null };
+    console.log("  --    motion: no start control found (not checked)");
+  } else {
+    const box = await page.evaluate(() => {
+      const els = [...document.querySelectorAll("canvas, svg")].filter((e) => e.getBoundingClientRect().width > 150);
+      const area = (e) => e.getBoundingClientRect().width * e.getBoundingClientRect().height;
+      els.sort((a, b) => area(b) - area(a));
+      const r = (els[0] || document.body).getBoundingClientRect();
+      // page coordinates (fullPage capture): a drawing below the fold is still seen whole
+      return { x: Math.max(0, r.x + scrollX), y: Math.max(0, r.y + scrollY), width: Math.max(1, Math.min(700, r.width)), height: Math.max(1, r.height) };
+    });
+    await page.waitForTimeout(300);
+    const a = (await page.screenshot({ clip: box, fullPage: true })).toString("base64");
+    await page.waitForTimeout(1700);
+    const b = (await page.screenshot({ clip: box, fullPage: true })).toString("base64");
+    const changed = await page.evaluate(async ([a, b]) => {
+      const load = (s) => new Promise((r) => { const i = new Image(); i.onload = () => r(i); i.src = "data:image/png;base64," + s; });
+      const px = (im) => { const c = document.createElement("canvas"); c.width = im.width; c.height = im.height; const g = c.getContext("2d"); g.drawImage(im, 0, 0); return g.getImageData(0, 0, im.width, im.height).data; };
+      const [x, y] = (await Promise.all([load(a), load(b)])).map(px);
+      let n = 0;
+      for (let i = 0; i < x.length; i += 4) if (Math.abs(x[i] - y[i]) + Math.abs(x[i + 1] - y[i + 1]) + Math.abs(x[i + 2] - y[i + 2]) > 8) n++;
+      return (100 * n) / (x.length / 4);
+    }, [a, b]);
+    result.motion = { started, changedPct: +changed.toFixed(2) };
+    // A static page changes 0 pixels between screenshots, so any real change counts;
+    // a slow sim (a heating curve) moves only a few pixels a second.
+    if (changed >= 0.05) pass(`motion: animates after "${started}" (${changed.toFixed(2)}% of the drawing changed in 1.7 s)`);
+    else fail(`motion: nothing moved in 1.7 s after "${started}" (${changed.toFixed(3)}% changed) — the start control does not animate the drawing`);
+  }
+  await page.close();
+}
+
 // ---------------------------------------------------------------- 3. drive
 if (drive) {
   console.log("\n  Driving the sim (generic sweep)\n");
