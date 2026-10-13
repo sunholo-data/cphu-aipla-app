@@ -371,6 +371,38 @@ What the runs taught, and what changed because of them:
   the EUR ~9 (USD 9.74) of the hand-built Opus 5.5 engine. With the waste above
   removed, expect the loop at about EUR 0.4–0.5.
 
+## A teacher-review run of the skill (2026-10-13)
+
+The real `sim-author` skill and agent (`create_agent` from the template),
+Gemini 3.8 Flash on Vertex, the local browser check, three turns played as a
+reviewing teacher who looks at each version's screenshots before replying:
+
+| Turn | Teacher said | Result |
+|---|---|---|
+| 1 | Brief: a pendulum on a lab stand, with the kit; derive g, never show it or the formula | v1, v2 at L3 (556 s): an isometric lab stand (base, rod, boss head, arm), string, 10° angle scale, dashed rest line; the motion integrates the full pendulum equation (RK4); hidden terms absent |
+| 2 | "The bob looks like a cylinder, make it a ball; add a metre ruler; the apparatus is small, fill the panel" | v3, v4 at L3 (355 s): all three made. **New flaw it introduced:** the ruler stood in the swing plane, so the ball passed through it and covered the 1,0 m mark |
+| 3 | "The ruler is in the path of the swing; move it behind the string, zero at the pivot" | v5–v7 at L3 (521 s): ruler moved behind the swing plane, labels moved clear, ball passes in front; fits at 390 px |
+
+So iteration works: each request became a checked new version, and the skill
+fixed a flaw it had itself introduced once a teacher named it. It also shows
+why the teacher is the reviewer: no check would have caught the ruler in the
+swing path (L3 throughout).
+
+Found and fixed by the run and the dev smoke that followed:
+
+- **The 10 s first-token deadline** (tuned to tutors) killed the first dev turn,
+  and a 180 s one the second: Gemini does not stream function-call arguments,
+  so a draft turn's first chunk is the whole page as `verify_sim`'s argument,
+  minutes after the request. Per-skill `firstTokenDeadlineS` (sim-author: 600)
+  and a 900 s Cloud Run request timeout. The local run had passed because it
+  ran non-streamed, where the deadline never applies — **test the streamed path**.
+- **The hidden-quantity check never ran during a build**: `verify_sim` had no way
+  to receive the terms. It now takes `hidden_terms`, and a leak makes `ok`
+  false at any level.
+- **Language:** the skill replied in Danish to an English brief when no UI
+  language tag was present. The workshop always sends one (`TeacherCopilot`
+  prefixes `[ui_language=…]`), so it is a harness artefact, but worth watching.
+
 ## First runs (2026-10-12, by hand)
 
 Harness H1 (one call, the published authoring prompt), the `otto-engine` brief,
