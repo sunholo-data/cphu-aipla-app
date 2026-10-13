@@ -96,6 +96,16 @@ afterEach(() => {
 });
 
 describe("TeacherCopilot (shared shell)", () => {
+  it("shows the model's streamed thinking while it works", () => {
+    hook = {
+      ...defaultHook,
+      isLoading: true,
+      thinkingContent: "Planning the pendulum: the bob position comes from theta(t) by RK4…",
+    } as unknown as UseSkillAgentReturn;
+    render(<TeacherCopilot {...config()} />);
+    expect(screen.getByTestId("copilot-thinking")).toHaveTextContent("Planning the pendulum");
+  });
+
   it("docks as a page column when asked (the Sim workshop), with the same chat and New chat", () => {
     hook = defaultHook;
     render(<TeacherCopilot {...config()} docked />);

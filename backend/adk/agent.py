@@ -88,7 +88,7 @@ from adk.proactive_telemetry import tag_proactive_span_from_callback_context
 from adk.progress_context import compose_progress_context
 from adk.resilient_llm import ResilientLlm
 from adk.shared_conversation import build_shared_conversation_block
-from adk.sim_author import attach_sim_screenshots
+from adk.sim_author import attach_sim_screenshots, record_sim_usage
 from adk.sim_control_tools import build_sim_control_tools, resolve_sim_control_level
 from adk.svg_preview import attach_svg_preview, make_final_svg_guard
 from adk.teacher_focus import build_ilo_precedence_block, inject_teacher_focus, resolve_active_config
@@ -283,7 +283,12 @@ def _planner_for(skill_config: SkillConfig) -> BuiltInPlanner | None:
     budget = skill_config.skill_metadata.thinking_budget
     if budget is None:
         budget = _resolve_thinking_budget()
-    return BuiltInPlanner(thinking_config=ThinkingConfig(thinking_budget=budget))
+    return BuiltInPlanner(
+        thinking_config=ThinkingConfig(
+            thinking_budget=budget,
+            include_thoughts=bool(skill_config.skill_metadata.include_thoughts and budget != 0),
+        )
+    )
 
 
 @dataclass
@@ -791,9 +796,13 @@ def create_agent(
         make_final_svg_guard() if {"draw_physics_diagram", "render_svg_preview"} & set(md.tools) else None
     )
 
+    _records_sim_usage = "verify_sim" in md.tools
+
     async def _composed_after_model(callback_context: object, llm_response: object) -> None:
         if _final_svg_guard is not None:
             await _final_svg_guard(callback_context, llm_response)
+        if _records_sim_usage:
+            await record_sim_usage(callback_context, llm_response)
         await _strip_markers_after(callback_context, llm_response)
         if _doc_links_after is not None:
             await _doc_links_after(callback_context, llm_response)

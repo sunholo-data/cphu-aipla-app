@@ -29,6 +29,9 @@
     "previewTitle": "Forhåndsvisning af version {n}",
     "previewUnavailable": "Der er ingen sandkasse i dette miljø, så den levende forhåndsvisning kan ikke køre. Skærmbillederne nedenfor viser stadig hver version.",
     "previewPlaceholder": "Din simulering vises her, så snart assistenten har tjekket første version. Beskriv den i assistentpanelet.",
-    "earlierVersions": "{n, plural, one {# tidligere version} other {# tidligere versioner}}"
+    "earlierVersions": "{n, plural, one {# tidligere version} other {# tidligere versioner}}",
+    "untitled": "Simulering uden titel",
+    "beingWritten": "Bliver skrevet…",
+    "costSoFar": "≈ ${cost} indtil nu · {tokens} tokens"
   }
 }

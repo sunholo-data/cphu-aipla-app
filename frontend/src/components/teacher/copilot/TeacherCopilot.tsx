@@ -201,6 +201,30 @@ function CopilotResolver<P>({
   );
 }
 
+/** Seconds since `running` turned on; 0 while off. */
+function useElapsedSeconds(running: boolean): number {
+  const [elapsed, setElapsed] = useState(0);
+  useEffect(() => {
+    if (!running) {
+      setElapsed(0);
+      return;
+    }
+    const started = Date.now();
+    const timer = window.setInterval(
+      () => setElapsed(Math.floor((Date.now() - started) / 1000)),
+      1000,
+    );
+    return () => window.clearInterval(timer);
+  }, [running]);
+  return elapsed;
+}
+
+function formatElapsed(seconds: number): string {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
 /** Server stage keys a co-pilot knows how to say in the teacher's language
  *  (the sim workshop's progress); any other stage shows the server's English
  *  label, and no stage shows "Thinking…". */
@@ -246,7 +270,9 @@ function CopilotChat<P>({
     isLoading,
     error,
     stage,
+    thinkingContent,
   } = useSkillAgent();
+  const elapsed = useElapsedSeconds(isLoading);
   const localeMode = useLocaleMode();
   const langTag = `[ui_language=${localeMode === "bilingual" ? "da" : localeMode}] `;
   // Prior turns for a resumed thread (empty for a fresh one — a 404 lands as
@@ -342,12 +368,30 @@ function CopilotChat<P>({
             ))
           : null}
         {isLoading ? (
-          <p
-            data-testid="copilot-progress"
-            className="text-xs text-muted-foreground"
-          >
-            {stageText(stage, t) ?? labels.thinking}
-          </p>
+          <div className="flex flex-col gap-1">
+            <p
+              data-testid="copilot-progress"
+              className="text-xs text-muted-foreground"
+            >
+              {stageText(stage, t) ?? labels.thinking}
+              {elapsed >= 5 ? (
+                <span className="ml-1 tabular-nums">
+                  · {formatElapsed(elapsed)}
+                </span>
+              ) : null}
+            </p>
+            {thinkingContent ? (
+              // The model's streamed thought summaries (AG-UI REASONING), for skills
+              // that opt in (the Sim workshop): what it is working on during a long
+              // silent step. The latest lines only; a window, not a transcript.
+              <p
+                data-testid="copilot-thinking"
+                className="max-h-24 overflow-hidden whitespace-pre-wrap border-l-2 border-border pl-2 text-xs italic text-muted-foreground"
+              >
+                {thinkingContent.slice(-400)}
+              </p>
+            ) : null}
+          </div>
         ) : null}
       </div>
 

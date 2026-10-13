@@ -33,6 +33,7 @@ import {
   listSimDrafts,
   type SimDraft,
   type SimDraftSummary,
+  type SimDraftUsage,
   type SimDraftVersion,
 } from "@/lib/simDraftsApi";
 
@@ -177,11 +178,22 @@ function SimWorkshop() {
                     : "border-border"
                 }`}
               >
-                <span className="block font-medium">{d.title ?? "—"}</span>
-                <span className="text-xs text-muted-foreground">
-                  {t("version", { n: d.latestVersion ?? 0 })} ·{" "}
-                  {t("level", { n: d.latestLevel ?? 0 })}
+                <span className="block font-medium">
+                  {d.title ?? t("untitled")}
                 </span>
+                <span className="text-xs text-muted-foreground">
+                  {d.latestVersion
+                    ? `${t("version", { n: d.latestVersion })} · ${t("level", { n: d.latestLevel ?? 0 })}`
+                    : t("beingWritten")}
+                </span>
+                {d.usage ? (
+                  <span
+                    data-testid="draft-cost"
+                    className="block text-xs text-muted-foreground"
+                  >
+                    {costLine(d.usage, t)}
+                  </span>
+                ) : null}
               </button>
             ))}
           </nav>
@@ -237,6 +249,19 @@ function SimWorkshop() {
       </div>
     </TeacherPage>
   );
+}
+
+/** "≈ $0.42 · 312k tokens": a rough guide to what this sim has cost so far. */
+function costLine(
+  u: SimDraftUsage,
+  t: ReturnType<typeof useT<"SimWorkshopPage">>,
+): string {
+  const tokens = u.tokensIn + u.tokensOut + u.tokensThinking;
+  const k = tokens >= 1000 ? `${Math.round(tokens / 1000)}k` : String(tokens);
+  return t("costSoFar", {
+    cost: u.costUsd < 0.01 ? "<0.01" : u.costUsd.toFixed(2),
+    tokens: k,
+  });
 }
 
 function VersionPanel({

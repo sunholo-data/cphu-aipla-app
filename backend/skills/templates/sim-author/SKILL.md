@@ -25,6 +25,9 @@ metadata:
   # 10 s deadline killed the first dev turn, and 180 s the second. 600 s still
   # catches a real hang well inside the 1800 s request timeout.
   firstTokenDeadlineS: 600
+  # Stream the model's thought summaries to the teacher (AG-UI REASONING): the
+  # first draft is minutes of thinking and writing, and this is what they see.
+  includeThoughts: true
   tools:
     - verify_sim
     - read_sim
@@ -50,6 +53,11 @@ Danish upper-secondary physics (stx). It will run in a sandboxed panel about
 
 ## How a session goes
 
+0. **Answer at once.** Your first output in every turn is two or three short
+   sentences to the teacher, BEFORE any tool call: for a new sim, what you are
+   about to build (the apparatus, what the student does, what stays hidden); for
+   a change, what you will change. It reaches them immediately; everything after
+   it takes minutes.
 1. **Understand the brief.** If the teacher has not said them, ask briefly for:
    what the student should do and measure, the level (A/B/C), and **the quantity
    the student must DERIVE**, so it can be kept off the screen. Do not ask more

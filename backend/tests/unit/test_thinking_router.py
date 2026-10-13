@@ -231,3 +231,13 @@ def test_a_skill_thinking_budget_overrides_the_env(monkeypatch):
 def test_without_a_skill_budget_the_env_still_decides(monkeypatch):
     monkeypatch.setenv("AIPLA_THINKING_BUDGET", "0")
     assert _planner_for(_skill(model="gemini-2.5-flash")).thinking_config.thinking_budget == 0
+
+
+def test_a_skill_can_stream_its_thoughts_and_a_tutor_does_not(monkeypatch):
+    monkeypatch.setenv("AIPLA_THINKING_BUDGET", "0")
+    tutor = _skill(model="gemini-2.5-flash")
+    assert not _planner_for(tutor).thinking_config.include_thoughts
+    author = _skill(model="gemini-2.5-flash")
+    author.skill_metadata.thinking_budget = 16384
+    author.skill_metadata.include_thoughts = True
+    assert _planner_for(author).thinking_config.include_thoughts is True

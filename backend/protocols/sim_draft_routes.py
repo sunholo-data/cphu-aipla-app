@@ -57,7 +57,7 @@ async def list_drafts_route(user: User = Depends(get_current_user)) -> dict:  # 
     """The caller's drafts, newest first: id, title, latest version and level."""
     uid = _owner(user)
     rows = await asyncio.to_thread(sim_drafts.list_drafts, uid)
-    keep = ("title", "latestVersion", "latestLevel", "artefactId", "createdAt", "updatedAt")
+    keep = ("title", "latestVersion", "latestLevel", "artefactId", "createdAt", "updatedAt", "usage")
     return {"drafts": [{"id": r["__id"], **{k: r.get(k) for k in keep}} for r in rows]}
 
 
@@ -84,7 +84,13 @@ async def get_draft_route(draft_id: str = Path(...), user: User = Depends(get_cu
                     "screenshots": sorted((v.get("screenshots") or {}).keys()),
                 }
             )
-    return {"id": draft_id, "title": draft.get("title"), "artefactId": draft.get("artefactId"), "versions": versions}
+    return {
+        "id": draft_id,
+        "title": draft.get("title"),
+        "artefactId": draft.get("artefactId"),
+        "usage": draft.get("usage"),
+        "versions": versions,
+    }
 
 
 @router.get("/{draft_id}/versions/{version}/screenshot/{shot}")

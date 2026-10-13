@@ -248,4 +248,9 @@ def _extract_actual_cost(llm_response: Any, model_id: str) -> float | None:
     candidate_tokens = getattr(metadata, "candidates_token_count", None)
     if prompt_tokens is None or candidate_tokens is None:
         return None
-    return estimate_cost(model_id, int(prompt_tokens), int(candidate_tokens))
+    # Thinking tokens are billed as OUTPUT and Gemini reports them separately
+    # (thoughts_token_count). Pricing only candidates let a thinking skill spend
+    # past its cap unseen — found 2026-10-13 on the Sim workshop, whose first draft
+    # thinks for 20-30k tokens. Tutors run with thinking off, so for them this is 0.
+    thought_tokens = int(getattr(metadata, "thoughts_token_count", 0) or 0)
+    return estimate_cost(model_id, int(prompt_tokens), int(candidate_tokens) + thought_tokens)
