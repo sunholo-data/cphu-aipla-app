@@ -69,7 +69,12 @@ steps:
           --region=${_REGION} --project=${_PROJECT_ID} \
           --member=serviceAccount:${_INVOKER_SA} --role=roles/run.invoker >/dev/null
 
-  # Authenticated readiness probe, then proof that an unauthenticated call is refused.
+  # The build proves what it can see reliably: the new revision is Ready, and
+  # an unauthenticated call is REFUSED (the service is private). It does not
+  # mint an ID token: neither the metadata identity endpoint (token rejected,
+  # 401) nor `gcloud auth print-identity-token` (no identity token from these
+  # credentials) works for a build's user-specified SA. The authenticated,
+  # end-to-end check is `make smoke-sim-verify ENV=<env>` from a laptop.
   - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
     id: smoke
     waitFor: ['deploy']
@@ -78,18 +83,10 @@ steps:
       - '-c'
       - |
         set -e
+        READY=$(gcloud run services describe ${_SERVICE_NAME} --region=${_REGION} --project=${_PROJECT_ID} --format='value(status.conditions[0].status)')
+        echo "service Ready: $${READY}"
+        [ "$${READY}" = "True" ] || { echo "ERROR: the service is not Ready" >&2; exit 1; }
         URL=$(gcloud run services describe ${_SERVICE_NAME} --region=${_REGION} --project=${_PROJECT_ID} --format='value(status.url)')
-        # The build SA's own ID token for the service. Retried: the invoker grant
-        # in the deploy step can take a minute or two to propagate.
-        S=000
-        for i in 1 2 3 4 5 6 7 8; do
-          TOKEN=$(gcloud auth print-identity-token --audiences="$${URL}")
-          S=$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $${TOKEN}" "$${URL}/ready")
-          echo "authenticated /ready (try $${i}): $${S}"
-          [ "$${S}" = "200" ] && break
-          sleep 15
-        done
-        [ "$${S}" = "200" ] || { echo "ERROR: expected 200" >&2; exit 1; }
         U=$(curl -s -o /dev/null -w '%{http_code}' "$${URL}/ready")
         echo "unauthenticated /ready: $${U}"
         [ "$${U}" = "403" ] || [ "$${U}" = "401" ] || { echo "ERROR: the service answered an unauthenticated call ($${U})" >&2; exit 1; }

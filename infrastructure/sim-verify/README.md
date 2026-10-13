@@ -27,5 +27,6 @@ laptop, the benchmark and the app grade a sim with the same script.
 |---|---|
 | Image inputs | `scripts/assemble-sim-verify.sh` lists them; nothing else reaches the image |
 | Local run | `APP_ROOT=$PWD PORT=8080 node infrastructure/sim-verify/server.mjs` (from the repo root, with Playwright's Chromium installed) |
-| Dev deploy | trigger `aipla-sim-verify-deploy` on push to `dev` touching the inputs |
+| Dev deploy | trigger `aipla-sim-verify-deploy` on push to `dev` touching the inputs; the build checks Ready + refuses unauthenticated |
+| Authenticated check | `make smoke-sim-verify ENV=dev` (your identity token; posts wave-speed, expects a full verdict) |
 | Test / prod | **not wired yet**: needs terraform triggers in `infrastructure/env/cloudbuild.tf` and a promote twin |
