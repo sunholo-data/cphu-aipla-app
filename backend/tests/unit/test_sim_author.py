@@ -226,3 +226,10 @@ async def test_screenshots_attach_to_edit_sim_responses_too():
     fr = types.FunctionResponse(name="edit_sim", response={"level": 3})
     request = SimpleNamespace(contents=[types.Content(role="user", parts=[types.Part(function_response=fr)])])
     assert await sim_author.attach_sim_screenshots(c, request) is True
+
+
+@pytest.mark.asyncio
+async def test_read_sim_takes_several_search_terms_in_one_call():
+    await sim_author.verify_sim(GOOD_HTML, GOOD_YAML, tool_context=ctx())
+    hit = await sim_author.read_sim(search=["ARTEFACT_NAME =", "TEST PASS"], tool_context=ctx(invocation="r"))
+    assert "ARTEFACT_NAME" in hit["lines"] and "TEST PASS" in hit["lines"]

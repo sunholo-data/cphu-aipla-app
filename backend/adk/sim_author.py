@@ -213,10 +213,14 @@ async def read_sim(
     file: str = "index.html",
     start_line: int = 1,
     end_line: int = 200,
-    search: str | None = None,
+    search: str | list[str] | None = None,
     tool_context: Any = None,
 ) -> dict:
     """Read the CURRENT stored draft, with line numbers, before you edit it.
+
+    Look up EVERYTHING you need for a change in ONE call: pass a list of search
+    terms (e.g. ["bob", "drawRuler", "strings = {"]). Every call is a round trip,
+    and several small reads are the slowest part of an edit.
 
     The draft may have changed since you last wrote it (earlier edits), so look
     up the exact text here and copy it into ``edit_sim``'s ``find``.
@@ -225,8 +229,8 @@ async def read_sim(
         file: ``index.html`` or ``catalogue.yaml``.
         start_line: First line to show (1-based).
         end_line: Last line to show (at most 400 lines per call).
-        search: Instead of a range, show every line containing this text (case-
-            insensitive), with two lines of context.
+        search: Instead of a range, show every line containing this text, or any
+            of these texts (case-insensitive), with two lines of context.
 
     Returns:
         ``version``, ``total_lines`` and ``lines`` as "number: text".
@@ -238,10 +242,11 @@ async def read_sim(
         return {"ok": False, "refused": "file must be index.html or catalogue.yaml"}
     lines = files[file].split("\n")
     if search:
-        needle = search.lower()
+        needles = [t.lower() for t in ([search] if isinstance(search, str) else search) if isinstance(t, str) and t]
         keep: set[int] = set()
         for i, line in enumerate(lines):
-            if needle in line.lower():
+            low = line.lower()
+            if any(n in low for n in needles):
                 keep.update(range(max(0, i - 2), min(len(lines), i + 3)))
         shown = [f"{i + 1}: {lines[i]}" for i in sorted(keep)][:400]
     else:
