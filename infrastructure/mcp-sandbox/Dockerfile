@@ -28,6 +28,8 @@ COPY sandbox.html serve.ts ./
 # Shared sim libraries: the manifest names pinned npm dependencies (already in
 # node_modules from `npm ci`) and their sha384s; serve.ts refuses any mismatch.
 COPY vendor.json ./
+# Vendored libraries that are not npm packages (anatomy-kit), generated and committed.
+COPY vendor-src ./vendor-src
 
 # Hand-curated MCP App artefacts (Boldkast sim, future physics sims) —
 # served by serve.ts under /artefacts/<name>/v<version>/. Optional: dir

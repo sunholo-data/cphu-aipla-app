@@ -53,6 +53,27 @@ A new version goes in **beside** the old one (`/vendor/three/0.160.0/…`). A
 versioned path never changes content, which is why it can be cached forever,
 and a sim moves when it is re-verified, not when the library does.
 
+## The exception: the anatomy kit (2026-10-13)
+
+`/vendor/anatomy-kit/689dcf9/iso-kit.js` is **not** an npm package. Upstream
+(github.com/wheresryan22/anatomy, MIT) is a GitHub repo that this repo already
+vendors at a pinned commit under `.claude/skills/anatomy/`. The served file is
+generated from that copy by `scripts/build-anatomy-kit-vendor.mjs` (the kit's
+drawing half plus its CSS, as one classic script) and committed under
+`infrastructure/mcp-sandbox/vendor-src/`. What stands in for the npm layer:
+
+| npm layer | Here |
+|---|---|
+| exact version | the upstream commit, recorded in `.claude/skills/anatomy/AIPLA.md` and used as the version path segment |
+| lockfile integrity | the generated file is committed; `build-anatomy-kit-vendor.mjs --check` (CI `sim-bridge` job, `make sim-build-check`) fails if it drifts from the pinned source |
+| `npm audit` / dependabot | none. Mitigation: the kit is ~32 KB of pure geometry and string building with no network, storage or eval, reviewed when vendored; a re-sync is a reviewed diff |
+
+The server, SRI, audit gate and CSP layers are unchanged. Admitted for
+generated sims (in-app-sim-authoring H3): the authoring model draws the
+apparatus with it instead of inventing its own renderer. It is not yet in the
+published authoring prompt; it is offered by the benchmark's `h3` harness and
+the in-app authoring skill's guide (`backend/sim_authoring/references/anatomy-lite.md`).
+
 ## three.js specifics
 
 - **r128 is pinned because the first sim is written against the global

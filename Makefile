@@ -795,6 +795,7 @@ smoke-sim:
 
 sim-build-check:
 	@node scripts/build-artefact-bridge.mjs --check
+	@node scripts/build-anatomy-kit-vendor.mjs --check
 	@node scripts/check-artefact-broadcast.mjs
 
 help:

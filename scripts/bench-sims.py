@@ -12,6 +12,9 @@ Harnesses:
     h1  one call, as a teacher pasting the prompt into a chat gets today
     h2  the same prompt plus a ``verify_sim`` tool: the model submits both files,
         sees the verdict and screenshots of its page, repairs, and answers
+    h3  h2 plus the anatomy kit: a guide to it in the prompt
+        (backend/sim_authoring/references/anatomy-lite.md) and the kit served
+        as a vendored library, so the apparatus can be a crafted figure
 
     make bench-sims ARGS=--dry-run                              # plan + rough cost, ZERO model calls
     make bench-sims ARGS="--go --briefs otto-engine --harness h1,h2 --samples 3"
@@ -52,6 +55,17 @@ from sim_authoring.verify import DraftVerdict, LocalBrowserCheck, verify_draft  
 
 BENCH = REPO / "research" / "sim-bench"
 PROMPT = REPO / "frontend" / "public" / "sim-authoring-prompt.txt"
+ANATOMY_LITE = REPO / "backend" / "sim_authoring" / "references" / "anatomy-lite.md"
+KIT_PREAMBLE = """
+
+--- A SECOND PERMITTED LIBRARY: THE ANATOMY KIT ---
+
+Besides three.js you may load ONE more vendored library, the anatomy kit, to
+draw the apparatus as a crafted isometric figure. Use it for the apparatus
+drawing. It is served same-origin and hash-checked, exactly like three.js.
+Charts (p-V, T-t) stay plain SVG or canvas. Its guide follows.
+
+"""
 DEFAULT_MODEL = "gemini-3.8-flash"
 LOCATION = "eu"
 
@@ -103,7 +117,9 @@ def build_prompt(brief: dict, harness: str) -> str:
     filled, n = re.subn(r"<<< BRIEF.*?\n>>>", lambda _m: brief["brief"].strip(), text, count=1, flags=re.S)
     if n != 1:
         raise SystemExit("the authoring prompt has no <<< BRIEF … >>> slot")
-    return filled + (H2_ADDENDUM if harness == "h2" else "")
+    if harness == "h3":
+        filled += KIT_PREAMBLE + ANATOMY_LITE.read_text()
+    return filled + (H2_ADDENDUM if harness in ("h2", "h3") else "")
 
 
 _FILENAME_LINE = re.compile(r"\A[ \t]*[\w./-]+\.(?:html|ya?ml)[ \t]*\n")
@@ -255,6 +271,8 @@ async def run_cell(client: Any, cell: dict, run_dir: Path, args: argparse.Namesp
     t0 = time.monotonic()
     trail: list[dict] = []
     try:
+        if harness not in ("h1", "h2", "h3"):
+            raise ValueError(f"unknown harness {harness!r}")
         if harness == "h1":
             text = await run_h1(client, model, prompt, thinking, usage)
             files = extract_files(text)
@@ -410,7 +428,7 @@ def _parse(argv: list[str] | None) -> argparse.Namespace:
     p.add_argument("--go", action="store_true", help="actually call the models (costs money)")
     p.add_argument("--briefs", default="", help="comma-separated brief ids (default: all)")
     p.add_argument("--models", default=DEFAULT_MODEL)
-    p.add_argument("--harness", default="h1,h2")
+    p.add_argument("--harness", default="h1,h2,h3")
     p.add_argument("--thinking", default="high", help="comma-separated: off, low, high")
     p.add_argument("--samples", type=int, default=3)
     p.add_argument("--max-tool-calls", type=int, default=6)
