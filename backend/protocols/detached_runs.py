@@ -2,9 +2,13 @@
 
 A Sim workshop build runs for minutes, and a phone cuts the connection whenever
 its screen locks or the browser goes to the background: iOS suspends the tab and
-the stream fetch dies ("Load failed"). Starlette then closes the response
-generator, which closed the agent's event stream, which cancelled the run, so
-the half-built sim was never checked and never saved (prod, 2026-10-14).
+the stream fetch dies ("Load failed"). If that disconnect reaches this process,
+Starlette closes the response generator, and closing it would close the agent's
+event stream and cancel the run, half-built. On the deployed service the Next.js
+proxy happens to keep reading the backend after its client leaves, so the prod
+build on 2026-10-14 in fact finished (16:55, level 3) while the phone showed
+"Connection lost"; locally, and behind any proxy that forwards the abort, it
+would have been cancelled. This makes the outcome independent of the hop.
 
 ``outlive_client`` moves the run into its own task. The response reads from it
 while the client is there; when the client goes away the task keeps running to
