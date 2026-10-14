@@ -154,7 +154,9 @@ def _events_to_messages(events: list) -> list[ChatMessage]:
     """Extract user/assistant text messages from ADK session events.
 
     Skips events with no content (tool calls, system events, empty turns).
-    Joins multi-part content parts with a space. One exception to "skips tool
+    Joins multi-part content parts with a space, leaving out the model's thought
+    summaries (``part.thought``): a skill that streams them (sim-author) shows them
+    live as reasoning, not as its reply, so a restored chat must not either. One exception to "skips tool
     calls": an svg-illustrator diagram is re-attached, as an ```svg block, to the
     assistant message that follows it — where the student saw it live.
     """
@@ -164,7 +166,7 @@ def _events_to_messages(events: list) -> list[ChatMessage]:
         if not e.content or not e.content.parts:
             continue
         pending += [svg for p in e.content.parts if (svg := _illustration_of(p))]
-        text = " ".join(p.text for p in e.content.parts if p.text).strip()
+        text = " ".join(p.text for p in e.content.parts if p.text and getattr(p, "thought", None) is not True).strip()
         if not text:
             continue
         role: Literal["user", "assistant"] = "user" if e.author == "user" else "assistant"

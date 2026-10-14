@@ -19,9 +19,34 @@ vi.mock("@/components/workspace/StaticArtefactFrame", () => ({
   },
 }));
 // The floating assistant is the shared TeacherCopilot (its own suite); stub it here.
-vi.mock("@/components/teacher/copilot", () => ({
-  TeacherCopilot: (p: { skillName: string }) => <div data-testid="copilot">{p.skillName}</div>,
-}));
+// It reports its conversation like the real one: `chat.thread` on mount, and the
+// thread of any resume request the page sends it.
+const chat = vi.hoisted(() => ({ thread: "d1", resumes: [] as string[] }));
+vi.mock("@/components/teacher/copilot", async () => {
+  const React = await import("react");
+  return {
+    TeacherCopilot: (p: {
+      skillName: string;
+      resume?: { threadId: string; seq: number } | null;
+      onThreadChange?: (id: string) => void;
+    }) => {
+      const [thread, setThread] = React.useState(chat.thread);
+      React.useEffect(() => {
+        if (p.resume) {
+          chat.resumes.push(p.resume.threadId);
+          setThread(p.resume.threadId);
+        }
+      }, [p.resume]);
+      const { onThreadChange } = p;
+      React.useEffect(() => onThreadChange?.(thread), [thread, onThreadChange]);
+      return (
+        <div data-testid="copilot" data-thread={thread}>
+          {p.skillName}
+        </div>
+      );
+    },
+  };
+});
 const api = vi.hoisted(() => ({
   listSimDrafts: vi.fn(),
   getSimDraft: vi.fn(),
@@ -59,6 +84,8 @@ function render(ui: ReactElement) {
 }
 
 beforeEach(() => {
+  chat.thread = "d1";
+  chat.resumes = [];
   me.researcher = false;
   simsApi.listMyTeacherSims.mockResolvedValue([]);
   simsApi.listLibraryRequests.mockResolvedValue([]);
@@ -104,7 +131,7 @@ describe("Sim workshop page", () => {
 
   it("shows the latest version with its level, what stopped it, screenshots and downloads", async () => {
     api.listSimDrafts.mockResolvedValue([
-      { id: "d1", title: "Four-stroke engine", latestVersion: 2, latestLevel: 1, artefactId: "otto", updatedAt: "x" },
+      { id: "d1", sessionId: "d1", title: "Four-stroke engine", latestVersion: 2, latestLevel: 1, artefactId: "otto", updatedAt: "x" },
     ]);
     api.getSimDraft.mockResolvedValue({
       id: "d1",
@@ -144,7 +171,7 @@ describe("Sim workshop page", () => {
         usage: { tokensIn: 250_000, tokensOut: 30_000, tokensThinking: 32_000, costUsd: 0.4231, calls: 4 },
       },
     ]);
-    api.getSimDraft.mockResolvedValue({ id: "d2", title: null, artefactId: null, versions: [] });
+    api.getSimDraft.mockResolvedValue({ id: "d2", sessionId: "d2", title: null, artefactId: null, versions: [] });
     render(<SimWorkshopPage />);
     expect(await screen.findByTestId("draft-cost")).toHaveTextContent("≈ $0.42 so far · 312k tokens");
     expect(screen.getByText("Being written…")).toBeInTheDocument();
@@ -158,7 +185,7 @@ describe("Sim workshop page", () => {
 
   it("publishes a level-3 version only after the teacher's approval, and says where to find it", async () => {
     api.listSimDrafts.mockResolvedValue([
-      { id: "d1", title: "Pendul", latestVersion: 2, latestLevel: 3, artefactId: "pendul", updatedAt: "x" },
+      { id: "d1", sessionId: "d1", title: "Pendul", latestVersion: 2, latestLevel: 3, artefactId: "pendul", updatedAt: "x" },
     ]);
     api.getSimDraft.mockResolvedValue({
       id: "d1",
@@ -193,7 +220,7 @@ describe("Sim workshop page", () => {
 
   it("will not offer publishing below level 3, and shows the server's reasons when it refuses", async () => {
     api.listSimDrafts.mockResolvedValue([
-      { id: "d1", title: "Pendul", latestVersion: 1, latestLevel: 2, artefactId: "pendul", updatedAt: "x" },
+      { id: "d1", sessionId: "d1", title: "Pendul", latestVersion: 1, latestLevel: 2, artefactId: "pendul", updatedAt: "x" },
     ]);
     api.getSimDraft.mockResolvedValue({
       id: "d1",
@@ -220,6 +247,44 @@ describe("Sim workshop page", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("A.no_external_fetch");
   });
 
+  it("shows the sim the current chat built, and picking another reopens its chat", async () => {
+    chat.thread = "s2";
+    api.listSimDrafts.mockResolvedValue([
+      { id: "d1", sessionId: "s1", title: "Pendul", latestVersion: 1, latestLevel: 3, artefactId: "pendul", updatedAt: "y" },
+      { id: "d2", sessionId: "s2", title: "Carts", latestVersion: 1, latestLevel: 3, artefactId: "carts", updatedAt: "x" },
+    ]);
+    api.getSimDraft.mockImplementation((id: string) =>
+      Promise.resolve({
+        id,
+        sessionId: id === "d1" ? "s1" : "s2",
+        title: id === "d1" ? "Pendul" : "Carts",
+        artefactId: id,
+        versions: [{ version: 1, level: 3, reasons: [], createdAt: "x", screenshots: [] }],
+      }),
+    );
+    render(<SimWorkshopPage />);
+    // Not the newest draft: the one the assistant's open chat built.
+    expect(await screen.findByTestId("draft-chat-link")).toBeInTheDocument();
+    await waitFor(() => expect(api.getSimDraft).toHaveBeenCalledWith("d2"));
+    expect(screen.getByRole("button", { name: /Carts/ })).toHaveAttribute("aria-current", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: /Pendul/ }));
+    await waitFor(() => expect(screen.getByTestId("copilot")).toHaveAttribute("data-thread", "s1"));
+    expect(chat.resumes).toEqual(["s1"]);
+    await waitFor(() => expect(screen.getByRole("button", { name: /Pendul/ })).toHaveAttribute("aria-current", "true"));
+    await waitFor(() => expect(api.getSimDraft).toHaveBeenCalledWith("d1"));
+  });
+
+  it("a new chat with no sim yet shows how to go back to an earlier one", async () => {
+    chat.thread = "fresh";
+    api.listSimDrafts.mockResolvedValue([
+      { id: "d1", sessionId: "s1", title: "Pendul", latestVersion: 1, latestLevel: 3, artefactId: "pendul", updatedAt: "y" },
+    ]);
+    render(<SimWorkshopPage />);
+    expect(await screen.findByText(/pick it above: its chat reopens/)).toBeInTheDocument();
+    expect(api.getSimDraft).not.toHaveBeenCalled();
+  });
+
   it("asks for the library and shows that it is waiting", async () => {
     const live = {
       id: "pendul",
@@ -238,7 +303,7 @@ describe("Sim workshop page", () => {
     simsApi.listMyTeacherSims.mockResolvedValue([live]);
     simsApi.requestLibrary.mockResolvedValue({ ...live, libraryRequested: true });
     api.listSimDrafts.mockResolvedValue([
-      { id: "d1", title: "Pendul", latestVersion: 1, latestLevel: 3, artefactId: "pendul", updatedAt: "x" },
+      { id: "d1", sessionId: "d1", title: "Pendul", latestVersion: 1, latestLevel: 3, artefactId: "pendul", updatedAt: "x" },
     ]);
     api.getSimDraft.mockResolvedValue({
       id: "d1",

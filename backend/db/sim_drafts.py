@@ -7,8 +7,11 @@ look back, compare and download any version. Nothing here publishes: a draft
 is visible to its owner only, and publishing (to the teacher's classes, or the
 shared library) is a later milestone behind an ADR-013 decision.
 
-    sim_drafts/{draft_id}                    owner, title, latest version + level
+    sim_drafts/{draft_id}                    owner, title, latest version + level, sessionId
     sim_draft_versions/{draft_id}__v{n}      html, yaml, level, reasons, screenshots (base64 PNG)
+
+``sessionId`` is the authoring conversation the draft came from, so the workshop
+can reopen that chat and carry on (the draft id is derived from it, but sanitised).
 
 A version doc stays under Firestore's 1 MB limit: the page is capped at 256 KB
 before it is checked, and two screenshots are ~100 KB of base64.
@@ -48,6 +51,7 @@ def add_version(
     screenshots: dict[str, str],
     artefact_id: str | None,
     hidden_terms: list[str] | None = None,
+    session_id: str | None = None,
 ) -> int:
     """Record one checked submission; returns its version number (1-based)."""
     _check_id(draft_id)
@@ -66,6 +70,8 @@ def add_version(
         }
         if not current:
             fields |= {"createdAt": now, "ownerUid": owner_uid}
+        if session_id and not (current or {}).get("sessionId"):
+            fields["sessionId"] = session_id
         return fields, n
 
     n = transact_document(DRAFTS, draft_id, bump)
@@ -91,7 +97,14 @@ def add_version(
 
 
 def add_usage(
-    *, draft_id: str, owner_uid: str, tokens_in: int, tokens_out: int, tokens_thinking: int, cost_usd: float
+    *,
+    draft_id: str,
+    owner_uid: str,
+    tokens_in: int,
+    tokens_out: int,
+    tokens_thinking: int,
+    cost_usd: float,
+    session_id: str | None = None,
 ) -> None:
     """Add one model call's usage to the draft's running total (a rough guide for
     the teacher). Creates the draft record on its first call, before any version
@@ -111,6 +124,8 @@ def add_usage(
         fields: dict[str, Any] = {"usage": usage, "updatedAt": now}
         if not current:
             fields |= {"createdAt": now, "ownerUid": owner_uid, "latestVersion": 0, "latestLevel": None, "title": None}
+        if session_id and not (current or {}).get("sessionId"):
+            fields["sessionId"] = session_id
         return fields, None
 
     transact_document(DRAFTS, draft_id, bump)
@@ -127,6 +142,13 @@ def get_version(draft_id: str, version: int, owner_uid: str) -> dict[str, Any] |
     _check_id(draft_id)
     doc = get_document(VERSIONS, f"{draft_id}__v{int(version)}")
     return doc if doc and doc.get("ownerUid") == owner_uid else None
+
+
+def session_of(draft: dict[str, Any], draft_id: str) -> str:
+    """The conversation a draft came from. Drafts stored before ``sessionId`` was
+    recorded fall back to their id, which equals the session id for the UUIDs the
+    workshop mints (sanitising changes nothing in a UUID)."""
+    return str(draft.get("sessionId") or draft_id)
 
 
 def list_drafts(owner_uid: str, limit: int = 50) -> list[dict[str, Any]]:

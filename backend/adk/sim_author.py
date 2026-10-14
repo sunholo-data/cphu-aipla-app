@@ -71,12 +71,15 @@ def _scoped(key: str, ctx: Any) -> str:
     return f"{key}:{inv}" if isinstance(inv, str) and inv else key
 
 
-def _draft_id(ctx: Any) -> str | None:
+def _session_id(ctx: Any) -> str | None:
     session = getattr(getattr(ctx, "_invocation_context", None), "session", None)
     sid = getattr(session, "id", None)
-    if not isinstance(sid, str) or not sid:
-        return None
-    return re.sub(r"[^A-Za-z0-9_-]", "_", sid)[:128]
+    return sid if isinstance(sid, str) and sid else None
+
+
+def _draft_id(ctx: Any) -> str | None:
+    sid = _session_id(ctx)
+    return re.sub(r"[^A-Za-z0-9_-]", "_", sid)[:128] if sid else None
 
 
 def _progress(tool_context: Any, key: str, label: str, **params: str | int) -> None:
@@ -178,6 +181,7 @@ async def _check_and_store(
             screenshots={k: v for k, v in shots.items() if k in (*MODEL_SHOTS, "390")},
             artefact_id=artefact_id,
             hidden_terms=_clean_terms(hidden_terms),
+            session_id=_session_id(tool_context),
         )
     except Exception as exc:  # storage failing must not hide the verdict from the model
         logger.warning("sim draft not stored: %s", type(exc).__name__)
@@ -425,6 +429,7 @@ async def record_sim_usage(callback_context: Any, llm_response: Any) -> None:
             tokens_out=tokens_out,
             tokens_thinking=tokens_thinking,
             cost_usd=cost,
+            session_id=_session_id(callback_context),
         )
     except Exception:
         logger.debug("sim usage not recorded", exc_info=True)

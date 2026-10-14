@@ -54,11 +54,17 @@ def _version_or_404(draft_id: str, version: int, uid: str) -> dict:
 
 @router.get("")
 async def list_drafts_route(user: User = Depends(get_current_user)) -> dict:  # noqa: B008
-    """The caller's drafts, newest first: id, title, latest version and level."""
+    """The caller's drafts, newest first: id, title, latest version and level, and
+    the conversation each came from (``sessionId``) so the workshop can reopen it."""
     uid = _owner(user)
     rows = await asyncio.to_thread(sim_drafts.list_drafts, uid)
     keep = ("title", "latestVersion", "latestLevel", "artefactId", "createdAt", "updatedAt", "usage")
-    return {"drafts": [{"id": r["__id"], **{k: r.get(k) for k in keep}} for r in rows]}
+    return {
+        "drafts": [
+            {"id": r["__id"], **{k: r.get(k) for k in keep}, "sessionId": sim_drafts.session_of(r, r["__id"])}
+            for r in rows
+        ]
+    }
 
 
 @router.get("/{draft_id}")
@@ -89,6 +95,7 @@ async def get_draft_route(draft_id: str = Path(...), user: User = Depends(get_cu
         "title": draft.get("title"),
         "artefactId": draft.get("artefactId"),
         "usage": draft.get("usage"),
+        "sessionId": sim_drafts.session_of(draft, draft_id),
         "versions": versions,
     }
 

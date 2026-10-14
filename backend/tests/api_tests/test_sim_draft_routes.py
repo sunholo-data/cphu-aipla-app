@@ -136,3 +136,32 @@ def test_preview_has_the_real_bridge_stamped_and_cannot_render_on_the_app_origin
     assert "sandbox" in r.headers["content-security-policy"] and "placeholder" not in r.text
     assert "AIPLA_BRIDGE" in r.text
     assert _client(OTHER).get("/api/sim-drafts/sess-1/versions/2/preview").status_code == 404
+
+
+def test_each_draft_names_the_conversation_it_was_built_in():
+    """The workshop reopens a draft's chat from ``sessionId``. A draft stored before
+    it was recorded falls back to its id (the sanitised session id)."""
+    sim_drafts.add_usage(
+        draft_id="sess_2",
+        owner_uid="t-1",
+        tokens_in=10,
+        tokens_out=5,
+        tokens_thinking=0,
+        cost_usd=0.001,
+        session_id="sess:2",
+    )
+    sim_drafts.add_version(
+        draft_id="sess_2",
+        owner_uid="t-1",
+        index_html="<!doctype html>",
+        catalogue_yaml="displayName: Carts\n",
+        level=1,
+        reasons=[],
+        screenshots={},
+        artefact_id="carts",
+        session_id="other",  # never overwrites the first record
+    )
+    rows = {d["id"]: d for d in _client(OWNER).get("/api/sim-drafts").json()["drafts"]}
+    assert rows["sess_2"]["sessionId"] == "sess:2"
+    assert rows["sess-1"]["sessionId"] == "sess-1"
+    assert _client(OWNER).get("/api/sim-drafts/sess_2").json()["sessionId"] == "sess:2"

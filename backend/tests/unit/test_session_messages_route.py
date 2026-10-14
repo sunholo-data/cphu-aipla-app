@@ -422,3 +422,20 @@ def test_an_illustration_with_no_reply_after_it_is_not_lost():
 def test_an_illustrator_answer_with_no_svg_adds_nothing():
     msgs = _events_to_messages(_illustrator_turn("I could not draw that."))
     assert "svg" not in msgs[1].content
+
+
+def test_thought_summaries_are_not_restored_as_the_reply():
+    """sim-author streams its thoughts live as reasoning; the restored chat shows the reply only."""
+    from google.genai import types
+
+    events = [
+        _real_event("user", [types.Part(text="Say HELLO")]),
+        _real_event(
+            "sim_author",
+            [
+                types.Part(text="Starting with HELLO. I am processing the request.", thought=True),
+                types.Part(text="HELLO"),
+            ],
+        ),
+    ]
+    assert [m.content for m in _events_to_messages(events)] == ["Say HELLO", "HELLO"]

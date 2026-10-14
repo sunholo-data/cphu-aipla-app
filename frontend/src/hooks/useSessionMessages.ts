@@ -119,7 +119,7 @@ export function useSessionMessages(
       setHistoryError(null);
       setSessionGone(false);
 
-      fetchWithAuth(`/api/proxy/api/sessions/${encodeURIComponent(sid)}/messages`, {
+      return fetchWithAuth(`/api/proxy/api/sessions/${encodeURIComponent(sid)}/messages`, {
         signal: controller.signal,
       })
         .then((res) => {
@@ -190,8 +190,21 @@ export function useSessionMessages(
     lastSessionId.current = sessionId;
     lastRevision.current = revision;
 
-    fetch_(sessionId, { silent: revisionAdvanced });
-    return () => abortRef.current?.abort();
+    let settled = false;
+    void fetch_(sessionId, { silent: revisionAdvanced }).finally(() => {
+      settled = true;
+    });
+    return () => {
+      abortRef.current?.abort();
+      // A fetch cancelled before it answered must run again on the next pass
+      // (React StrictMode runs every effect twice in dev: without this the
+      // first pass's fetch was aborted and the second skipped as "same
+      // session", so a resumed chat came back empty).
+      if (!settled) {
+        lastSessionId.current = null;
+        lastRevision.current = 0;
+      }
+    };
   }, [sessionId, revision, fetch_]);
 
   return {

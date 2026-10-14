@@ -1,4 +1,5 @@
 import { renderHook, waitFor } from "@testing-library/react";
+import { StrictMode } from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const mockFetch = vi.fn();
@@ -37,6 +38,32 @@ afterEach(() => {
 });
 
 describe("useSessionMessages", () => {
+  it("loads a resumed session under StrictMode, whose first fetch is aborted", async () => {
+    // Abort-aware, like a real fetch: StrictMode's first effect pass is
+    // cancelled, and the second pass must not skip the session as already loaded.
+    mockFetch.mockImplementation(
+      (_url: string, init: { signal: AbortSignal }) =>
+        new Promise((resolve, reject) => {
+          setTimeout(() => {
+            if (init.signal.aborted) {
+              reject(Object.assign(new Error("aborted"), { name: "AbortError" }));
+              return;
+            }
+            resolve({
+              ok: true,
+              json: () =>
+                Promise.resolve({
+                  session_id: "sess-1",
+                  messages: [{ role: "assistant", content: "HELLO", timestamp: 1 }],
+                }),
+            } as Response);
+          }, 0);
+        }),
+    );
+    const { result } = renderHook(() => useSessionMessages("sess-1"), { wrapper: StrictMode });
+    await waitFor(() => expect(result.current.initialMessages.map((m) => m.content)).toEqual(["HELLO"]));
+  });
+
   it("does not fetch when sessionId is null", () => {
     renderHook(() => useSessionMessages(null));
     expect(mockFetch).not.toHaveBeenCalled();

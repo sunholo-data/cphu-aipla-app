@@ -32,7 +32,10 @@
     "earlierVersions": "{n, plural, one {# earlier version} other {# earlier versions}}",
     "untitled": "Untitled sim",
     "beingWritten": "Being written…",
-    "costSoFar": "≈ ${cost} so far · {tokens} tokens"
+    "costSoFar": "≈ ${cost} so far · {tokens} tokens",
+    "openChat": "Open this sim and the chat it was built in",
+    "chatIsThisDraft": "The assistant is showing the chat this sim was built in: ask for changes there and it carries on from the latest version.",
+    "newChatPlaceholder": "A new chat starts a new sim, which appears here once the assistant has checked its first version. To carry on with an earlier sim, pick it above: its chat reopens in the assistant."
   },
   "SimPublish": {
     "heading": "Publish",

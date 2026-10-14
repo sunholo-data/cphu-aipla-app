@@ -32,7 +32,10 @@
     "earlierVersions": "{n, plural, one {# tidligere version} other {# tidligere versioner}}",
     "untitled": "Simulering uden titel",
     "beingWritten": "Bliver skrevet…",
-    "costSoFar": "≈ ${cost} indtil nu · {tokens} tokens"
+    "costSoFar": "≈ ${cost} indtil nu · {tokens} tokens",
+    "openChat": "Åbn denne simulering og samtalen, den blev bygget i",
+    "chatIsThisDraft": "Assistenten viser samtalen, denne simulering blev bygget i: bed om ændringer dér, så fortsætter den fra seneste version.",
+    "newChatPlaceholder": "En ny samtale starter en ny simulering, som vises her, når assistenten har tjekket første version. Vil du arbejde videre med en tidligere simulering, så vælg den ovenfor: dens samtale åbner igen i assistenten."
   },
   "SimPublish": {
     "heading": "Udgiv",

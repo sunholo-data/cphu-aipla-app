@@ -26,6 +26,8 @@ export interface SimDraftSummary {
   artefactId: string | null;
   updatedAt: string | null;
   usage?: SimDraftUsage | null;
+  /** The assistant conversation this draft was built in; reopen it to carry on. */
+  sessionId: string;
 }
 
 export interface SimDraftVersion {
@@ -41,6 +43,7 @@ export interface SimDraft {
   title: string | null;
   artefactId: string | null;
   usage?: SimDraftUsage | null;
+  sessionId: string;
   versions: SimDraftVersion[];
 }
 

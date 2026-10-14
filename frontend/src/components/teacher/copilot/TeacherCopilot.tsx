@@ -75,6 +75,25 @@ export function TeacherCopilot<P>(config: TeacherCopilotConfig<P>) {
     setThreadId(fresh);
   }, [storageKey]);
 
+  // A surface asked to reopen a conversation (the sim workshop's "carry on
+  // with this sim"). Keyed on `seq` so asking for the same thread again counts.
+  const resumeId = config.resume?.threadId;
+  const resumeSeq = config.resume?.seq;
+  useEffect(() => {
+    if (!resumeId) return;
+    try {
+      window.localStorage.setItem(storageKey, resumeId);
+    } catch {
+      /* no storage — still switches in memory */
+    }
+    setThreadId(resumeId);
+  }, [resumeId, resumeSeq, storageKey]);
+
+  const { onThreadChange } = config;
+  useEffect(() => {
+    if (threadId) onThreadChange?.(threadId);
+  }, [threadId, onThreadChange]);
+
   if (config.docked) {
     return (
       <DockedCopilot title={config.title} onNewChat={newChat}>

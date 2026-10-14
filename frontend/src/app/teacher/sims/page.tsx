@@ -13,12 +13,17 @@
  * A live preview and publishing to the teacher's classes are the next milestone
  * (ADR-013 as amended for teacher sims, 2026-10-13).
  *
+ * A draft and its conversation are one thing: the draft shown is the one the
+ * assistant's current chat built, and picking another draft reopens the chat
+ * it was built in, so the teacher can read back and carry on. "New chat" in
+ * the assistant starts a new sim.
+ *
  * Behind NEXT_PUBLIC_SIM_WORKSHOP ('1' on dev only), like the other co-pilots.
  */
 
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 
 import { TeacherCopilot } from "@/components/teacher/copilot";
@@ -97,7 +102,12 @@ export default function SimWorkshopPage() {
 function SimWorkshop() {
   const t = useT("SimWorkshopPage");
   const [drafts, setDrafts] = useState<SimDraftSummary[] | null>(null);
-  const [selected, setSelected] = useState<string | null>(null);
+  // The assistant's current conversation, and a request to switch it.
+  const [chatThread, setChatThread] = useState<string | null>(null);
+  const [resume, setResume] = useState<{
+    threadId: string;
+    seq: number;
+  } | null>(null);
   const [draft, setDraft] = useState<SimDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [mySims, setMySims] = useState<TeacherSim[]>([]);
@@ -109,6 +119,12 @@ function SimWorkshop() {
       .catch(() => setResearcher(false));
   }, []);
 
+  // The draft on show is the one the current chat built (none yet for a new chat).
+  const selected =
+    (drafts ?? []).find((d) => d.sessionId === chatThread)?.id ?? null;
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+
   const load = useCallback(async () => {
     try {
       listMyTeacherSims()
@@ -117,23 +133,51 @@ function SimWorkshop() {
       const list = await listSimDrafts();
       setDrafts(list);
       setError(null);
-      const id = selected ?? list[0]?.id ?? null;
-      if (id && id !== selected) setSelected(id);
-      if (id) setDraft(await getSimDraft(id));
     } catch {
       setError(t("loadError"));
     }
-  }, [selected, t]);
+  }, [t]);
+
+  const loadDraft = useCallback(async () => {
+    const id = selectedRef.current;
+    if (!id) {
+      setDraft(null);
+      return;
+    }
+    try {
+      const d = await getSimDraft(id);
+      if (selectedRef.current === id) setDraft(d);
+    } catch {
+      setError(t("loadError"));
+    }
+  }, [t]);
+
+  const refresh = useCallback(() => {
+    void load();
+    void loadDraft();
+  }, [load, loadDraft]);
+
+  // Reopen the conversation a draft was built in.
+  const openDraft = (d: SimDraftSummary) => {
+    if (d.sessionId === chatThread) return;
+    setResume((prev) => ({ threadId: d.sessionId, seq: (prev?.seq ?? 0) + 1 }));
+  };
 
   useEffect(() => {
     void load();
     const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") void load();
+      if (document.visibilityState === "visible") refresh();
     }, POLL_MS);
     return () => window.clearInterval(timer);
-  }, [load]);
+  }, [load, refresh]);
 
-  const latest = draft?.versions[draft.versions.length - 1] ?? null;
+  // A different draft on show (picked, or a new chat's first version landed).
+  useEffect(() => {
+    void loadDraft();
+  }, [selected, loadDraft]);
+
+  const shown = draft && draft.id === selected ? draft : null;
+  const latest = shown?.versions[shown.versions.length - 1] ?? null;
   // A draft's published sim (live first, else its last withdrawn one).
   const publishedFor = (draftId: string): TeacherSim | null =>
     mySims.find((s) => s.draftId === draftId && s.status === "live") ??
@@ -149,7 +193,7 @@ function SimWorkshop() {
       actions={
         <button
           type="button"
-          onClick={() => void load()}
+          onClick={refresh}
           className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm"
         >
           <RefreshCw className="h-4 w-4" aria-hidden="true" />
@@ -192,8 +236,9 @@ function SimWorkshop() {
               <button
                 key={d.id}
                 type="button"
-                onClick={() => setSelected(d.id)}
+                onClick={() => openDraft(d)}
                 aria-current={d.id === selected ? "true" : undefined}
+                title={d.id === selected ? undefined : t("openChat")}
                 className={`rounded border px-3 py-2 text-left text-sm ${
                   d.id === selected
                     ? "border-primary bg-muted"
@@ -220,40 +265,48 @@ function SimWorkshop() {
             ))}
           </nav>
 
-          {draft && latest ? (
+          {shown && latest ? (
             <>
+              <p
+                data-testid="draft-chat-link"
+                className="text-xs text-muted-foreground"
+              >
+                {t("chatIsThisDraft")}
+              </p>
               <section className="flex flex-col gap-2" aria-label={t("tryIt")}>
                 <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                   {t("tryIt")} · {t("version", { n: latest.version })}
                 </h2>
-                <SimDraftPreview draftId={draft.id} version={latest.version} />
+                <SimDraftPreview draftId={shown.id} version={latest.version} />
               </section>
               <PublishPanel
-                draftId={draft.id}
+                draftId={shown.id}
                 latest={latest}
-                published={publishedFor(draft.id)}
+                published={publishedFor(shown.id)}
                 onChange={onPublished}
               />
-              <VersionPanel draftId={draft.id} version={latest} />
+              <VersionPanel draftId={shown.id} version={latest} />
             </>
           ) : (
             <div className="flex min-h-[320px] items-center justify-center rounded border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              {t("previewPlaceholder")}
+              {drafts?.length && !selected
+                ? t("newChatPlaceholder")
+                : t("previewPlaceholder")}
             </div>
           )}
-          {draft && draft.versions.length > 1 ? (
+          {shown && shown.versions.length > 1 ? (
             <details className="rounded border border-border p-3">
               <summary className="cursor-pointer text-sm">
-                {t("earlierVersions", { n: draft.versions.length - 1 })}
+                {t("earlierVersions", { n: shown.versions.length - 1 })}
               </summary>
               <div className="mt-3 flex flex-col gap-4">
-                {draft.versions
+                {shown.versions
                   .slice(0, -1)
                   .reverse()
                   .map((v) => (
                     <VersionPanel
                       key={v.version}
-                      draftId={draft.id}
+                      draftId={shown.id}
                       version={v}
                       compact
                     />
@@ -273,6 +326,8 @@ function SimWorkshop() {
             emptyText={t("assistantEmpty")}
             testId="sim-workshop-copilot"
             docked
+            resume={resume}
+            onThreadChange={setChatThread}
           />
         </div>
       </div>

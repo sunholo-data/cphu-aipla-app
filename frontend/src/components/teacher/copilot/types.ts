@@ -108,4 +108,11 @@ export interface TeacherCopilotConfig<P> {
   /** Render as a column in the page instead of a floating panel — a workbench
    *  surface (the Sim workshop) where the chat sits beside what it builds. */
   docked?: boolean;
+  /** Switch the chat to an existing conversation (e.g. the one a sim draft was
+   *  built in), persisting it like any resumed thread. `seq` makes a repeat
+   *  request for the same thread count (back to it after a "New chat"). */
+  resume?: { threadId: string; seq: number } | null;
+  /** Told the conversation shown whenever it changes (mount, New chat, resume),
+   *  so the surface can tell which of its items the chat belongs to. */
+  onThreadChange?: (threadId: string) => void;
 }
