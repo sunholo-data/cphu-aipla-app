@@ -291,6 +291,17 @@ async def test_register_sim_apps_registers_ui_linked_tools(_fresh_mcp):
     assert bold.inputSchema.get("properties") == {}
 
 
+def _three_available() -> bool:
+    from sim_authoring.portable import vendor_source
+
+    try:
+        vendor_source("/vendor/three/0.128.0/three.min.js")
+        return True
+    except Exception:
+        return False
+
+
+@pytest.mark.skipif(not _three_available(), reason="three.js source not available (CI has no sandbox node_modules)")
 async def test_a_sim_with_a_vendored_library_travels_with_it(_fresh_mcp):
     """sol-jord-maane loads three.js from the sandbox's /vendor/ path, which an
     external host cannot reach. It is offered with the library inlined, so the

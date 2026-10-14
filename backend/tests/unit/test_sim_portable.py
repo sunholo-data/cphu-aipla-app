@@ -14,6 +14,23 @@ SOL = REPO / "infrastructure" / "mcp-sandbox" / "artefacts" / "sol-jord-maane" /
 THREE = "/vendor/three/0.128.0/three.min.js"
 
 
+def _three_available() -> bool:
+    # CI's backend gate has no infrastructure/mcp-sandbox/node_modules and no
+    # sandbox URL; the deployed backend fetches from the sandbox instead.
+    from sim_authoring.portable import vendor_source
+
+    try:
+        vendor_source(THREE)
+        return True
+    except Exception:
+        return False
+
+
+needs_three = pytest.mark.skipif(
+    not SOL.is_file() or not _three_available(), reason="needs the repo's artefacts and three.js source"
+)
+
+
 def _page(body: str = "") -> str:
     return (
         "<!doctype html><html><head><title>t</title></head><body>\n"
@@ -42,7 +59,7 @@ def test_a_page_for_a_host_the_student_sees_carries_no_catalogue():
     assert unbundle(portable)[1] is None
 
 
-@pytest.mark.skipif(not SOL.is_file(), reason="needs the repo's artefacts")
+@needs_three
 def test_a_vendored_library_is_inlined_and_restored_by_its_hash():
     html = SOL.read_text()
     portable = bundle(html, None, bridge=load_bridge())
@@ -53,7 +70,7 @@ def test_a_vendored_library_is_inlined_and_restored_by_its_hash():
     assert run(back, tiers=("A",)).ok
 
 
-@pytest.mark.skipif(not SOL.is_file(), reason="needs the repo's artefacts")
+@needs_three
 def test_a_tampered_inlined_library_is_refused():
     portable = bundle(SOL.read_text(), None, bridge=load_bridge())
     tampered = portable.replace("REVISION", "REVISIOM", 1)
