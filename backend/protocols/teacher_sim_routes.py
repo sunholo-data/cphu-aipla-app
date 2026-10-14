@@ -109,6 +109,7 @@ async def publish_route(
             draft_id=draft_id,
             draft_version=version,
             gates=prepared.gates,
+            screenshots={k: v for k, v in (doc.get("screenshots") or {}).items() if k in ("700", "driven")},
         )
     except teacher_sims.PublishRefused as exc:
         raise HTTPException(status_code=409, detail={"error": "id_taken", "reasons": [str(exc)]}) from exc

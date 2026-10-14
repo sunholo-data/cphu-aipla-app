@@ -21,6 +21,7 @@ metadata:
     - set_lesson_prompt
     - add_element
     - set_artefact
+    - describe_sim
     - attach_material
     - propose_concept_map
   toolConfigs:
@@ -172,6 +173,17 @@ goes without.
   If you don't know the sim's id, call it with an empty id first — it returns the
   available sims to choose from. (Never pick a "workbench type" — there is none;
   a sim is the only interactive surface.)
+- **Look at the sim before you plan around it.** When the draft has an
+  `artefactId`, or right after you propose one, call **`describe_sim`** once
+  (again only if the sim changes). It returns what the sim is, what students can
+  do and measure in it, the sim's own notes for the tutor, and two screenshots
+  you will see: at rest, and after clicking through it. Then build the lesson
+  on what is actually on screen — name its real controls and readouts, plan
+  measurements it can really make, and give the students something to work
+  out with it. Never ask the teacher to describe a sim you can look at.
+  The sim's tutor notes are for the tutor: values students are meant to work
+  out must never go into a student-visible element (note, checklist, writing,
+  table, calculator) or be stated as given.
 - If a **document** from the curriculum library belongs in the lesson, propose it
   with the `attach_material` tool. Call it with an empty id first to see the
   available documents — each carries a short `summary` of what it covers

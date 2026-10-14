@@ -42,7 +42,16 @@ def _draft_files(sim_id: str = "otto-mine") -> tuple[str, str]:
     return html.replace("otto-engine", sim_id), yml.replace("otto-engine", sim_id)
 
 
-def _add(level: int = 3, html: str | None = None, yml: str | None = None, draft_id: str = "sess-1") -> int:
+PNG_B64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
+
+
+def _add(
+    level: int = 3,
+    html: str | None = None,
+    yml: str | None = None,
+    draft_id: str = "sess-1",
+    screenshots: dict[str, str] | None = None,
+) -> int:
     h, y = _draft_files()
     return sim_drafts.add_version(
         draft_id=draft_id,
@@ -51,7 +60,7 @@ def _add(level: int = 3, html: str | None = None, yml: str | None = None, draft_
         catalogue_yaml=yml or y,
         level=level,
         reasons=[],
-        screenshots={},
+        screenshots=screenshots or {},
         artefact_id="otto-mine",
     )
 
@@ -222,3 +231,29 @@ def test_the_tutor_and_the_state_channel_see_a_published_sim():
     assert meta is not None and meta.tutor_block.strip() and is_known_artefact("otto-mine")
     _client(OWNER).post("/api/teacher-sims/otto-mine/withdraw")
     assert load_artefact("otto-mine") is None
+
+
+def test_a_published_sim_shows_its_checked_screenshot_as_thumbnail():
+    """The version's screenshots are frozen at publish: the picker's thumbnail and
+    what the activity co-pilot looks at. Editing the draft later changes neither."""
+    import base64
+
+    _add(screenshots={"700": PNG_B64, "driven": PNG_B64, "390": PNG_B64})
+    assert _publish().status_code == 200
+    teacher_sims.invalidate()
+    entry = next(a for a in _client(OWNER).get("/api/artefacts").json()["artefacts"] if a["id"] == "otto-mine")
+    assert entry["thumbnail"] == "/api/proxy/api/artefacts/otto-mine/screenshot/700"
+    r = _client(OTHER).get("/api/artefacts/otto-mine/screenshot/700")
+    assert r.status_code == 200 and r.headers["content-type"] == "image/png"
+    assert r.content == base64.b64decode(PNG_B64)
+    stored = fs_module.get_document("teacher_sim_versions", "otto-mine__v1")
+    assert set(stored["screenshots"]) == {"700", "driven"}
+
+
+def test_no_screenshot_is_a_404_not_an_error():
+    _add()
+    assert _publish().status_code == 200
+    teacher_sims.invalidate()
+    assert _client(OWNER).get("/api/artefacts/otto-mine/screenshot/700").status_code == 404
+    assert _client(OWNER).get("/api/artefacts/otto-mine/screenshot/9000").status_code == 404
+    assert _client(OWNER).get("/api/artefacts/no-such-sim/screenshot/700").status_code == 404

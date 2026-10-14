@@ -721,6 +721,10 @@ bench-tutor-sessions: ## Tutor discrimination on real sessions (ARGS="--dry-run 
 # which nothing public serves — so R2 said "ask M or AD to send it to you".
 # Two public copies (/project/build-a-simulation and /sim-authoring-prompt.txt)
 # are generated from it; edit the source, regenerate, commit all three.
+.PHONY: sim-screenshots
+sim-screenshots: ## Screenshot the built-in sims for thumbnails + the activity co-pilot (ID=<id> for one)
+	@scripts/sim-screenshots.sh $(ID)
+
 sim-prompt: ## Regenerate the public sim authoring prompt page + txt from the skill source
 	@scripts/sync-sim-authoring-prompt.sh
 

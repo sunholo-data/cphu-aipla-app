@@ -8,11 +8,13 @@ composition (M2). Mirrors the persona catalogue endpoints (1.1.12).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Response
 
 from artefacts.loader import load_artefact, load_artefacts
+from artefacts.screenshots import SHOTS, screenshot_png
 from auth import User, get_current_user
 
 log = logging.getLogger(__name__)
@@ -46,3 +48,21 @@ async def get_artefact_route(
     if a is None:
         raise HTTPException(status_code=404, detail="artefact not found")
     return a.public()
+
+
+@router.get("/{artefact_id}/screenshot/{shot}")
+async def artefact_screenshot_route(
+    artefact_id: str = Path(..., pattern=r"^[a-z0-9-]{1,64}$"),
+    shot: str = Path(...),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> Response:
+    """A screenshot of a catalogued sim (``700`` at rest, ``driven`` after use):
+    the picker's thumbnail. Any signed-in user, like the sim's own preview; 404
+    when the sim or that shot does not exist."""
+    if shot not in SHOTS:
+        raise HTTPException(status_code=404, detail="no such screenshot")
+    meta = await asyncio.to_thread(load_artefact, artefact_id)
+    png = await asyncio.to_thread(screenshot_png, meta, shot) if meta else None
+    if png is None:
+        raise HTTPException(status_code=404, detail="no screenshot for this sim")
+    return Response(content=png, media_type="image/png", headers={"Cache-Control": "private, max-age=3600"})

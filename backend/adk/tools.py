@@ -157,6 +157,7 @@ TOOL_REGISTRY: dict[str, Callable[[dict], FunctionTool]] = {
     "set_lesson_prompt": lambda _config: FunctionTool(_authoring_tools.set_lesson_prompt),
     "add_element": lambda _config: FunctionTool(_authoring_tools.add_element),
     "set_artefact": lambda _config: FunctionTool(_authoring_tools.set_artefact),
+    "describe_sim": lambda _config: FunctionTool(_authoring_tools.describe_sim),
     "attach_material": lambda _config: FunctionTool(_authoring_tools.attach_material),
     "set_activity_facets": lambda _config: FunctionTool(_authoring_tools.set_activity_facets),
     "propose_concept_map": lambda _config: FunctionTool(_authoring_tools.propose_concept_map),

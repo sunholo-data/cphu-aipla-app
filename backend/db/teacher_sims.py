@@ -68,8 +68,16 @@ def meta_of(row: dict[str, Any]) -> ArtefactMeta | None:
     except Exception:
         logger.warning("teacher sim %s: stored metadata does not validate", row.get("__id"), exc_info=True)
         return None
+    from artefacts.screenshots import thumbnail_url
+
     return meta.model_copy(
-        update={"source": "teacher", "owner_uid": row.get("ownerUid"), "scope": row.get("scope") or "classes"}
+        update={
+            "source": "teacher",
+            "owner_uid": row.get("ownerUid"),
+            "scope": row.get("scope") or "classes",
+            # Frozen with the published version; the picker falls back to a tile if absent.
+            "thumbnail": thumbnail_url(meta.id),
+        }
     )
 
 
@@ -113,8 +121,12 @@ def publish(
     draft_id: str,
     draft_version: int,
     gates: dict[str, Any],
+    screenshots: dict[str, str] | None = None,
 ) -> int:
     """Freeze a new published version; returns its number.
+
+    ``screenshots`` (base64 PNG by shot name, from the checked draft version) are
+    frozen with it: the sim's thumbnail, and what the activity co-pilot looks at.
 
     Refuses an id another teacher already published: ids are global, because the
     activity stores only the id. Re-publishing keeps the sim's level (a library
@@ -161,11 +173,29 @@ def publish(
             "approvedBy": approved_by,
             "approvedAt": now,
             "gates": gates,
+            "screenshots": dict(screenshots or {}),
             "createdAt": now,
         },
     )
     invalidate()
     return n
+
+
+def get_version_screenshot(sim_id: str, shot: str) -> str | None:
+    """Base64 PNG of a LIVE sim's current version, or None. Versions published
+    before screenshots were frozen fall back to the draft version they came from."""
+    sim = get_sim(sim_id)
+    if not sim or sim.get("status") != "live":
+        return None
+    doc = get_document(VERSIONS, f"{sim_id}__v{int(sim.get('version') or 0)}") or {}
+    b64 = (doc.get("screenshots") or {}).get(shot)
+    if b64:
+        return b64
+    draft_id, draft_version = sim.get("draftId"), sim.get("draftVersion")
+    if not draft_id or not draft_version:
+        return None
+    draft = get_document("sim_draft_versions", f"{draft_id}__v{int(draft_version)}") or {}
+    return (draft.get("screenshots") or {}).get(shot)
 
 
 def _update(sim_id: str, fn) -> dict[str, Any]:

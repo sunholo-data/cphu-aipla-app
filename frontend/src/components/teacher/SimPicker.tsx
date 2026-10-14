@@ -43,7 +43,8 @@ export function SimPicker({ value, onChange }: SimPickerProps) {
       </span>
 
       {value ? (
-        <div className="flex items-center justify-between gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2">
+        <div className="flex flex-col gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2">
+          <div className="flex items-center justify-between gap-2">
           <span className="flex min-w-0 items-center gap-2.5 text-sm">
             <SimThumbnail
               id={selected?.id ?? value}
@@ -67,6 +68,15 @@ export function SimPicker({ value, onChange }: SimPickerProps) {
           >
             <X className="h-4 w-4" />
           </button>
+          </div>
+          {/* What students will see: the top of the sim, as the browser check caught it. */}
+          <SimThumbnail
+            id={selected?.id ?? value}
+            displayName={selected?.displayName ?? value}
+            thumbnail={selected?.thumbnail}
+            className="h-48 w-full"
+            fallback="none"
+          />
         </div>
       ) : catalogue === null ? (
         <p className="text-xs text-slate-400">{t("loading")}</p>
@@ -83,7 +93,7 @@ export function SimPicker({ value, onChange }: SimPickerProps) {
               onClick={() => onChange(a.id)}
               className="flex items-start gap-2.5 rounded-md border border-slate-200 px-3 py-2 text-left hover:border-indigo-300 hover:bg-indigo-50"
             >
-              <SimThumbnail id={a.id} displayName={a.displayName} thumbnail={a.thumbnail} />
+              <SimThumbnail id={a.id} displayName={a.displayName} thumbnail={a.thumbnail} className="h-16 w-20" />
               <span className="flex min-w-0 flex-col gap-0.5">
                 <span className="text-sm font-medium text-slate-800">{a.displayName}</span>
                 <span className="text-xs text-slate-500">{a.description}</span>

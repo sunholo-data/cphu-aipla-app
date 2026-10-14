@@ -1,3 +1,4 @@
+import { SimThumbnail, simScreenshotUrl } from "@/components/teacher/SimThumbnail";
 import { useT, type Translate } from "@/i18n";
 import type { ActivityPayload } from "@/lib/teacherApi";
 
@@ -62,7 +63,8 @@ export function CompositionRow({ activity }: { activity: ActivityPayload }) {
   if (parts.length === 0) {
     return <p className="text-[11px] italic text-muted-foreground">{t("chatOnly")}</p>;
   }
-  return (
+  const simName = parts.find((p) => p.kind === "sim")?.label ?? "";
+  const badges = (
     <div className="flex flex-wrap gap-1">
       {parts.map((p) => (
         <span
@@ -76,6 +78,21 @@ export function CompositionRow({ activity }: { activity: ActivityPayload }) {
           {p.label}
         </span>
       ))}
+    </div>
+  );
+  if (!activity.artefactId) return badges;
+  // The sim's screenshot, so a teacher recognises the activity at a glance;
+  // nothing at all when the sim has none.
+  return (
+    <div className="flex flex-col gap-1.5">
+      <SimThumbnail
+        id={activity.artefactId}
+        displayName={simName}
+        thumbnail={simScreenshotUrl(activity.artefactId)}
+        className="h-28 w-full"
+        fallback="none"
+      />
+      {badges}
     </div>
   );
 }

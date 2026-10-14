@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 TOOL_NAME = "verify_sim"
 #: The tools whose function response carries the parked screenshots.
-SCREENSHOT_TOOLS = frozenset({"verify_sim", "edit_sim"})
+SCREENSHOT_TOOLS = frozenset({"verify_sim", "edit_sim", "describe_sim"})
 SHOTS_KEY = "temp:sim_verify_pngs"
 ATTEMPTS_KEY = "temp:sim_verify_attempts"
 PROGRESS_KEY = "temp:sim_progress_seq"
@@ -433,6 +433,14 @@ async def record_sim_usage(callback_context: Any, llm_response: Any) -> None:
         )
     except Exception:
         logger.debug("sim usage not recorded", exc_info=True)
+
+
+def park_screenshots(tool_context: Any, shots_b64: list[str]) -> None:
+    """Hand screenshots (base64 PNG) to the next model call, inside this tool's
+    response (``attach_sim_screenshots``). Also used by the activity co-pilot's
+    ``describe_sim``, so it can look at the sim it is planning a lesson around."""
+    if tool_context is not None and shots_b64:
+        tool_context.state[_scoped(SHOTS_KEY, tool_context)] = list(shots_b64)
 
 
 async def attach_sim_screenshots(callback_context: Any, llm_request: Any) -> bool:

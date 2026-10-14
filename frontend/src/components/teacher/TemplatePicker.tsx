@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { SimThumbnail } from "@/components/teacher/SimThumbnail";
+import { SimThumbnail, simScreenshotUrl } from "@/components/teacher/SimThumbnail";
 import { useT } from "@/i18n";
 import { ACTIVITY_TEMPLATES, type ActivityTemplate } from "@/lib/activityTemplates";
 import { cn } from "@/lib/utils";
@@ -264,7 +264,12 @@ function TemplateCard({
       >
         <span className="flex w-full items-center gap-2">
           {tpl.artefactId ? (
-            <SimThumbnail id={tpl.artefactId} displayName={SIM_LABELS[tpl.artefactId] ?? tpl.artefactId} className="h-9 w-9" />
+            <SimThumbnail
+              id={tpl.artefactId}
+              displayName={SIM_LABELS[tpl.artefactId] ?? tpl.artefactId}
+              thumbnail={simScreenshotUrl(tpl.artefactId)}
+              className="h-9 w-12"
+            />
           ) : (
             <span
               className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-md", fam.tile)}

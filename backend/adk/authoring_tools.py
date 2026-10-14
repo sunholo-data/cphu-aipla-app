@@ -13,6 +13,7 @@ Registered into ``adk/tools.py::TOOL_REGISTRY`` so the
 
 from __future__ import annotations
 
+import base64
 import logging
 import re
 from typing import Any
@@ -428,6 +429,83 @@ def set_artefact(
     return {
         "ok": True,
         "proposal": {"kind": "set_artefact", "artefactId": artefact_id, "label": _artefact_label(meta)},
+        "next": "Call describe_sim to see this sim before planning the lesson around it.",
+    }
+
+
+# How much of a sim's tutor notes the co-pilot reads: the biggest catalogued
+# sims carry a whole activity module (16k); the start says what the sim is for.
+_DESCRIBE_TUTOR_CAP = 6000
+
+
+async def describe_sim(
+    artefact_id: str,
+    tool_context: ToolContext = None,
+) -> dict[str, Any]:
+    """Look at a sim before planning a lesson around it: what it is, what students
+    can do and measure in it, the sim's own notes for the tutor, and two screenshots
+    (at rest, and after clicking through it) that you will SEE with this result.
+
+    Call it once when an activity has a sim attached (``artefactId`` in the draft)
+    or right after proposing one, before writing the lesson prompt or elements.
+
+    Args:
+        artefact_id: a catalogued sim id (e.g. ``boldkast``).
+    """
+    import asyncio
+
+    from adk.sim_author import park_screenshots
+    from artefacts.loader import can_attach, load_artefact, load_artefacts
+    from artefacts.screenshots import SHOTS, screenshot_png
+
+    uid = _caller_uid(tool_context)
+    if not uid:
+        return dict(_DENY)
+    meta = await asyncio.to_thread(load_artefact, artefact_id) if artefact_id else None
+    if meta is None or not await asyncio.to_thread(can_attach, meta.id, uid):
+        sims = await asyncio.to_thread(load_artefacts, for_uid=uid)
+        return {
+            "ok": False,
+            "error": f"unknown sim {artefact_id!r}",
+            "available": [{"id": a.id, "label": _artefact_label(a)} for a in sims],
+        }
+
+    shots = []
+    for shot in SHOTS:
+        png = await asyncio.to_thread(screenshot_png, meta, shot)
+        if png:
+            shots.append(base64.b64encode(png).decode("ascii"))
+    park_screenshots(tool_context, shots)
+
+    tutor = meta.tutor_block.strip()
+    if len(tutor) > _DESCRIBE_TUTOR_CAP:
+        tutor = tutor[:_DESCRIBE_TUTOR_CAP] + " …[truncated]"
+    return {
+        "ok": True,
+        "sim": {
+            "id": meta.id,
+            "name": meta.display_name,
+            "description": meta.description,
+            "topics": meta.topics,
+            "levels": list(meta.levels),
+            "language": meta.language,
+            "madeBy": "a teacher (Sim workshop)" if meta.source == "teacher" else "AIPLA (built in)",
+            # What the sim tells the tutor while a student works: the student's actions.
+            "studentActions": meta.event_vocabulary,
+            "tutorCanChange": [{"name": c.name, "effect": c.effect or c.description} for c in meta.commands],
+            "minScreenWidthPx": meta.min_viewport_px,
+            "tutorNotes": tutor,
+        },
+        "screenshots": (
+            f"{len(shots)} attached: at rest, then after clicking through it."
+            if shots
+            else "none available for this sim; rely on the description."
+        ),
+        "rules": (
+            "tutorNotes go to the tutor only. Values in them that students are meant to work out "
+            "(answers, reference results) must never appear in a student-visible element "
+            "(note, checklist, writing, table, calculator) or be stated as given."
+        ),
     }
 
 

@@ -852,3 +852,55 @@ def test_add_element_chart_without_axes_still_proposes():
     assert res["ok"] is True
     assert res["proposal"]["spec"]["xColumn"] is None
     assert res["proposal"]["spec"]["yColumn"] is None
+
+
+# --- describe_sim: the co-pilot looks at the sim it plans a lesson around ---
+
+
+async def test_describe_sim_returns_the_sim_and_parks_both_screenshots():
+    from adk.authoring_tools import describe_sim
+    from adk.sim_author import SHOTS_KEY
+
+    tc = _tc(TEACHER)
+    res = await describe_sim(artefact_id="boldkast", tool_context=tc)
+    assert res["ok"] is True
+    sim = res["sim"]
+    assert sim["id"] == "boldkast" and sim["name"] and sim["description"]
+    assert sim["tutorNotes"], "the co-pilot reads the sim's tutor notes"
+    assert "never appear in a student-visible element" in res["rules"]
+    # Both shots wait for the next model call, inside this tool's response.
+    assert len(tc.state[SHOTS_KEY]) == 2
+
+
+async def test_describe_sim_unknown_sim_lists_the_catalogue_and_parks_nothing():
+    from adk.authoring_tools import describe_sim
+    from adk.sim_author import SHOTS_KEY
+
+    tc = _tc(TEACHER)
+    res = await describe_sim(artefact_id="not-a-sim", tool_context=tc)
+    assert res["ok"] is False and "boldkast" in {s["id"] for s in res["available"]}
+    assert SHOTS_KEY not in tc.state
+
+
+async def test_describe_sim_without_a_teacher_is_denied():
+    from adk.authoring_tools import describe_sim
+
+    assert (await describe_sim(artefact_id="boldkast", tool_context=_tc(None)))["ok"] is False
+
+
+async def test_the_screenshots_reach_the_model_inside_describe_sims_response():
+    import base64
+
+    from google.genai import types
+
+    from adk.authoring_tools import describe_sim
+    from adk.sim_author import attach_sim_screenshots
+
+    tc = _tc(TEACHER)
+    await describe_sim(artefact_id="boldkast", tool_context=tc)
+    fr = types.Part(function_response=types.FunctionResponse(name="describe_sim", response={"ok": True}))
+    req = SimpleNamespace(contents=[types.Content(role="user", parts=[fr])])
+    assert await attach_sim_screenshots(SimpleNamespace(state=tc.state, _invocation_context=None), req) is True
+    parts = req.contents[0].parts[0].function_response.parts
+    assert [p.inline_data.mime_type for p in parts] == ["image/png", "image/png"]
+    assert parts[0].inline_data.data.startswith(base64.b64decode("iVBORw0KGgo="))

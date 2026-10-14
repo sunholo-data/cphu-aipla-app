@@ -1,7 +1,52 @@
+"use client";
+
 import { FlaskConical } from "lucide-react";
+import { useEffect, useState } from "react";
 
 import { useT } from "@/i18n";
+import { fetchWithTeacherAuth } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
+
+/** Where a catalogued sim's screenshot is served (backend artefacts/screenshots.py). */
+export function simScreenshotUrl(id: string, shot: "700" | "driven" = "700"): string {
+  return `/api/proxy/api/artefacts/${encodeURIComponent(id)}/screenshot/${shot}`;
+}
+
+// A sim's screenshot sits behind the teacher's sign-in, so an <img src> cannot
+// fetch it: it comes down once as a blob and every thumbnail of that sim on the
+// page shares the object URL. A failure is remembered too (null), so a sim with
+// no screenshot does not refetch on every render.
+const blobUrls = new Map<string, Promise<string | null>>();
+
+function loadAuthed(url: string): Promise<string | null> {
+  let p = blobUrls.get(url);
+  if (!p) {
+    p = fetchWithTeacherAuth(url)
+      .then(async (res) => (res.ok ? URL.createObjectURL(await res.blob()) : null))
+      .catch(() => null);
+    blobUrls.set(url, p);
+  }
+  return p;
+}
+
+/** The image URL to render: a plain URL as is, an API path once fetched (null until then, or if absent). */
+function useThumbnailSrc(thumbnail: string | null | undefined): string | null | undefined {
+  const authed = !!thumbnail && thumbnail.startsWith("/api/proxy/");
+  const [src, setSrc] = useState<string | null | undefined>(authed ? undefined : thumbnail);
+  useEffect(() => {
+    if (!thumbnail || !authed) {
+      setSrc(thumbnail);
+      return;
+    }
+    let alive = true;
+    setSrc(undefined);
+    void loadAuthed(thumbnail).then((u) => alive && setSrc(u));
+    return () => {
+      alive = false;
+    };
+  }, [thumbnail, authed]);
+  return src;
+}
 
 // A small palette of restrained accent tiles. The sim id picks one
 // deterministically, so a given sim always wears the same colour across the
@@ -36,23 +81,36 @@ interface SimThumbnailProps {
   thumbnail?: string | null;
   /** Tailwind size classes — defaults to a 40px square. */
   className?: string;
+  /** No screenshot: draw the monogram tile (default), or nothing at all — for a
+   *  large preview, where a big empty tile would say less than no picture. */
+  fallback?: "tile" | "none";
 }
 
 /**
  * SimThumbnail — a visual handle for a catalogue sim, so a teacher can identify
- * one at a glance. Renders the supplied screenshot when present; otherwise a
+ * one at a glance. Renders the supplied screenshot when present (an API path is
+ * fetched with the teacher's sign-in); otherwise a
  * deterministic accent tile with the sim's monogram over a flask icon. Shared so
  * every sim listing across the site looks consistent.
  */
-export function SimThumbnail({ id, displayName, thumbnail, className }: SimThumbnailProps) {
+export function SimThumbnail({ id, displayName, thumbnail, className, fallback = "tile" }: SimThumbnailProps) {
   const t = useT("SimThumbnail");
+  const src = useThumbnailSrc(thumbnail);
   const box = cn("relative shrink-0 overflow-hidden rounded-md", className ?? "h-10 w-10");
-  if (thumbnail) {
+  if (src) {
     return (
+      // A blob: URL of a screenshot (or a plain image path); next/image adds nothing here.
       // eslint-disable-next-line @next/next/no-img-element
-      <img src={thumbnail} alt={t("preview", { name: displayName })} className={cn(box, "object-cover")} />
+      <img
+        src={src}
+        alt={t("preview", { name: displayName })}
+        data-testid={`sim-thumbnail-${id}`}
+        // The top of a sim is its title and stage: crop from there, not the middle.
+        className={cn(box, "border border-border bg-white object-cover object-top")}
+      />
     );
   }
+  if (fallback === "none") return null;
   return (
     <span
       className={cn(box, "flex items-center justify-center", tileFor(id))}

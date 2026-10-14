@@ -155,10 +155,20 @@ what caught `phase-change` shipping with its "mark point" button disabled for
 the entire run — every static gate was green. See
 [§ Verify in a browser](#verify-in-a-browser).
 
+### 5b. Screenshot it
+
+```bash
+make sim-screenshots ID=<id>    # backend/artefacts/screenshots/<id>-{700,driven}.png
+```
+
+The picker's and the activity cards' thumbnail, and what the activity co-pilot
+looks at (`describe_sim`) when it plans a lesson around the sim.
+`test_artefact_screenshots.py` fails while a live sim has none.
+
 ### 6. Ship
 
 ```bash
-git add infrastructure/mcp-sandbox/artefacts/<id> backend/artefacts/<id>.yaml
+git add infrastructure/mcp-sandbox/artefacts/<id> backend/artefacts/<id>.yaml backend/artefacts/screenshots/<id>-*.png
 git commit -m "feat(artefact): <id> v1"
 git push
 ```

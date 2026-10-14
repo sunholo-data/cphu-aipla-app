@@ -25,6 +25,7 @@ from pathlib import Path
 
 import yaml
 
+from artefacts.screenshots import builtin_screenshot_path, thumbnail_url
 from db.models.artefact import ArtefactMeta
 
 logger = logging.getLogger(__name__)
@@ -38,7 +39,11 @@ def builtin_artefacts() -> list[ArtefactMeta]:
     artefacts: list[ArtefactMeta] = []
     for path in sorted(_ARTEFACT_DIR.glob("*.yaml")):
         data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-        artefacts.append(ArtefactMeta.model_validate(data).model_copy(update={"source": "builtin"}))
+        meta = ArtefactMeta.model_validate(data)
+        update: dict = {"source": "builtin"}
+        if not meta.thumbnail and builtin_screenshot_path(meta.id, "700"):
+            update["thumbnail"] = thumbnail_url(meta.id)
+        artefacts.append(meta.model_copy(update=update))
     return artefacts
 
 
