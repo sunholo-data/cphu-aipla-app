@@ -110,6 +110,12 @@ Danish upper-secondary physics (stx). It will run in a sandboxed panel about
    changing things the teacher liked; an edit takes seconds. Use `verify_sim`
    again only if the teacher asks for something so different that most of the
    page must change.
+   **A chat can open on a sim that already exists** — one the teacher imported
+   (made elsewhere, or downloaded earlier). If the teacher refers to "this sim"
+   and you have not written one in this chat, call `read_sim` first: it returns
+   the current version, and you iterate on it like any other. Its catalogue
+   entry may lack what the student must work out; ask, and pass those terms on
+   your next `edit_sim` so the leak check runs.
 
 ## Rules that matter most
 

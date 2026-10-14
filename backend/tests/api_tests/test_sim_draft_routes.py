@@ -165,3 +165,44 @@ def test_each_draft_names_the_conversation_it_was_built_in():
     assert rows["sess_2"]["sessionId"] == "sess:2"
     assert rows["sess-1"]["sessionId"] == "sess-1"
     assert _client(OWNER).get("/api/sim-drafts/sess_2").json()["sessionId"] == "sess:2"
+
+
+# --- Portable files: download one, import one (sim_authoring/portable.py) ---
+
+
+def test_portable_download_is_one_file_with_its_catalogue(monkeypatch):
+    monkeypatch.setattr("sim_gates.load_bridge", lambda: None)
+    resp = _client(OWNER).get("/api/sim-drafts/sess-1/versions/1/files/portable.html")
+    assert resp.status_code == 200
+    assert 'filename="demo-v1.html"' in resp.headers["content-disposition"]
+    assert "aipla-portable: v1" in resp.text
+    assert "displayName: Demo pendulum" in resp.text
+
+
+def test_import_takes_a_page_and_its_catalogue_and_starts_a_new_draft(monkeypatch):
+    seen = {}
+
+    async def fake_import(page, catalogue, *, owner):
+        seen.update(page=page, catalogue=catalogue, owner=owner)
+        return {"draftId": "new-1", "version": 1, "level": 3, "reasons": []}
+
+    monkeypatch.setattr("adk.sim_author.import_draft", fake_import)
+    from sim_authoring.portable import bundle
+
+    portable = bundle(
+        "<!doctype html><html><head></head><body><script>1</script></body></html>", "id: x\n", bridge=None
+    )
+    resp = _client(OWNER).post("/api/sim-drafts/import", json={"html": portable})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["draftId"] == "new-1"
+    assert seen["owner"] == "t-1"
+    assert seen["catalogue"].strip() == "id: x"
+    assert "aipla-portable" not in seen["page"]
+    # A separate catalogue file wins over an embedded one.
+    resp = _client(OWNER).post("/api/sim-drafts/import", json={"html": portable, "yaml": "id: y\n"})
+    assert seen["catalogue"].strip() == "id: y"
+
+
+def test_import_refuses_what_is_not_a_page_and_teachers_without_the_workshop():
+    assert _client(OWNER).post("/api/sim-drafts/import", json={"html": "just text"}).status_code == 422
+    assert _client(NO_FEATURE).post("/api/sim-drafts/import", json={"html": "<html></html>"}).status_code == 403

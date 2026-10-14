@@ -53,6 +53,7 @@ const api = vi.hoisted(() => ({
   fetchSimScreenshot: vi.fn(),
   fetchSimFile: vi.fn(),
   fetchSimPreview: vi.fn(),
+  importSimDraft: vi.fn(),
 }));
 vi.mock("@/lib/simDraftsApi", () => api);
 const simsApi = vi.hoisted(() => ({
@@ -348,5 +349,33 @@ describe("Sim workshop page", () => {
     expect(await screen.findByTestId("sim-review-pendul")).toHaveTextContent("used it twice");
     fireEvent.click(screen.getByRole("button", { name: "Approve for the library" }));
     await waitFor(() => expect(simsApi.decideLibrary).toHaveBeenCalledWith("pendul", true, ""));
+  });
+
+  it("imports a page and its catalogue as a new draft and opens its chat", async () => {
+    api.listSimDrafts.mockResolvedValue([]);
+    api.importSimDraft.mockResolvedValue({ draftId: "imp-1", version: 1, level: 3, reasons: [] });
+    render(<SimWorkshopPage />);
+    await screen.findByTestId("sim-workshop-empty");
+    const page = new File(["<html>sort hul</html>"], "v9-index.html", { type: "text/html" });
+    const entry = new File(["id: sort-hul\n"], "v9.yaml", { type: "application/yaml" });
+    fireEvent.change(screen.getByTestId("sim-import-input"), { target: { files: [page, entry] } });
+    await waitFor(() => expect(api.importSimDraft).toHaveBeenCalledWith("<html>sort hul</html>", "id: sort-hul\n"));
+    expect(await screen.findByText(/Imported as a new draft: version 1, level 3 of 3/)).toBeInTheDocument();
+    await waitFor(() => expect(chat.resumes).toContain("imp-1"));
+  });
+
+  it("says what to choose when no .html file was picked, and what went wrong on a refusal", async () => {
+    api.listSimDrafts.mockResolvedValue([]);
+    render(<SimWorkshopPage />);
+    await screen.findByTestId("sim-workshop-empty");
+    const entry = new File(["id: x\n"], "x.yaml");
+    fireEvent.change(screen.getByTestId("sim-import-input"), { target: { files: [entry] } });
+    expect(await screen.findByText(/Choose the sim's .html file/)).toBeInTheDocument();
+    expect(api.importSimDraft).not.toHaveBeenCalled();
+    api.importSimDraft.mockRejectedValue(new Error("the inlined /vendor/three has been changed"));
+    fireEvent.change(screen.getByTestId("sim-import-input"), {
+      target: { files: [new File(["<html></html>"], "s.html")] },
+    });
+    expect(await screen.findByText(/Could not import: the inlined/)).toBeInTheDocument();
   });
 });

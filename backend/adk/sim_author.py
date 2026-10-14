@@ -141,20 +141,19 @@ def _clean_terms(hidden_terms: list[str] | None) -> list[str] | None:
     return [t for t in (hidden_terms or []) if isinstance(t, str) and t.strip()][:20] or None
 
 
-async def _check_and_store(
-    index_html: str, catalogue_yaml: str | None, hidden_terms: list[str] | None, tool_context: Any
-) -> dict:
-    """Run the gates and the browser check, store a version, park the screenshots for the model."""
-    owner = caller_uid_or_none(tool_context)
-    draft_id = _draft_id(tool_context)
-    if owner is None or draft_id is None:
-        return {"ok": False, "refused": "No signed-in teacher or conversation for this draft; it was not stored."}
+async def _verify_and_store(
+    index_html: str,
+    catalogue_yaml: str | None,
+    hidden_terms: list[str] | None,
+    *,
+    owner: str,
+    draft_id: str,
+    session_id: str | None,
+) -> tuple[Any, dict[str, str], int | None]:
+    """Run the gates and the browser check and store the result as the draft's next
+    version: (verdict, screenshots as base64, version number or None if not stored)."""
+    from db.sim_drafts import add_version
 
-    from db.sim_drafts import add_version, get_draft
-
-    current = await asyncio.to_thread(get_draft, draft_id, owner)
-    next_version = int((current or {}).get("latestVersion") or 0) + 1
-    _progress(tool_context, "simChecking", f"Checking version {next_version} in the browser…", version=next_version)
     with tempfile.TemporaryDirectory(prefix="simauthor-") as tmp:
         verdict = await verify_draft(
             index_html,
@@ -181,11 +180,55 @@ async def _check_and_store(
             screenshots={k: v for k, v in shots.items() if k in (*MODEL_SHOTS, "390")},
             artefact_id=artefact_id,
             hidden_terms=_clean_terms(hidden_terms),
-            session_id=_session_id(tool_context),
+            session_id=session_id,
         )
-    except Exception as exc:  # storage failing must not hide the verdict from the model
+    except Exception as exc:  # storage failing must not hide the verdict
         logger.warning("sim draft not stored: %s", type(exc).__name__)
         version = None
+    return verdict, shots, version
+
+
+async def import_draft(index_html: str, catalogue_yaml: str | None, *, owner: str) -> dict:
+    """Bring a sim made elsewhere (a workshop download, a portable file) in as a NEW
+    draft: checked like any version, and given a conversation of its own, so the
+    teacher can open it in the assistant and carry on.
+
+    The draft id doubles as that conversation's id (as for every draft the
+    assistant starts), so the assistant's read/edit tools find this draft.
+    """
+    import uuid
+
+    draft_id = str(uuid.uuid4())
+    verdict, _shots, version = await _verify_and_store(
+        index_html, catalogue_yaml, None, owner=owner, draft_id=draft_id, session_id=draft_id
+    )
+    if version is None:
+        raise RuntimeError("the imported draft could not be stored")
+    return {"draftId": draft_id, "version": version, "level": verdict.level, "reasons": verdict.reasons}
+
+
+async def _check_and_store(
+    index_html: str, catalogue_yaml: str | None, hidden_terms: list[str] | None, tool_context: Any
+) -> dict:
+    """Run the gates and the browser check, store a version, park the screenshots for the model."""
+    owner = caller_uid_or_none(tool_context)
+    draft_id = _draft_id(tool_context)
+    if owner is None or draft_id is None:
+        return {"ok": False, "refused": "No signed-in teacher or conversation for this draft; it was not stored."}
+
+    from db.sim_drafts import get_draft
+
+    current = await asyncio.to_thread(get_draft, draft_id, owner)
+    next_version = int((current or {}).get("latestVersion") or 0) + 1
+    _progress(tool_context, "simChecking", f"Checking version {next_version} in the browser…", version=next_version)
+    verdict, shots, version = await _verify_and_store(
+        index_html,
+        catalogue_yaml,
+        hidden_terms,
+        owner=owner,
+        draft_id=draft_id,
+        session_id=_session_id(tool_context),
+    )
 
     model_shots = [shots[k] for k in MODEL_SHOTS if k in shots]
     if tool_context is not None and model_shots:

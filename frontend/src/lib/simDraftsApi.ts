@@ -90,10 +90,39 @@ export function fetchSimPreview(id: string, version: number): Promise<Blob> {
 export function fetchSimFile(
   id: string,
   version: number,
-  name: "index.html" | "catalogue.yaml",
+  name: "index.html" | "catalogue.yaml" | "portable.html",
 ): Promise<Blob> {
   return blobOf(
     `${encodeURIComponent(id)}/versions/${version}/files/${name}`,
     "download file",
   );
 }
+
+export interface SimImportResult {
+  draftId: string;
+  version: number;
+  level: number;
+  reasons: string[];
+}
+
+/** Bring a sim made elsewhere in as a new draft: a portable .html (catalogue
+ *  inside), or a page plus its catalogue entry. Checked like any version; the
+ *  page is sent as text and never rendered on this origin. */
+export async function importSimDraft(
+  html: string,
+  yaml?: string | null,
+): Promise<SimImportResult> {
+  const res = await fetchWithTeacherAuth(`${BASE}/import`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ html, yaml: yaml ?? null }),
+  });
+  if (res.status === 422) {
+    const body = (await res.json().catch(() => ({}))) as {
+      detail?: { reason?: string };
+    };
+    throw new Error(body.detail?.reason ?? "not importable");
+  }
+  return readJson<SimImportResult>(res, "import sim");
+}
+

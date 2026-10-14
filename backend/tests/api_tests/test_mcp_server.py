@@ -267,7 +267,7 @@ def _fresh_mcp():
 
     from protocols import sim_apps
 
-    saved = set(sim_apps._registered)
+    saved = dict(sim_apps._registered)
     sim_apps._registered.clear()
     try:
         yield FastMCP("test-sims")
@@ -291,16 +291,55 @@ async def test_register_sim_apps_registers_ui_linked_tools(_fresh_mcp):
     assert bold.inputSchema.get("properties") == {}
 
 
-async def test_sims_needing_a_vendored_library_are_not_offered_externally(_fresh_mcp):
-    """sol-jord-maane loads three.js from the sandbox's /vendor/ path. An external
-    host renders the HTML on its own origin, where that path is a 404 and the
-    frame is blank — so the sim stays in the app and off /mcp until the library
-    can travel with it."""
+async def test_a_sim_with_a_vendored_library_travels_with_it(_fresh_mcp):
+    """sol-jord-maane loads three.js from the sandbox's /vendor/ path, which an
+    external host cannot reach. It is offered with the library inlined, so the
+    frame is not blank there."""
     from protocols.sim_apps import register_sim_apps
 
     added = register_sim_apps(_fresh_mcp)
-    assert "show_sol_jord_maane" not in added
-    assert "show_boldkast" in added
+    assert "show_sol_jord_maane" in added
+    block = next(iter(await _fresh_mcp.read_resource("ui://aipla/sol-jord-maane/v1")))
+    assert 'src="/vendor/' not in block.content
+    assert 'data-aipla-vendor="/vendor/three/0.128.0/three.min.js"' in block.content
+
+
+async def test_every_live_catalogue_sim_is_offered_without_its_tutor_block(_fresh_mcp):
+    from artefacts.loader import builtin_artefacts
+    from protocols.sim_apps import register_sim_apps
+
+    added = set(register_sim_apps(_fresh_mcp))
+    live = {f"show_{m.id.replace('-', '_')}" for m in builtin_artefacts() if m.status == "live"}
+    assert live <= added
+    block = next(iter(await _fresh_mcp.read_resource("ui://aipla/boldkast/v1")))
+    assert "aipla-catalogue" not in block.content  # the answers stay server-side
+
+
+async def test_library_teacher_sims_are_offered_and_withdrawn_ones_dropped(_fresh_mcp, monkeypatch):
+    from db.models.artefact import ArtefactMeta
+    from protocols.sim_apps import register_sim_apps
+
+    def meta(sim_id, scope):
+        return ArtefactMeta.model_validate(
+            {
+                "id": sim_id,
+                "version": "v2",
+                "displayName": sim_id,
+                "description": "d",
+                "scope": scope,
+                "source": "teacher",
+            }
+        )
+
+    rows = [meta("sort-hul", "library"), meta("klasse-sim", "classes")]
+    monkeypatch.setattr("db.teacher_sims.live_metas", lambda: rows)
+    added = register_sim_apps(_fresh_mcp)
+    assert "show_sort_hul" in added
+    assert "show_klasse_sim" not in added  # a class-level sim is not public
+    rows.clear()
+    register_sim_apps(_fresh_mcp)
+    names = {t.name for t in await _fresh_mcp.list_tools()}
+    assert "show_sort_hul" not in names
 
 
 async def test_sim_resource_read_returns_mcp_app_html(_fresh_mcp):

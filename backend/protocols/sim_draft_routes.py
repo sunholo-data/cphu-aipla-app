@@ -16,8 +16,9 @@ import asyncio
 import base64
 import re
 
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Body, Depends, HTTPException, Path
 from fastapi.responses import Response
+from pydantic import BaseModel, Field
 
 from auth import User, get_current_user
 from auth.guards import assert_teacher
@@ -155,16 +156,62 @@ async def download_route(
     name: str = Path(...),
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> Response:
-    """Download a version's ``index.html`` or ``catalogue.yaml`` as an attachment."""
+    """Download a version's ``index.html`` or ``catalogue.yaml``, or ``portable.html``:
+    ONE file that runs on its own, in another MCP host, and imports back in
+    (sim_authoring/portable.py), as an attachment."""
     uid = _owner(user)
-    if name not in ("index.html", "catalogue.yaml"):
+    if name not in ("index.html", "catalogue.yaml", "portable.html"):
         raise HTTPException(status_code=404, detail="no such file")
     doc = await asyncio.to_thread(_version_or_404, draft_id, version, uid)
-    body = doc.get("html" if name == "index.html" else "yaml") or ""
-    stem = re.sub(r"[^a-z0-9-]", "", (doc.get("artefactId") or "sim").lower())[:64] or "sim"
-    filename = f"{stem}-v{version}-index.html" if name == "index.html" else f"{stem}-v{version}.yaml"
+    # The version stores the catalogue, not the id: name the file after the sim it is.
+    m = re.search(r"^id:\s*['\"]?([a-z0-9-]+)", doc.get("yaml") or "", re.M)
+    stem = re.sub(r"[^a-z0-9-]", "", (doc.get("artefactId") or (m and m.group(1)) or "sim").lower())[:64] or "sim"
+    if name == "portable.html":
+        from sim_authoring.portable import NotPortable, bundle
+        from sim_gates import load_bridge
+
+        try:
+            body = await asyncio.to_thread(bundle, doc.get("html") or "", doc.get("yaml") or None, bridge=load_bridge())
+        except NotPortable as exc:
+            raise HTTPException(status_code=422, detail={"error": "not_portable", "reason": str(exc)}) from exc
+        filename = f"{stem}-v{version}.html"
+    else:
+        body = doc.get("html" if name == "index.html" else "yaml") or ""
+        filename = f"{stem}-v{version}-index.html" if name == "index.html" else f"{stem}-v{version}.yaml"
     return Response(
         body.encode("utf-8"),
         media_type="application/octet-stream",
         headers={**_DOWNLOAD_HEADERS, "Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+class _ImportBody(BaseModel):
+    html: str = Field(..., max_length=3_000_000)
+    yaml: str | None = Field(None, max_length=200_000)
+
+
+@router.post("/import")
+async def import_route(
+    body: _ImportBody = Body(...),  # noqa: B008
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Bring a sim made elsewhere in as a new draft, checked like any version.
+
+    Takes a portable file (catalogue inside), or a page plus its catalogue entry
+    (a workshop download; the files an outside chat returns from the authoring
+    prompt). The page goes back to AIPLA's own form first, so the same gates apply;
+    it is never rendered here. Answers the new draft, its level and what stopped it.
+    """
+    uid = _owner(user)
+    from sim_authoring.portable import NotPortable, unbundle
+
+    try:
+        page, embedded = unbundle(body.html)
+    except NotPortable as exc:
+        raise HTTPException(status_code=422, detail={"error": "not_importable", "reason": str(exc)}) from exc
+    catalogue = (body.yaml or "").strip() or embedded
+    if "<" not in page or not re.search(r"<html|<body|<script", page, re.I):
+        raise HTTPException(status_code=422, detail={"error": "not_importable", "reason": "That is not an HTML page."})
+    from adk.sim_author import import_draft
+
+    return await import_draft(page, catalogue, owner=uid)

@@ -35,7 +35,15 @@
     "costSoFar": "≈ ${cost} so far · {tokens} tokens",
     "openChat": "Open this sim and the chat it was built in",
     "chatIsThisDraft": "The assistant is showing the chat this sim was built in: ask for changes there and it carries on from the latest version.",
-    "newChatPlaceholder": "A new chat starts a new sim, which appears here once the assistant has checked its first version. To carry on with an earlier sim, pick it above: its chat reopens in the assistant."
+    "newChatPlaceholder": "A new chat starts a new sim, which appears here once the assistant has checked its first version. To carry on with an earlier sim, pick it above: its chat reopens in the assistant.",
+    "importSim": "Import a sim",
+    "importing": "Importing and checking the sim (about a minute)…",
+    "importDone": "Imported as a new draft: version {version}, level {level} of 3. Open it to carry on with the assistant.",
+    "importFailed": "Could not import: {reason}",
+    "importNoHtml": "Choose the sim's .html file (and its .yaml catalogue entry, if it came as two files).",
+    "importHelp": "A portable file, a workshop download (the .html and its .yaml), or the two files another chat made from the authoring prompt.",
+    "downloadPortable": "Download portable file",
+    "portableHelp": "One .html file with everything in it: it opens in any browser, imports back in here, and runs as an MCP App in other chats."
   },
   "SimPublish": {
     "heading": "Publish",

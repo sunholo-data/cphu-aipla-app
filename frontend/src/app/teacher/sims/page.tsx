@@ -24,7 +24,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Upload } from "lucide-react";
 
 import { TeacherCopilot } from "@/components/teacher/copilot";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
@@ -35,6 +35,7 @@ import {
   fetchSimFile,
   fetchSimScreenshot,
   getSimDraft,
+  importSimDraft,
   listSimDrafts,
   type SimDraft,
   type SimDraftSummary,
@@ -112,6 +113,12 @@ function SimWorkshop() {
   const [error, setError] = useState<string | null>(null);
   const [mySims, setMySims] = useState<TeacherSim[]>([]);
   const [researcher, setResearcher] = useState(false);
+  const [importNote, setImportNote] = useState<{
+    text: string;
+    failed?: boolean;
+  } | null>(null);
+  const [importing, setImporting] = useState(false);
+  const importInput = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     fetchMyFeatures()
@@ -157,6 +164,41 @@ function SimWorkshop() {
     void loadDraft();
   }, [load, loadDraft]);
 
+  // A sim made elsewhere: a portable file, or a page and its catalogue entry.
+  // It becomes a new draft with a conversation of its own, opened at once.
+  const importFiles = async (files: FileList | null) => {
+    const list = Array.from(files ?? []);
+    const page = list.find((f) => /\.html?$/i.test(f.name));
+    const entry = list.find((f) => /\.ya?ml$/i.test(f.name));
+    if (!page) {
+      setImportNote({ text: t("importNoHtml"), failed: true });
+      return;
+    }
+    setImporting(true);
+    setImportNote({ text: t("importing") });
+    try {
+      const done = await importSimDraft(
+        await page.text(),
+        entry ? await entry.text() : null,
+      );
+      setImportNote({
+        text: t("importDone", { version: done.version, level: done.level }),
+      });
+      await load();
+      setResume((prev) => ({ threadId: done.draftId, seq: (prev?.seq ?? 0) + 1 }));
+    } catch (e) {
+      setImportNote({
+        text: t("importFailed", {
+          reason: e instanceof Error ? e.message : String(e),
+        }),
+        failed: true,
+      });
+    } finally {
+      setImporting(false);
+      if (importInput.current) importInput.current.value = "";
+    }
+  };
+
   // Reopen the conversation a draft was built in.
   const openDraft = (d: SimDraftSummary) => {
     if (d.sessionId === chatThread) return;
@@ -191,17 +233,52 @@ function SimWorkshop() {
       title={t("title")}
       subtitle={t("subtitle")}
       actions={
-        <button
-          type="button"
-          onClick={refresh}
-          className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm"
-        >
-          <RefreshCw className="h-4 w-4" aria-hidden="true" />
-          {t("refresh")}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => importInput.current?.click()}
+            disabled={importing}
+            title={t("importHelp")}
+            data-testid="sim-import"
+            className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm disabled:opacity-60"
+          >
+            <Upload className="h-4 w-4" aria-hidden="true" />
+            {t("importSim")}
+          </button>
+          <input
+            ref={importInput}
+            type="file"
+            accept=".html,.htm,.yaml,.yml,text/html"
+            multiple
+            hidden
+            data-testid="sim-import-input"
+            onChange={(e) => void importFiles(e.target.files)}
+          />
+          <button
+            type="button"
+            onClick={refresh}
+            className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm"
+          >
+            <RefreshCw className="h-4 w-4" aria-hidden="true" />
+            {t("refresh")}
+          </button>
+        </div>
       }
     >
       <p className="text-xs text-muted-foreground">{t("draftOnly")}</p>
+      {importNote ? (
+        <p
+          role={importNote.failed ? "alert" : "status"}
+          data-testid="sim-import-note"
+          className={`rounded border p-2 text-sm ${
+            importNote.failed
+              ? "border-destructive bg-destructive/10 text-destructive"
+              : "border-border bg-muted/50"
+          }`}
+        >
+          {importNote.text}
+        </p>
+      ) : null}
       {error ? (
         <div
           role="alert"
@@ -367,15 +444,19 @@ function VersionPanel({
     { key: "390", label: t("phone") },
   ].filter((s) => version.screenshots.includes(s.key));
 
-  const download = async (name: "index.html" | "catalogue.yaml") => {
+  const download = async (
+    name: "index.html" | "catalogue.yaml" | "portable.html",
+  ) => {
     const blob = await fetchSimFile(draftId, version.version, name);
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download =
-      name === "index.html"
-        ? `v${version.version}-index.html`
-        : `v${version.version}.yaml`;
+      name === "portable.html"
+        ? `sim-v${version.version}.html`
+        : name === "index.html"
+          ? `v${version.version}-index.html`
+          : `v${version.version}.yaml`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -390,7 +471,16 @@ function VersionPanel({
           {t("version", { n: version.version })} ·{" "}
           {t("level", { n: version.level ?? 0 })}
         </h3>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void download("portable.html")}
+            title={t("portableHelp")}
+            data-testid="download-portable"
+            className="rounded border border-border bg-muted px-2 py-1 text-xs font-medium"
+          >
+            {t("downloadPortable")}
+          </button>
           <button
             type="button"
             onClick={() => void download("index.html")}

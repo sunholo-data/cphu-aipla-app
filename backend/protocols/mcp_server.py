@@ -25,6 +25,7 @@ the official SDK — ``mcp>=1.7.1`` already has everything we need.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING
 
@@ -33,7 +34,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 
 from auth.access_context import build_access_context
 from auth.firebase_auth import User
-from protocols.sim_apps import register_sim_apps
+from protocols.sim_apps import refresh_due, refresh_sim_apps, register_sim_apps
 from skills.skill_config import list_marketplace
 
 if TYPE_CHECKING:
@@ -166,4 +167,13 @@ def get_mcp_asgi_app() -> ASGIApp:
         register_sim_apps(mcp)
     except Exception:
         logger.exception("mcp_server: register_sim_apps failed; sims unavailable, skills unaffected")
-    return mcp.streamable_http_app()
+    inner = mcp.streamable_http_app()
+
+    async def app(scope, receive, send):  # type: ignore[no-untyped-def]
+        # A library sign-off or a withdrawal changes which sims are offered; pick
+        # it up within a few minutes, off the event loop (it reads Firestore).
+        if scope.get("type") == "http" and refresh_due():
+            await asyncio.to_thread(refresh_sim_apps, mcp)
+        await inner(scope, receive, send)
+
+    return app

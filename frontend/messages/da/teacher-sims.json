@@ -35,7 +35,15 @@
     "costSoFar": "≈ ${cost} indtil nu · {tokens} tokens",
     "openChat": "Åbn denne simulering og samtalen, den blev bygget i",
     "chatIsThisDraft": "Assistenten viser samtalen, denne simulering blev bygget i: bed om ændringer dér, så fortsætter den fra seneste version.",
-    "newChatPlaceholder": "En ny samtale starter en ny simulering, som vises her, når assistenten har tjekket første version. Vil du arbejde videre med en tidligere simulering, så vælg den ovenfor: dens samtale åbner igen i assistenten."
+    "newChatPlaceholder": "En ny samtale starter en ny simulering, som vises her, når assistenten har tjekket første version. Vil du arbejde videre med en tidligere simulering, så vælg den ovenfor: dens samtale åbner igen i assistenten.",
+    "importSim": "Importér en simulering",
+    "importing": "Importerer og tjekker simuleringen (omkring et minut)…",
+    "importDone": "Importeret som en ny kladde: version {version}, niveau {level} af 3. Åbn den for at arbejde videre med assistenten.",
+    "importFailed": "Kunne ikke importere: {reason}",
+    "importNoHtml": "Vælg simuleringens .html-fil (og dens .yaml-katalogpost, hvis den kom som to filer).",
+    "importHelp": "En portabel fil, en download fra værkstedet (.html og dens .yaml) eller de to filer, en anden chat har lavet ud fra byggevejledningen.",
+    "downloadPortable": "Download portabel fil",
+    "portableHelp": "Én .html-fil med det hele: den åbner i enhver browser, kan importeres her igen og kører som MCP App i andre chats."
   },
   "SimPublish": {
     "heading": "Udgiv",

@@ -382,6 +382,32 @@ block mode (`db/programme_budget.py`), and the cost dashboard at
 | 2026-10-13 | **Public MCP listing only for reviewed (shared-library) sims** | The public server carries KU's name and needs no sign-in |
 | 2026-10-13 | **Drafts in Firestore, not ADK artifacts** | The workshop lists a teacher's drafts across conversations; artifacts are per session |
 
+## Portable sims and the MCP library (2026-10-14)
+
+A sim travels as **one `.html` file** (`backend/sim_authoring/portable.py`):
+the canonical bridge stamped in, every `/vendor/` library inlined after its
+bytes are checked against `vendor.json`, and the catalogue entry embedded as a
+`<script type="application/yaml" id="aipla-catalogue">` block. It opens in any
+browser (the bridge falls back quietly with no host), runs in an MCP host, and
+imports back unchanged: `unbundle` restores the `/vendor/` tags (refusing a
+library whose bytes changed) and an outdated bridge to the placeholder, so an
+import faces exactly the gates a workshop version does.
+
+- **Workshop:** *Download portable file* on every version
+  (`GET /api/sim-drafts/{id}/versions/{n}/files/portable.html`), and *Import a
+  sim* (`POST /api/sim-drafts/import`), taking a portable file, a workshop
+  download (`.html` + `.yaml`) or the two files an outside chat makes from the
+  authoring prompt. An import is a new draft whose id doubles as its
+  conversation id, checked like any version, so the assistant's `read_sim` /
+  `edit_sim` work on it. Imports carry no hidden terms; the skill asks for them.
+- **MCP (`/api/mcp`):** offers the LIBRARY: every live built-in sim (was a
+  hard-coded three) and every teacher sim signed off for the shared library,
+  each served bundled (libraries inlined, so sol-jord-maane's three.js works in
+  ChatGPT/Claude) and **without** the catalogue block, whose tutorBlock holds the
+  answers. Library changes are picked up within 5 minutes. A teacher's
+  class-level sim stays off this public, unauthenticated endpoint; reaching one's
+  own sims from ChatGPT needs a per-teacher, authenticated MCP URL (not built).
+
 ## Benchmark runs (2026-10-13)
 
 `make bench-sims`, gemini-3.8-flash, thinking HIGH, one sample per cell, graded
