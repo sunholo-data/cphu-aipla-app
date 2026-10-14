@@ -251,6 +251,16 @@ describe("TeacherCopilot (shared shell)", () => {
     expect(screen.queryByText(/ui_language/)).not.toBeInTheDocument();
   });
 
+  it("hides the language tag when the model echoes it at the start of a reply", () => {
+    hook = {
+      ...defaultHook,
+      messages: [{ id: "m1", role: "assistant", content: "[ui_language=da] Der står Fig. 1." }] as never,
+    };
+    render(<TeacherCopilot {...config()} />);
+    expect(screen.getByText("Der står Fig. 1.")).toBeInTheDocument();
+    expect(screen.queryByText(/ui_language/)).not.toBeInTheDocument();
+  });
+
   it("resumes: prior messages render before the live ones", () => {
     sessionMessages = {
       initialMessages: [{ id: "hist-1", role: "assistant", content: "Earlier turn", timestamp: 1 }],

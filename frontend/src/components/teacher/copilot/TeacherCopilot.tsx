@@ -370,7 +370,12 @@ function CopilotChat<P>({
               // Assistant turns are Markdown (bold, lists, links) — render them,
               // don't show the raw source. navigateToBlock is a no-op here (no
               // document-citation surface in the co-pilot panel).
-              <ChatMarkdown content={m.content} navigateToBlock={() => {}} />
+              // A small model sometimes echoes the turn's language tag at the start
+              // of its reply; it is plumbing, never content.
+              <ChatMarkdown
+                content={m.content.replace(UI_LANGUAGE_TAG, "")}
+                navigateToBlock={() => {}}
+              />
             )}
           </article>
         ))}
