@@ -51,6 +51,11 @@ const defaultHook = {
 let hook: UseSkillAgentReturn = defaultHook;
 vi.mock("@/hooks/useSkillAgent", () => ({ useSkillAgent: () => hook }));
 
+const fetchWithTeacherAuth = vi.fn();
+vi.mock("@/lib/apiClient", () => ({
+  fetchWithTeacherAuth: (...args: unknown[]) => fetchWithTeacherAuth(...args),
+}));
+
 let sessionMessages: { initialMessages: unknown[] } = { initialMessages: [] };
 vi.mock("@/hooks/useSessionMessages", () => ({ useSessionMessages: () => sessionMessages }));
 
@@ -311,5 +316,63 @@ describe("TeacherCopilot (shared shell)", () => {
     // Even with a tool call present, no Apply card appears (nothing to apply).
     expect(screen.queryByTestId("proposal-card")).not.toBeInTheDocument();
     expect(screen.getByTestId("teacher-copilot")).toBeInTheDocument();
+  });
+});
+
+describe("TeacherCopilot on a phone, and after a dropped connection", () => {
+  beforeEach(() => {
+    vi.stubGlobal("localStorage", fakeStorage);
+    fetchWithTeacherAuth.mockReset();
+  });
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("docked: a launcher opens the chat as a sheet, and the chat stays mounted when it closes", () => {
+    render(<TeacherCopilot {...config()} docked />);
+    const launcher = screen.getByTestId("docked-copilot-launcher");
+    const panel = screen.getByTestId("docked-copilot");
+    expect(panel.className).toMatch(/(^| )hidden( |$)/);
+    expect(panel.className).toContain("lg:flex");
+    fireEvent.click(launcher);
+    expect(panel.className).toContain("fixed inset-0");
+    expect(launcher.className).toMatch(/(^| )hidden( |$)/);
+    fireEvent.click(screen.getByTestId("docked-copilot-close"));
+    expect(panel.className).toMatch(/(^| )hidden( |$)/);
+    // Hidden, not unmounted: a build keeps streaming while the teacher looks at the sim.
+    expect(screen.getByTestId("teacher-copilot")).toBeInTheDocument();
+  });
+
+  it("docked: the launcher says when the assistant is working", () => {
+    hook = { ...defaultHook, isLoading: true };
+    render(<TeacherCopilot {...config()} docked />);
+    expect(screen.getByTestId("docked-copilot-launcher")).toHaveTextContent("Working…");
+  });
+
+  it("a lost connection waits for the server's run instead of asking to try again", async () => {
+    fetchWithTeacherAuth
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ running: true }) })
+      .mockResolvedValue({ ok: true, json: async () => ({ running: false }) });
+    hook = {
+      ...defaultHook,
+      error: { kind: "network", code: "connectionLost", message: "Connection lost. Try again.", retryable: true },
+    } as UseSkillAgentReturn;
+    render(<TeacherCopilot {...config()} persistKey="k" />);
+    expect(await screen.findByTestId("copilot-still-working")).toBeInTheDocument();
+    expect(screen.queryByText("Connection lost. Try again.")).not.toBeInTheDocument();
+    await waitFor(() => expect(fetchWithTeacherAuth).toHaveBeenCalledTimes(1));
+    expect(fetchWithTeacherAuth.mock.calls[0][0]).toMatch(/^\/api\/proxy\/api\/skill-runs\//);
+  });
+
+  it("a send refused while the last turn runs goes back in the box", async () => {
+    fetchWithTeacherAuth.mockResolvedValue({ ok: true, json: async () => ({ running: true }) });
+    const clearTurnRefused = vi.fn();
+    hook = {
+      ...defaultHook,
+      turnRefused: "[ui_language=en] [class_id=c1] make it blue",
+      clearTurnRefused,
+    } as unknown as UseSkillAgentReturn;
+    render(<TeacherCopilot {...config()} stripPrefix={(c: string) => c.replace("[class_id=c1] ", "")} />);
+    await waitFor(() => expect(clearTurnRefused).toHaveBeenCalled());
+    expect(screen.getByRole("textbox")).toHaveValue("make it blue");
+    expect(screen.getByTestId("copilot-still-working")).toHaveTextContent(/still running/);
   });
 });

@@ -54,7 +54,7 @@ export function SimDraftPreview({
       loadHtml={loadHtml}
       onUpdateModelContext={() => {}}
       title={t("previewTitle", { n: version })}
-      className="h-[620px] w-full rounded border border-border bg-white"
+      className="h-[min(620px,80dvh)] w-full rounded border border-border bg-white"
     />
   );
 }

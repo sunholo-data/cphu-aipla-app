@@ -116,7 +116,10 @@
   "FloatingCopilot": {
     "minimize": "Minimér",
     "newChat": "Ny samtale",
-    "close": "Luk"
+    "close": "Luk",
+    "openChat": "Åbn samtalen",
+    "backToPage": "Tilbage til siden",
+    "working": "Arbejder…"
   },
   "TeacherCopilot": {
     "apply": "Anvend",
@@ -130,7 +133,9 @@
     "stage_simReading": "Læser vejledningen ({topic})…",
     "stage_simChecking": "Tjekker version {version} i browseren…",
     "stage_simChecked": "Version {version}: niveau {level} af 3. Ser på skærmbillederne…",
-    "stage_simEditing": "Retter {count} sted(er)…"
+    "stage_simEditing": "Retter {count} sted(er)…",
+    "stillWorking": "Arbejder stadig. Forbindelsen blev afbrudt (det sker, når en telefons skærm låser), men arbejdet fortsætter, og samtalen opdateres, når det er færdigt.",
+    "resendHint": "Din besked blev ikke sendt, fordi den forrige stadig kører. Den står i feltet igen: send den, når samtalen er opdateret."
   },
   "DefaultsCard": {
     "flagAuthoringCopilot": "Aktivitets-medbygger (AI co-pilot i aktivitetsbyggeren)",

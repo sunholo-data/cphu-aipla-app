@@ -58,6 +58,14 @@ export function FloatingCopilot({
   const t = useT("FloatingCopilot");
   const [minimized, setMinimized] = useState(true);
   const pos = align === "left" ? "bottom-4 left-4" : "bottom-4 right-4";
+  // On a phone the open panel is the whole screen (a sheet over the page and
+  // its bottom bar): a 384px box in a corner left the chat a few lines tall,
+  // under the bottom bar, and pushed off screen by the keyboard. From `sm` up
+  // it is the corner panel.
+  const panelPos =
+    align === "left"
+      ? "inset-0 sm:inset-auto sm:bottom-4 sm:left-4"
+      : "inset-0 sm:inset-auto sm:bottom-4 sm:right-4";
   const closable = Boolean(onClose);
   // 1.1.125 M3 — inside the teacher shell the ENTRY is the header's one button,
   // so a work copilot registers itself there and renders no pill of its own.
@@ -89,7 +97,7 @@ export function FloatingCopilot({
       <section
         data-testid="copilot-panel"
         aria-label={title}
-        className={`fixed ${pos} z-50 max-h-[70vh] w-[min(384px,calc(100vw-2rem))] flex-col overflow-hidden rounded-xl border border-border bg-background shadow-2xl ${
+        className={`fixed ${panelPos} z-50 h-dvh w-full flex-col overflow-hidden border-border bg-background sm:h-auto sm:max-h-[70vh] sm:w-[min(384px,calc(100vw-2rem))] sm:rounded-xl sm:border sm:shadow-2xl ${
           minimized && !closable ? "hidden" : "flex"
         }`}
       >

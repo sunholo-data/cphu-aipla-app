@@ -208,7 +208,7 @@ export function TeacherNav() {
       {/* Mobile: bottom bar */}
       <nav
         aria-label={t("sections")}
-        className="fixed inset-x-0 bottom-0 z-20 flex items-stretch border-t border-border bg-background md:hidden"
+        className="fixed inset-x-0 bottom-0 z-20 flex items-stretch border-t border-border bg-background pb-[env(safe-area-inset-bottom)] md:hidden"
       >
         {destinations.map((d) => {
           const active = isActive(pathname, d.match);
@@ -221,13 +221,16 @@ export function TeacherNav() {
               title={d.locked ? t("lockedHint") : undefined}
               data-locked={d.locked ? "true" : undefined}
               className={cn(
-                "flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] font-medium",
+                // basis-0 + min-w-0: six or seven destinations share a 390px
+                // phone equally; a long label truncates instead of pushing
+                // the last one off the edge ("Vejledninger" was cut off).
+                "flex min-w-0 flex-1 basis-0 flex-col items-center gap-0.5 px-0.5 py-2 text-[11px] font-medium",
                 active ? "text-primary" : "text-muted-foreground hover:text-foreground",
                 d.locked && "opacity-50",
               )}
             >
               <Icon className="h-5 w-5" aria-hidden="true" />
-              {t(d.label)}
+              <span className="max-w-full truncate">{t(d.label)}</span>
             </Link>
           );
         })}

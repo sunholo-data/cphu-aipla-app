@@ -211,7 +211,10 @@ function SimWorkshop() {
         </div>
       ) : null}
       {/* The workbench: drafts | the sim (try it, screenshots, versions) | the assistant.
-          Stacks on narrow screens, assistant last. */}
+          On a phone the assistant comes FIRST, as a launcher that opens the chat
+          full screen (TeacherCopilot `docked`): describing the sim is the first
+          thing to do, and a chat column at the end of the page put its input
+          under the bottom bar. */}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
         <section className="flex min-w-0 flex-col gap-4">
           <nav
@@ -288,7 +291,7 @@ function SimWorkshop() {
               <VersionPanel draftId={shown.id} version={latest} />
             </>
           ) : (
-            <div className="flex min-h-[320px] items-center justify-center rounded border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+            <div className="flex min-h-[160px] items-center justify-center rounded border border-dashed border-border p-6 text-center text-sm text-muted-foreground lg:min-h-[320px]">
               {drafts?.length && !selected
                 ? t("newChatPlaceholder")
                 : t("previewPlaceholder")}
@@ -317,7 +320,7 @@ function SimWorkshop() {
           {researcher ? <LibraryReview /> : null}
         </section>
 
-        <div className="xl:sticky xl:top-4 xl:self-start">
+        <div className="order-first lg:order-none xl:sticky xl:top-4 xl:self-start">
           <TeacherCopilot
             skillName="sim-author"
             title={t("assistantTitle")}

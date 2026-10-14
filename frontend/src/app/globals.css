@@ -3,6 +3,23 @@
 @tailwind utilities;
 
 /*
+ * iOS zooms the whole page into any focused text control smaller than 16px and
+ * does not zoom back out; the zoomed page then overflows sideways and the
+ * co-pilots' chats no longer fit or scroll (a teacher building a sim on an
+ * iPhone, 2026-10-14). Phones on iOS only (`-webkit-touch-callout` is
+ * WebKit-on-iOS), so desktop keeps the compact text-sm controls.
+ */
+@supports (-webkit-touch-callout: none) {
+  @media (max-width: 639px) {
+    input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+    textarea,
+    select {
+      font-size: 16px;
+    }
+  }
+}
+
+/*
  * Brand colour — KU red.
  *
  * `--primary` used to be `24 95% 53%`, the inherited Sunholo/Aitana orange,

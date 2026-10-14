@@ -68,8 +68,8 @@ export function DefaultsCard() {
         <p className="text-sm text-slate-400">{t("loading")}</p>
       ) : (
         <>
-          <label className="flex items-center gap-2 text-sm text-slate-700">
-            <span className="w-44 shrink-0 text-xs font-medium text-slate-600">{t("languageLabel")}</span>
+          <label className="flex flex-col gap-1 text-sm text-slate-700 sm:flex-row sm:items-center sm:gap-2">
+            <span className="text-xs font-medium text-slate-600 sm:w-44 sm:shrink-0">{t("languageLabel")}</span>
             <select
               aria-label={t("languageAria")}
               value={prefs.defaultLanguage ?? ""}
@@ -79,7 +79,7 @@ export function DefaultsCard() {
                   t("languageSaved"),
                 )
               }
-              className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+              className="min-w-0 max-w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
             >
               <option value="">{t("noDefaultDanish")}</option>
               <option value="da">Dansk</option>
@@ -87,13 +87,13 @@ export function DefaultsCard() {
             </select>
           </label>
 
-          <label className="flex items-center gap-2 text-sm text-slate-700">
-            <span className="w-44 shrink-0 text-xs font-medium text-slate-600">{t("tutorLabel")}</span>
+          <label className="flex flex-col gap-1 text-sm text-slate-700 sm:flex-row sm:items-center sm:gap-2">
+            <span className="text-xs font-medium text-slate-600 sm:w-44 sm:shrink-0">{t("tutorLabel")}</span>
             <select
               aria-label={t("tutorAria")}
               value={prefs.defaultPersonaId ?? ""}
               onChange={(e) => void put({ defaultPersonaId: e.target.value || null }, t("tutorSaved"))}
-              className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+              className="min-w-0 max-w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
             >
               <option value="">{t("noDefault")}</option>
               {personas.map((p) => (
@@ -108,8 +108,8 @@ export function DefaultsCard() {
               to turn it OFF; a teacher who never opens this page gets the map,
               which is the point of a default. Per-activity removal still wins:
               this only seeds a NEW activity. */}
-          <label className="flex items-center gap-2 text-sm text-slate-700">
-            <span className="w-44 shrink-0 text-xs font-medium text-slate-600">{t("conceptMapLabel")}</span>
+          <label className="flex flex-col gap-1 text-sm text-slate-700 sm:flex-row sm:items-center sm:gap-2">
+            <span className="text-xs font-medium text-slate-600 sm:w-44 sm:shrink-0">{t("conceptMapLabel")}</span>
             <input
               type="checkbox"
               aria-label={t("conceptMapAria")}

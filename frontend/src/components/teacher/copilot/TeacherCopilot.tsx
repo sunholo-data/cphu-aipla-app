@@ -1,13 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Send, Sparkles, SquarePen } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { ChevronDown, Send, Sparkles, SquarePen } from "lucide-react";
 
 import { AGUIProvider } from "@/providers/AGUIProvider";
 import { useSkillAgent } from "@/hooks/useSkillAgent";
 import { useSkillSlugResolver } from "@/hooks/useSkillSlugResolver";
 import { useSessionMessages } from "@/hooks/useSessionMessages";
 import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
+import { fetchWithTeacherAuth } from "@/lib/apiClient";
 
 import { FloatingCopilot } from "./FloatingCopilot";
 import { ProposalCard } from "./ProposalCard";
@@ -64,6 +65,8 @@ export function TeacherCopilot<P>(config: TeacherCopilotConfig<P>) {
   // lives several layers down, inside the AG-UI provider. Cleared by the chat
   // when it goes out, so the same ask cannot fire twice.
   const [pendingAsk, setPendingAsk] = useState<string | null>(null);
+  // Whether a turn is running, for the docked panel's phone launcher.
+  const [busy, setBusy] = useState(false);
 
   const newChat = useCallback(() => {
     const fresh = crypto.randomUUID();
@@ -96,12 +99,13 @@ export function TeacherCopilot<P>(config: TeacherCopilotConfig<P>) {
 
   if (config.docked) {
     return (
-      <DockedCopilot title={config.title} onNewChat={newChat}>
+      <DockedCopilot title={config.title} onNewChat={newChat} busy={busy}>
         <CopilotResolver
           config={config}
           threadId={threadId}
           pendingAsk={pendingAsk}
           onAskSent={() => setPendingAsk(null)}
+          onBusyChange={setBusy}
         />
       </DockedCopilot>
     );
@@ -125,22 +129,50 @@ export function TeacherCopilot<P>(config: TeacherCopilotConfig<P>) {
   );
 }
 
-/** The co-pilot as a page column (same header and chat as the floating panel). */
+/**
+ * The co-pilot as a page column (same header and chat as the floating panel).
+ *
+ * Below `lg` a column under the page put the chat a long scroll down, its input
+ * under the phone's bottom bar, scrolling inside a scrolling page. There it is a
+ * launcher instead, opening the chat as a full-screen sheet. The chat stays
+ * MOUNTED while the sheet is closed (hidden, not unmounted), so a build keeps
+ * streaming while the teacher looks at the sim.
+ */
 function DockedCopilot({
   title,
   onNewChat,
+  busy,
   children,
 }: {
   title: string;
   onNewChat: () => void;
+  busy: boolean;
   children: React.ReactNode;
 }) {
   const t = useT("FloatingCopilot");
+  const [open, setOpen] = useState(false);
   return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        data-testid="docked-copilot-launcher"
+        className={`${open ? "hidden" : "flex"} w-full items-center justify-between gap-3 rounded border border-border bg-background px-3 py-3 text-left text-sm shadow-sm lg:hidden`}
+      >
+        <span className="flex items-center gap-2 font-medium">
+          <Sparkles className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+          {title}
+        </span>
+        <span
+          className={`shrink-0 text-xs ${busy ? "animate-pulse text-foreground" : "text-muted-foreground"}`}
+        >
+          {busy ? t("working") : t("openChat")}
+        </span>
+      </button>
     <section
       aria-label={title}
       data-testid="docked-copilot"
-      className="flex h-[min(80vh,760px)] min-h-[420px] flex-col overflow-hidden rounded border border-border bg-background"
+      className={`${open ? "fixed inset-0 z-50 flex h-dvh" : "hidden"} flex-col overflow-hidden bg-background lg:static lg:z-auto lg:flex lg:h-[min(80vh,760px)] lg:min-h-[420px] lg:rounded lg:border lg:border-border`}
     >
       <div className="flex items-center justify-between border-b border-border bg-muted/40 px-3 py-2">
         <h2 className="flex items-center gap-2 text-sm font-medium">
@@ -150,17 +182,29 @@ function DockedCopilot({
           />{" "}
           {title}
         </h2>
-        <button
-          type="button"
-          onClick={onNewChat}
-          aria-label={t("newChat")}
-          className="rounded p-1 text-muted-foreground hover:bg-muted"
-        >
-          <SquarePen className="h-4 w-4" aria-hidden="true" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={onNewChat}
+            aria-label={t("newChat")}
+            className="rounded p-2 text-muted-foreground hover:bg-muted lg:p-1"
+          >
+            <SquarePen className="h-4 w-4" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label={t("backToPage")}
+            data-testid="docked-copilot-close"
+            className="rounded p-2 text-muted-foreground hover:bg-muted lg:hidden"
+          >
+            <ChevronDown className="h-5 w-5" aria-hidden="true" />
+          </button>
+        </div>
       </div>
       {children}
     </section>
+    </>
   );
 }
 
@@ -174,14 +218,20 @@ function CopilotResolver<P>({
   threadId,
   pendingAsk,
   onAskSent,
+  onBusyChange,
 }: {
   config: TeacherCopilotConfig<P>;
   threadId: string;
   pendingAsk?: string | null;
   onAskSent?: () => void;
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const { skillId, resolveError } = useSkillSlugResolver(config.skillName);
   const labels = useCopilotLabels(config.labels);
+  // Bumped to remount the chat, which reloads the conversation from the server
+  // (after a dropped stream, once the run it lost has finished).
+  const [reloadSeq, setReloadSeq] = useState(0);
+  const reload = useCallback(() => setReloadSeq((n) => n + 1), []);
 
   if (resolveError) {
     return (
@@ -205,7 +255,7 @@ function CopilotResolver<P>({
   }
   return (
     <AGUIProvider
-      key={skillId}
+      key={`${skillId}:${reloadSeq}`}
       skillId={skillId}
       sessionId={threadId || undefined}
       useTeacherAuth
@@ -215,6 +265,8 @@ function CopilotResolver<P>({
         threadId={threadId}
         pendingAsk={pendingAsk}
         onAskSent={onAskSent}
+        onBusyChange={onBusyChange}
+        onReload={reload}
       />
     </AGUIProvider>
   );
@@ -269,16 +321,84 @@ function stageText(
   return key ? t(key, stage.params) : stage.label;
 }
 
+/** How long the page must have been hidden mid-turn before the stream is
+ *  presumed dead: iOS suspends a backgrounded tab and its fetch with it. */
+const HIDDEN_DROP_MS = 10_000;
+const RUN_POLL_MS = 4000;
+
+/**
+ * Keep a scrolling list pinned to its newest line while the reader is at the
+ * bottom; leave it alone once they scroll up to read back. Pinned on mount, so
+ * a reopened conversation opens at its end.
+ */
+function useStickToBottom(dep: unknown) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  const pinned = useRef(true);
+  const onScroll = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    pinned.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  }, []);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (el && pinned.current) el.scrollTop = el.scrollHeight;
+  }, [dep]);
+  return { ref, onScroll };
+}
+
+/**
+ * After a dropped stream: ask the server whether the turn is still running
+ * (protocols/detached_runs.py: a teacher's turn finishes without its client),
+ * and call `onDone` once it is not, so the conversation can be reloaded.
+ */
+function useWaitForRun(
+  threadId: string,
+  watching: boolean,
+  onDone: (() => void) | undefined,
+) {
+  useEffect(() => {
+    if (!watching || !threadId) return;
+    let cancelled = false;
+    let timer: number | undefined;
+    const check = async () => {
+      try {
+        const res = await fetchWithTeacherAuth(
+          `/api/proxy/api/skill-runs/${encodeURIComponent(threadId)}`,
+        );
+        const body = res.ok ? ((await res.json()) as { running?: boolean }) : {};
+        if (cancelled) return;
+        if (body.running) {
+          timer = window.setTimeout(check, RUN_POLL_MS);
+          return;
+        }
+        onDone?.();
+      } catch {
+        // Still offline (the phone is waking up): ask again shortly.
+        if (!cancelled) timer = window.setTimeout(check, RUN_POLL_MS);
+      }
+    };
+    void check();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [threadId, watching, onDone]);
+}
+
 function CopilotChat<P>({
   config,
   threadId,
   pendingAsk,
   onAskSent,
+  onBusyChange,
+  onReload,
 }: {
   config: TeacherCopilotConfig<P>;
   threadId: string;
   pendingAsk?: string | null;
   onAskSent?: () => void;
+  onBusyChange?: (busy: boolean) => void;
+  onReload?: () => void;
 }) {
   const labels = useCopilotLabels(config.labels);
   const t = useT("TeacherCopilot");
@@ -290,6 +410,9 @@ function CopilotChat<P>({
     error,
     stage,
     thinkingContent,
+    stop,
+    turnRefused,
+    clearTurnRefused,
   } = useSkillAgent();
   const elapsed = useElapsedSeconds(isLoading);
   const localeMode = useLocaleMode();
@@ -308,6 +431,54 @@ function CopilotChat<P>({
     (m) => m.content && m.content.trim().length > 0,
   );
   const [input, setInput] = useState("");
+
+  useEffect(() => {
+    onBusyChange?.(isLoading);
+  }, [isLoading, onBusyChange]);
+
+  // A phone drops the stream when its screen locks or the browser goes to the
+  // background; the turn carries on on the server. Rather than "Connection
+  // lost. Try again." (which would start a second build), wait for the run to
+  // finish and reload the conversation, which then holds the whole turn.
+  const [watching, setWatching] = useState(false);
+  const [resendHint, setResendHint] = useState(false);
+  useEffect(() => {
+    if (error?.kind === "network") setWatching(true);
+  }, [error]);
+  const loadingRef = useRef(isLoading);
+  loadingRef.current = isLoading;
+  useEffect(() => {
+    let hiddenAt: number | null = null;
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        hiddenAt = Date.now();
+        return;
+      }
+      const away = hiddenAt === null ? 0 : Date.now() - hiddenAt;
+      hiddenAt = null;
+      // The suspended fetch may never settle by itself: let it go.
+      if (away >= HIDDEN_DROP_MS && loadingRef.current) {
+        setWatching(true);
+        stop();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
+  }, [stop]);
+  // A send refused because the last turn is still running (HTTP 409): put the
+  // text back in the box and wait with the teacher.
+  useEffect(() => {
+    if (!turnRefused) return;
+    clearTurnRefused();
+    setInput(
+      (config.stripPrefix ?? ((c: string) => c))(
+        turnRefused.replace(UI_LANGUAGE_TAG, ""),
+      ),
+    );
+    setResendHint(true);
+    setWatching(true);
+  }, [turnRefused, clearTurnRefused, config.stripPrefix]);
+  useWaitForRun(threadId, watching, onReload);
 
   // Send a surface-asked question as a turn, once. Cleared BEFORE the await so
   // a re-render mid-flight cannot send it twice; a question that arrives while
@@ -341,6 +512,9 @@ function CopilotChat<P>({
     visibleMessages.length === 0 && proposals.length === 0 && !isLoading;
   const surfaceStrip = config.stripPrefix ?? ((c: string) => c);
   const strip = (c: string) => surfaceStrip(c.replace(UI_LANGUAGE_TAG, ""));
+  const scroller = useStickToBottom(
+    `${visibleMessages.length}:${visibleMessages[visibleMessages.length - 1]?.content.length ?? 0}:${proposals.length}:${isLoading}:${thinkingContent?.length ?? 0}:${watching}`,
+  );
 
   return (
     <div
@@ -348,7 +522,9 @@ function CopilotChat<P>({
       data-testid={config.testId ?? "teacher-copilot"}
     >
       <div
-        className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-3"
+        ref={scroller.ref}
+        onScroll={scroller.onScroll}
+        className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain p-3"
         aria-live="polite"
       >
         {empty ? (
@@ -419,7 +595,16 @@ function CopilotChat<P>({
         ) : null}
       </div>
 
-      {error ? (
+      {watching ? (
+        <div
+          role="status"
+          data-testid="copilot-still-working"
+          className="mx-3 mb-1 flex flex-col gap-1 rounded border border-border bg-muted/60 p-2 text-xs text-muted-foreground"
+        >
+          <span className="animate-pulse">{t("stillWorking")}</span>
+          {resendHint ? <span>{t("resendHint")}</span> : null}
+        </div>
+      ) : error ? (
         <div
           role="alert"
           className="mx-3 mb-1 rounded border border-destructive bg-destructive/10 p-2 text-xs text-destructive"
@@ -441,7 +626,7 @@ function CopilotChat<P>({
 
       <form
         onSubmit={onSubmit}
-        className={`flex items-stretch gap-2 p-2 ${config.helpLink ? "" : "border-t border-border"}`}
+        className={`flex items-stretch gap-2 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] ${config.helpLink ? "" : "border-t border-border"}`}
       >
         <input
           type="text"
@@ -450,7 +635,9 @@ function CopilotChat<P>({
           onChange={(e) => setInput(e.target.value)}
           disabled={isLoading}
           placeholder={config.placeholder}
-          className="min-w-0 flex-1 rounded border border-border bg-background px-3 py-2 text-sm"
+          // 16px on phones: iOS zooms the whole page into any smaller input on
+          // focus, and the zoomed page no longer fits or scrolls properly.
+          className="min-w-0 flex-1 rounded border border-border bg-background px-3 py-2 text-base sm:text-sm"
         />
         <button
           type="submit"

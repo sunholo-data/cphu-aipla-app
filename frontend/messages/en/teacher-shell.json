@@ -116,7 +116,10 @@
   "FloatingCopilot": {
     "minimize": "Minimize",
     "newChat": "New chat",
-    "close": "Close"
+    "close": "Close",
+    "openChat": "Open the chat",
+    "backToPage": "Back to the page",
+    "working": "Working…"
   },
   "TeacherCopilot": {
     "apply": "Apply",
@@ -130,7 +133,9 @@
     "stage_simReading": "Reading the {topic} guide…",
     "stage_simChecking": "Checking version {version} in the browser…",
     "stage_simChecked": "Version {version}: level {level} of 3. Looking at the screenshots…",
-    "stage_simEditing": "Applying {count} edit(s)…"
+    "stage_simEditing": "Applying {count} edit(s)…",
+    "stillWorking": "Still working. The connection dropped (a phone does this when its screen locks), but the work carries on, and this chat updates when it is done.",
+    "resendHint": "Your message was not sent because the last request is still running. It is back in the box: send it when the chat has updated."
   },
   "DefaultsCard": {
     "flagAuthoringCopilot": "Activity co-pilot (AI helper in the activity builder)",
