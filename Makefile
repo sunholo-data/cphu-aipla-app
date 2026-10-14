@@ -683,7 +683,7 @@ check-tutor-docs: ## Fail if the tutor docs have drifted from the framework YAML
 # calls; without --go it refuses to call anything. Reads the env's Firestore
 # (skill + approach instructions) and calls Vertex as your ADC.
 .PHONY: smoke-sim-verify
-smoke-sim-verify: ## Authenticated end-to-end check of the private sim-verify service (ENV=dev)
+smoke-sim-verify: ## Authenticated end-to-end check of the private sim-verify service (ENV=dev; FILE=<index.html> ID=<id> to check any page)
 	@scripts/smoke-sim-verify.sh $(or $(ENV),dev)
 
 .PHONY: sim-author-local

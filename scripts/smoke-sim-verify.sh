@@ -14,8 +14,12 @@ U=$(curl -s -o /dev/null -w '%{http_code}' "$URL/ready")
 [ "$U" = "403" ] || [ "$U" = "401" ] || { echo "FAIL: unauthenticated /ready answered $U" >&2; exit 1; }
 echo "OK    unauthenticated call refused ($U)"
 TOKEN=$(gcloud auth print-identity-token)
-BODY=$(python3 -c 'import json,sys; print(json.dumps({"index_html": open(sys.argv[1]).read(), "artefact_id": "wave-speed"}))' \
-  "$REPO/infrastructure/mcp-sandbox/artefacts/wave-speed/v1/index.html")
+# Any page can be checked: FILE=<index.html> ID=<artefact id> (e.g. a Sim workshop
+# draft that loads the vendored libraries); the default is a built-in sim.
+SIM_FILE="${FILE:-$REPO/infrastructure/mcp-sandbox/artefacts/wave-speed/v1/index.html}"
+SIM_ID="${ID:-wave-speed}"
+BODY=$(python3 -c 'import json,sys; print(json.dumps({"index_html": open(sys.argv[1]).read(), "artefact_id": sys.argv[2]}))' \
+  "$SIM_FILE" "$SIM_ID")
 OUT=$(curl -s --max-time 170 -X POST -H "Authorization: Bearer $TOKEN" -H 'content-type: application/json' --data-binary "$BODY" "$URL/verify")
 python3 - "$OUT" <<'PY'
 import json, sys
