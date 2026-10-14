@@ -12,7 +12,9 @@ for f in \
   .claude/skills/mcp-app-artefact/scripts/verify_sim.mjs \
   scripts/build-artefact-bridge.mjs \
   infrastructure/mcp-sandbox/bridge/aipla-mcp-bridge.js \
-  infrastructure/mcp-sandbox/vendor.json; do
+  infrastructure/mcp-sandbox/vendor.json \
+  infrastructure/mcp-sandbox/package.json \
+  infrastructure/mcp-sandbox/package-lock.json; do
   mkdir -p "$CTX/$(dirname "$f")" && cp "$REPO/$f" "$CTX/$f"
 done
 mkdir -p "$CTX/infrastructure/mcp-sandbox" && cp -R "$REPO/infrastructure/mcp-sandbox/vendor-src" "$CTX/infrastructure/mcp-sandbox/"

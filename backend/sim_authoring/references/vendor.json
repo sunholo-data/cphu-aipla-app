@@ -20,6 +20,36 @@
           "sha384": "NDD+aJ7n1r1Dqby+WDZG35lXeSNJzeiyL9DtU0CZYBm0ZFab2pK8D39Xoyl5fBuz"
         }
       }
+    },
+    "uplot": {
+      "version": "1.6.32",
+      "why": "Live x-y plots (x-t, v-t, p-V, energy) for generated sims: axes, ticks and scaling are where generated canvas graphs most often go wrong. ~50 KB, exposes the global uPlot. Its 1.8 KB stylesheet is inlined by the sim (guide: backend/sim_authoring/references/plots.md), not served.",
+      "files": {
+        "uPlot.iife.min.js": {
+          "from": "node_modules/uplot/dist/uPlot.iife.min.js",
+          "sha384": "Gx3t0zdBAuQOuvvmaLZj7HKEiSgWTAs+VdtNY7wt19QDPTDQjFIwAuXDj0zeN00c"
+        }
+      }
+    },
+    "matter-js": {
+      "version": "0.20.0",
+      "why": "2D rigid-body contact (billiards, stacking, ramps with friction, chains) that is hard to hand-write. Approximate impulse solver: a sim that shows measured momentum or energy states its tolerance, and 1D collisions use aipla-physics' exact formula instead. ~83 KB, exposes the global Matter.",
+      "files": {
+        "matter.min.js": {
+          "from": "node_modules/matter-js/build/matter.min.js",
+          "sha384": "ZRKYEXtLBVeqs9z1WxyeKutCqnkqolS/r1EUWuoUpG4ZKbnRAIXnHhHdnNuiB6CL"
+        }
+      }
+    },
+    "aipla-physics": {
+      "version": "0.1.0",
+      "why": "AIPLA's own small helpers (fixed-step loop, RK4/Verlet, exact 1D and disc collisions, seeded measurement noise, instrument resolution, Danish number format). Not on npm: written here, tested in __tests__/aipla-physics.test.ts (exception recorded in vendored-libraries.md). ~9 KB, exposes window.AIPLA_PHYSICS.",
+      "files": {
+        "aipla-physics.js": {
+          "from": "vendor-src/aipla-physics/0.1.0/aipla-physics.js",
+          "sha384": "Bhy1FUdl5XhJpO5DGPO9e02yg2BRFggVxot5yVw9ithViFKLv2O1LrKkLjAfIwVr"
+        }
+      }
     }
   }
 }

@@ -8,7 +8,8 @@ AIPLA sims: the browser drawing functions only, no build step, no WebGL.
 
 ## Load it
 
-The ONE external script a sim may load. Exactly this tag, in `<head>`:
+One of the few vendored scripts a sim may load (the others: `physics-helper`,
+`plots`, `collisions`). Exactly this tag, in `<head>`:
 
 ```html
 <script src="/vendor/anatomy-kit/689dcf9/iso-kit.js"

@@ -115,9 +115,23 @@ HARD CONSTRAINTS (a violation renders a blank frame with no error):
 - NO nested <iframe>.
 - NO frameworks. No React, Vue, Svelte, jQuery, D3, Chart.js.
   Use plain DOM, <canvas> and requestAnimationFrame.
-- ONE permitted library: three.js r128, for a sim that genuinely needs 3D.
-  Load it with exactly this tag, which the platform serves from its own origin
-  (it is not a CDN), and use the global THREE:
+- PERMITTED LIBRARIES: the platform serves a few from its own origin (they are
+  not CDNs). Load one ONLY with its exact tag below, in <head>, and only if the
+  sim uses it:
+  * aipla-physics: the tested helper for moving sims (global AIPLA_PHYSICS):
+    a fixed-step loop, RK4/Verlet integrators, EXACT 1D and disc collisions,
+    seeded measurement noise, instrument resolution, Danish number format.
+    Prefer it to writing your own loop, integrator or collision.
+    <script src="/vendor/aipla-physics/0.1.0/aipla-physics.js" integrity="sha384-Bhy1FUdl5XhJpO5DGPO9e02yg2BRFggVxot5yVw9ithViFKLv2O1LrKkLjAfIwVr" crossorigin="anonymous"></script>
+  * uPlot 1.6.32: live x-y graphs (global uPlot). Set scales.x.time=false.
+    Its CSS is not served; inline what you need.
+    <script src="/vendor/uplot/1.6.32/uPlot.iife.min.js" integrity="sha384-Gx3t0zdBAuQOuvvmaLZj7HKEiSgWTAs+VdtNY7wt19QDPTDQjFIwAuXDj0zeN00c" crossorigin="anonymous"></script>
+  * matter.js 0.20.0: 2D rigid bodies with contact (stacking, friction, ramps,
+    many bodies), global Matter. Step it in fixed steps; draw the bodies
+    yourself. Its momentum/energy are approximate: for a momentum lab on a line
+    use AIPLA_PHYSICS.collide1d instead.
+    <script src="/vendor/matter-js/0.20.0/matter.min.js" integrity="sha384-ZRKYEXtLBVeqs9z1WxyeKutCqnkqolS/r1EUWuoUpG4ZKbnRAIXnHhHdnNuiB6CL" crossorigin="anonymous"></script>
+  * three.js r128: only for a sim that genuinely needs 3D (global THREE).
     <script src="/vendor/three/0.128.0/three.min.js" integrity="sha384-CI3ELBVUz9XQO+97x6nwMDPosPR5XvsxW2ua7N1Xeygeh1IxtgqtCkGfQY9WWdHu" crossorigin="anonymous"></script>
   Nothing else may be loaded. If you think you need another library, say so in
   the self-check instead of loading it.
@@ -454,7 +468,8 @@ BEFORE YOU ANSWER — check your own output
 
 1. Search your HTML for: http://, https://, fetch(, XMLHttpRequest, WebSocket,
    eval(, new Function(, <iframe, localStorage, postMessage. All must be
-   absent. The only <script src> is the three.js tag above, exactly, if used.
+   absent. Every <script src> is one of the permitted-library tags above,
+   exactly, and only the ones the sim uses.
 2. The three bridge lines are present and exact, and you did not write a bridge.
 3. Every user-facing string is in `strings`; the markup has only data-t keys.
 4. At least one emit carries a `label`; passive events carry none.

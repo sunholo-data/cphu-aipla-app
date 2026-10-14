@@ -69,6 +69,12 @@ Danish upper-secondary physics (stx). It will run in a sandboxed panel about
    tank), also read `read_reference("anatomy-kit")` and draw the apparatus with
    the kit: load it with the exact tag in that guide and build the apparatus from
    its solids. Do not write your own renderer for the apparatus.
+   For anything that MOVES, read `read_reference("physics-helper")` and use
+   `AIPLA_PHYSICS`: its fixed-step loop, its integrators and its exact
+   collisions, never your own. For a live graph, read `read_reference("plots")`
+   and use uPlot. For contact between bodies (stacking, friction, a ramp, many
+   bodies), read `read_reference("collisions")` first: it says when matter.js is
+   right and when the exact helper is. Load only the libraries the sim uses.
 3. **Draft, then check.** Write both files and call `verify_sim` with BOTH,
    complete, and with `hidden_terms`: the quantity the student must derive as it
    could appear on screen (symbol, Danish and English words, the value). Read every failure and fix it. LOOK at the screenshots: does what is

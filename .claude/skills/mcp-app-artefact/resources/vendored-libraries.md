@@ -38,8 +38,17 @@ not the artefact. `/vendor/…` resolves the same in both.
 
 A library earns a place when it does something a sim cannot reasonably do in
 vanilla JS **and** more than one future sim is likely to want it. three.js
-qualifies (WebGL scene graph, cameras, lighting). A charting library does not:
-every existing sim draws its graphs on a `<canvas>` in a few dozen lines.
+qualifies (WebGL scene graph, cameras, lighting).
+
+**Revised 2026-10-14 for generated sims.** This file used to say a charting
+library does not qualify, because every hand-built sim draws its graphs on a
+`<canvas>` in a few dozen lines. That holds for a sim a person writes and
+checks. For sims a model writes in the Sim workshop, the few dozen lines are
+exactly where it goes wrong (ticks, scaling, a decimal point in a Danish
+axis), so **uPlot** (1.6.32, ~50 KB) is admitted, along with **matter.js**
+(0.20.0, ~83 KB) for 2D contact that is genuinely hard to hand-write. Each
+comes with a guide the in-app assistant reads (`backend/sim_authoring/references/`),
+and `test_sim_library_guides.py` fails if a guide's tag drifts from this manifest.
 
 1. `cd infrastructure/mcp-sandbox && npm install --save-exact <lib>@<version>`
 2. Hash the file: `openssl dgst -sha384 -binary node_modules/<path> | openssl base64 -A`
@@ -73,6 +82,20 @@ generated sims (in-app-sim-authoring H3): the authoring model draws the
 apparatus with it instead of inventing its own renderer. It is not yet in the
 published authoring prompt; it is offered by the benchmark's `h3` harness and
 the in-app authoring skill's guide (`backend/sim_authoring/references/anatomy-lite.md`).
+
+## The second exception: aipla-physics (2026-10-14)
+
+`/vendor/aipla-physics/0.1.0/aipla-physics.js` is AIPLA's own: a fixed-step
+loop, RK4/Verlet, exact 1D and disc collisions, seeded measurement noise,
+instrument resolution and the Danish number format, so generated sims stop
+re-deriving the parts where physics silently goes wrong. It is not a package
+because there is nothing upstream to track; the safeguards stand in like this:
+
+| npm layer | here |
+|---|---|
+| exact version | the version path segment; a change is a new version beside the old, never an edit |
+| lockfile integrity | the file is committed and its sha384 is in `vendor.json`; the server refuses mismatched bytes |
+| audit | it has no dependencies; `__tests__/aipla-physics.test.ts` checks its physics against the textbook (projectile range, spring energy, momentum in 1D and 2D) |
 
 ## three.js specifics
 

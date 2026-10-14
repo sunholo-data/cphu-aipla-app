@@ -304,6 +304,33 @@ the frame itself). An activity *adopted* from another teacher keeps its
 `artefactId` without re-validation, so a class-level sim can travel that way;
 withdrawing the sim still removes it everywhere.
 
+## Libraries for the model (2026-10-14)
+
+M asked which vendored libraries would make the model's job easier. Three were
+added, each with a guide the assistant reads through `read_reference` (hashes
+filled from `vendor.json` at read time; `test_sim_library_guides.py` fails on any
+drift) and listed in the authoring prompt for external chats:
+
+| Library | For | Why not hand-written |
+|---|---|---|
+| `aipla-physics` 0.1.0 (ours, ~9 KB) | fixed-step loop, RK4/Verlet, exact 1D and disc collisions, seeded measurement noise, instrument resolution, Danish number format | the parts where generated physics silently goes wrong; tested against the textbook in `__tests__/aipla-physics.test.ts` |
+| uPlot 1.6.32 (~50 KB) | live x-y graphs | axes, ticks and scaling are where generated canvas graphs fail |
+| matter.js 0.20.0 (~83 KB) | 2D contact: stacking, friction, ramps, many bodies | hard to hand-write; approximate, so a momentum lab on a line uses the exact helper instead |
+
+sim-verify now installs the vendored npm libraries from the sandbox's own
+lockfile (it hand-pinned three.js before), so the checker serves the same
+bytes as the sandbox.
+
+**First build with them (local, gemini-3.8-flash):** a two-cart collision lab.
+The assistant read `physics-helper` and `plots` and not `collisions` (right:
+1D needs the exact helper, not an engine), loaded both libraries, used the
+fixed-step loop, uPlot with `time: false` and the Danish format, and reached
+level 3 in two versions, 435 s. It wrote its own collision formula, correct
+but not the helper's, and its defaults did not collide (both carts at
+0,20 m/s) with an empty graph axis to 100 s. Both lessons are now in the
+guides ("call `P.collide1d`"; "defaults must show the physics on the first
+press"; "give the time axis one run's length").
+
 ## Part 3 — a monthly quota, shown as you go (M7)
 
 Authoring is the most expensive thing the app will do per request: one build is

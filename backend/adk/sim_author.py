@@ -42,7 +42,28 @@ REFERENCES = Path(__file__).resolve().parents[1] / "sim_authoring" / "references
 _REFERENCE_FILES = {
     "authoring-rules": "authoring-prompt.txt",
     "anatomy-kit": "anatomy-lite.md",
+    "physics-helper": "physics-helper.md",
+    "plots": "plots.md",
+    "collisions": "collisions.md",
 }
+_HASH_RE = re.compile(r"sha384-HASH:([A-Za-z0-9._-]+)")
+
+
+def _with_vendor_hashes(text: str) -> str:
+    """Fill ``sha384-HASH:<file>`` in a guide from vendor.json, so a guide can never
+    hand the model a stale hash. An unknown file is left visible, never guessed."""
+    if "sha384-HASH:" not in text:
+        return text
+    import json
+
+    from sim_gates import BACKEND_COPIES, REPO_ROOT
+
+    manifest = REPO_ROOT / "infrastructure" / "mcp-sandbox" / "vendor.json"
+    if not manifest.is_file():
+        manifest = BACKEND_COPIES / "vendor.json"
+    libs = json.loads(manifest.read_text()).get("libraries", {})
+    hashes = {name: spec["sha384"] for lib in libs.values() for name, spec in lib.get("files", {}).items()}
+    return _HASH_RE.sub(lambda m: f"sha384-{hashes[m.group(1)]}" if m.group(1) in hashes else m.group(0), text)
 
 
 def _scoped(key: str, ctx: Any) -> str:
@@ -349,8 +370,12 @@ async def read_reference(topic: str, tool_context: Any = None) -> str:
     Args:
         topic: ``authoring-rules`` — the full rules every sim must follow (the file
             format, the bridge lines, telemetry, the self-test, what must not be in
-            the frame). ``anatomy-kit`` — how to draw the apparatus as a crafted
-            isometric figure with the vendored anatomy kit, with a worked example.
+            the frame). ``physics-helper`` — the tested helper library every moving
+            sim should load: the fixed-step loop, RK4/Verlet, exact collisions,
+            measurement noise, Danish number format. ``plots`` — live graphs with
+            uPlot. ``collisions`` — when to use matter.js (stacking, friction,
+            ramps, many bodies) and how. ``anatomy-kit`` — how to draw the
+            apparatus as a crafted isometric figure, with a worked example.
 
     Returns:
         The reference text.
@@ -360,7 +385,7 @@ async def read_reference(topic: str, tool_context: Any = None) -> str:
         _progress(tool_context, "simReading", f"Reading the {topic} guide…", topic=topic)
     if name is None:
         return f"Unknown topic {topic!r}. Topics: {', '.join(sorted(_REFERENCE_FILES))}."
-    return (REFERENCES / name).read_text(encoding="utf-8")
+    return _with_vendor_hashes((REFERENCES / name).read_text(encoding="utf-8"))
 
 
 async def record_sim_usage(callback_context: Any, llm_response: Any) -> None:
