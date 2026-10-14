@@ -20,16 +20,18 @@ beforeEach(() => {
 
 describe("SimThumbnail", () => {
   it("fetches a sim's screenshot with the teacher's sign-in and shows it", async () => {
-    auth.fetchWithTeacherAuth.mockResolvedValue(
-      new Response(new Blob(["png"], { type: "image/png" }), { status: 200 }),
-    );
+    // A plain stub, not `new Response(blob)`: jsdom's Blob has no stream() on Node 22 (CI).
+    auth.fetchWithTeacherAuth.mockResolvedValue({
+      ok: true,
+      blob: () => Promise.resolve(new Blob(["png"], { type: "image/png" })),
+    });
     render(<SimThumbnail id="boldkast" displayName="Boldkast" thumbnail={simScreenshotUrl("boldkast")} />);
     await waitFor(() => expect(screen.getByTestId("sim-thumbnail-boldkast")).toHaveAttribute("src", "blob:shot"));
     expect(auth.fetchWithTeacherAuth).toHaveBeenCalledWith("/api/proxy/api/artefacts/boldkast/screenshot/700");
   });
 
   it("without a screenshot: the monogram tile, or nothing for a large preview", async () => {
-    auth.fetchWithTeacherAuth.mockResolvedValue(new Response("no", { status: 404 }));
+    auth.fetchWithTeacherAuth.mockResolvedValue({ ok: false, status: 404 });
     const url = simScreenshotUrl("no-shot");
     const { container } = render(
       <>
