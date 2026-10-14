@@ -1079,3 +1079,37 @@ class TestQuotaExhaustedIsNotShownRawToStudents:
         _message, code = _translate_client_error(self._exc(401, "CREDENTIALS_MISSING"))
 
         assert code == "VERTEX_AUTH_FAILED"
+
+
+# --- A teacher's turn outlives a dropped connection (protocols/detached_runs.py) ---
+
+
+def test_a_new_turn_waits_while_the_last_one_is_still_running(client):
+    """A second run on a session whose detached run is in flight is refused with 409."""
+    from protocols import detached_runs
+
+    detached_runs._RUNNING["busy-session"] = ("caller-uid", 0.0)
+    try:
+        status = client.get("/api/skill-runs/busy-session")
+        assert status.json() == {"running": True}
+        skill = _make_skill(skill_id="test-skill-id", access_type="public")
+        with patch("skills.skill_processor.get_skill", return_value=skill):
+            resp = client.post(
+                "/api/skill/test-skill-id/stream",
+                json={"message": "carry on", "sessionId": "busy-session"},
+            )
+        assert resp.status_code == 409, resp.text
+        assert resp.json()["detail"]["error"] == "still_working"
+    finally:
+        detached_runs._RUNNING.pop("busy-session", None)
+    assert client.get("/api/skill-runs/busy-session").json() == {"running": False}
+
+
+def test_another_teachers_run_is_not_reported(client):
+    from protocols import detached_runs
+
+    detached_runs._RUNNING["their-session"] = ("someone-else", 0.0)
+    try:
+        assert client.get("/api/skill-runs/their-session").json() == {"running": False}
+    finally:
+        detached_runs._RUNNING.pop("their-session", None)

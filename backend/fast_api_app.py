@@ -678,6 +678,18 @@ from observability.timing import (  # noqa: E402
     reset_current_tracker,
     set_current_tracker,
 )
+from protocols.detached_runs import is_running as detached_is_running  # noqa: E402
+from protocols.detached_runs import outlive_client  # noqa: E402
+
+
+@app.get("/api/skill-runs/{session_id}")
+async def skill_run_status(session_id: str, user: User = Depends(get_current_user)) -> dict:  # noqa: B008
+    """Whether a turn on this chat is still running (for instance after its connection dropped).
+
+    The co-pilot asks after a dropped stream, and reloads the conversation once
+    the answer turns false. Only the run's own teacher sees it as running.
+    """
+    return {"running": detached_is_running(session_id, user.uid)}
 
 
 @app.post("/api/skill/{skill_id}/stream")
@@ -732,6 +744,12 @@ async def stream_skill(
                 raise HTTPException(status_code=403, detail="Access denied to session")
             is_read_only = not access.is_owner(existing)
 
+    if not user.group_id and not is_read_only and detached_is_running(session_id, user.uid):
+        # The last turn on this chat is still running (typically after its
+        # connection dropped); a second run on the same session would corrupt it.
+        reset_current_tracker(_tracker_token)
+        raise HTTPException(status_code=409, detail={"error": "still_working", "session_id": session_id})
+
     extracted_doc_ids = _extract_document_ids(body) if not is_read_only else None
     extracted_resumed = _extract_resumed_flag(body) if not is_read_only else False
     extracted_surface_state = _extract_a2ui_surface_state(body) if not is_read_only else None
@@ -776,6 +794,10 @@ async def stream_skill(
     # Teacher streams pass through untouched (co-pilot cards ARE tool results).
     begin_renderable_declaration()
     event_iter = redact_student_stream(event_iter, is_student=bool(user.group_id))
+    if not user.group_id and not is_read_only:
+        # A teacher's turn finishes even if the phone drops the connection
+        # mid-build (protocols/detached_runs.py); it is saved to the session.
+        event_iter = outlive_client(event_iter, session_id=session_id, uid=user.uid)
     try:
         # Surface SkillNotFoundError *before* returning the StreamingResponse so
         # the client sees a proper 404 rather than a half-open SSE stream.
