@@ -39,6 +39,8 @@
     "close": "Close",
     "byTeacher": "Made by a teacher in AIPLA's Sim workshop and reviewed for the shared library.",
     "shotAlt": "Screenshot of {name}",
-    "levels": "stx {levels}"
+    "levels": "stx {levels}",
+    "previous": "Previous simulation",
+    "next": "Next simulation"
   }
 }

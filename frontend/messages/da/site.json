@@ -39,6 +39,8 @@
     "close": "Luk",
     "byTeacher": "Lavet af en lærer i AIPLA's Sim-værksted og gennemgået til det fælles bibliotek.",
     "shotAlt": "Skærmbillede af {name}",
-    "levels": "stx {levels}"
+    "levels": "stx {levels}",
+    "previous": "Forrige simulation",
+    "next": "Næste simulation"
   }
 }

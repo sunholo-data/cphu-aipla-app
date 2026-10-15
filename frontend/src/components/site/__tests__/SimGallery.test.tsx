@@ -1,5 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { act } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { LocaleProvider } from "@/i18n";
 import type { PublicSim } from "@/lib/simLibrary";
@@ -54,5 +55,48 @@ describe("SimGallery", () => {
   it("renders nothing for an empty library", () => {
     const { container } = renderEn([]);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  describe("the carousel", () => {
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    });
+
+    function setup(reduce = false) {
+      vi.useFakeTimers();
+      vi.stubGlobal("matchMedia", (q: string) => ({ matches: reduce && q.includes("reduce"), media: q }));
+      const scrollTo = vi.fn();
+      Element.prototype.scrollTo = scrollTo as unknown as Element["scrollTo"];
+      renderEn(SIMS);
+      return scrollTo;
+    }
+
+    it("turns by itself", () => {
+      const scrollTo = setup();
+      act(() => vi.advanceTimersByTime(5000));
+      expect(scrollTo).toHaveBeenCalled();
+    });
+
+    it("holds still under reduced motion", () => {
+      const scrollTo = setup(true);
+      act(() => vi.advanceTimersByTime(20000));
+      expect(scrollTo).not.toHaveBeenCalled();
+    });
+
+    it("holds still while the larger look is open", () => {
+      const scrollTo = setup();
+      fireEvent.click(screen.getByTestId("sim-gallery-sort-hul"));
+      act(() => vi.advanceTimersByTime(20000));
+      expect(scrollTo).not.toHaveBeenCalled();
+    });
+
+    it("an arrow moves it at once, then leaves it be for a while", () => {
+      const scrollTo = setup();
+      fireEvent.click(screen.getByRole("button", { name: "Next simulation" }));
+      expect(scrollTo).toHaveBeenCalledTimes(1);
+      act(() => vi.advanceTimersByTime(9000));
+      expect(scrollTo).toHaveBeenCalledTimes(1);
+    });
   });
 });
