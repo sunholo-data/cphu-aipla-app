@@ -31,6 +31,7 @@ import { LocaleProvider, localeForActivities, rememberActivityLanguages, useT, t
 import { useUserLocale } from "@/i18n/userLocale";
 import { useAnonymousGroupAuth } from "@/contexts/AnonymousGroupAuthProvider";
 import { fetchWithAuth } from "@/lib/apiClient";
+import { publicSimScreenshotUrl } from "@/lib/simLibrary";
 import { isAnonymousGroupAuthMode } from "@/lib/anonymousGroupAuth";
 import type { Skill } from "@/types/skill";
 
@@ -227,7 +228,9 @@ function ActivityLessonCard({ activity }: { activity: StudentActivity }) {
       href={href}
       className="group flex flex-col gap-3 overflow-hidden rounded border border-border bg-background shadow-sm transition hover:border-primary"
     >
-      <LessonCover avatar="" title={title} />
+      {/* The sim's screenshot, when the activity has one from the library: the
+          student recognises the lesson by what they will work with. */}
+      <LessonCover avatar={activity.artefactId ? publicSimScreenshotUrl(activity.artefactId) : ""} title={title} />
       <div className="flex flex-col gap-2 p-4 pt-0">
         <h3 className="text-base font-semibold">{title}</h3>
       </div>
@@ -368,7 +371,10 @@ function LessonCard({ skill }: { skill: Skill }) {
  *  authors supply images. Aspect 16:9 keeps the grid tidy on both
  *  mobile (stack) and desktop (2-col). */
 function LessonCover({ avatar, title }: { avatar: string; title: string }) {
-  if (avatar) {
+  // A class-level teacher sim has no public screenshot (404): fall back to the
+  // gradient rather than a broken image.
+  const [failed, setFailed] = useState(false);
+  if (avatar && !failed) {
     return (
       <div className="aspect-[16/9] w-full overflow-hidden bg-muted">
         {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -376,7 +382,8 @@ function LessonCover({ avatar, title }: { avatar: string; title: string }) {
           src={avatar}
           alt=""
           aria-hidden="true"
-          className="h-full w-full object-cover"
+          onError={() => setFailed(true)}
+          className="h-full w-full bg-white object-cover object-top"
         />
       </div>
     );

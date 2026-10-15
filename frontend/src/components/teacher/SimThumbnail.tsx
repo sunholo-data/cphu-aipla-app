@@ -31,7 +31,8 @@ function loadAuthed(url: string): Promise<string | null> {
 
 /** The image URL to render: a plain URL as is, an API path once fetched (null until then, or if absent). */
 function useThumbnailSrc(thumbnail: string | null | undefined): string | null | undefined {
-  const authed = !!thumbnail && thumbnail.startsWith("/api/proxy/");
+  // The public library route needs no sign-in, so it can be a plain <img src>.
+  const authed = !!thumbnail && thumbnail.startsWith("/api/proxy/") && !thumbnail.startsWith("/api/proxy/api/public/");
   const [src, setSrc] = useState<string | null | undefined>(authed ? undefined : thumbnail);
   useEffect(() => {
     if (!thumbnail || !authed) {
@@ -95,7 +96,9 @@ interface SimThumbnailProps {
  */
 export function SimThumbnail({ id, displayName, thumbnail, className, fallback = "tile" }: SimThumbnailProps) {
   const t = useT("SimThumbnail");
-  const src = useThumbnailSrc(thumbnail);
+  const loaded = useThumbnailSrc(thumbnail);
+  const [broken, setBroken] = useState<string | null>(null);
+  const src = loaded && loaded !== broken ? loaded : null;
   const box = cn("relative shrink-0 overflow-hidden rounded-md", className ?? "h-10 w-10");
   if (src) {
     return (
@@ -105,6 +108,7 @@ export function SimThumbnail({ id, displayName, thumbnail, className, fallback =
         src={src}
         alt={t("preview", { name: displayName })}
         data-testid={`sim-thumbnail-${id}`}
+        onError={() => setBroken(src)}
         // The top of a sim is its title and stage: crop from there, not the middle.
         className={cn(box, "border border-border bg-white object-cover object-top")}
       />

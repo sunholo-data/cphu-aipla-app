@@ -31,5 +31,14 @@
     "signIn": "Are you a teacher? Sign in",
     "signedIn": "Go to your classes →",
     "signedInAs": "Signed in as {email}"
+  },
+  "SimGallery": {
+    "title": "Simulations in the library",
+    "intro": "{count} interactive simulations students explore alongside their AI tutor. Every one is reviewed before it enters the library.",
+    "elsewhere": "The same library is available in ChatGPT and Claude through AIPLA's MCP connector.",
+    "close": "Close",
+    "byTeacher": "Made by a teacher in AIPLA's Sim workshop and reviewed for the shared library.",
+    "shotAlt": "Screenshot of {name}",
+    "levels": "stx {levels}"
   }
 }

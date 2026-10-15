@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as teacherApi from "@/lib/teacherApi";
 import type { ActivityPayload, ClassPayload } from "@/lib/teacherApi";
 import TeacherActivitiesPage from "@/app/teacher/activities/page";
+import { resetSimCatalogue } from "@/components/teacher/useSimCatalogue";
 import * as researcherHook from "@/hooks/useIsResearcher";
 
 import { LocaleProvider } from "@/i18n";
@@ -86,10 +87,15 @@ describe("TeacherActivitiesPage (ALS-1 M1.2 library)", () => {
       }),
     ].length, limit: 200, offset: 0 });
     vi.spyOn(teacherApi, "listClasses").mockResolvedValue([]);
+    resetSimCatalogue();
+    vi.spyOn(teacherApi, "listArtefacts").mockResolvedValue([
+      { id: "boldkast", displayName: "Boldkast — projektilbevægelse" } as teacherApi.ArtefactSummary,
+    ]);
     render(<TeacherActivitiesPage />);
 
     await screen.findByText("Energy basics");
-    expect(screen.getByText("Boldkast")).toBeInTheDocument(); // sim artefact, friendly name
+    // sim artefact: the catalogue's short name, not the raw id
+    expect(await screen.findByText("Boldkast")).toBeInTheDocument();
     expect(screen.getByText("Checklist 2")).toBeInTheDocument(); // element + count
     expect(screen.getByText("Note")).toBeInTheDocument();
     expect(screen.getByText("1 document")).toBeInTheDocument();

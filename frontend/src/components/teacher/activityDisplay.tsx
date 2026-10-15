@@ -1,5 +1,7 @@
 import { SimThumbnail, simScreenshotUrl } from "@/components/teacher/SimThumbnail";
+import { useSimCatalogue } from "@/components/teacher/useSimCatalogue";
 import { useT, type Translate } from "@/i18n";
+import { shortSimName } from "@/lib/simLibrary";
 import type { ActivityPayload } from "@/lib/teacherApi";
 
 /**
@@ -9,13 +11,6 @@ import type { ActivityPayload } from "@/lib/teacherApi";
  * researcher Research view (the library's scope toggle since 1.1.125), so the
  * two surfaces render an activity identically.
  */
-
-/** Friendly names for the catalogued sim artefacts (fallback: the raw id). */
-export const SIM_NAMES: Record<string, string> = {
-  boldkast: "Boldkast",
-  "led-planck": "LED-Planck",
-  kinebot: "KineBot",
-};
 
 /** The element fields we surface as composition badges, in display order. */
 // 1.1.108 M2 — the badge label is a message key (namespace ActivityDisplay).
@@ -30,16 +25,17 @@ export const ELEMENT_BADGES: { field: keyof ActivityPayload & ("checklist" | "ta
 
 /**
  * What an activity is *made of* — the sim artefact, the teacher-authored
- * workbench elements, and any documents/materials. Derived entirely from the
- * listing payload (no extra fetch), so a teacher can see at a glance what each
- * activity uses without opening the editor.
+ * workbench elements, and any documents/materials. Derived from the listing
+ * payload, so a teacher can see at a glance what each activity uses without
+ * opening the editor; ``simName`` names the sim (the raw id when it cannot).
  */
 export function composition(
   a: ActivityPayload,
   t: Translate<"ActivityDisplay">,
+  simName: (id: string) => string = (id) => id,
 ): { key: string; label: string; kind: "sim" | "element" | "docs" }[] {
   const out: { key: string; label: string; kind: "sim" | "element" | "docs" }[] = [];
-  if (a.artefactId) out.push({ key: "sim", label: SIM_NAMES[a.artefactId] ?? a.artefactId, kind: "sim" });
+  if (a.artefactId) out.push({ key: "sim", label: simName(a.artefactId), kind: "sim" });
   for (const { field } of ELEMENT_BADGES) {
     const value = a[field];
     const label = t(field);
@@ -59,7 +55,11 @@ export function composition(
 /** The composition row: sim artefact + workbench elements + documents. */
 export function CompositionRow({ activity }: { activity: ActivityPayload }) {
   const t = useT("ActivityDisplay");
-  const parts = composition(activity, t);
+  const catalogue = useSimCatalogue();
+  const parts = composition(activity, t, (id) => {
+    const meta = catalogue?.get(id);
+    return meta ? shortSimName(meta.displayName) : id;
+  });
   if (parts.length === 0) {
     return <p className="text-[11px] italic text-muted-foreground">{t("chatOnly")}</p>;
   }
@@ -89,7 +89,7 @@ export function CompositionRow({ activity }: { activity: ActivityPayload }) {
         id={activity.artefactId}
         displayName={simName}
         thumbnail={simScreenshotUrl(activity.artefactId)}
-        className="h-28 w-full"
+        className="aspect-[16/7] w-full"
         fallback="none"
       />
       {badges}

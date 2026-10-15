@@ -319,6 +319,7 @@ from protocols.activity_config_routes import router as activity_config_router  #
 from protocols.activity_image_routes import router as activity_image_router  # noqa: E402
 from protocols.activity_routes import router as activity_router  # noqa: E402
 from protocols.analytics_routes import router as analytics_router  # noqa: E402
+from protocols.artefact_routes import public_router as public_sims_router  # noqa: E402
 from protocols.artefact_routes import router as artefact_router  # noqa: E402
 from protocols.checklist_progress_routes import router as checklist_progress_router  # noqa: E402
 from protocols.classes_routes import router as classes_router  # noqa: E402
@@ -402,6 +403,7 @@ app.include_router(personas_router)
 app.include_router(frameworks_router)
 app.include_router(tutors_router)
 app.include_router(artefact_router)
+app.include_router(public_sims_router)
 app.include_router(sim_draft_router)
 app.include_router(teacher_sim_router)
 app.include_router(teacher_features_router)

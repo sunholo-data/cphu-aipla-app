@@ -87,7 +87,14 @@
     "cramped": "Cramped on a phone",
     "help": "Host a vetted simulation in this activity — your lesson goal, checklist, and notes wrap it. The same sim can power many activities with different goals.",
     "teacherMine": "Your sim · for your classes",
-    "teacherLibrary": "Made by a teacher · reviewed"
+    "teacherLibrary": "Made by a teacher · reviewed",
+    "search": "Search simulations",
+    "searchPlaceholder": "Search by name or topic…",
+    "levelFilter": "Level",
+    "allLevels": "All levels",
+    "level": "stx {levels}",
+    "noMatch": "No simulations match.",
+    "clear": "Clear search"
   },
   "TableEditor": {
     "fallbackLabel": "Table {n}",

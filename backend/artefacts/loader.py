@@ -65,6 +65,14 @@ def load_artefacts(for_uid: str | None = None) -> list[ArtefactMeta]:
     return builtin_artefacts() + sorted(teacher, key=lambda m: m.id)
 
 
+def library_artefacts() -> list[ArtefactMeta]:
+    """The public library: every LIVE built-in sim and every shared-library
+    teacher sim. The same set ``/mcp`` offers; never a class-level teacher sim."""
+    builtin = [m for m in builtin_artefacts() if m.status == "live"]
+    teacher = [m for m in _teacher_artefacts() if m.scope == "library" and m.status == "live"]
+    return builtin + sorted(teacher, key=lambda m: m.id)
+
+
 def load_artefact(artefact_id: str) -> ArtefactMeta | None:
     """Return one artefact by id (built-in or live teacher sim), or None if absent."""
     found = next((a for a in builtin_artefacts() if a.id == artefact_id), None)

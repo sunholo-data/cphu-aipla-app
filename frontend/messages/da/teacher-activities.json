@@ -87,7 +87,14 @@
     "cramped": "Trangt på en telefon",
     "help": "Brug en gennemgået simulation i denne aktivitet — dit undervisningsmål, din tjekliste og dine instruktioner rammer den ind. Den samme simulation kan bruges i mange aktiviteter med forskellige mål.",
     "teacherMine": "Din simulering · til dine klasser",
-    "teacherLibrary": "Lavet af en lærer · gennemgået"
+    "teacherLibrary": "Lavet af en lærer · gennemgået",
+    "search": "Søg i simulationer",
+    "searchPlaceholder": "Søg på navn eller emne…",
+    "levelFilter": "Niveau",
+    "allLevels": "Alle niveauer",
+    "level": "stx {levels}",
+    "noMatch": "Ingen simulationer passer.",
+    "clear": "Ryd søgning"
   },
   "TableEditor": {
     "fallbackLabel": "Tabel {n}",

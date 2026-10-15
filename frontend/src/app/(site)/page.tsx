@@ -1,8 +1,10 @@
 import { BackendHealthBadge } from "@/components/BackendHealthBadge";
 import { SignInButton } from "@/components/SignInButton";
 import { HomeEntryLinks } from "@/components/site/HomeEntryLinks";
+import { SimGallery } from "@/components/site/SimGallery";
 import { skillHref } from "@/components/navigation/skillHref";
 import { BRANDING } from "@/lib/branding";
+import type { PublicSim } from "@/lib/simLibrary";
 import Link from "next/link";
 
 interface SkillSummary {
@@ -27,6 +29,19 @@ async function getMarketplaceSkills(): Promise<SkillSummary[]> {
   }
 }
 
+/** The public sim library for the gallery; an empty list (no gallery) if the
+ *  backend does not answer, so the landing never fails on it. */
+async function getSimLibrary(): Promise<PublicSim[]> {
+  try {
+    const backendUrl = process.env.BACKEND_URL ?? "http://localhost:1956";
+    const res = await fetch(`${backendUrl}/api/public/sims`, { next: { revalidate: 300 } });
+    if (!res.ok) return [];
+    return ((await res.json()) as { sims: PublicSim[] }).sims ?? [];
+  } catch {
+    return [];
+  }
+}
+
 /**
  * The footer (attribution, legal links, the KU ecosystem, and the
  * platform-engineering credit) is rendered structurally by
@@ -42,10 +57,13 @@ export default async function HomePage() {
   // require a group token the user doesn't have yet.
   const isAnonymousGroupMode =
     process.env.NEXT_PUBLIC_AUTH_MODE === "anonymous_group_id";
-  const skills = isAnonymousGroupMode ? [] : await getMarketplaceSkills();
+  const [skills, sims] = await Promise.all([
+    isAnonymousGroupMode ? Promise.resolve([]) : getMarketplaceSkills(),
+    getSimLibrary(),
+  ]);
 
   return (
-    <main className="flex flex-col items-center justify-center px-8 py-16 sm:py-24">
+    <main className="flex flex-col items-center justify-center px-4 py-16 sm:px-8 sm:py-24">
       <div className="flex flex-col items-center gap-6 max-w-2xl text-center">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -92,6 +110,9 @@ export default async function HomePage() {
             </ul>
           </div>
         )}
+      </div>
+      <div className="mt-16 flex w-full justify-center sm:mt-20">
+        <SimGallery sims={sims} />
       </div>
     </main>
   );

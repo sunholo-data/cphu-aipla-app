@@ -79,4 +79,36 @@ describe("SimPicker", () => {
     render(<SimPicker value={null} onChange={vi.fn()} />);
     expect(await screen.findByText(/no simulations available/i)).toBeInTheDocument();
   });
+
+  it("filters a long library by search and level, and says when nothing matches", async () => {
+    const many = Array.from({ length: 8 }, (_, n) => ({
+      ...CATALOGUE[0],
+      id: `sim-${n}`,
+      displayName: `Sim ${n}`,
+      topics: n === 3 ? ["sorte huller"] : ["mekanik"],
+      levels: (n % 2 ? ["A"] : ["B"]) as never[],
+    }));
+    listArtefactsMock.mockResolvedValue(many);
+    render(<SimPicker value={null} onChange={vi.fn()} />);
+    const search = await screen.findByRole("searchbox");
+    fireEvent.change(search, { target: { value: "sorte" } });
+    expect(screen.getByTestId("sim-picker-sim-3")).toBeInTheDocument();
+    expect(screen.queryByTestId("sim-picker-sim-1")).toBeNull();
+
+    fireEvent.change(search, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "stx A" }));
+    expect(screen.getByTestId("sim-picker-sim-1")).toBeInTheDocument();
+    expect(screen.queryByTestId("sim-picker-sim-2")).toBeNull();
+
+    fireEvent.change(search, { target: { value: "nothing like this" } });
+    expect(screen.getByText("No simulations match.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Clear search" }));
+    expect(screen.getByTestId("sim-picker-sim-2")).toBeInTheDocument();
+  });
+
+  it("shows no filter for a short catalogue", async () => {
+    render(<SimPicker value={null} onChange={vi.fn()} />);
+    await screen.findByTestId("sim-picker-boldkast");
+    expect(screen.queryByRole("searchbox")).toBeNull();
+  });
 });

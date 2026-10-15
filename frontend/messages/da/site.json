@@ -31,5 +31,14 @@
     "signIn": "Er du lærer? Log ind her",
     "signedIn": "Gå til dine klasser →",
     "signedInAs": "Logget ind som {email}"
+  },
+  "SimGallery": {
+    "title": "Simulationer i biblioteket",
+    "intro": "{count} interaktive simulationer, som eleverne udforsker sammen med deres AI-tutor. Hver enkelt er gennemgået, før den kommer i biblioteket.",
+    "elsewhere": "Det samme bibliotek kan bruges i ChatGPT og Claude via AIPLA's MCP-forbindelse.",
+    "close": "Luk",
+    "byTeacher": "Lavet af en lærer i AIPLA's Sim-værksted og gennemgået til det fælles bibliotek.",
+    "shotAlt": "Skærmbillede af {name}",
+    "levels": "stx {levels}"
   }
 }

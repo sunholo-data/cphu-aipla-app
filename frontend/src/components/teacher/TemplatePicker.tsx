@@ -45,15 +45,6 @@ type FeatureKey =
   | "document"
   | "conceptMap";
 
-// Product names for the sims the templates attach — the catalogue's
-// displayName is longer ("Boldkast — projektilbevægelse") and needs a fetch;
-// a card tile only wants the short handle.
-const SIM_LABELS: Record<string, string> = {
-  boldkast: "Boldkast",
-  kinebot: "KineBot",
-  "led-planck": "LED Planck",
-};
-
 type FamilyId = "sim" | "lab" | "writing" | "dialogue";
 
 interface Family {
@@ -266,7 +257,7 @@ function TemplateCard({
           {tpl.artefactId ? (
             <SimThumbnail
               id={tpl.artefactId}
-              displayName={SIM_LABELS[tpl.artefactId] ?? tpl.artefactId}
+              displayName={tpl.name}
               thumbnail={simScreenshotUrl(tpl.artefactId)}
               className="h-9 w-12"
             />
