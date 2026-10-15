@@ -33,7 +33,10 @@ describe("SimGallery", () => {
     expect(screen.getByText("Simulations in the library")).toBeInTheDocument();
     const img = screen.getByAltText("Screenshot of Kredsløb om et sort hul");
     expect(img).toHaveAttribute("src", "/api/proxy/api/public/sims/sort-hul/screenshot/700");
-    expect(screen.queryByRole("link")).toBeNull(); // nothing to open or run
+    // nothing opens or runs a sim: the one link is the "make your own" card
+    expect(screen.getAllByRole("link")).toHaveLength(1);
+    expect(screen.getByTestId("sim-gallery-make-your-own")).toHaveAttribute("href", "/project/build-a-simulation");
+    expect(screen.getByText("Make your own")).toBeInTheDocument();
     expect(screen.getByText("stx A")).toBeInTheDocument();
     expect(screen.queryByText("gravitationslinser")).toBeNull(); // a card shows three topics
   });

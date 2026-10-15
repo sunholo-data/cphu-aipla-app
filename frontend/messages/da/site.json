@@ -41,6 +41,9 @@
     "shotAlt": "Skærmbillede af {name}",
     "levels": "stx {levels}",
     "previous": "Forrige simulation",
-    "next": "Næste simulation"
+    "next": "Næste simulation",
+    "ownTitle": "Lav din egen",
+    "ownBody": "Lærere bygger simulationer sammen med assistenten i AIPLA's Sim-værksted. Når en forsker har gennemgået en, kommer den i biblioteket for alle lærere.",
+    "ownLink": "Sådan bygger du en simulation →"
   }
 }

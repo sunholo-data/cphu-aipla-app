@@ -3,8 +3,8 @@ title: "Build a simulation with an AI chat"
 description: "How physics staff draft a new AIPLA simulation in Claude, ChatGPT or any AI chat, using the authoring prompt — no coding required."
 eyebrow: "For physics staff"
 owner: "AIPLA project team"
-reviewed: "2026-10-05"
-reviewBy: "2027-01-05"
+reviewed: "2026-10-15"
+reviewBy: "2027-01-15"
 status: "Current"
 order: "44"
 nav: "false"
@@ -62,6 +62,14 @@ Everything else is better placed elsewhere, and placing it elsewhere makes it *m
 | Its own title bar and logo | deleted — the app draws that |
 
 The bench is about 700 px wide on a laptop and 390 px on a phone, so this is not tidiness. Anything that is not the experiment is crowding the experiment out.
+
+## Or build it inside AIPLA: the Sim workshop
+
+Teachers with access to the **Sim workshop** (**Sims** in the teacher menu) can do all of this without leaving AIPLA. You describe the experiment to the workshop's assistant and it builds the simulation. Every version is checked automatically before you see it: size, security, phone width, and whether the tutor actually receives the student's readings. You try it, ask for changes, and publish it to your own classes, for which you are the reviewer.
+
+To share it with every teacher, request the shared library. A researcher signs off the physics, and within a few minutes it appears in every teacher's simulation picker, in the gallery on the [AIPLA homepage](/) and in ChatGPT and Claude through AIPLA's connector.
+
+A draft made in another chat with the prompt below can be imported into the workshop, and any version can be downloaded as a single file that runs anywhere. Access to the workshop is switched on per teacher: ask the project team.
 
 ## How to draft one
 

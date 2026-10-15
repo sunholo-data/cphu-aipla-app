@@ -1,7 +1,8 @@
 "use client";
 
 import * as Dialog from "@radix-ui/react-dialog";
-import { ChevronLeft, ChevronRight, FlaskConical, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, FlaskConical, Sparkles, X } from "lucide-react";
+import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useT } from "@/i18n";
@@ -94,6 +95,23 @@ export function SimGallery({ sims }: { sims: PublicSim[] }) {
               </button>
             </li>
           ))}
+          {/* The last card: the library is not fixed — teachers add to it. */}
+          <li className="w-[80%] shrink-0 snap-start sm:w-[calc((100%-1rem)/2)] lg:w-[calc((100%-2rem)/3)]">
+            <Link
+              href="/project/build-a-simulation"
+              data-testid="sim-gallery-make-your-own"
+              className="flex h-full w-full flex-col overflow-hidden rounded-lg border border-dashed border-primary/40 bg-primary/5 text-left transition hover:border-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <span className="flex aspect-[4/3] w-full items-center justify-center border-b border-dashed border-primary/30">
+                <Sparkles className="h-12 w-12 text-primary/60" aria-hidden="true" />
+              </span>
+              <span className="flex flex-1 flex-col gap-1.5 p-3">
+                <span className="text-sm font-semibold leading-snug">{t("ownTitle")}</span>
+                <span className="text-xs text-muted-foreground">{t("ownBody")}</span>
+                <span className="mt-auto pt-1 text-xs font-medium text-primary">{t("ownLink")}</span>
+              </span>
+            </Link>
+          </li>
         </ul>
         {sims.length > 1 ? (
           <div className="mt-2 flex justify-end gap-2">

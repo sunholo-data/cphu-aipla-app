@@ -41,6 +41,9 @@
     "shotAlt": "Screenshot of {name}",
     "levels": "stx {levels}",
     "previous": "Previous simulation",
-    "next": "Next simulation"
+    "next": "Next simulation",
+    "ownTitle": "Make your own",
+    "ownBody": "Teachers build simulations with the assistant in AIPLA's Sim workshop. Once a researcher has reviewed one, it joins this library for every teacher.",
+    "ownLink": "How to build a simulation →"
   }
 }
