@@ -342,15 +342,15 @@ async def test_library_teacher_sims_are_offered_and_withdrawn_ones_dropped(_fres
             }
         )
 
-    rows = [meta("sort-hul", "library"), meta("klasse-sim", "classes")]
+    rows = [meta("laerer-sim", "library"), meta("klasse-sim", "classes")]
     monkeypatch.setattr("db.teacher_sims.live_metas", lambda: rows)
     added = register_sim_apps(_fresh_mcp)
-    assert "show_sort_hul" in added
+    assert "show_laerer_sim" in added
     assert "show_klasse_sim" not in added  # a class-level sim is not public
     rows.clear()
     register_sim_apps(_fresh_mcp)
     names = {t.name for t in await _fresh_mcp.list_tools()}
-    assert "show_sort_hul" not in names
+    assert "show_laerer_sim" not in names
 
 
 async def test_sim_resource_read_returns_mcp_app_html(_fresh_mcp):
