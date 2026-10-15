@@ -1423,6 +1423,64 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
     },
   },
   {
+    // The sort-hul sim (2026-10-15, built by M in the Sim workshop): a circular
+    // orbit round a Schwarzschild black hole, cockpit lensing view beside an
+    // orbit map. The sim shows t and tau and NEVER r_s or the mass — the student
+    // plots (tau/t)^2 against 1/r, reads the slope -1.5 r_s, and finds M. The
+    // reference values are in the catalogue tutorBlock (server-side only). No
+    // calculator: working out r_s from the slope IS the exercise.
+    id: "sort-hul",
+    name: "Kredsløb om et sort hul — find hullets masse",
+    summary:
+      "Rumskib i kredsløb om et sort hul — mål skibets ur mod basestationens, og find Schwarzschild-radius og massen ud fra tidsforlængelsen.",
+    language: "da",
+    subject: "Fysik",
+    title: "Kredsløb om et sort hul",
+    artefactId: "sort-hul",
+    teachingGoal:
+      "Eleven undersøger tidsforlængelse i et cirkulært kredsløb om et sort hul. Lad først eleven starte urene og " +
+      "beskrive, hvordan skibets egentid τ og basestationens koordinattid t går i forhold til hinanden, og hvad " +
+      "cockpitbilledet viser om lysets bane (skygge, Einstein-ring, dobbeltbilleder). Derefter måler eleven t og τ " +
+      "ved mindst fire forskellige baneradier, beregner (τ/t)² og 1/r og afsætter (τ/t)² mod 1/r. Pointen er at " +
+      "opdage den lineære sammenhæng, aflæse hældningen som −1,5·r_s og bestemme hullets masse M = r_s·c²/(2G). " +
+      "Oplys aldrig r_s eller massen, før eleven selv har fundet dem, og skriv aldrig teksten for eleven.",
+    checklist: [
+      "Start urene, og beskriv hvordan skibets ur går i forhold til basestationens",
+      "Forklar med orbit-kortet, hvad begivenhedshorisonten, fotonsfæren og ISCO er",
+      "Mål t og τ ved mindst fire forskellige baneradier",
+      "Beregn (τ/t)² og 1/r for hver måling, og afsæt (τ/t)² mod 1/r",
+      "Bestem Schwarzschild-radius ud fra hældningen, og beregn hullets masse",
+    ],
+    table: {
+      title: "Målinger",
+      columns: [
+        { label: "r", unit: "km", kind: "number" },
+        { label: "t", unit: "s", kind: "number" },
+        { label: "τ", unit: "s", kind: "number" },
+        { label: "1/r", unit: "1/km", kind: "number" },
+        { label: "(τ/t)²", kind: "number" },
+      ],
+      rows: 6,
+    },
+    chart: { title: "(τ/t)² mod 1/r", chartKind: "scatter" },
+    note: {
+      title: "Sådan bruger du simulationen",
+      body:
+        "**Start** sætter begge ure i gang. **Registrér måling** gemmer t, τ og r i datalogen. Skift baneradius " +
+        "med skyderen — lad urene løbe et stykke tid ved hver radius, så målingen bliver præcis.\n\n" +
+        "For et cirkulært kredsløb gælder (τ/t)² = 1 − 3·r_s/(2r).",
+    },
+    writing: [
+      {
+        title: "Konklusion",
+        prompt:
+          "Hvor stor er Schwarzschild-radius og massen af det sorte hul? Vis, hvordan du fandt dem ud fra dine " +
+          "målinger, og forklar, hvorfor skibets ur går langsommere jo tættere det kommer på hullet.",
+        minWords: 60,
+      },
+    ],
+  },
+  {
     // The otto-engine sim (2026-10-12): a half-section four-stroke engine built
     // with the anatomy kit beside a live p-V diagram, one model driving both.
     // The sim shows Q and W per measured cycle and NEVER the efficiency — the

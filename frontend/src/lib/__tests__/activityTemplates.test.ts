@@ -164,7 +164,7 @@ describe("sim starters (2026-09-28) — one per live catalogue sim", () => {
 
   // Each of these sims withholds one result because working it out IS the
   // exercise. A calculator would hand it straight back.
-  it.each(["kettle-efficiency", "phase-change", "wave-speed", "wave-interference", "sol-jord-maane", "sekant-intro"])(
+  it.each(["kettle-efficiency", "phase-change", "wave-speed", "wave-interference", "sol-jord-maane", "sekant-intro", "sort-hul"])(
     "%s ships no calculator and names its subject",
     (id) => {
       const t = ACTIVITY_TEMPLATES.find((x) => x.artefactId === id)!;
