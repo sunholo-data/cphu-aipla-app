@@ -55,9 +55,21 @@ describe("SimGallery", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("Made by a teacher");
   });
 
-  it("renders nothing for an empty library", () => {
+  it("renders nothing for an empty library", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true, json: async () => ({ sims: [] }) }));
     const { container } = renderEn([]);
+    await act(async () => {});
     expect(container).toBeEmptyDOMElement();
+    vi.unstubAllGlobals();
+  });
+
+  it("asks the backend from the browser when the cached page carried no sims", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ sims: SIMS }) });
+    vi.stubGlobal("fetch", fetchMock);
+    renderEn([]);
+    expect(await screen.findByText("Kredsløb om et sort hul")).toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledWith("/api/proxy/api/public/sims");
+    vi.unstubAllGlobals();
   });
 
   describe("the carousel", () => {

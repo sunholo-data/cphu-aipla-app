@@ -18,6 +18,9 @@ export interface PublicSim {
   source?: "builtin" | "teacher";
 }
 
+/** The public library, fetched from the browser. */
+export const PUBLIC_SIMS_URL = "/api/proxy/api/public/sims";
+
 /** A library sim's screenshot, for anyone (no sign-in): `700` at rest, `driven` after use. */
 export function publicSimScreenshotUrl(id: string, shot: "700" | "driven" = "700"): string {
   return `/api/proxy/api/public/sims/${encodeURIComponent(id)}/screenshot/${shot}`;

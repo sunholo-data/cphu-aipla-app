@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useT } from "@/i18n";
-import { publicSimScreenshotUrl, type PublicSim } from "@/lib/simLibrary";
+import { PUBLIC_SIMS_URL, publicSimScreenshotUrl, type PublicSim } from "@/lib/simLibrary";
 
 /**
  * The homepage's read-only window on the sim library: a screenshot, a name and a
@@ -19,8 +19,24 @@ import { publicSimScreenshotUrl, type PublicSim } from "@/lib/simLibrary";
  * larger look is open, while the tab is hidden, for a while after the visitor
  * swipes or clicks an arrow, and always under reduced motion.
  */
-export function SimGallery({ sims }: { sims: PublicSim[] }) {
+export function SimGallery({ sims: fromServer }: { sims: PublicSim[] }) {
   const t = useT("SimGallery");
+  // The page is cached and can be rendered while the backend is not yet
+  // answering (at build time, or the first request after a deploy), which
+  // caches an empty list for a while. Ask again from the browser rather than
+  // show no gallery until the cache turns over.
+  const [sims, setSims] = useState(fromServer);
+  useEffect(() => {
+    if (fromServer.length > 0) return;
+    let alive = true;
+    fetch(PUBLIC_SIMS_URL)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d: { sims?: PublicSim[] } | null) => alive && d?.sims && setSims(d.sims))
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [fromServer]);
   const [open, setOpen] = useState<PublicSim | null>(null);
   const rail = useRef<HTMLUListElement>(null);
   const held = useRef(false); // pointer or focus inside
