@@ -86,7 +86,7 @@ async def test_one_blind_call_per_framework_each_with_its_own_criteria():
     assert all(profile.fits[f.id].fit == pytest.approx(0.5) for f in fws if f.id != "esru")
     # Each prompt carries exactly one approach's criteria.
     for fw in fws:
-        mine = [p for p, _ in prompts if f"# Teaching approach: {fw.label}" in p]
+        mine = [p for p, _ in prompts if f"# Teaching approach: {fw.label}\n" in p]
         assert len(mine) == 1
         assert ff.criteria_block(fw)[0] in mine[0]
     assert {m for _, m in prompts} == {"gemini-3.8-flash"}

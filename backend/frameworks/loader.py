@@ -43,6 +43,14 @@ def load_framework(framework_id: str | None) -> TeachingFramework | None:
     return next((f for f in load_frameworks() if f.id == framework_id), None)
 
 
+#: Variants drafted for the researchers to choose between (2026-10-19). Each has
+#: a design doc but no public page, and the discrimination bench leaves them out
+#: of its default matrix: a variant enters a research arm only when named.
+VARIANT_FRAMEWORK_IDS: frozenset[str] = frozenset(
+    {"accountable-talk-moves", "authentic-dialogue-three", "cer-components"}
+)
+
+
 def ready_frameworks() -> list[TeachingFramework]:
     """Frameworks whose pedagogy is drafted — i.e. not bare slots. These are the
     ones a tutor prompt can actually be generated from (1.1.91 M2)."""

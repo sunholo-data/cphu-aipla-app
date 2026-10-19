@@ -32,7 +32,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from db.models.teaching_framework import TeachingFramework
 from frameworks.instruction import build_framework_instruction
-from frameworks.loader import load_frameworks
+from frameworks.loader import VARIANT_FRAMEWORK_IDS, load_frameworks
 
 _ROOT = Path(__file__).resolve().parents[2]
 _DESIGN_DIR = _ROOT / "docs" / "design" / "aipla" / "tutors"
@@ -47,6 +47,15 @@ _REVIEW_MONTHS = 3
 
 #: Sort position of the hub in /project; framework pages follow it.
 _HUB_ORDER = 62
+
+#: Variants (frameworks.loader.VARIANT_FRAMEWORK_IDS) get an internal design doc
+#: but NO public page until a researcher picks one: a published page is a claim
+#: to the public about how AIPLA's tutors teach, and a variant is not yet that.
+
+
+def _has_public_page(fw: TeachingFramework) -> bool:
+    return not fw.is_placeholder and fw.id not in VARIANT_FRAMEWORK_IDS
+
 
 _DIMENSION_LABEL = {
     "epistemic": "Epistemic — how the student knows",
@@ -191,7 +200,7 @@ def render_design_doc(fw: TeachingFramework) -> str:
         ),
         f"**Source of truth:** [`backend/frameworks/{fw.id}.yaml`](../../../../backend/frameworks/{fw.id}.yaml)",
         f"**Public page:** [/project/tutors/{fw.id}](../../../../frontend/content/project/tutors/{fw.id}.md)"
-        if not fw.is_placeholder
+        if _has_public_page(fw)
         else "**Public page:** none — listed on the hub only, because it has no content to publish",
         "",
         _STATUS_PROSE[fw.status],
@@ -381,7 +390,7 @@ def render_hub(frameworks: list[TeachingFramework]) -> str:
         "|---|---|---|",
     ]
     for fw in frameworks:
-        name = f"[{fw.label}](/project/tutors/{fw.id})" if not fw.is_placeholder else fw.label
+        name = f"[{fw.label}](/project/tutors/{fw.id})" if _has_public_page(fw) else fw.label
         state = {
             "placeholder": "Being written",
             "ready_for_review": "Drafted, in review",
@@ -424,7 +433,7 @@ def main() -> int:
     for fw in frameworks:
         design = _DESIGN_DIR / f"{fw.id}.md"
         planned[design] = _preserve_review_dates(design, render_design_doc(fw))
-        if not fw.is_placeholder:
+        if _has_public_page(fw):
             order += 1
             public = _PUBLIC_DIR / f"{fw.id}.md"
             planned[public] = _preserve_review_dates(public, render_public_page(fw, order))

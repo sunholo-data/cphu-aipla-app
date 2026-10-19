@@ -1,0 +1,102 @@
+# CER, read as three components — a VARIANT of cer.yaml, drafted 2026-10-19 for
+# the researchers to choose between the two readings. Not a replacement.
+#
+# ── Why this exists ──────────────────────────────────────────────────────────
+# The teaching-framework working set was reviewed against "Tutor Prompt
+# Framework Constructs" (docs/literature/Tutor Prompt Framework Constructs.docx,
+# committed 2026-10-19), which names CER's constructs as the three things the
+# STUDENT produces: claim, evidence, reasoning. cer.yaml names the five
+# strategies the TEACHER uses (McNeill & Krajcik, 2008), a choice made on
+# 2026-09-10 and recorded in its header. Both readings are in the chapter; the
+# choice between them changes what the tutor does, so it is the researchers'.
+# This file is the component reading, so both can be compared on the same
+# activities.
+#
+# Behaviours are drawn from cer.yaml's own behaviours, regrouped under the
+# component they serve. Nothing new is asserted about the source.
+#
+# ⚠️ The provenance below is the same primary source cer.yaml cites, with the
+# same vouching. The docx is a derived summary and is not a citation.
+id: cer-components
+label: Claim-Evidence-Reasoning — three components
+layer: tp_cycle
+status: ready_for_review
+summary: >
+  A scientific explanation has three components that the student has to
+  produce: a claim that answers the question, evidence that is both appropriate
+  and sufficient, and reasoning that links the two by naming the scientific
+  principle which makes the data count as evidence. The tutor's job is to name
+  whichever component is missing or weak, say why it matters, and send the
+  student back to supply it. Students usually write the claim alone, so most of
+  the work is on evidence and reasoning.
+provenance:
+  - citation: >
+      McNeill, K. L. & Krajcik, J. (2008). Inquiry and scientific explanations:
+      Helping students use evidence and reasoning. In J. Luft, R. L. Bell &
+      J. Gess-Newsome (Eds.), Science as Inquiry in the Secondary Setting.
+      NSTA Press.
+    vouchedBy: M
+    note: >
+      The same primary source and the same vouching as cer.yaml. Component
+      definitions are the chapter's own, from its claim / evidence / reasoning
+      framing and its Appendix B base rubric.
+  - citation: >
+      Toulmin, S. (1958). The Uses of Argument. Cambridge University Press.
+    vouchedBy: M
+    note: >
+      Named by the chapter as the model it builds on. Same entry as cer.yaml.
+constructs:
+  - name: claim
+    summary: >
+      A conclusion that answers the original question about the phenomenon. It
+      is the component students most often produce on their own, so the tutor
+      checks it answers the question asked and is accurate, rather than
+      accepting a correct-sounding sentence that answers something else.
+    behaviours:
+      - Ask the student to state their claim as a direct answer to the question, in one sentence.
+      - Check that the claim answers the question that was asked, not a neighbouring one.
+      - Say whether the claim is accurate, accurate but incomplete, or accurate and complete, and name the part that is incomplete.
+      - Ask what would make the claim more complete before you suggest anything.
+    avoid:
+      - Accepting a claim as finished when it has no evidence attached to it yet.
+      - Restating the student's claim in better words and treating that as their answer.
+    evaluationHint: >
+      Does the tutor say which of the three levels the claim is at, and name the
+      part that is missing, rather than calling it right or wrong?
+  - name: evidence
+    summary: >
+      Scientific data that supports the claim and is both appropriate (relevant
+      to this claim) and sufficient (enough for the size of the claim). The
+      chapter's hardest component for students: they tend to cite data without
+      saying how it bears on the claim, or cite the wrong data.
+    behaviours:
+      - Ask which data the student is using, and what in that data supports the claim.
+      - Challenge an irrelevant piece of evidence directly — is how something is used a property of it?
+      - Ask whether the evidence is enough for the size of the claim being made.
+      - Point out when an explanation gestures at data without citing any of it.
+      - Say whether the evidence is absent or inappropriate, appropriate but insufficient, or appropriate and sufficient, and name which.
+    avoid:
+      - Accepting "the data shows it" without asking what in the data shows it.
+      - Supplying the evidence yourself when the student could find it in their own material.
+    evaluationHint: >
+      Did the tutor name whether the problem is relevance or sufficiency, rather
+      than saying the evidence is weak?
+  - name: reasoning
+    summary: >
+      The link between claim and evidence, showing why the data counts as
+      evidence by naming a scientific principle. The chapter's feedback point
+      here is that a restatement of the data is not reasoning, and that the
+      principle has to be written down even when both parties already know it.
+    behaviours:
+      - Ask what scientific principle makes this data count as evidence for this claim.
+      - Tell the student the principle has to be written down, even when both of you already know it.
+      - When the student only restates the data, say that the data has been repeated, not linked, and ask for the principle.
+      - Ask the student to make the logical connection explicit rather than leaving it implied.
+      - Ask what would have to be true for the evidence to fail to support the claim.
+    avoid:
+      - Supplying the principle yourself as a finished statement when the student could name it.
+      - Accepting a correct claim as evidence that the reasoning behind it was sound.
+    evaluationHint: >
+      Did the student name a principle, or only repeat the data? A restatement of
+      the data is the failure this construct is against, and it should be named as
+      one.

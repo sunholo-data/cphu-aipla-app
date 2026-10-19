@@ -3,8 +3,8 @@ title: "Teaching frameworks"
 description: "The research-based teaching approaches an AIPLA tutor can be configured to use, and the published studies behind each one."
 eyebrow: "How the tutors teach"
 owner: "AIPLA project team"
-reviewed: "2026-09-10"
-reviewBy: "2026-12-10"
+reviewed: "2026-10-19"
+reviewBy: "2027-01-19"
 status: "Provisional"
 order: "62"
 nav: "true"
@@ -31,14 +31,17 @@ an empty slot is more honest than showing nothing.
 | Framework | Status | Source |
 |---|---|---|
 | [5E Model — learning cycle](/project/tutors/5e) | Drafted, in review | Tanner, K. D. (2010). Order Matters: Using the 5E Model to Align Teaching with How People Learn. CBE—Life Sciences Education, 9(3), 159–164. doi:10.1187/cbe.10-06-0082 |
+| Accountable Talk — with the twelve moves | Drafted, in review | Michaels, S., O'Connor, M. C., Hall, M. W., with Resnick, L. B. Accountable Talk® Sourcebook: For Classroom Conversation That Works. Institute for Learning, University of Pittsburgh. |
 | [Accountable Talk](/project/tutors/accountable-talk) | Drafted, in review | Michaels, S., O'Connor, M. C., Hall, M. W., with Resnick, L. B. Accountable Talk® Sourcebook: For Classroom Conversation That Works. Institute for Learning, University of Pittsburgh. |
+| Authentic Dialogue — three constructs | Drafted, in review | Dysthe, O. (1996). The Multivoiced Classroom: Interactions of Writing and Classroom Discourse. Written Communication, 13(3), 385–425. |
 | [Authentic Dialogue — dialogic teaching](/project/tutors/authentic-dialogue) | Drafted, in review | Dysthe, O. (1996). The Multivoiced Classroom: Interactions of Writing and Classroom Discourse. Written Communication, 13(3), 385–425. |
+| Claim-Evidence-Reasoning — three components | Drafted, in review | McNeill, K. L. & Krajcik, J. (2008). Inquiry and scientific explanations: Helping students use evidence and reasoning. In J. Luft, R. L. Bell & J. Gess-Newsome (Eds.), Science as Inquiry in the Secondary Setting. NSTA Press. |
 | [Claim-Evidence-Reasoning (CER)](/project/tutors/cer) | Drafted, in review | McNeill, K. L. & Krajcik, J. (2008). Inquiry and scientific explanations: Helping students use evidence and reasoning. In J. Luft, R. L. Bell & J. Gess-Newsome (Eds.), Science as Inquiry in the Secondary Setting. NSTA Press. |
 | [ESRU — informal formative assessment cycle](/project/tutors/esru) | Drafted, in review | Ruiz-Primo, M. A. & Furtak, E. M. (2007). Exploring teachers' informal formative assessment practices and students' understanding in the context of scientific inquiry. Journal of Research in Science Teaching, 44(1), 57–84. doi:10.1002/tea.20163 |
 | [Predict-Observe-Explain (POE)](/project/tutors/poe) | Drafted, in review | Liew, C.-W. & Treagust, D. F. (1998). The Effectiveness of Predict-Observe-Explain Tasks in Diagnosing Students' Understanding of Science and in Identifying Their Levels of Achievement. Paper presented at the Annual Meeting of the American Educational Research Association, San Diego, 13–17 April 1998. ERIC ED420715. |
 | [Toulmin Argumentation Model](/project/tutors/toulmin) | Drafted, in review | Erduran, S., Simon, S. & Osborne, J. (2004). TAPping into argumentation: Developments in the application of Toulmin's Argument Pattern for studying science discourse. Science Education, 88(6), 915–933. doi:10.1002/sce.20012 |
 
-**7 of 7** frameworks currently have their teaching moves written.
+**10 of 10** frameworks currently have their teaching moves written.
 
 ## What a framework changes
 

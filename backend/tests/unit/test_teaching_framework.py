@@ -19,6 +19,12 @@ EXPECTED_IDS = {
     "esru",
     "poe",
     "toulmin",
+    # 2026-10-19 variants for the researchers to choose between, drafted from
+    # "Tutor Prompt Framework Constructs". Each differs from its base by one
+    # decision; see the header of each YAML.
+    "accountable-talk-moves",
+    "authentic-dialogue-three",
+    "cer-components",
 }
 
 
@@ -112,6 +118,10 @@ WORKED = {
     "cer",
     "poe",
     "toulmin",
+    # The 2026-10-19 variants are worked too: drafted from the same sources.
+    "accountable-talk-moves",
+    "authentic-dialogue-three",
+    "cer-components",
 }
 
 

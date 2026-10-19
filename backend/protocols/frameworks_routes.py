@@ -59,7 +59,7 @@ from db.models.teaching_framework import (
     TeachingFramework,
 )
 from frameworks.instruction import build_framework_instruction
-from frameworks.loader import framework_ids, load_framework, load_frameworks
+from frameworks.loader import VARIANT_FRAMEWORK_IDS, framework_ids, load_framework, load_frameworks
 from protocols.authorship import author_emails_for, authorship_fields
 
 log = logging.getLogger(__name__)
@@ -211,7 +211,10 @@ async def teacher_catalogue_route(
                     for c in (effective_framework(fw.id) or fw).constructs
                 ],
             }
+            # Variants stay off the teacher's list until a researcher picks one:
+            # the teacher reads what is published, and a variant is not yet that.
             for fw in load_frameworks()
+            if fw.id not in VARIANT_FRAMEWORK_IDS
         ]
     }
 

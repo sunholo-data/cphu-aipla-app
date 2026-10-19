@@ -33,8 +33,24 @@ export const AVATAR_CHOICES: AvatarChoice[] = [
     "label": "Jonas"
   },
   {
+    "path": "/personas/kasper.webp",
+    "label": "Kasper"
+  },
+  {
+    "path": "/personas/lars.webp",
+    "label": "Lars"
+  },
+  {
     "path": "/personas/mikkel.webp",
     "label": "Mikkel"
+  },
+  {
+    "path": "/personas/nadia.webp",
+    "label": "Nadia"
+  },
+  {
+    "path": "/personas/omar.webp",
+    "label": "Omar"
   },
   {
     "path": "/personas/sofie.webp",

@@ -53,7 +53,12 @@ def test_every_route_is_researcher_only():
 def test_catalogue_lists_all_seven_with_instructions():
     body = _client(RESEARCHER).get("/api/research/frameworks").json()
     ids = [f["id"] for f in body["frameworks"]]
-    assert set(ids) == {"5e", "accountable-talk", "authentic-dialogue", "cer", "esru", "poe", "toulmin"}
+    # The researcher sees the variants too (2026-10-19) — they are for choosing.
+    assert set(ids) == {"5e", "accountable-talk", "authentic-dialogue", "cer", "esru", "poe", "toulmin"} | {
+        "accountable-talk-moves",
+        "authentic-dialogue-three",
+        "cer-components",
+    }
     esru = next(f for f in body["frameworks"] if f["id"] == "esru")
     assert esru["isOverridden"] is False
     # The four verified ESRU moves reach the instruction a tutor would receive.

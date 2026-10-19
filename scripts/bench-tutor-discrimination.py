@@ -180,7 +180,7 @@ def build_setup(args: argparse.Namespace) -> Setup:
     from analytics.framework_discrimination import load_scenarios
     from analytics.framework_fidelity import analysis_judge_model
     from config.models import default_model, model_api_names, smart_model
-    from frameworks.loader import ready_frameworks
+    from frameworks.loader import VARIANT_FRAMEWORK_IDS, ready_frameworks
 
     scenarios = load_scenarios(args.scenarios)
     if args.only_scenarios:
@@ -189,10 +189,11 @@ def build_setup(args: argparse.Namespace) -> Setup:
         missing = wanted - {s.id for s in scenarios}
         if missing:
             raise SystemExit(f"unknown scenario id(s): {', '.join(sorted(missing))}")
-    frameworks = ready_frameworks()
+    # Variants are named explicitly with --frameworks, never picked up by default.
+    frameworks = [f for f in ready_frameworks() if f.id not in VARIANT_FRAMEWORK_IDS]
     if args.frameworks:
         wanted = _csv(args.frameworks)
-        by_id = {f.id: f for f in frameworks}
+        by_id = {f.id: f for f in ready_frameworks()}
         missing = [w for w in wanted if w not in by_id]
         if missing:
             raise SystemExit(f"unknown or placeholder framework id(s): {', '.join(missing)}")

@@ -1,0 +1,141 @@
+# Accountable Talk, with the sourcebook's twelve teacher moves as their own
+# construct — a VARIANT of accountable-talk.yaml, drafted 2026-10-19 for the
+# researchers to choose between. Not a replacement.
+#
+# ── Why this exists ──────────────────────────────────────────────────────────
+# "Tutor Prompt Framework Constructs" (docs/literature/, committed 2026-10-19)
+# lists Accountable Talk as its three accountabilities AND a separate list of
+# teacher talk moves: marking, challenging, modelling, recapping, keeping the
+# channels open, keeping everyone together, linking contributions, verifying and
+# clarifying (revoicing), pressing for accuracy, building on prior knowledge,
+# pressing for reasoning, expanding reasoning. accountable-talk.yaml covers most
+# of those inside its three accountabilities, but has no construct that says
+# the moves are a set a teacher works through, and leaves out recapping,
+# modelling and challenging as named moves.
+#
+# This variant adds a fourth construct, `talk_moves`, that lists all twelve so
+# a researcher can see each one and decide whether it belongs. The three
+# accountabilities are unchanged from accountable-talk.yaml.
+#
+# ⚠️ THE SAME FIT QUESTION applies as in accountable-talk.yaml. Most of these
+# moves presuppose several speakers. Their one-to-one reading is in each
+# behaviour; the setting stays group_talk, so the class picker still refuses
+# this approach for a class whose lesson recording is off.
+#
+# ⚠️ Provenance is the same primary source, with the same vouching, as
+# accountable-talk.yaml. The docx is a derived summary and is not a citation.
+id: accountable-talk-moves
+label: Accountable Talk — with the twelve moves
+layer: tp_cycle
+status: ready_for_review
+setting: group_talk
+summary: >
+  Talk that does academic work is accountable to the learning community, to
+  accurate knowledge, and to rigorous thinking. The sourcebook gives each one a
+  set of named teacher moves, and a teacher works through them in the course of
+  a discussion: marking what matters, challenging students to say what they
+  think, modelling the contribution wanted, recapping, keeping the channels
+  open, keeping everyone together, linking contributions, revoicing, pressing
+  for accuracy, building on prior knowledge, pressing for reasoning, and
+  expanding reasoning.
+provenance:
+  - citation: >
+      Michaels, S., O'Connor, M. C., Hall, M. W., with Resnick, L. B.
+      Accountable Talk® Sourcebook: For Classroom Conversation That Works.
+      Institute for Learning, University of Pittsburgh.
+    vouchedBy: M
+    note: >
+      The same primary source and the same vouching as accountable-talk.yaml.
+      The twelve moves are the sourcebook's teacher-move list.
+  - citation: >
+      Rowe, M. B. (1986). Wait time: Slowing down may be a way of speeding up!
+      Journal of Teacher Education, 37(1), 43–50.
+    vouchedBy: M
+    note: >
+      Source of the wait-time restraint. Same entry as accountable-talk.yaml.
+  - citation: >
+      Resnick, L. B. & Nelson-Le Gall, S. (1997). Socializing intelligence. In
+      L. Smith, J. Dockrell & P. Tomlinson (Eds.), Piaget, Vygotsky and Beyond
+      (pp. 145–158). London/New York: Routledge.
+    vouchedBy: M
+    note: >
+      Same entry as accountable-talk.yaml.
+constructs:
+  - name: accountability_to_community
+    summary: >
+      Contributions are heard, understood and built on, and disagreement is
+      directed at the claim and never at the person making it. The moves under
+      it presuppose other participants: see the header note.
+    behaviours:
+      - Revoice what the student said and hand it back for confirmation — "so, are you saying…?" — letting them agree or correct it.
+      - Ask the student to restate an idea in their own words rather than accepting a quotation of it.
+      - Ask the student to connect what they are saying now to something they said earlier in the conversation.
+      - Mark a contribution that matters and say specifically why it matters, rather than praising it generally.
+      - Where the activity is group-based, send the student to a classmate's idea and ask them to agree, disagree or add on, with a reason.
+      - Direct any disagreement at the claim and never at the person making it.
+    avoid:
+      - Referring to classmates, the group or the class when the student is working alone.
+      - Accepting a contribution nobody could build on, because it was too vague to use.
+    evaluationHint: >
+      Does the tutor build on the student's actual words? ⚠️ In a 1:1 conversation
+      this construct is only partly measurable, so a low score may mean the
+      framework did not apply rather than that the tutor failed.
+  - name: accountability_to_knowledge
+    summary: >
+      Claims are specific and accurate, and the student says where a claim comes
+      from. The teacher asks for the source rather than accepting "we did this
+      in class" or a confident statement.
+    behaviours:
+      - Ask where that could be found or checked.
+      - Ask what we know so far, and what our evidence for it is.
+      - Ask how we could find out, when neither of you knows.
+      - Ask whether the information is complete, or an impression.
+      - Say when a claim could be right but is not yet supported, and ask how to get more evidence.
+    avoid:
+      - Letting a confident statement pass because it happens to be correct.
+      - Supplying the source or the fact when the student could locate it.
+    evaluationHint: >
+      When the student made a factual claim, were they asked where it came from?
+  - name: accountability_to_reasoning
+    summary: >
+      The facts have to be marshalled into an argument. The sourcebook's
+      evidence standard is sufficiency, credibility, relevance and qualification,
+      not accuracy alone.
+    behaviours:
+      - Ask why they think that — the sourcebook's central prompt for this accountability.
+      - Ask what their reasoning is, separately from what their evidence is.
+      - Put a counterexample to them and ask whether the claim survives it.
+      - Ask whether the claim should be narrowed to match what the evidence actually covers.
+    avoid:
+      - Answering your own question, or filling the turn before the student has had it.
+      - Accepting "it feels right" as a justification, or dismissing it instead of asking what is behind it.
+    evaluationHint: >
+      Was the student asked for reasoning separately from being asked for an
+      answer? Does the strength of their claim match the evidence they gave?
+  - name: talk_moves
+    summary: >
+      The sourcebook's twelve teacher moves, one behaviour each, in the order its
+      list gives them. A move is a thing the teacher says; the three
+      accountabilities above are what the moves are for. Several overlap with
+      the behaviours above; they are kept here so a researcher can see the full
+      list in one place.
+    behaviours:
+      - Marking — mark a contribution that matters and say specifically why it matters.
+      - Challenging — return the question to the student with "What do YOU think?" rather than answering it.
+      - Modelling — show the kind of contribution you want, a full and sourced one, before asking for one.
+      - Recapping — summarise where the conversation has got to and what is still open.
+      - Keeping the channels open — hold the student's line of thought open with "take your time; say more" rather than closing it.
+      - Keeping everyone together — in a group, ask who can repeat what a classmate said; in a 1:1, point at the student's own earlier turn instead.
+      - Linking contributions — connect what this student said to what was said earlier, by them or anyone else.
+      - Verifying and clarifying (revoicing) — "so, are you saying…?" — and let the student confirm or correct it.
+      - Pressing for accuracy — "where can we find that?"
+      - Building on prior knowledge — "do you remember…? how does this connect?"
+      - Pressing for reasoning — "why do you think that?"
+      - Expanding reasoning — "take your time; say more."
+    avoid:
+      - Using a move as a formula, one per turn, when the student's answer does not call for it.
+      - Saying "What do YOU think?" as a way to avoid answering a question the student actually needs answered.
+    evaluationHint: >
+      Can the tutor's move be matched to one of the twelve, and does it fit the
+      student's last contribution rather than arriving on a schedule? Recapping
+      and modelling are the two moves most often missing from a tutor's turns.
