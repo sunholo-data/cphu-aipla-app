@@ -314,7 +314,7 @@ export const ACTIVITY_TEMPLATES: ActivityTemplate[] = [
       ],
       rows: 6,
     },
-    chart: { title: "Svingningstid mod længde", chartKind: "scatter" },
+    chart: { title: "Svingningstid som funktion af længde", chartKind: "scatter" },
     calculator: {
       title: "Tyngdeacceleration",
       formula: "4 * 3.14159 * 3.14159 * L / (T * T)",

@@ -53,7 +53,7 @@
     "evidenceTitle": "AI: {evidence}",
     "markedByAi": "markeret af AI",
     "footerShared": "AI'en kan markere trin ud fra jeres samtale — tryk for at ændre en markering. Fremgangen deles med din gruppe.",
-    "footerLocal": "Du bestemmer selv hvornår en delopgave er klar — markeringen er kun til din egen oversigt."
+    "footerLocal": "Du bestemmer selv, hvornår en delopgave er klar. Markering med flueben er kun til dit eget overblik."
   },
   "SimLauncher": {
     "tooNarrowTitle": "{name} kræver en større skærm",
@@ -135,7 +135,7 @@
     "saveError": "Ikke gemt — prøver igen",
     "cellLabel": "{table} {column} række {row}",
     "notANumber": "Nogle felter er ikke tal, så grafen springer dem over. Brug cifre med komma eller punktum som decimaltegn.",
-    "footer": "Indtast dine målinger — de deles med vejlederen, så du kan spørge til dem."
+    "footer": "Indtast dine målinger — de deles med tutoren, så du kan spørge ind til dem."
   },
   "WorkbenchTabs": {
     "label": "Arbejdsområde",

@@ -34,7 +34,7 @@ Ja. Under **Materialer** kan du uploade en PDF, en Word-fil, slides, et regneark
 For hvert dokument i en aktivitet vælger du to ting:
 
 - **Eleverne kan åbne den / Kun tutoren.** Nye dokumenter starter som **Kun tutoren**. Tutoren bruger dem, men eleverne kan ikke åbne dem.
-- **Opslag / I kontekst.** Med Opslag slår tutoren op i dokumentet, når det er relevant. Med I kontekst har tutoren hele teksten ved hver besked. Brug I kontekst til den opgave, eleverne arbejder med.
+- **Opslag / Altid med.** Vælger du Opslag, slår tutoren op i dokumentet, når det er relevant. Vælger du Altid med, har tutoren hele teksten med ved hver besked. Brug Altid med til den opgave, eleverne arbejder med.
 
 Læs mere: [T3 — Tilføj og organiser pensummaterialer](/guides/t3-add-curriculum-materials.da).
 

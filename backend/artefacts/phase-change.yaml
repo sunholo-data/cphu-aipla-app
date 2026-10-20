@@ -1,7 +1,7 @@
 id: phase-change
 version: v1
 displayName: "Faseovergange — opvarmningskurve"
-description: "100 g H2O varmes fra is ved -20 °C til damp. Eleven følger temperaturen mod tilført energi og markerer punkter på kurven — plateauerne ved 0 °C og 100 °C er pointen."
+description: "100 g H₂O opvarmes fra is ved -20 °C til damp. Eleven registrerer temperaturen i forhold til den tilførte energi og markerer punkter på grafen. Pointen er at vise plateauerne ved 0 °C og 100 °C."
 topics:
   - faseovergange
   - termisk energi

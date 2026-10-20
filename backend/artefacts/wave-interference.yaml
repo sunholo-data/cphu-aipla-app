@@ -1,7 +1,7 @@
 id: wave-interference
 version: v1
 displayName: "Interferens — to bølger lægges sammen"
-description: "To bølger i samme medium lægges sammen: eleven ændrer bølgelængder og faseforskydning og ser konstruktiv og destruktiv interferens samt svævninger."
+description: "To bølger i samme medium lægges sammen: Eleven ændrer bølgelængder og faseforskydning og undersøger, hvordan der opstår konstruktiv og destruktiv interferens samt svævninger."
 topics:
   - bølger
   - interferens

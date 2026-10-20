@@ -34,7 +34,7 @@ forankre sine svar i din kilde frem for i almen viden. Du kan vedhæfte:
 
 Hvert vedhæftet dokument er enten **Eleverne kan åbne den** eller **Kun tutoren**
 (bruges kun til at forankre tutoren), og enten **Opslag** (tutoren slår det op, når det
-er relevant) eller **I kontekst** (tutoren får hele teksten ved hver besked). Du
+er relevant) eller **Altid med** (tutoren får hele teksten ved hver besked). Du
 vælger per dokument.
 
 ::: callout-tip
@@ -105,8 +105,8 @@ Hvert henvist dokument har to omskiftere:
   Rækkefølgen er den, du har tilføjet dem i. Når tutoren nævner et delt
   dokument, er navnet et link, der åbner det; den linker aldrig til et, der er
   *Kun tutoren*. (Billeder bruger stadig **Synlig / Skjult**.)
-- **Opslag / I kontekst** — **Opslag** (standard) lader tutoren slå dokumentet
-  op, når det er relevant, hvilket passer til en lærebog. **I kontekst** giver
+- **Opslag / Altid med** — **Opslag** (standard) lader tutoren slå dokumentet
+  op, når det er relevant, hvilket passer til en lærebog. **Altid med** giver
   tutoren hele teksten ved hver besked: brug det til den opgave, eleverne
   arbejder med, så tutoren aldrig skal lede efter den eller bede dem indsætte
   den.

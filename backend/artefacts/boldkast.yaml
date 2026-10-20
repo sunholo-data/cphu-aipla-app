@@ -1,7 +1,7 @@
 id: boldkast
 version: v1
 displayName: "Boldkast — projektilbevægelse"
-description: "Interaktiv simulation af projektilbevægelse: eleven varierer udgangsvinkel og starthastighed og aflæser rækkevidden."
+description: "Interaktiv simulation af projektilbevægelse: Eleven ændrer udgangsvinkel og starthastighed og aflæser rækkevidden."
 topics:
   - kastebevægelse
   - kinematik

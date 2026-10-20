@@ -1,7 +1,7 @@
 id: kettle-efficiency
 version: v1
 displayName: "Elkedel — energi og nyttevirkning"
-description: "Virtuel elkedel med kWh-måler, termometer og stopur: eleven vælger effekt og vandmængde, varmer op og registrerer sine egne aflæsninger."
+description: "Virtuel elkedel med kWh-måler, termometer og stopur: Eleven angiver effekt og vandmængde, varmer vandet op og registrerer sine aflæsninger undervejs."
 topics:
   - energi
   - effekt

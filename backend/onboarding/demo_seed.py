@@ -388,7 +388,7 @@ def _demo_activities(owner_uid: str, concept_skill: str) -> list[Activity]:
                 ],
             )
         ],
-        chart=[ChartElement(id="graf", title="Svingningstid mod længde", chart_kind="scatter")],
+        chart=[ChartElement(id="graf", title="Svingningstid som funktion af længde", chart_kind="scatter")],
         calculator=[
             CalculatorElement(
                 id="g",

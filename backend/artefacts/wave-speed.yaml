@@ -1,7 +1,7 @@
 id: wave-speed
 version: v1
 displayName: "Bølgefart — v = f·λ"
-description: "Løbende bølge hvor eleven selv sætter frekvens, bølgelængde og amplitude, aflæser f, λ og T, og regner bølgens fart ud. Simuleringen viser aldrig farten."
+description: "Eleven angiver frekvens, bølgelængde og amplitude på en løbende bølge, aflæser f, λ og T og regner bølgens fart ud. Simuleringen viser aldrig farten."
 topics:
   - bølger
   - bølgelængde

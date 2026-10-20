@@ -21,7 +21,7 @@
   "SolutionEditor": {
     "optional": "Solution editor (optional)",
     "add": "Add solution editor",
-    "help": "A rich-text editor where the student writes their own solution; the tutor responds to what they wrote (never the full answer).",
+    "help": "A space where the student draws their solution on a whiteboard or uploads a photo of their handwritten work. The tutor comments on the solution without giving the answer.",
     "title": "Solution editor",
     "remove": "Remove",
     "prompt": "Prompt (optional)",

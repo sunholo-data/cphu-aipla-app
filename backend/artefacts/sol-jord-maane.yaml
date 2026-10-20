@@ -1,7 +1,7 @@
 id: sol-jord-maane
 version: v1
 displayName: "Sol, Jord og Måne"
-description: "3D-model af Sol, Jord og Måne med rigtig astronomi: eleven skifter udsigtspunkt, skala og tid og løser fem missioner om døgn, årstider, månefaser, formørkelser og modellers skala."
+description: "Interaktiv 3D-model af Sol, Jord og Måne med rigtig astronomi: Eleven ændrer udsigtspunkt, skala og tid og løser fem missioner, der omhandler døgn, årstider, månefaser, formørkelser og modellers skala."
 topics:
   - astronomi
   - døgn

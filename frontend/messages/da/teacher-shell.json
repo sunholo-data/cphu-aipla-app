@@ -60,17 +60,17 @@
     "lockedHint": "Ikke slået til for dig endnu — åbn den for at se, hvordan du spørger"
   },
   "SettingsMap": {
-    "heading": "Hvor indstillingerne ligger",
+    "heading": "Indstillinger",
     "ariaLabel": "Hvor hver indstilling ligger",
     "classLabel": "Klasse",
     "classQuestion": "hvem der deltager",
-    "classDetail": "elever, gruppekoder og hvad de kan bruge",
+    "classDetail": "elever, gruppekoder og hvad de har adgang til",
     "tutorLabel": "Tutor",
     "tutorQuestion": "hvem der underviser",
-    "tutorDetail": "navn, stemme, tone og undervisningstilgang — ét valg, som træffes på klassen",
+    "tutorDetail": "navn, stemme, tone og undervisningstilgang. Valget gælder hele klassen",
     "activityLabel": "Aktivitet",
     "activityQuestion": "hvad eleverne laver",
-    "activityDetail": "undervisningsmål, eventuel simulation og citerede materialer — det, du laver her"
+    "activityDetail": "undervisningsmål, eventuel simulation og citerede materialer — dette ændrer du på siden her"
   },
   "ActingForOwnerBanner": {
     "editingClass": "Du redigerer {owner}s klasse som forsker.",
