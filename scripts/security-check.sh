@@ -2,17 +2,19 @@
 #
 # security-check.sh — single source of truth for AIPLA's dep security gate.
 #
-# Runs three audits in sequence and exits non-zero on any failure:
+# Runs audits in sequence and exits non-zero on any failure:
 #   1. frontend/  — npm audit --omit=dev --audit-level=high
 #   2. infrastructure/mcp-sandbox/ — same
 #   3. backend/   — pip-audit on uv-exported production deps (OSV database)
+#   4. cli/       — same; its HTTP client has a separate trust store lockfile
 #
 # Both the CI gate (.github/workflows/ci.yml security-audit job) and the
 # local Makefile target (`make security-check`) invoke this script — that
 # way they cannot drift out of sync. If you need to change the gate's
 # behaviour, change it here.
 #
-# Policy: see docs/design/aipla/v1.1.0-feedback/security-monitoring-pipeline.md
+# AUDIT_INCLUDE_DEV=1 includes npm development dependencies (weekly scan).
+# Policy: see docs/design/aipla/v1.1.0-feedback/implemented/security-monitoring-pipeline.md
 # Triage runbook for failures: .claude/skills/aipla-security-checkup/SKILL.md
 #
 # Exit codes:
@@ -70,8 +72,8 @@ audit_npm() {
   local dir="$1"
   local label="$2"
   echo
-  echo "${C_BOLD}[$label] npm audit --omit=dev --audit-level=high${C_RESET}"
-  if (cd "$dir" && npm audit --omit=dev --audit-level=high); then
+  echo "${C_BOLD}[$label] npm audit ${NPM_SCOPE[*]} --audit-level=high${C_RESET}"
+  if (cd "$dir" && npm audit --package-lock-only "${NPM_SCOPE[@]}" --audit-level=high); then
     echo "${C_GREEN}PASS${C_RESET} $label"
   else
     echo "${C_RED}FAIL${C_RESET} $label"
@@ -87,8 +89,11 @@ audit_python() {
   # --no-emit-project drops the local "-e ." line which pip-audit can't hash.
   # --ignore-vuln: starlette CVEs blocked by fastapi<1.0.0, and the litellm
   # proxy-only CVE blocked by aiplatform's cap — all documented above.
-  if (cd "$dir" && uvx pip-audit \
-       --requirement <(uv export --frozen --no-dev --no-emit-project) \
+  if (cd "$dir" && requirements="$(mktemp)" && trap 'rm -f "$requirements"' EXIT && \
+      uv export --frozen --no-dev --no-emit-project --output-file "$requirements" >/dev/null && \
+      uvx pip-audit \
+       --requirement "$requirements" \
+       --no-deps --disable-pip \
        --strict \
        --ignore-vuln PYSEC-2026-161 \
        --ignore-vuln CVE-2026-48817 \
@@ -104,24 +109,31 @@ audit_python() {
   fi
 }
 
-audit_npm "frontend"                       "frontend (npm prod, high+)"
-audit_npm "infrastructure/mcp-sandbox"     "sandbox  (npm prod, high+)"
+NPM_SCOPE=(--omit=dev)
+if [ "${AUDIT_INCLUDE_DEV:-0}" = "1" ]; then NPM_SCOPE=(--include=dev); fi
+
+if ! node scripts/check-security-floors.mjs; then
+  FAILURES+=("A2UI security floor")
+fi
+audit_npm "frontend"                       "frontend (npm, high+)"
+audit_npm "infrastructure/mcp-sandbox"     "sandbox  (npm, high+)"
 audit_python "backend"                     "backend  (pip-audit/OSV)"
+audit_python "cli"                         "CLI      (pip-audit/OSV)"
 
 echo
 echo "${C_BOLD}=== Security audit summary ===${C_RESET}"
 if [ ${#FAILURES[@]} -eq 0 ]; then
-  echo "${C_GREEN}All three production-dep audits passed.${C_RESET}"
+  echo "${C_GREEN}All dependency audits and security floors passed.${C_RESET}"
   echo "Note: dev-only deps + medium-severity findings are caught by the weekly cron"
   echo "(.github/workflows/security-weekly.yml), not this gate."
   exit 0
 else
-  echo "${C_RED}FAIL — ${#FAILURES[@]} of 3 audits found new HIGH/CRITICAL CVEs:${C_RESET}"
+  echo "${C_RED}FAIL — ${#FAILURES[@]} security checks failed (findings or scan errors):${C_RESET}"
   for f in "${FAILURES[@]}"; do
     echo "  - $f"
   done
   echo
   echo "Triage runbook: .claude/skills/aipla-security-checkup/SKILL.md"
-  echo "Policy doc:     docs/design/aipla/v1.1.0-feedback/security-monitoring-pipeline.md"
+  echo "Policy doc:     docs/design/aipla/v1.1.0-feedback/implemented/security-monitoring-pipeline.md"
   exit 1
 fi

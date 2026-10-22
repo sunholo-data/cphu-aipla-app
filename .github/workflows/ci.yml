@@ -322,6 +322,11 @@ jobs:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
 
+      - name: Security tooling regression tests
+        run: |
+          node --test scripts/tests/security-floors.test.mjs
+          python3 -m unittest discover -s scripts/tests -p 'test_reconcile_dependabot_alerts.py'
+
       - name: Run security check (frontend + sandbox + backend)
         run: scripts/security-check.sh
 
