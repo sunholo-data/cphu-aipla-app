@@ -32,6 +32,7 @@ import {
   type SurfaceModel,
 } from "@a2ui/web_core/v0_9";
 import { useEffect, useMemo, useState } from "react";
+import { withBasicCatalogAliases } from "./basicCatalogAliases";
 
 let stylesInjected = false;
 function ensureStyles() {
@@ -88,7 +89,7 @@ export function A2UIRenderer({ messages, fallbackSurfaceId, onAction }: A2UIRend
   const [error, setError] = useState<string | null>(null);
 
   const processor = useMemo(
-    () => new MessageProcessor<ReactComponentImplementation>([basicCatalog]),
+    () => new MessageProcessor<ReactComponentImplementation>(withBasicCatalogAliases(basicCatalog)),
     // One processor per renderer instance; the bubble keys the renderer.
     // We intentionally do NOT depend on `messages` here.
     [],

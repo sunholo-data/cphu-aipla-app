@@ -27,6 +27,7 @@ unparseable response just leaves ``has_ui_resource`` unset.
 
 from __future__ import annotations
 
+import inspect
 import logging
 from collections.abc import Callable
 from typing import Any
@@ -189,22 +190,20 @@ def compose_after_tool_callbacks(
     response. The MCP callback's return value is ignored — observability
     must not mutate the response.
     """
-    if existing is None:
-        # Adapt mcp's "return None always" to also return the original
-        # response so the caller's contract is preserved.
-        def _just_observe(tool: Any, args: dict, tool_context: Any, tool_response: Any) -> Any:
-            mcp(tool=tool, args=args, tool_context=tool_context, tool_response=tool_response)
-            return tool_response
 
-        return _just_observe
-
-    def _composed(tool: Any, args: dict, tool_context: Any, tool_response: Any) -> Any:
-        rewritten = existing(tool=tool, args=args, tool_context=tool_context, tool_response=tool_response)
-        # Existing callbacks return either the new response or the original;
-        # ADK treats "is not None" as "use this". Mirror that contract.
+    async def _composed(tool: Any, args: dict, tool_context: Any, tool_response: Any) -> Any:
+        # Saves and third-party callbacks may be async. Resolve the rewrite
+        # before observing it or handing a result back to ADK.
+        rewritten = (
+            existing(tool=tool, args=args, tool_context=tool_context, tool_response=tool_response) if existing else None
+        )
+        if inspect.isawaitable(rewritten):
+            rewritten = await rewritten
         effective = rewritten if rewritten is not None else tool_response
-        mcp(tool=tool, args=args, tool_context=tool_context, tool_response=effective)
-        return rewritten
+        observed = mcp(tool=tool, args=args, tool_context=tool_context, tool_response=effective)
+        if inspect.isawaitable(observed):
+            await observed
+        return rewritten if existing else tool_response
 
     return _composed
 

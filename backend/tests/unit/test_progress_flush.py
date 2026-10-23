@@ -8,6 +8,8 @@ import pytest
 
 from adk.agui import _with_progress_flush
 
+pytestmark = pytest.mark.adk_contract
+
 
 class _Stage:
     def __init__(self, label: str) -> None:
@@ -81,3 +83,32 @@ async def test_state_delta_keeps_json_patch_semantics_on_the_wire(operation):
 
     wire = [event async for event in _run_with_stage_marks(SimpleNamespace(run=run), None, _Tracker())]
     assert wire == [{"type": "STATE_DELTA", "delta": [operation]}]
+
+
+async def test_progress_waits_for_run_started_and_nothing_follows_the_terminal():
+    from types import SimpleNamespace
+
+    from ag_ui.core import CustomEvent, RunErrorEvent, RunFinishedEvent, RunStartedEvent, TextMessageContentEvent
+
+    from adk.agui import _run_with_stage_marks
+
+    tracker = _Tracker()
+    tracker.queue.append(_Stage("Starting…"))
+
+    async def run(_input):
+        # Force a progress poll before the bridge's first event.
+        await asyncio.sleep(1.1)
+        yield RunStartedEvent(thread_id="thread", run_id="run")
+        yield TextMessageContentEvent(message_id="answer", delta="Hello")
+        tracker.queue.append(_Stage("Done"))
+        yield RunFinishedEvent(thread_id="thread", run_id="run")
+        yield CustomEvent(name="LATE", value={})
+        yield RunErrorEvent(message="duplicate terminal")
+
+    wire = [event async for event in _run_with_stage_marks(SimpleNamespace(run=run), None, tracker)]
+    assert wire[0]["type"] == "RUN_STARTED"
+    assert wire[1]["name"] == "STAGE_PROGRESS"
+    assert wire[-1]["type"] == "RUN_FINISHED"
+    assert len([e for e in wire if e["type"] in ("RUN_ERROR", "RUN_FINISHED")]) == 1
+    assert not any(e.get("name") == "LATE" for e in wire)
+    assert tracker.queue == []

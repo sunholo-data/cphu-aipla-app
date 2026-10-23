@@ -10,6 +10,8 @@ import pytest
 from adk.agui import _with_progress_flush
 from protocols.sse_keepalive import with_keepalive
 
+pytestmark = pytest.mark.adk_contract
+
 
 class _Tracker:
     def drain_stage_events(self):

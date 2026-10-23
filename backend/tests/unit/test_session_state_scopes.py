@@ -20,7 +20,7 @@ Key InMemorySessionService internals (from ADK source):
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from google.adk.sessions import InMemorySessionService
 from google.adk.sessions.state import State
@@ -36,7 +36,7 @@ def _make_tool_context(*, invocation_id: str = "inv-001") -> MagicMock:
     """Return a mock ToolContext with save_artifact wired up."""
     ctx = MagicMock()
     ctx.invocation_id = invocation_id
-    ctx.save_artifact = MagicMock(return_value=None)
+    ctx.save_artifact = AsyncMock(return_value=None)
     return ctx
 
 
@@ -54,7 +54,7 @@ def _make_tool(*, name: str = "test_tool") -> MagicMock:
 class TestHandleLargeOutput:
     """Contract tests for the after_tool_callback that offloads large responses."""
 
-    def test_large_content_returns_pointer_string(self):
+    async def test_large_content_returns_pointer_string(self):
         """Content > 50K chars must return an artifact pointer, not the raw content."""
         from adk.callbacks import _handle_large_output
 
@@ -64,13 +64,13 @@ class TestHandleLargeOutput:
 
         with patch("google.genai.types.Part.from_text") as mock_part:
             mock_part.return_value = MagicMock()
-            result = _handle_large_output(tool, {}, ctx, large_text)
+            result = await _handle_large_output(tool, {}, ctx, large_text)
 
         assert isinstance(result, str), "result must be a string pointer"
         assert "artifact" in result.lower(), "pointer must mention 'artifact'"
         assert large_text not in result, "raw content must NOT appear in the pointer"
 
-    def test_large_content_calls_save_artifact(self):
+    async def test_large_content_calls_save_artifact(self):
         """save_artifact must be called exactly once for oversized content."""
         from adk.callbacks import _handle_large_output
 
@@ -80,7 +80,7 @@ class TestHandleLargeOutput:
 
         with patch("google.genai.types.Part.from_text") as mock_part:
             mock_part.return_value = MagicMock()
-            _handle_large_output(tool, {}, ctx, large_text)
+            await _handle_large_output(tool, {}, ctx, large_text)
 
         ctx.save_artifact.assert_called_once()
         call_kwargs = ctx.save_artifact.call_args.kwargs
@@ -88,7 +88,7 @@ class TestHandleLargeOutput:
         assert "my_tool" in call_kwargs["filename"]
         assert "inv-abc" in call_kwargs["filename"]
 
-    def test_large_content_artifact_name_in_pointer(self):
+    async def test_large_content_artifact_name_in_pointer(self):
         """The pointer string must contain the artifact filename so the model can reference it."""
         from adk.callbacks import _handle_large_output
 
@@ -98,11 +98,11 @@ class TestHandleLargeOutput:
 
         with patch("google.genai.types.Part.from_text") as mock_part:
             mock_part.return_value = MagicMock()
-            result = _handle_large_output(tool, {}, ctx, large_text)
+            result = await _handle_large_output(tool, {}, ctx, large_text)
 
         assert "search_tool_response_inv-xyz" in result
 
-    def test_small_content_returned_unchanged(self):
+    async def test_small_content_returned_unchanged(self):
         """Content at or below 50K chars must pass through unmodified."""
         from adk.callbacks import _handle_large_output
 
@@ -110,12 +110,12 @@ class TestHandleLargeOutput:
         tool = _make_tool()
         ctx = _make_tool_context()
 
-        result = _handle_large_output(tool, {}, ctx, small_text)
+        result = await _handle_large_output(tool, {}, ctx, small_text)
 
         assert result == small_text, "content at threshold must be returned unchanged"
         ctx.save_artifact.assert_not_called()
 
-    def test_small_content_no_save_artifact(self):
+    async def test_small_content_no_save_artifact(self):
         """save_artifact must never be called for small responses."""
         from adk.callbacks import _handle_large_output
 
@@ -123,11 +123,11 @@ class TestHandleLargeOutput:
         tool = _make_tool()
         ctx = _make_tool_context()
 
-        _handle_large_output(tool, {}, ctx, small_text)
+        await _handle_large_output(tool, {}, ctx, small_text)
 
         ctx.save_artifact.assert_not_called()
 
-    def test_non_string_response_below_threshold_returned_unchanged(self):
+    async def test_non_string_response_below_threshold_returned_unchanged(self):
         """Non-string tool responses whose str() is ≤ threshold pass through untouched."""
         from adk.callbacks import _handle_large_output
 
@@ -135,11 +135,11 @@ class TestHandleLargeOutput:
         tool = _make_tool()
         ctx = _make_tool_context()
 
-        result = _handle_large_output(tool, {}, ctx, response)
+        result = await _handle_large_output(tool, {}, ctx, response)
 
         assert result is response, "dict response below threshold must be the same object"
 
-    def test_pointer_contains_char_count(self):
+    async def test_pointer_contains_char_count(self):
         """The artifact pointer string must include the character count for LLM context."""
         from adk.callbacks import _handle_large_output
 
@@ -149,7 +149,7 @@ class TestHandleLargeOutput:
 
         with patch("google.genai.types.Part.from_text") as mock_part:
             mock_part.return_value = MagicMock()
-            result = _handle_large_output(tool, {}, ctx, large_text)
+            result = await _handle_large_output(tool, {}, ctx, large_text)
 
         # The pointer should mention the character count so the model knows the size.
         # The format uses {:,} so the number may be comma-separated — strip commas before comparing.

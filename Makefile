@@ -310,6 +310,10 @@ cloud-build:
 # the whole flow. Override GROUP / ENV:
 #   make verify-chat-logs GROUP=aipla-demo-1 ENV=dev
 ENV ?= dev
+
+.PHONY: adk-conformance
+adk-conformance:
+	$(MAKE) -C backend adk-conformance
 GROUP ?= aipla-demo-1
 verify-chat-logs:
 	@uv run --directory cli aiplatform --env $(ENV) logs verify $(GROUP)

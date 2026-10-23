@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 _LARGE_OUTPUT_THRESHOLD = 50_000
 
 
-def _handle_large_output(
+async def _handle_large_output(
     tool: BaseTool,
     args: dict[str, Any],
     tool_context: ToolContext,
@@ -41,7 +41,7 @@ def _handle_large_output(
 
     part = genai_types.Part.from_text(text=text)
     try:
-        tool_context.save_artifact(filename=artifact_name, artifact=part)
+        await tool_context.save_artifact(filename=artifact_name, artifact=part)
     except Exception as exc:  # pragma: no cover - ADK artifact service errors
         logger.warning("save_artifact failed for %s: %s", artifact_name, exc)
         return tool_response

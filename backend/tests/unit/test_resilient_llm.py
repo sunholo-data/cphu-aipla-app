@@ -152,6 +152,72 @@ def _texts(responses: list[LlmResponse]) -> list[str]:
 LITE, SMART = "gemini-3.5-flash-lite", "gemini-3.8-flash"
 
 
+@pytest.mark.parametrize("deadline", [0, 10])
+async def test_generated_malformed_tool_call_retries_once_before_output(harness, deadline):
+    invalid = LlmResponse(error_code="MALFORMED_FUNCTION_CALL")
+    primary = _ScriptedLlm(LITE, [[invalid], [_text("Recovered", partial=False)]])
+    wrapper, notices = _wrap(primary, first_token_deadline_s=deadline)
+    assert _texts(await _run(wrapper)) == ["Recovered"]
+    assert primary.calls == 2
+    assert [name for name, _ in notices] == [rl.MODEL_RETRY_EVENT]
+    assert notices[0][1]["code"] == "MODEL_TOOL_CALL_INVALID"
+
+
+async def test_persistent_generated_tool_error_is_bounded_without_fallback(harness):
+    invalid = LlmResponse(error_code="MALFORMED_FUNCTION_CALL")
+    primary = _ScriptedLlm(LITE, [[invalid]])
+    fallback = _ScriptedLlm(SMART, [[_text("Must not change model")]])
+    wrapper, _ = _wrap(primary, fallback)
+    with pytest.raises(ModelTurnError) as caught:
+        await _run(wrapper)
+    assert caught.value.error_class.code == "MODEL_TOOL_CALL_INVALID"
+    assert primary.calls == 2
+    assert fallback.calls == 0
+
+
+@pytest.mark.parametrize(
+    "instruction",
+    [
+        "Original tutor instruction",
+        types.Content(parts=[types.Part(text="Original tutor instruction")]),
+        ["Original tutor instruction"],
+    ],
+)
+def test_tool_repair_preserves_the_original_request_and_shared_config(instruction):
+    from google.adk.models.llm_request import LlmRequest
+
+    original = LlmRequest(config=types.GenerateContentConfig(system_instruction=instruction))
+    before = original.model_dump_json()
+    repaired = rl._tool_call_repair_request(original)
+    assert original.model_dump_json() == before
+    assert "Original tutor instruction" in repaired.model_dump_json()
+    assert "MALFORMED_FUNCTION_CALL" in repaired.model_dump_json()
+    assert repaired.config is not original.config
+
+
+@pytest.mark.parametrize(
+    "visible",
+    [
+        _text("Already visible"),
+        LlmResponse(
+            content=types.Content(
+                role="model", parts=[types.Part(function_call=types.FunctionCall(name="mutate", args={}))]
+            )
+        ),
+    ],
+)
+async def test_malformed_error_after_output_never_replays_text_or_tools(harness, visible):
+    primary = _ScriptedLlm(LITE, [[visible, LlmResponse(error_code="MALFORMED_FUNCTION_CALL")]])
+    wrapper, notices = _wrap(primary)
+    received = []
+    with pytest.raises(ModelTurnError):
+        async for response in wrapper.generate_content_async(SimpleNamespace(model=LITE), stream=True):
+            received.append(response)
+    assert received == [visible]
+    assert primary.calls == 1
+    assert notices == []
+
+
 # --- 1. Passthrough -----------------------------------------------------------
 
 

@@ -48,7 +48,9 @@ fi
 MCP_URL="${BASE_URL%/}/api/mcp"
 echo "MCP endpoint: $MCP_URL"
 
-REQUIRE_SIMS="${REQUIRE_SIMS:-0}" uv run --with 'mcp>=1.7.1' --no-project python - "$MCP_URL" <<'PY'
+# Match the deployed MCP major. MCP 2 is a separate migration and removed the
+# streamablehttp_client alias; an unbounded probe tests a different SDK stack.
+REQUIRE_SIMS="${REQUIRE_SIMS:-0}" uv run --with 'mcp>=1.30.0,<2.0.0' --no-project python - "$MCP_URL" <<'PY'
 import os
 import sys
 

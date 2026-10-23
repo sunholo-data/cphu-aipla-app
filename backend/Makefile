@@ -40,6 +40,10 @@ test-fast:
 	uv sync --dev
 	uv run pytest tests/ -m "not slow and not integration" -v --tb=short
 
+.PHONY: adk-conformance
+adk-conformance:
+	ADK_ARTIFACT_BUCKET='' uv run --frozen pytest tests/unit/ -m adk_contract -q --tb=short
+
 # Authenticated /api/auth/whoami round-trip against deployed dev. Proves a
 # custom claim set via the admin SDK lands in the verified ID token. Requires
 # ADC + email/password sign-in enabled on the Firebase project.

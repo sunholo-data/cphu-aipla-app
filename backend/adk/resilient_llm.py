@@ -73,7 +73,14 @@ from typing import Any
 
 from google.adk.models.base_llm import BaseLlm
 
-from adk.model_errors import CODE_UNAVAILABLE, ErrorClass, ModelTurnError, SilentStallError, classify
+from adk.model_errors import (
+    CODE_UNAVAILABLE,
+    ErrorClass,
+    MalformedFunctionCallError,
+    ModelTurnError,
+    SilentStallError,
+    classify,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -197,6 +204,43 @@ def _has_visible_output(response: Any) -> bool:
 
 
 _END = object()
+
+
+def _check_generated_tool_call(response: Any) -> None:
+    # Gemini's soft failure is an LlmResponse, not an exception. Passing it to
+    # ADK ends the run without a reply. Regenerate before any visible output.
+    if getattr(response, "error_code", None) == "MALFORMED_FUNCTION_CALL":
+        raise MalformedFunctionCallError("The model generated an invalid tool call")
+
+
+def _tool_call_repair_request(request: Any) -> Any:
+    """A retry-local hint: do not mutate the agent's shared generation config."""
+    from google.adk.models.llm_request import LlmRequest
+
+    if not isinstance(request, LlmRequest):
+        return request
+    config = request.config.model_copy(deep=True)
+    hint = (
+        "Your previous generation was rejected as MALFORMED_FUNCTION_CALL. "
+        "Generate a fresh valid tool call using exactly the declared parameter names, nesting and types. "
+        "Do not output Python code or a function call as text."
+    )
+    instruction = config.system_instruction
+    if isinstance(instruction, str):
+        config.system_instruction = instruction + "\n\n" + hint
+    elif isinstance(instruction, list):
+        config.system_instruction = [*instruction, hint]
+    else:
+        from google.genai import types
+
+        if instruction is not None and not isinstance(instruction, types.Content | types.Part):
+            return request  # preserve an unfamiliar instruction representation
+        parts = (
+            [instruction] if isinstance(instruction, types.Part) else list(getattr(instruction, "parts", None) or [])
+        )
+        parts.append(types.Part.from_text(text=hint))
+        config.system_instruction = types.Content(parts=parts)
+    return request.model_copy(update={"config": config})
 
 
 async def _close_quietly(stream: Any) -> None:
@@ -360,6 +404,7 @@ class ResilientLlm(BaseLlm):
                         if first is not _END:
                             if _has_visible_output(first):
                                 visible = True
+                            _check_generated_tool_call(first)
                             if idx > 0:
                                 _stamp_served_model(first, member_model)
                             yield first
@@ -370,12 +415,15 @@ class ResilientLlm(BaseLlm):
                     async for response in gen:
                         if not visible and _has_visible_output(response):
                             visible = True
+                        _check_generated_tool_call(response)
                         if idx > 0:
                             _stamp_served_model(response, member_model)
                         yield response
                     _record_success(member_model)
                     return
                 except Exception as exc:
+                    if isinstance(exc, MalformedFunctionCallError):
+                        await _close_quietly(gen)
                     error_class = classify(exc)
                     last_class, last_model, last_exc = error_class, member_model, exc
 
@@ -395,12 +443,18 @@ class ResilientLlm(BaseLlm):
                     if is_stall:
                         stalls += 1
                     retry_allowed = error_class.transient and attempt < self.max_retries_per_model
+                    if isinstance(exc, MalformedFunctionCallError) and attempt >= 1:
+                        # One fresh generation, same configured model. Never
+                        # replay a tool or keep regenerating invalid calls.
+                        retry_allowed = False
                     if is_stall and (stalls > MAX_STALL_RETRIES or idx > 0):
                         # One stall retry on the primary; a fallback member was
                         # already given the whole remaining budget to answer in.
                         retry_allowed = False
 
                     if retry_allowed:
+                        if isinstance(exc, MalformedFunctionCallError):
+                            llm_request = _tool_call_repair_request(llm_request)
                         if is_stall:
                             # The stall already cost the deadline; just de-synchronise.
                             delay = random.uniform(0, BACKOFF_BASE_SECONDS)

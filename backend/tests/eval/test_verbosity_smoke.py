@@ -26,8 +26,10 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from unittest import mock
 
 import pytest
+from google.adk.artifacts import InMemoryArtifactService
 from google.adk.runners import Runner
 from google.adk.sessions import InMemorySessionService
 from google.genai import types
@@ -38,6 +40,16 @@ from auth.firebase_auth import User
 from db.models import SkillConfig, SkillMetadata
 
 TEMPLATES_DIR = Path(__file__).resolve().parents[2] / "skills" / "templates"
+
+
+@pytest.fixture(autouse=True)
+def _real_credentials():
+    """Live evals must undo the backend-wide fake ADC fixture."""
+    import google.auth
+    import google.auth._default
+
+    with mock.patch.object(google.auth, "default", google.auth._default.default):
+        yield
 
 
 def _build_skill_config_from_template(skill_name: str) -> SkillConfig:
@@ -78,7 +90,12 @@ def test_led_planck_tutor_obeys_response_length_constraint() -> None:
 
     session_service = InMemorySessionService()
     session = session_service.create_session_sync(user_id=user.uid, app_name="verbosity-smoke")
-    runner = Runner(agent=agent, session_service=session_service, app_name="verbosity-smoke")
+    runner = Runner(
+        agent=agent,
+        session_service=session_service,
+        artifact_service=InMemoryArtifactService(),
+        app_name="verbosity-smoke",
+    )
 
     message = types.Content(role="user", parts=[types.Part.from_text(text="hej")])
     events = list(runner.run(new_message=message, user_id=user.uid, session_id=session.id))

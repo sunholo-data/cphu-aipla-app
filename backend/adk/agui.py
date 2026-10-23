@@ -201,10 +201,8 @@ async def stream_agui_events(
 
     tracker = get_current_tracker()
 
-    # Drain any STAGE_PROGRESS that fired before the agent yielded its
-    # first event (the loader runs entirely before ADK emits anything).
-    for stage_event in tracker.drain_stage_events():
-        yield stage_event.model_dump(by_alias=True, exclude_none=True)
+    # The client requires RUN_STARTED first. Queued progress is flushed after
+    # the first bridge event by _run_with_stage_marks, never before it.
 
     with session_read_memo():
         try:
@@ -246,9 +244,20 @@ async def _run_with_stage_marks(
 
     first_agui_event_seen = False
     first_model_token_seen = False
+    produced_output = False
+    terminal_seen = False
+    buffered_progress: list[dict] = []
 
     async for event in _with_progress_flush(agui_agent.run(run_input), tracker):
+        # Drain the bridge to let its finally blocks run, but nothing may follow
+        # a terminal event on the client wire (including queued progress).
+        if terminal_seen:
+            tracker.drain_stage_events()
+            continue
         if isinstance(event, dict):  # a STAGE_PROGRESS flushed while the agent was busy
+            if not first_agui_event_seen:
+                buffered_progress.append(event)
+                continue
             yield event
             continue
         if not first_agui_event_seen:
@@ -259,6 +268,13 @@ async def _run_with_stage_marks(
         # the wire. Earlier signals (RUN_STARTED, TEXT_MESSAGE_START) are
         # handshake events ag_ui_adk emits before the model speaks.
         event_type = getattr(event, "type", None)
+        type_value = getattr(event_type, "value", str(event_type))
+        if type_value == "TEXT_MESSAGE_CONTENT" and getattr(event, "delta", ""):
+            produced_output = True
+        elif type_value == "TOOL_CALL_START" or (
+            type_value == "CUSTOM" and getattr(event, "name", None) == "A2UI_SURFACE"
+        ):
+            produced_output = True
         if not first_model_token_seen and event_type is not None:
             type_value = getattr(event_type, "value", str(event_type))
             if type_value == "TEXT_MESSAGE_CONTENT":
@@ -268,6 +284,18 @@ async def _run_with_stage_marks(
                 tracker.increment_tool_invocations()
 
         payload = event.model_dump(by_alias=True, exclude_none=True)
+        if type_value in ("RUN_ERROR", "RUN_FINISHED"):
+            # A provider error with no content is translated to RUN_FINISHED by
+            # ag-ui-adk 0.10. A blank successful turn leaves the student stuck.
+            if type_value == "RUN_FINISHED" and not produced_output:
+                payload = {
+                    "type": "RUN_ERROR",
+                    "code": "EMPTY_RUN",
+                    "message": "The tutor could not produce a response. Please try again.",
+                }
+            for stage_event in tracker.drain_stage_events():
+                yield stage_event.model_dump(by_alias=True, exclude_none=True)
+            terminal_seen = True
         if event_type is not None and getattr(event_type, "value", str(event_type)) == "STATE_DELTA":
             # Protocol 1.0 types JSON Patch operations as models. exclude_none
             # removes their required value when it is JSON null, turning a
@@ -275,6 +303,14 @@ async def _run_with_stage_marks(
             # while still omitting optional null event-envelope fields.
             payload["delta"] = event.model_dump(by_alias=True)["delta"]
         yield payload
+
+        if terminal_seen:
+            buffered_progress.clear()
+            continue
+
+        for progress in buffered_progress:
+            yield progress
+        buffered_progress.clear()
 
         # After each ADK event, flush any STAGE_PROGRESS that fired during
         # callback execution (e.g. before_model_callback marks

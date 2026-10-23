@@ -37,6 +37,9 @@ from artefacts.loader import load_artefact
 _REPO = Path(__file__).resolve().parents[3]
 
 
+pytestmark = pytest.mark.adk_contract
+
+
 def _cfg(artefact_id: str | None = "sol-jord-maane") -> NS:
     return NS(artefact_id=artefact_id, activity_id="act-1", class_id="cls-1")
 

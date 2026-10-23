@@ -14,7 +14,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 from adk.callbacks import _after_agent, _handle_large_output, make_before_agent
 
@@ -23,24 +23,26 @@ from adk.callbacks import _after_agent, _handle_large_output, make_before_agent
 
 def _mk_tool_context() -> MagicMock:
     ctx = MagicMock()
-    ctx.save_artifact = MagicMock()
+    ctx.save_artifact = AsyncMock()
     return ctx
 
 
-def test_handle_large_output_passes_small_response_through():
+async def test_handle_large_output_passes_small_response_through():
     ctx = _mk_tool_context()
     resp = {"result": "small"}
-    out = _handle_large_output(tool=MagicMock(name="search"), args={}, tool_context=ctx, tool_response=resp)
+    out = await _handle_large_output(tool=MagicMock(name="search"), args={}, tool_context=ctx, tool_response=resp)
     # Small response should come back unchanged; no artifact saved.
     assert out is resp or out == resp
     ctx.save_artifact.assert_not_called()
 
 
-def test_handle_large_output_saves_artifact_for_large_response():
+async def test_handle_large_output_saves_artifact_for_large_response():
     ctx = _mk_tool_context()
     # 60K chars — well over the 50K threshold.
     big_text = "x" * 60_000
-    out = _handle_large_output(tool=MagicMock(name="big_search"), args={}, tool_context=ctx, tool_response=big_text)
+    out = await _handle_large_output(
+        tool=MagicMock(name="big_search"), args={}, tool_context=ctx, tool_response=big_text
+    )
     # Should return a string (not the original), which is the pointer, and
     # must have called save_artifact exactly once.
     assert isinstance(out, str)
@@ -48,20 +50,22 @@ def test_handle_large_output_saves_artifact_for_large_response():
     assert ctx.save_artifact.call_count == 1
 
 
-def test_handle_large_output_pointer_mentions_artifact():
+async def test_handle_large_output_pointer_mentions_artifact():
     ctx = _mk_tool_context()
     big_text = "y" * 60_000
-    out = _handle_large_output(tool=MagicMock(name="big_search"), args={}, tool_context=ctx, tool_response=big_text)
+    out = await _handle_large_output(
+        tool=MagicMock(name="big_search"), args={}, tool_context=ctx, tool_response=big_text
+    )
     # Pointer should be informative enough for the model to understand
     # that the full response is saved as an artifact.
     assert "artifact" in out.lower()
 
 
-def test_handle_large_output_threshold_is_50k_chars():
+async def test_handle_large_output_threshold_is_50k_chars():
     ctx = _mk_tool_context()
     # Exactly 50_000 characters — at threshold, should pass through.
     at_threshold = "z" * 50_000
-    out = _handle_large_output(tool=MagicMock(name="s"), args={}, tool_context=ctx, tool_response=at_threshold)
+    out = await _handle_large_output(tool=MagicMock(name="s"), args={}, tool_context=ctx, tool_response=at_threshold)
     ctx.save_artifact.assert_not_called()
     assert out == at_threshold or out is at_threshold
 

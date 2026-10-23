@@ -6,6 +6,10 @@ import subprocess
 import sys
 from importlib import import_module
 
+import pytest
+
+pytestmark = pytest.mark.adk_contract
+
 
 def test_oversized_tracestate_is_discarded_without_blocking_the_worker():
     # A subprocess deadline makes a vulnerable parser fail rather than hanging

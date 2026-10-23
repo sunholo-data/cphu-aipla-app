@@ -6,8 +6,9 @@
 on 2026-09-22). Not merged — see CLAUDE.md "Upstream tracking". AIPLA is
 Gemini-only (model-provider direction), so the google-genai branch is the live
 one; the LiteLLM branch is kept unchanged and is inert here, so a later local or
-multi-provider tier inherits a tested classifier. Keep this file byte-identical
-to upstream below this paragraph so the next reconcile is a no-op.
+multi-provider tier inherits a tested classifier. Local addition (ADK 2 review):
+generated MALFORMED_FUNCTION_CALL responses are retryable on the same model;
+request-validation HTTP 400 errors remain non-retryable.
 
 Single source of truth for "what do we do when a model call fails":
 
@@ -46,6 +47,7 @@ CODE_UNAVAILABLE = "MODEL_UNAVAILABLE"
 CODE_AUTH_FAILED = "MODEL_AUTH_FAILED"
 CODE_REQUEST_INVALID = "MODEL_REQUEST_INVALID"
 CODE_SILENT_STALL = "MODEL_SILENT_STALL"
+CODE_TOOL_CALL_INVALID = "MODEL_TOOL_CALL_INVALID"
 
 
 @dataclass(frozen=True)
@@ -75,6 +77,10 @@ class SilentStallError(Exception):
         super().__init__(f"no token from {model} within {deadline_s:.0f}s")
         self.deadline_s = deadline_s
         self.model = model
+
+
+class MalformedFunctionCallError(Exception):
+    """The model generated an invalid function call, rather than rejecting a request."""
 
 
 class ModelTurnError(Exception):
@@ -202,6 +208,9 @@ def classify(exc: Exception) -> ErrorClass:
 
 def _classify_known(exc: Exception) -> ErrorClass | None:
     message = str(exc)[:500]
+
+    if isinstance(exc, MalformedFunctionCallError):
+        return ErrorClass(transient=True, fallbackable=False, code=CODE_TOOL_CALL_INVALID, message=message)
 
     if isinstance(exc, SilentStallError):
         # A stall is a bad draw, not a bad model: retry the same member once

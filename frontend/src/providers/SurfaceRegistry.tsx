@@ -41,6 +41,7 @@ import {
   basicCatalog,
   type ReactComponentImplementation,
 } from "@a2ui/react/v0_9";
+import { withBasicCatalogAliases } from "@/components/protocols/basicCatalogAliases";
 
 // ─── Public types ───────────────────────────────────────────────────────────
 
@@ -165,7 +166,7 @@ interface SurfaceEntry {
 }
 
 function makeProcessor(): MessageProcessor<ReactComponentImplementation> {
-  return new MessageProcessor<ReactComponentImplementation>([basicCatalog]);
+  return new MessageProcessor<ReactComponentImplementation>(withBasicCatalogAliases(basicCatalog));
 }
 
 class SurfaceStore {
