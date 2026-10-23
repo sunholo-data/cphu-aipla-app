@@ -11,36 +11,16 @@ AG-UI client's (it keeps only ``data:`` lines and skips a block with none).
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import AsyncIterator
+from contextlib import aclosing
+
+from protocols.stream_poll import IDLE, poll_stream
 
 KEEPALIVE = ": keepalive\n\n"
 
 
 async def with_keepalive(source: AsyncIterator[str], interval_s: float = 15.0) -> AsyncIterator[str]:
     """Yield ``source``'s chunks; after ``interval_s`` of silence, yield a comment and keep waiting."""
-    it = source.__aiter__()
-    pending: asyncio.Task | None = None
-    try:
-        while True:
-            if pending is None:
-                pending = asyncio.ensure_future(it.__anext__())
-            done, _ = await asyncio.wait({pending}, timeout=interval_s)
-            if not done:
-                yield KEEPALIVE
-                continue
-            task, pending = pending, None
-            try:
-                chunk = task.result()
-            except StopAsyncIteration:
-                return
-            yield chunk
-    finally:
-        if pending is not None and not pending.done():
-            pending.cancel()
-        aclose = getattr(it, "aclose", None)
-        if aclose is not None:
-            try:
-                await aclose()
-            except Exception:  # closing a finished generator must not mask the real outcome
-                pass
+    async with aclosing(poll_stream(source, interval_s)) as events:
+        async for chunk in events:
+            yield KEEPALIVE if chunk is IDLE else chunk

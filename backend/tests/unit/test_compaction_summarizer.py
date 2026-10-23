@@ -83,12 +83,8 @@ class TestToolResultsReachTheSummary:
         assert "curriculum_search" in out
         assert "kinematics" in out
 
-    def test_stock_adk_summarizer_would_have_dropped_it(self):
-        """Anti-vacuity: prove the fixture actually exercises the defect.
-
-        If ADK's base implementation also passed this, the override would be
-        pointless and these tests would be asserting nothing.
-        """
+    def test_adk2_and_our_summarizer_both_preserve_tool_results(self):
+        """ADK 2 fixed the original omission; retain our other fidelity guards."""
         from google.adk.apps.llm_event_summarizer import LlmEventSummarizer
 
         events = [
@@ -96,7 +92,7 @@ class TestToolResultsReachTheSummary:
         ]
         stock = LlmEventSummarizer(llm=_FakeLlm())._format_events_for_prompt(events)
         ours = FidelityEventSummarizer(llm=_FakeLlm())._format_events_for_prompt(events)
-        assert "4.2" not in stock, "ADK's stock summarizer unexpectedly kept the tool result"
+        assert "4.2" in stock
         assert "4.2" in ours
 
     def test_thoughts_are_excluded(self):

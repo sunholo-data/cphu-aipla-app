@@ -77,6 +77,7 @@ ensure_apis() {
     bigquery.googleapis.com                   # 1.2: chat-log dataset + Log Router sink
     secretmanager.googleapis.com
     cloudtrace.googleapis.com
+    telemetry.googleapis.com                 # ADK 2 OTLP telemetry endpoint
     logging.googleapis.com
     monitoring.googleapis.com
     iamcredentials.googleapis.com

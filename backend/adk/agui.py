@@ -22,7 +22,6 @@ this module integrates instead.
 
 from __future__ import annotations
 
-import asyncio
 from collections.abc import AsyncGenerator
 from typing import Any
 
@@ -226,26 +225,17 @@ async def _with_progress_flush(events: Any, tracker: Any, poll_s: float = 1.0) -
     the whole step. A sim-author step lasts minutes; tutors' steps never did.
     Yields agent events unchanged and stage events as ready-to-send dicts.
     """
-    it = events.__aiter__()
-    pending: asyncio.Task | None = None
-    try:
-        while True:
-            if pending is None:
-                pending = asyncio.ensure_future(it.__anext__())
-            done, _ = await asyncio.wait({pending}, timeout=poll_s)
-            if not done:
+    from contextlib import aclosing
+
+    from protocols.stream_poll import IDLE, poll_stream
+
+    async with aclosing(poll_stream(events, poll_s)) as polled:
+        async for event in polled:
+            if event is IDLE:
                 for stage_event in tracker.drain_stage_events():
                     yield stage_event.model_dump(by_alias=True, exclude_none=True)
-                continue
-            task, pending = pending, None
-            try:
-                event = task.result()
-            except StopAsyncIteration:
-                return
-            yield event
-    finally:
-        if pending is not None and not pending.done():
-            pending.cancel()
+            else:
+                yield event
 
 
 async def _run_with_stage_marks(

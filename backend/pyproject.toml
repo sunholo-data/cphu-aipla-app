@@ -4,8 +4,8 @@ version = "6.0.0"
 description = "Open-source AI protocol platform — Skills + AG-UI + A2UI + MCP Apps + A2A on Google ADK"
 requires-python = ">=3.11,<3.14"
 dependencies = [
-    # Google ADK — agent orchestration (>=1.28.0 required by a2ui-agent-sdk)
-    "google-adk>=1.28.0,<2.0.0",
+    # ADK 2 removes the OTel Events API that patched OpenTelemetry no longer ships.
+    "google-adk[gcp,db,a2a]>=2.12.0,<3.0.0",
     # Core framework
     "fastapi>=0.115.8,<1.0.0",
     "uvicorn>=0.35.0,<1.0.0",
@@ -25,7 +25,7 @@ dependencies = [
     # Public /mcp endpoint: includes session resource bounds (CVE-2026-59951).
     "mcp>=1.30.0,<2.0.0",
     # AG-UI protocol bridge (ADK -> AG-UI events over SSE)
-    "ag-ui-adk>=0.6.0,<1.0.0",
+    "ag-ui-adk>=0.10.0,<0.11.0",
     # HTTP client
     "httpx>=0.28.0",
     # Observability — OpenTelemetry first (ADK native)
@@ -46,7 +46,8 @@ dependencies = [
     "pynacl>=1.5.0,<2.0.0",
     # DB sessions
     "asyncpg>=0.30.0,<1.0.0",
-    "a2ui-agent-sdk>=0.2.1",
+    # ag-ui-adk 0.10 pins this patch; 0.2.3/0.2.4 have a models import error.
+    "a2ui-agent-sdk==0.2.2",
     "a2a-sdk<1.0.0",
     "python-telegram-bot>=22.7",
     "google-cloud-bigquery>=3.25,<4",
@@ -65,6 +66,11 @@ dev = [
 ]
 
 [tool.uv]
+# CVE-2026-114603: ADK 2.12 still caps OTel at 1.42.1. Override the API
+# and SDK together; preserve their matching instrumentation/exporter constraints.
+# Validated with the backend suite, live opening evals and telemetry smoke tests.
+# Remove when ADK permits >=1.45.1. See docs/ops/dependency-upgrades.md.
+override-dependencies = ["opentelemetry-api==1.45.1", "opentelemetry-sdk==1.45.1"]
 # Security floors for transitive runtime dependencies; keep fresh resolutions patched.
 constraint-dependencies = [
     "aiohttp>=3.14.4",
@@ -76,7 +82,7 @@ constraint-dependencies = [
 
 [project.optional-dependencies]
 eval = [
-    "google-adk[eval]>=1.28.0,<2.0.0",
+    "google-adk[eval]>=2.12.0,<3.0.0",
 ]
 lint = [
     "ruff>=0.4.6,<1.0.0",

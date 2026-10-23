@@ -358,8 +358,7 @@ class TestLegacyResumeThroughRealSessionManager:
 
     @pytest.mark.asyncio
     async def test_control_without_wrapper_reproduces_the_outage(self):
-        """Same chain WITHOUT the wrapper must still fail with the "already
-        exists" collision — proving the guard above actually guards something.
+        """Without the wrapper, AG-UI rejects the legacy owner's session.
         If this ever stops raising, the bug is no longer reproducible and the
         wrapper test could pass for the wrong reason."""
         legacy = "anon-aiplademo1-871820ccd99a42d01b3858da34f55706"
@@ -372,7 +371,7 @@ class TestLegacyResumeThroughRealSessionManager:
 
         mgr = self._fresh_session_manager(fake)
         try:
-            with pytest.raises(ValueError, match="already exists"):
+            with pytest.raises(ValueError, match="does not belong to user"):
                 await mgr.get_or_create_session(thread_id=thread, app_name=app, user_id=deterministic)
         finally:
             if mgr._cleanup_task:

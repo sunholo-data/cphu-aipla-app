@@ -65,11 +65,12 @@ def test_sol_jord_maane_defines_its_construct_map_server_side() -> None:
 
 def test_the_declaration_is_the_construct_map() -> None:
     decl = _tool()._get_declaration()
-    props = decl.parameters.properties
-    assert props["phenomenon"].enum == ["doegn", "aarstider", "faser", "formoerkelser", "skala"]
-    assert (props["level"].minimum, props["level"].maximum) == (0, 6)
-    assert props["mission"].enum == ["M1", "M2", "M3", "M4", "M5"]
-    assert set(decl.parameters.required) == {"phenomenon", "level", "evidence"}
+    schema = decl.parameters_json_schema
+    props = schema["properties"]
+    assert props["phenomenon"]["enum"] == ["doegn", "aarstider", "faser", "formoerkelser", "skala"]
+    assert (props["level"]["minimum"], props["level"]["maximum"]) == (0, 6)
+    assert props["mission"]["enum"] == ["M1", "M2", "M3", "M4", "M5"]
+    assert set(schema["required"]) == {"phenomenon", "level", "evidence"}
     # The rule the eval (acceptance 7) checks lives where the model reads it.
     assert "level 0" in decl.description
 

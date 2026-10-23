@@ -53,6 +53,16 @@ class _AssessmentTool(FunctionTool):
 
     def _get_declaration(self) -> types.FunctionDeclaration | None:
         decl = super()._get_declaration()
+        if decl is not None and decl.parameters_json_schema is not None:
+            # ADK 2 emits JSON Schema instead of the older genai Schema model.
+            props = decl.parameters_json_schema.get("properties", {})
+            props["phenomenon"]["enum"] = list(self._phenomena)
+            props["level"].update(minimum=self._lo, maximum=self._hi)
+            if self._missions and "mission" in props:
+                props["mission"] = {"type": "string", "enum": list(self._missions)}
+            if "misconception" in props:
+                props["misconception"] = {"type": "string"}
+            return decl
         if decl is None or decl.parameters is None or not decl.parameters.properties:  # pragma: no cover
             return decl
         props = decl.parameters.properties

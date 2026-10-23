@@ -16,6 +16,7 @@ locals {
     "bigquery.googleapis.com",
     "secretmanager.googleapis.com",
     "cloudtrace.googleapis.com",
+    "telemetry.googleapis.com", # ADK 2 exports traces, metrics and logs over OTLP.
     "logging.googleapis.com",
     "monitoring.googleapis.com",
     "iamcredentials.googleapis.com",
