@@ -75,6 +75,11 @@ vi.mock("@/lib/teacherApi", async () => {
 vi.mock("@/components/teacher/ActivityPreview", () => ({
   ActivityPreview: () => <div data-testid="activity-preview" />,
 }));
+// The opening editor's mounted controls and preview are covered by
+// ActivityBuilderBody.test.tsx. Keep these page tests on load/save wiring.
+vi.mock("@/components/teacher/ActivityOpeningEditor", () => ({
+  ActivityOpeningEditor: () => <div data-testid="opening-editor" />,
+}));
 
 import TeacherActivityConfigPage from "@/app/teacher/activities/[id]/page";
 import {
