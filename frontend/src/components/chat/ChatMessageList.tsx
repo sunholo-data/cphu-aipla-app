@@ -26,6 +26,7 @@ import { TypingIndicator } from "./TypingIndicator";
 import type React from "react";
 
 import { useT } from "@/i18n";
+import type { ActivityOpening } from "@/lib/activityOpening";
 
 interface ChatMessageListProps {
   messages: SkillMessage[];
@@ -40,6 +41,10 @@ interface ChatMessageListProps {
    * the inherited template defined this field on SkillConfig but
    * never wired it into the UI. */
   skillInitialMessage?: string;
+  activityOpening?: ActivityOpening | null;
+  activityTitle?: string;
+  onStarterPrompt?: (text: string) => void;
+  starterPromptsDisabled?: boolean;
   historyError?: string | null;
   toolCalls: ToolCallState[];
   thinkingContent: string;
@@ -134,6 +139,10 @@ export function ChatMessageList({
   initialMessages,
   interactionsTruncated,
   skillInitialMessage,
+  activityOpening,
+  activityTitle,
+  onStarterPrompt,
+  starterPromptsDisabled,
   historyError,
   toolCalls,
   thinkingContent,
@@ -348,8 +357,17 @@ export function ChatMessageList({
           turn). Collapsible per-skill, persisted in sessionStorage. */}
       {/* Also mounted for EVERY student session, welcome text or not: it
           carries the privacy notice (KU legal, 2026-10-05). */}
-      {skillId && (skillInitialMessage || isAnonymousGroupAuthMode()) && (
-        <PinnedWelcome content={skillInitialMessage ?? ""} skillId={skillId} persona={persona} />
+      {skillId && (activityOpening || skillInitialMessage || isAnonymousGroupAuthMode()) && (
+        <PinnedWelcome
+          content={skillInitialMessage ?? ""}
+          skillId={skillId}
+          persona={persona}
+          opening={activityOpening}
+          activityTitle={activityTitle}
+          activityId={activityId}
+          onStarterPrompt={onStarterPrompt}
+          promptsDisabled={starterPromptsDisabled}
+        />
       )}
 
       <div
@@ -462,7 +480,7 @@ export function ChatMessageList({
               authored welcome (PinnedWelcome above renders that case).
               Keeps the inherited template's "first chat" prompt for
               non-AIPLA skills. */}
-          {messages.length === 0 && !initialMessages?.length && !error && !isLoading && !skillInitialMessage && (
+          {messages.length === 0 && !initialMessages?.length && !error && !isLoading && !skillInitialMessage && !activityOpening && (
             <p className="text-sm text-muted-foreground">{t("emptyPrompt")}</p>
           )}
 

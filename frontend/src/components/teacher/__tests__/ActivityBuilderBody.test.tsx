@@ -216,6 +216,16 @@ describe("ActivityBuilderBody — setup section", () => {
 });
 
 describe("ActivityBuilderBody — lesson section", () => {
+  it("edits the student opening, classroom handoff and starter prompts through mounted controls", async () => {
+    const user = userEvent.setup();
+    const { getBuilder } = setup();
+    await user.type(screen.getByLabelText("Student introduction (optional)"), "Start by measuring.");
+    await user.click(screen.getByRole("checkbox", { name: "I’ll introduce this activity in class myself" }));
+    await user.click(screen.getByRole("button", { name: "Add starter prompt" }));
+    await user.type(screen.getByLabelText("Starter prompt 1"), "What should I measure?");
+    expect(getBuilder().toSavePayload()).toMatchObject({ studentOpening: "Start by measuring.",
+      openingByTeacher: true, starterPrompts: ["What should I measure?"] });
+  });
   it("renders the teaching-goal textarea and updates it", async () => {
     const user = userEvent.setup();
     setup();
@@ -375,7 +385,7 @@ describe("ActivityBuilderBody — works with a directly-mutated builder (no re-r
     });
     render(<ActivityBuilderBody builder={result.current} footer={<span>f</span>} />);
     expect(screen.getByLabelText("Activity name")).toHaveValue("Pre-filled");
-    const list = screen.getByRole("list");
+    const list = screen.getAllByRole("list").find((list) => within(list).queryAllByRole("textbox").length > 0)!;
     expect(within(list).getAllByRole("textbox")).toHaveLength(2);
   });
 });

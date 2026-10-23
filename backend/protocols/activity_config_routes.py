@@ -55,6 +55,7 @@ from db.models.activity_config import (
     TableElement,
     WorkbenchType,
 )
+from db.models.activity_opening import OpeningText, StarterPrompts
 from personas.loader import resolve_persona_chain
 
 log = logging.getLogger(__name__)
@@ -89,6 +90,9 @@ class ActivityConfigUpsert(BaseModel):
     class_id: str = Field(alias="classId", min_length=1, max_length=128)
     title: str = Field(default="", alias="title", max_length=200)
     teaching_goal: str = Field(alias="teachingGoal", max_length=2000)
+    student_opening: OpeningText = Field(default="", alias="studentOpening")
+    starter_prompts: StarterPrompts = Field(default_factory=list, alias="starterPrompts")
+    opening_by_teacher: bool = Field(default=False, alias="openingByTeacher")
     language: Language = "da"
     difficulty: Difficulty = "standard"
     interaction_style: InteractionStyle = Field(default="socratic", alias="interactionStyle")
@@ -209,6 +213,9 @@ async def post_activity_config(
         activity_id=activity_id,
         title=body.title,
         teaching_goal=body.teaching_goal,
+        student_opening=body.student_opening,
+        starter_prompts=body.starter_prompts,
+        opening_by_teacher=body.opening_by_teacher,
         language=body.language,
         difficulty=body.difficulty,
         interaction_style=body.interaction_style,
@@ -287,6 +294,8 @@ async def get_active_activity_config(
     currently the progress checklist + title. Empty checklist when no
     config is set, so the workspace simply renders nothing extra.
     """
+    from adk.proactive_greet import build_activity_opening
+
     cfg = resolve_active_config(activity_id, group_tags=user.group_tags)
     # Resolve the persona (1.1.12) for the student-facing chat avatar/name.
     # Chain: the resolved TUTOR's persona > activity persona > THIS class's
@@ -314,6 +323,7 @@ async def get_active_activity_config(
         return {
             "activityId": activity_id,
             "title": "",
+            "opening": None,
             # 1.1.108 M1 — the student UI's locale. Same field, same default as
             # the tutor's language directive, so the buttons and the replies
             # cannot disagree about which language the activity is in.
@@ -347,6 +357,7 @@ async def get_active_activity_config(
     return {
         "activityId": activity_id,
         "title": cfg.title,
+        "opening": build_activity_opening(cfg),
         "language": cfg.language,
         **_element_block(cfg),
         # The resolved artefact (public view — never the tutorBlock) so the
@@ -460,6 +471,9 @@ async def patch_activity_config(
         activity_id=activity_id,
         title=body.title,
         teaching_goal=body.teaching_goal,
+        student_opening=body.student_opening,
+        starter_prompts=body.starter_prompts,
+        opening_by_teacher=body.opening_by_teacher,
         language=body.language,
         difficulty=body.difficulty,
         interaction_style=body.interaction_style,

@@ -122,6 +122,17 @@ The live preview shows what students see. Select **Create activity**. Students
 who join the class's group code can then open it. On a saved activity, **Try as
 student** opens the real student view in a new tab, no join code needed.
 
+## Student opening — T5
+
+Under Lesson → What students see first, the teacher can write student-facing
+Markdown, choose to introduce the activity in class, and set up to four short
+starter questions. Empty fields restore the activity-specific opening and
+localised suggestions. The tutor still introduces itself as an AI; with the
+classroom-introduction option it skips its walkthrough. The co-pilot can
+propose both fields; the teacher edits and Applies, then saves. Save and use
+Try as student to check the real opening. The product-controls guide is at
+/guides/t5-introduce-the-tutor (Danish: add .da); classroom advice awaits review.
+
 ## Curriculum materials — T3
 
 Inside an activity, the **Materials** tab attaches documents the tutor can cite.
@@ -153,7 +164,11 @@ password; a join link from the teacher fills the code in. They
 pick an activity, then work with the **tutor** (chat) and the **arbejdsområde**
 (workspace) — a simulation, checklist, table, and so on. Anything a student does
 in the workspace is shared with the tutor, so it can help with their actual
-work. Closing the tab signs them out; they rejoin with the same code.
+work. Above the chat, **How to get started / Sådan kommer du i gang** names the
+activity, points to the first workspace item, and lists any checklist steps.
+Students can collapse and reopen it; its student-guide link opens in a new
+tab. If unsure where to begin, they can ask the tutor what to do first.
+Closing the tab signs them out; they rejoin with the same code.
 
 ## Researcher views — R1
 

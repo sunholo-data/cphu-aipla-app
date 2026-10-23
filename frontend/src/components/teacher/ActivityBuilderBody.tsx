@@ -4,6 +4,7 @@ import { MessageCircle, Plus, X } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { ActivityPreview } from "@/components/teacher/ActivityPreview";
+import { ActivityOpeningEditor } from "@/components/teacher/ActivityOpeningEditor";
 import { BuilderHints } from "@/components/teacher/BuilderHints";
 import { BuilderSection, BuilderSectionNav, SECTION } from "@/components/teacher/BuilderLayout";
 import { CalculatorEditor } from "@/components/teacher/CalculatorEditor";
@@ -148,6 +149,7 @@ export function ActivityBuilderBody({
           <p className="text-xs text-slate-500">
             {t("goalHelp")}
           </p>
+          <ActivityOpeningEditor builder={b} />
         </BuilderSection>
 
         <BuilderSection section={SECTION.workspace}>

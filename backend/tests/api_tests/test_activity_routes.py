@@ -72,6 +72,44 @@ def test_post_mints_distinct_ids_no_collision():
     assert aid.startswith("act-") and bid.startswith("act-")
 
 
+def test_student_opening_survives_unrelated_edit_and_reaches_runtime_config():
+    from adk.teacher_focus import _activity_to_config
+    from db.activities import get_activity
+
+    c = _client()
+    opening = {
+        "studentOpening": "**Start here:** choose your settings.",
+        "starterPrompts": ["What should I measure?"],
+        "openingByTeacher": True,
+    }
+    payload = {"skillId": "concept", "title": "Energy", "teachingGoal": "Investigate energy", **opening}
+    created = c.post("/api/activities", json=payload)
+    assert created.status_code == 201, created.text
+    aid = created.json()["activityId"]
+    loaded = c.get(f"/api/activities/{aid}").json()
+    edited = c.patch(
+        f"/api/activities/{aid}", json={**payload, "title": "New title", **{key: loaded[key] for key in opening}}
+    )
+    assert edited.status_code == 200, edited.text
+    cfg = _activity_to_config(get_activity(aid), class_id="c1")
+    assert cfg.student_opening == opening["studentOpening"]
+    assert cfg.starter_prompts == opening["starterPrompts"]
+    assert cfg.opening_by_teacher is True
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"studentOpening": "x" * 1501},
+        {"starterPrompts": ["x"] * 5},
+        {"starterPrompts": [" "]},
+        {"starterPrompts": ["x" * 121]},
+    ],
+)
+def test_opening_bounds_rejected_at_the_write_boundary(extra):
+    assert _client().post("/api/activities", json={"title": "A", **extra}).status_code == 422
+
+
 def test_post_accepts_document_and_solution_elements():
     """Regression (1.1.48): the builder POSTs the full element set. ``document``
     must be accepted on the ALS-1 path + round-trip on GET — it was missing from

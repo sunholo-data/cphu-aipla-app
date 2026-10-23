@@ -49,6 +49,9 @@ export interface ElementPayload {
  *  POST is a full overwrite). */
 export interface SavePayload extends ElementPayload {
   title: string;
+  studentOpening: string;
+  starterPrompts: string[];
+  openingByTeacher: boolean;
   teachingGoal: string;
   language: Language;
   workbenchType: WorkbenchType;
@@ -71,8 +74,14 @@ export interface SavePayload extends ElementPayload {
 export interface ActivityBuilder {
   title: string;
   setTitle: (v: string) => void;
+  studentOpening: string;
+  starterPrompts: string[];
+  openingByTeacher: boolean;
   teachingGoal: string;
   setTeachingGoal: (v: string) => void;
+  setStudentOpening: (v: string) => void;
+  setStarterPrompts: (v: string[]) => void;
+  setOpeningByTeacher: (v: boolean) => void;
   language: Language;
   setLanguage: (v: Language) => void;
   /** Runtime workbench surface (1.1.48): "app" = a sim iframe, "none" = the
@@ -142,6 +151,9 @@ export interface ActivityBuilder {
 export function useActivityBuilder(): ActivityBuilder {
   const [title, setTitle] = useState("");
   const [teachingGoal, setTeachingGoal] = useState("");
+  const [studentOpening, setStudentOpening] = useState("");
+  const [starterPrompts, setStarterPrompts] = useState<string[]>([]);
+  const [openingByTeacher, setOpeningByTeacher] = useState(false);
   const [language, setLanguage] = useState<Language>("da");
   const [workbenchType, setWorkbenchType] = useState<WorkbenchType>("none");
   // `key` is a stable client id for React; the persisted id is positional.
@@ -229,6 +241,9 @@ export function useActivityBuilder(): ActivityBuilder {
   function applyTemplate(t: ActivityTemplate) {
     setTitle(t.title);
     setTeachingGoal(t.teachingGoal);
+    setStudentOpening("");
+    setStarterPrompts([]);
+    setOpeningByTeacher(false);
     setLanguage(t.language);
     setChecklist(t.checklist.map((label) => ({ key: nextKeyRef.current++, label })));
     setTable(
@@ -309,6 +324,9 @@ export function useActivityBuilder(): ActivityBuilder {
   function hydrate(cfg: ActivityConfigPayload) {
     setTitle(cfg.title ?? "");
     setTeachingGoal(cfg.teachingGoal ?? "");
+    setStudentOpening(cfg.studentOpening ?? "");
+    setStarterPrompts(cfg.starterPrompts ?? []);
+    setOpeningByTeacher(cfg.openingByTeacher ?? false);
     // Default like every other field — an empty hydrate ("Create another")
     // must reset language to the default, not leave it undefined.
     setLanguage(cfg.language ?? "da");
@@ -429,6 +447,9 @@ export function useActivityBuilder(): ActivityBuilder {
     return {
       title: title.trim(),
       teachingGoal: teachingGoal.trim(),
+      studentOpening,
+      starterPrompts: starterPrompts.map((p) => p.trim()).filter(Boolean),
+      openingByTeacher,
       language,
       workbenchType,
       ...elementPayload(),
@@ -471,6 +492,12 @@ export function useActivityBuilder(): ActivityBuilder {
       setTitle,
       teachingGoal,
       setTeachingGoal,
+      studentOpening,
+      setStudentOpening,
+      starterPrompts,
+      setStarterPrompts,
+      openingByTeacher,
+      setOpeningByTeacher,
       language,
       setLanguage,
       workbenchType,
@@ -523,6 +550,9 @@ export function useActivityBuilder(): ActivityBuilder {
     [
       title,
       teachingGoal,
+      studentOpening,
+      starterPrompts,
+      openingByTeacher,
       language,
       workbenchType,
       checklist,

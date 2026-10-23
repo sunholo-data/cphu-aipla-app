@@ -48,6 +48,14 @@ function msg(id: string, role: SkillMessage["role"], content: string): SkillMess
 }
 
 describe("ChatMessageList", () => {
+  it("passes activity orientation through even without a skill welcome", () => {
+    render(<ChatMessageList messages={[]} {...baseProps} activityId="act-energy" activityTitle="Energy"
+      activityOpening={{ text: "", source: "default", firstItem: { kind: "simulation", title: "Kettle" },
+        steps: ["Measure the time"], starterPrompts: [], byTeacher: false }} />);
+    expect(screen.getByText("Energy")).toBeInTheDocument();
+    expect(screen.getByText("Start with: Kettle")).toBeInTheDocument();
+    expect(screen.queryByText(/send a message/i)).not.toBeInTheDocument();
+  });
   it("renders a placeholder when there are no messages", () => {
     render(<ChatMessageList messages={[]} {...baseProps} />);
     expect(screen.getByText(/send a message/i)).toBeInTheDocument();

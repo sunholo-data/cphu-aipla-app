@@ -12,6 +12,10 @@ import type { Proposal } from "./[id]/_AuthoringCopilot";
 export function applyCopilotProposal(p: Proposal, builder: ActivityBuilder): void {
   if (p.kind === "set_lesson_prompt") {
     builder.setTeachingGoal(p.value);
+  } else if (p.kind === "set_student_opening") {
+    builder.setStudentOpening(p.value);
+  } else if (p.kind === "set_starter_prompts") {
+    builder.setStarterPrompts(p.value);
   } else if (p.kind === "add_element") {
     if (p.elementKind === "checklist") builder.addChecklistItems(p.items);
     else if (p.elementKind === "note") builder.setNote({ title: p.title, body: p.body });

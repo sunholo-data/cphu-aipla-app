@@ -1,12 +1,64 @@
 # "What do I do?" — a lesson opening the teacher owns and the tutor defaults
 
-**Status:** **Planned** — **1.1.153**
+**Status:** **M1–M5 implemented locally, unreleased (2026-10-23)** — **1.1.153**. M6 product guide drafted; pedagogical review, browser QA, M0 and M7 remain open.
 **Priority:** **P1**. In the session behind the 2026-10-22 notes, *every* student's first question was "What do I do?". That is the first thing a student meets in every activity, and the November school visit and the March teaching block both depend on it. Un-gated
 **Estimated:** ~4–4.5d phased (M0 evidence ~0.25d, M runs the SQL · M1 remove the prompt rules that forbid orientation ~0.5d · M2 the activity's own "How to get started" panel ~1d · M3 teacher-authored opening + tutor self-introduction ~1d · M4 customisable starter prompts ~0.75d · M5 co-pilot proposes both ~0.5d · M6 teacher guide "Introducing the tutor to your class" ~0.5d + JB review · M7 release + re-measure ~0.25d)
 **Scope:** Backend: `adk/proactive_greet.py`, `skills/templates/concept-dialogue/SKILL.md` (`initialMessage`, `openingTemplate`), `db/models/activity.py` + `db/models/activity_config.py` (two optional fields, mirrored), `protocols/activity_routes.py` (`ActivityUpsert`), `protocols/activity_config_routes.py` (`GET /active/{activity_id}` returns an `opening` block), `adk/authoring_tools.py` + `adk/tools.py` (two proposal tools). Frontend: `components/chat/PinnedWelcome.tsx`, `components/chat/ChatMessageList.tsx`, `hooks/useActivityBuilder.ts`, the activity builder page, `app/teacher/activities/applyCopilotProposal.ts` + `_AuthoringCopilot.tsx`, `messages/{da,en}/chat.json`. Content: a new `frontend/content/guides/t5-introduce-the-tutor.md` + `.da.md`
 **Dependencies:** [1.1.149 tutor-directs-to-workbench](tutor-directs-to-workbench.md) (**implemented M1–M5, unreleased**. Its per-turn affordances block and rule (b) "when the student is stuck … send them to the item" are the *mid-lesson* half of this problem, and this doc does not duplicate them); 1.1.72 ([pilot-week-tutor-fidelity-sprint.md](pilot-week-tutor-fidelity-sprint.md), the activity facts in the opening) / [1.1.127 opening-guidance-only-on-the-opening-turn](opening-guidance-only-on-the-opening-turn.md) (the opening block's per-turn scoping, which M1 edits); [1.1.126 tutor-knows-its-own-name](tutor-knows-its-own-name.md) (**shipped**, the identity block the self-introduction reads); [1.1.108 content-localisation](content-localisation.md) (copy in `messages/{da,en}`, language from `activity.language`); [1.1.124 teacher-onboarding-scaffold](../v2.1.0-extension/teacher-onboarding-scaffold.md) (**shipped**. It onboards the *teacher* to the platform, while this doc onboards the *student* to a lesson); the full-overwrite activity PATCH (CLAUDE.md footguns)
 **Created:** 2026-10-22
 **Source:** [notes-2026-10-22.md](../../../notes-2026-10-22.md), M, verbatim: *"no scaffolding for the lessons, students dont know what o do, no introductions, walk through etc."* · *"everyones first question is 'What do I do?' - should the teachers design in the activites. do we take agency away from the teachers"* · *"the drop down prompt shoudl be customisaable"* · *"how to equip the teachers to introduce the AI tutor well. tutor should introduce itself though, be more proactive. the teacher points a finger to explain."*
+
+## Implementation progress — 2026-10-23
+
+**M1–M5 are implemented locally.** The greeting names the tutor as an AI that
+helps students think, combines the activity and first action, and closes with
+one question. The first-message fallback explicitly allows an answer to “What
+do I do?” All four student tutor templates carry self-introduction guidance.
+Models and reasoning settings are unchanged.
+
+The active-config response supplies an `opening` block only for a resolved
+activity. The structured `firstItem` comes from the same selector as the greet;
+the teaching goal remains private. The panel shows teacher Markdown verbatim
+when present; otherwise it renders the activity title, first item, checklist
+steps and tutor-help line from the locale catalogue. Starter questions send
+real student turns, with the sim's pending state flushed first; there is no
+trust card for sending a message. Standalone chats retain the skill welcome.
+Collapse state is per activity, and the privacy notice remains visible when
+collapsed.
+
+The builder has a live opening preview, `studentOpening`, `starterPrompts`
+(up to four, 120 characters each) and `openingByTeacher`. All three fields
+survive hydration, unrelated saves and the Activity → ActivityConfig adapter.
+The classroom-introduction option keeps the tutor's self-introduction and
+skips its walkthrough. Teacher text enters the greeting as bounded, quoted
+context, not instructions. The two co-pilot tools are owner-scoped proposals:
+the teacher edits and Applies them, then saves. They never persist directly.
+
+**M6 is drafted, not signed off.** T5 is a bilingual, provisional guide to the
+product controls, linked from T2. Its classroom advice awaits JB/teacher
+review. The onboarding checklist includes a student-opening preview reminder;
+S1 and the help tutor describe the changed opening. Screenshots, printable
+PDFs and guide-corpus seeding await browser QA and release. Changed skill
+templates need seeding when released (automatic on deploy).
+
+Validation: **4,985 backend fast tests and 2,671 frontend tests passed**.
+Backend lint/format, frontend lint/typecheck/content checks, localisation,
+client-API and stream-allowlist gates, and the production frontend build passed.
+Tests cover a real signed group token through the real auth dispatcher,
+full-overwrite survival, all greeting handoff quadrants, mounted builder
+controls, editable co-pilot proposals and exact starter-question sends. A
+synthetic activity also round-tripped through the running local frontend proxy.
+**Visual browser verification remains pending:** the computer-use connection
+could not access a browser window.
+
+`make eval-lesson-opening` checks the real `create_agent` factory with the
+existing template model on default, teacher-authored and classroom handoff
+openings. Each variant covers `[session_start]` and “What do I do?” without a
+greeting. All six passed in the final live run (2026-10-23). It uses synthetic in-memory data and checks the saved eval results
+because ADK's CLI can exit zero on failed criteria; generated history is ignored.
+No classroom or production data was read. M0's production baseline still
+belongs to M. No deploy, production query or seed has been run; M7 release and
+classroom re-measurement remain open.
 
 ## Problem Statement
 
@@ -163,7 +215,7 @@ title, the first item).
 | **Teacher chose "I'll introduce it in class"** (`openingByTeacher: true`) | The panel shows the teacher's opening if any, and the default otherwise | The greet keeps the self-introduction but **skips the orientation** and asks one question about the activity. The teacher is presumed to have done the orientation, which is their call |
 
 **The panel is built from structured data, not prose from the server.**
-`GET /api/activity-config/active/{activity_id}` gains an
+`GET /api/activity-configs/active/{activity_id}` gains an
 `opening: {text, source: "teacher"|"default", firstItem, steps[], starterPrompts[], byTeacher}`
 block. The frontend renders the default's sentences from `messages/{da,en}`, so
 no Danish or English string is assembled in Python. That follows the 1.1.108 M4

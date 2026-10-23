@@ -22,6 +22,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from db.models.activity_opening import OpeningText, StarterPrompts
 from db.models.curriculum import StxLevel
 
 Language = Literal["da", "en"]
@@ -542,6 +543,9 @@ class ActivityConfig(BaseModel):
     teacher_uid: str = Field(alias="teacherUid")
     title: str = Field(default="", alias="title", max_length=200)
     teaching_goal: str = Field(default="", alias="teachingGoal", max_length=2000)
+    student_opening: OpeningText = Field(default="", alias="studentOpening")
+    starter_prompts: StarterPrompts = Field(default_factory=list, alias="starterPrompts")
+    opening_by_teacher: bool = Field(default=False, alias="openingByTeacher")
     language: Language = "da"
     difficulty: Difficulty = "standard"
     interaction_style: InteractionStyle = Field(default="socratic", alias="interactionStyle")

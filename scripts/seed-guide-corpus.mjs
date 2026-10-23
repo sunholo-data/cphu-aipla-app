@@ -105,6 +105,7 @@ const GUIDES = [
   { file: "t2-create-your-first-activity.pdf", title: "AIPLA guide — T2: Create your first activity", aud: "teacher" },
   { file: "t3-add-curriculum-materials.pdf", title: "AIPLA guide — T3: Add curriculum materials", aud: "teacher" },
   { file: "t4-author-with-the-copilot.pdf", title: "AIPLA guide — T4: Author with the co-pilot", aud: "teacher" },
+  { file: "t5-introduce-the-tutor.pdf", title: "AIPLA guide — T5: Introduce the tutor", aud: "teacher" },
   { file: "s1-join-and-use-your-tutor.pdf", title: "AIPLA guide — S1: Join and use your tutor", aud: "student" },
   { file: "r1-researcher-onboarding.pdf", title: "AIPLA guide — R1: Researcher onboarding", aud: "researcher" },
   { file: "r2-propose-a-simulation.pdf", title: "AIPLA guide — R2: Propose a simulation", aud: "researcher" },

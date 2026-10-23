@@ -155,6 +155,8 @@ TOOL_REGISTRY: dict[str, Callable[[dict], FunctionTool]] = {
     # Authoring co-pilot write-tools (COPILOT-1; backend/adk/authoring_tools.py) —
     # owner-scoped, propose-only (the teacher's Apply persists). 1.1.39 / 1.1.50.
     "set_lesson_prompt": lambda _config: FunctionTool(_authoring_tools.set_lesson_prompt),
+    "set_student_opening": lambda _config: FunctionTool(_authoring_tools.set_student_opening),
+    "set_starter_prompts": lambda _config: FunctionTool(_authoring_tools.set_starter_prompts),
     "add_element": lambda _config: FunctionTool(_authoring_tools.add_element),
     "set_artefact": lambda _config: FunctionTool(_authoring_tools.set_artefact),
     "describe_sim": lambda _config: FunctionTool(_authoring_tools.describe_sim),

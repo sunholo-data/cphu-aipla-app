@@ -198,6 +198,41 @@ def test_student_endpoint_accepts_the_same_real_group_token(client):
     # Unbound group → empty config shape (not a 4xx).
     assert body["activityId"] == "act-some-activity"
     assert body["checklist"] == []
+    assert body["opening"] is None
+
+
+def test_activity_opening_reaches_a_bound_student_through_real_auth(client):
+    from db.activities import save_activity
+    from db.classes import create_class, mint_group_codes_under_class
+    from db.models.activity import Activity
+    from db.models.class_ import Class
+
+    activity = Activity(
+        activityId="act-opening",
+        ownerUid=TEACHER_UID,
+        skillId="concept-dialogue",
+        title="Energy",
+        language="en",
+        teachingGoal="PRIVATE TEACHING INSTRUCTION",
+        artefactId="kettle-efficiency",
+        checklist=[{"id": "s1", "label": "Measure the time"}],
+    )
+    save_activity(activity)
+    cls = Class.create_for_teacher(owner_uid=TEACHER_UID, name="Opening class")
+    cls.activity_ids = [activity.activity_id]
+    create_class(cls)
+    code = mint_group_codes_under_class(cls.class_id)[0]
+    token = join_group(code, client_ip="203.0.113.9").token
+
+    resp = client.get("/api/activity-configs/active/act-opening", headers=_auth_headers(token))
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["title"] == "Energy"
+    assert body["language"] == "en"
+    assert body["opening"]["source"] == "default"
+    assert body["opening"]["firstItem"] == {"kind": "simulation", "title": body["artefact"]["displayName"]}
+    assert body["opening"]["steps"] == ["Measure the time"]
+    assert "PRIVATE TEACHING INSTRUCTION" not in resp.text
 
 
 @pytest.mark.parametrize(

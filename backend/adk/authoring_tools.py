@@ -19,6 +19,7 @@ import re
 from typing import Any
 
 from google.adk.tools import ToolContext
+from pydantic import TypeAdapter, ValidationError
 
 # The non-raising identity resolver — propose-only tools return a denial dict
 # rather than let a PermissionError abort the turn. Single source of truth
@@ -39,6 +40,7 @@ from db.models.activity_config import (
     TableElement,
     WritingElement,
 )
+from db.models.activity_opening import OpeningText, StarterPrompts
 from db.models.curriculum import CurriculumDoc
 from db.models.taxonomy import normalize_tags
 
@@ -149,6 +151,55 @@ def set_lesson_prompt(
             "field": "teachingGoal",
             "activityId": activity_id,
             "value": goal,
+        },
+    }
+
+
+def set_student_opening(text: str, activity_id: str = "", tool_context: ToolContext = None) -> dict[str, Any]:
+    """Propose student-facing opening Markdown from the activity's goal and elements.
+
+    Students read this verbatim in the activity's language. Never persist it:
+    the teacher edits and Applies the proposal, then saves the activity.
+    Empty text restores the activity-specific default.
+    """
+    uid = _caller_uid(tool_context)
+    if not uid or not _can_author(activity_id, uid):
+        return dict(_DENY)
+    try:
+        value = TypeAdapter(OpeningText).validate_python(text)
+    except ValidationError:
+        return {"ok": False, "error": "opening must be at most 1500 characters"}
+    return {
+        "ok": True,
+        "proposal": {
+            "kind": "set_student_opening",
+            "field": "studentOpening",
+            "activityId": activity_id,
+            "value": value,
+        },
+    }
+
+
+def set_starter_prompts(prompts: list[str], activity_id: str = "", tool_context: ToolContext = None) -> dict[str, Any]:
+    """Propose up to four short student tap-to-send prompts in the activity's language.
+
+    Use the activity's own goal and elements. The teacher edits and Applies;
+    nothing is persisted here. An empty list restores the localised defaults.
+    """
+    uid = _caller_uid(tool_context)
+    if not uid or not _can_author(activity_id, uid):
+        return dict(_DENY)
+    try:
+        value = TypeAdapter(StarterPrompts).validate_python(prompts)
+    except ValidationError:
+        return {"ok": False, "error": "use up to four non-empty prompts of at most 120 characters each"}
+    return {
+        "ok": True,
+        "proposal": {
+            "kind": "set_starter_prompts",
+            "field": "starterPrompts",
+            "activityId": activity_id,
+            "value": value,
         },
     }
 

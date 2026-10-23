@@ -42,6 +42,7 @@ from db.models.activity_config import (
     WorkbenchType,
     WritingElement,
 )
+from db.models.activity_opening import OpeningText, StarterPrompts
 from db.models.last_edit import LastEdit
 from db.models.taxonomy import MAX_SUBJECT_LEN, StxLevel, normalize_subject, normalize_tags
 
@@ -105,6 +106,9 @@ class Activity(BaseModel):
     skill_id: str = Field(default="", alias="skillId", max_length=128)
     title: str = Field(default="", max_length=200)
     teaching_goal: str = Field(default="", alias="teachingGoal", max_length=2000)
+    student_opening: OpeningText = Field(default="", alias="studentOpening")
+    starter_prompts: StarterPrompts = Field(default_factory=list, alias="starterPrompts")
+    opening_by_teacher: bool = Field(default=False, alias="openingByTeacher")
     language: Language = "da"
     difficulty: Difficulty = "standard"
     interaction_style: InteractionStyle | None = Field(default=None, alias="interactionStyle")

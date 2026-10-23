@@ -34,5 +34,10 @@
     ".claude/skills/mcp-app-artefact",
     "infrastructure/mcp-sandbox/artefacts",
     "backend/artefacts"
+  ],
+  "t5-introduce-the-tutor": [
+    "frontend/src/components/teacher/ActivityOpeningEditor.tsx",
+    "frontend/src/components/chat/PinnedWelcome.tsx",
+    "backend/adk/proactive_greet.py"
   ]
 }

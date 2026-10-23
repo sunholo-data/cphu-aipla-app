@@ -15,6 +15,12 @@ import { applyCopilotProposal } from "../applyCopilotProposal";
  * mention.
  */
 describe("applyCopilotProposal — set_activity_facets", () => {
+  it("applies both opening proposal kinds into the saved draft", () => {
+    const { result } = renderHook(() => useActivityBuilder());
+    act(() => applyCopilotProposal({ kind: "set_student_opening", value: "Start here." }, result.current));
+    act(() => applyCopilotProposal({ kind: "set_starter_prompts", value: ["What should I measure?"] }, result.current));
+    expect(result.current.toSavePayload()).toMatchObject({ studentOpening: "Start here.", starterPrompts: ["What should I measure?"] });
+  });
   it("applies subject, level and tags to the builder", () => {
     const { result } = renderHook(() => useActivityBuilder());
     act(() =>

@@ -516,7 +516,9 @@
     "inputAria": "Describe what you want to teach",
     "empty": "Tell me what you want to teach — I'll suggest a lesson prompt and elements you can edit and apply. You can keep browsing the page while I work.",
     "loading": "Loading co-builder…",
-    "minimize": "Hide co-builder"
+    "minimize": "Hide co-builder",
+    "titleStudentOpening": "Suggested student introduction",
+    "titleStarterPrompts": "Suggested starter prompts (one per line)"
   },
   "ElementKinds": {
     "checklist": "Progress",
@@ -528,5 +530,19 @@
     "solution": "Your solution",
     "document": "File upload",
     "conceptMap": "Concept map"
+  },
+  "ActivityOpeningEditor": {
+    "heading": "What students see first",
+    "help": "Write directly to your students in the activity’s language. Markdown is supported. Leave this blank to use the activity-specific introduction shown below.",
+    "openingLabel": "Student introduction (optional)",
+    "byTeacher": "I’ll introduce this activity in class myself",
+    "byTeacherHelp": "The tutor still introduces itself, then asks one question about the activity. It skips the activity walkthrough.",
+    "prompts": "Starter prompts",
+    "promptsHelp": "Up to four short questions students can tap to send. Leave empty for the default suggestions.",
+    "promptNumber": "Starter prompt {n}",
+    "removePrompt": "Remove starter prompt {n}",
+    "remove": "Remove",
+    "addPrompt": "Add starter prompt",
+    "preview": "Student introduction preview"
   }
 }

@@ -1,0 +1,16 @@
+{
+  "eval_set_id": "lesson_opening",
+  "name": "Lesson opening and recovery without a greeting",
+  "eval_cases": [
+    {
+      "eval_id": "introduce_and_orient",
+      "conversation": [{ "user_content": { "parts": [{ "text": "[session_start]" }] } }],
+      "session_input": { "app_name": "lesson_opening", "user_id": "opening-eval", "state": {} }
+    },
+    {
+      "eval_id": "what_do_i_do_without_greet",
+      "conversation": [{ "user_content": { "parts": [{ "text": "Hvad skal jeg gøre?" }] } }],
+      "session_input": { "app_name": "lesson_opening", "user_id": "opening-eval", "state": {} }
+    }
+  ]
+}

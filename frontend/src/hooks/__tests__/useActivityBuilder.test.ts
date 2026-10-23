@@ -37,6 +37,21 @@ function fullCalculator() {
 }
 
 describe("useActivityBuilder — initial state", () => {
+  it("keeps opening fields through hydrate, unrelated edits and reset", () => {
+    const { result } = renderHook(() => useActivityBuilder());
+    const cfg: ActivityConfigPayload = { activityId: "act-opening", classId: "c", teacherUid: "t", teachingGoal: "G",
+      language: "en", difficulty: "standard", pairedWorkbench: null, updatedAt: "",
+      studentOpening: "**Measure first.**", starterPrompts: ["What should I measure?"], openingByTeacher: true };
+    act(() => result.current.hydrate(cfg));
+    act(() => result.current.setTitle("New title"));
+    expect(result.current.toSavePayload()).toMatchObject({ studentOpening: cfg.studentOpening,
+      starterPrompts: cfg.starterPrompts, openingByTeacher: true });
+    act(() => result.current.setStudentOpening("New opening"));
+    act(() => result.current.setStarterPrompts(["Try this?", ""]));
+    expect(result.current.toSavePayload()).toMatchObject({ studentOpening: "New opening", starterPrompts: ["Try this?"] });
+    act(() => result.current.hydrate({ ...cfg, studentOpening: undefined, starterPrompts: undefined, openingByTeacher: undefined }));
+    expect(result.current.toSavePayload()).toMatchObject({ studentOpening: "", starterPrompts: [], openingByTeacher: false });
+  });
   it("starts blank for a fresh create", () => {
     const { result } = renderHook(() => useActivityBuilder());
     const b = result.current;
@@ -656,6 +671,9 @@ describe("useActivityBuilder — toSavePayload + isFormValid (F5)", () => {
         // wrapper fields
         "title",
         "teachingGoal",
+        "studentOpening",
+        "starterPrompts",
+        "openingByTeacher",
         "language",
         "workbenchType",
         "materials",

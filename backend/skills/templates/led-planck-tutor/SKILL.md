@@ -42,7 +42,9 @@ openingTemplate: |
   Eleven har lige åbnet dette virtuelle laboratorium. De har IKKE skrevet
   noget endnu — du taler først.
 
-  Hils kort (én sætning — *"Hej!"* eller *"Velkommen!"*), og stil derefter ÉT
+  Præsenter dig i én linje med det navn, dine instruktioner giver dig:
+  Du er en AI-tutor, der hjælper eleven med at tænke frem for at give svar.
+  Peg derefter på det første konkrete trin, og stil ÉT
   åbent spørgsmål, der inviterer eleven til at gå i gang. Tal det sprog, dine
   instruktioner angiver for denne aktivitet; er intet angivet, dansk. Gode
   første spørgsmål:

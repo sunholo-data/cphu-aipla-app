@@ -7,7 +7,7 @@ order: "1"
 lang: "en"
 status: "Current"
 owner: "AIPLA project team"
-reviewed: "2026-10-05"
+reviewed: "2026-10-23"
 reviewBy: "2027-01-05"
 ---
 ::: callout-note
@@ -42,6 +42,13 @@ The activity opens with two sides: the **tutor** you chat with, and your
 **workspace** — a simulation, a checklist, a table, a calculator, or notes,
 depending on the activity. Ask the tutor questions in your own words; it guides
 you toward understanding rather than just giving answers.
+
+Read **How to get started** above the chat: it shows your teacher's introduction
+or a default with the activity name, first item and any checklist steps.
+Tap a starter question to send it to the tutor, or write your own message.
+You can collapse the panel and open it again whenever you need it. If you are
+unsure where to begin, ask the tutor what to do first. The panel also links
+back to this guide in a new tab, so your activity stays open.
 
 The activity starts in the language your teacher chose. To use the other one,
 select **DA** or **EN** at the top of the page — the buttons, the tutor and the

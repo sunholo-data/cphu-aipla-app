@@ -7,7 +7,7 @@ order: "1"
 lang: "da"
 status: "Current"
 owner: "AIPLA project team"
-reviewed: "2026-10-05"
+reviewed: "2026-10-23"
 reviewBy: "2027-01-05"
 ---
 ::: callout-note
@@ -43,6 +43,15 @@ Aktiviteten åbner med to sider: **tutoren**, som du chatter med, og dit
 **arbejdsområde** — en simulation, en tjekliste, en datatabel, en beregner
 eller noter, afhængigt af aktiviteten. Stil tutoren spørgsmål med dine egne
 ord; den guider dig mod forståelse i stedet for bare at give dig svarene.
+
+Læs **Sådan kommer du i gang** over chatten: Her står din lærers introduktion
+eller en standard med aktivitetens navn, det første element og eventuelle trin
+i tjeklisten. Tryk på et startspørgsmål for at sende det til tutoren, eller
+skriv din egen besked.
+Du kan folde panelet sammen og åbne det igen, når du har brug for det.
+Er du usikker på, hvor du skal begynde, så spørg tutoren, hvad du skal gøre
+først. Panelet linker også tilbage til denne guide i en ny fane, så din
+aktivitet bliver ved med at være åben.
 
 Aktiviteten starter på det sprog, din lærer har valgt. Vil du bruge det andet,
 så vælg **DA** eller **EN** øverst på siden — knapperne, tutoren og

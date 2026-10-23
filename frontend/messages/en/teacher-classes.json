@@ -188,7 +188,10 @@
     "readInstead": "Prefer to read? The guide walks through the same steps.",
     "guide": "Set up a class",
     "dismiss": "Hide",
-    "live": "Your class is live — students are talking to the tutor."
+    "live": "Your class is live — students are talking to the tutor.",
+    "step_previewOpening": "Preview what your students see first",
+    "action_previewOpening": "Open class → Try as student",
+    "action_previewChecked": "I’ve checked the opening"
   },
   "SetUpForTeacherDialog": {
     "button": "Set up a class for a teacher…",

@@ -188,7 +188,10 @@
     "readInstead": "Læs mere i vejledningen:",
     "guide": "Opsæt en klasse",
     "dismiss": "Skjul",
-    "live": "Din klasse er i gang — eleverne taler med tutoren."
+    "live": "Din klasse er i gang — eleverne taler med tutoren.",
+    "step_previewOpening": "Se det første eleverne møder",
+    "action_previewOpening": "Åbn klasse → Prøv som elev",
+    "action_previewChecked": "Jeg har tjekket introduktionen"
   },
   "SetUpForTeacherDialog": {
     "button": "Opsæt en klasse for en lærer…",

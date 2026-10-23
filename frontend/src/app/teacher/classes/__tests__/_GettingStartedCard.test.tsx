@@ -48,7 +48,7 @@ describe("GettingStartedCard", () => {
     const onCreate = vi.fn();
     render(<GettingStartedCard onCreateClass={onCreate} />);
     const card = await screen.findByTestId("getting-started-card");
-    expect(card).toHaveTextContent("0 of 5");
+    expect(card).toHaveTextContent("0 of 6");
     fireEvent.click(screen.getByRole("button", { name: "New class" }));
     expect(onCreate).toHaveBeenCalled();
   });
@@ -85,7 +85,7 @@ describe("GettingStartedCard", () => {
     vi.spyOn(teacherApi, "fetchTeacherStage").mockResolvedValue(stage({ stage: "live", nextStep: null, classes: [ownClass] }));
     const { unmount } = render(<GettingStartedCard onCreateClass={() => {}} />);
     const card = await screen.findByTestId("getting-started-card");
-    expect(card).toHaveTextContent("5 of 5");
+    expect(card).toHaveTextContent("5 of 6");
     fireEvent.click(screen.getByRole("button", { name: /hide/i }));
     expect(screen.queryByTestId("getting-started-card")).not.toBeInTheDocument();
     unmount();

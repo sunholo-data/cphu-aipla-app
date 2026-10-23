@@ -7,7 +7,7 @@ order: "2"
 lang: "en"
 status: "Current"
 owner: "AIPLA project team"
-reviewed: "2026-10-05"
+reviewed: "2026-10-23"
 reviewBy: "2027-01-05"
 ---
 ::: callout-note
@@ -74,6 +74,11 @@ for themselves.) The tutor itself comes from the class (guide *T1*); the Setup
 section shows which one will teach.
 
 ![The teaching goal is the instruction the tutor follows. Keep it specific.](/guides/assets/t2-03-goal.png)
+
+Below it, **What students see first** lets you write the student introduction,
+choose to introduce the activity in class yourself, and set starter questions.
+Leave these fields empty for the activity-specific defaults. The panel preview
+updates as you edit. See [T5 — Introduce the tutor](t5-introduce-the-tutor).
 
 ## Step 4 — Add a workspace (optional)
 

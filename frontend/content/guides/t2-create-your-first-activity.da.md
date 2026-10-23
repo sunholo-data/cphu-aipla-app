@@ -7,7 +7,7 @@ order: "2"
 lang: "da"
 status: "Current"
 owner: "AIPLA project team"
-reviewed: "2026-10-05"
+reviewed: "2026-10-23"
 reviewBy: "2027-01-05"
 ---
 ::: callout-note
@@ -75,6 +75,12 @@ DA | EN.) Selve tutoren kommer fra klassen (vejledning *T1*); afsnittet
 Opsætning viser, hvilken tutor der underviser.
 
 ![Undervisningsmålet er den instruktion, tutoren følger. Hold det specifikt.](/guides/assets/t2-03-goal.png)
+
+Under det finder du **Det første eleverne ser**. Her kan du skrive en
+elevintroduktion, vælge selv at introducere aktiviteten i klassen og skrive
+startspørgsmål. Lad felterne være tomme for at bruge de aktivitetsspecifikke
+standarder. Forhåndsvisningen opdateres, mens du redigerer.
+Se [T5 — Introducer tutoren](t5-introduce-the-tutor.da).
 
 ## Trin 4 — Tilføj et arbejdsområde (valgfrit)
 

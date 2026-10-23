@@ -46,6 +46,9 @@ export interface ActivityConfigPayload {
   teacherUid: string;
   title?: string;
   teachingGoal: string;
+  studentOpening?: string;
+  starterPrompts?: string[];
+  openingByTeacher?: boolean;
   language: Language;
   difficulty: Difficulty;
   interactionStyle?: InteractionStyle;
@@ -215,6 +218,9 @@ export interface ActivityConfigUpsert {
   classId: string;
   title?: string;
   teachingGoal: string;
+  studentOpening?: string;
+  starterPrompts?: string[];
+  openingByTeacher?: boolean;
   language: Language;
   /** Dead knob (1.1.32) — stored on the model for back-compat but no longer
    *  set from the teacher UI and consumed nowhere. Omit and the backend keeps
@@ -602,6 +608,9 @@ export interface ActivityUpsertBody {
   classId?: string;
   title?: string;
   teachingGoal: string;
+  studentOpening?: string;
+  starterPrompts?: string[];
+  openingByTeacher?: boolean;
   language: Language;
   workbenchType?: WorkbenchType;
   artefactId?: string | null;

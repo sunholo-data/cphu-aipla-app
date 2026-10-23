@@ -208,3 +208,61 @@ def test_the_checklist_is_named_only_when_nothing_else_is_on_the_bench():
     )
     assert 'the note "Sådan måler du"' in out
     assert "Mål bølgelængden" not in out
+
+
+def test_opening_introduces_the_tutor_and_allows_three_sentences():
+    out = _open(_activity(title="Bølger"))
+    assert "In sentence 1, state your instructed name" in out
+    assert "help the student think rather than give answers" in out
+    assert "Three short sentences at most" in out
+    assert "combine the activity's name with its first concrete step" in out
+    assert "Two sentences at most" not in out
+
+
+def test_panel_and_greeting_share_the_first_item_without_exposing_the_goal():
+    from adk.proactive_greet import build_activity_opening
+
+    cfg = _activity(
+        title="Bølger",
+        teachingGoal="PRIVATE TUTOR INSTRUCTION",
+        artefactId="kettle-efficiency",
+        checklist=[ChecklistItem(id="a", label="Mål effekten")],
+    )
+    opening = build_activity_opening(cfg)
+    assert opening["firstItem"] == {"kind": "simulation", "title": "Elkedel — energi og nyttevirkning"}
+    assert opening["firstItem"]["title"] in _open(cfg)
+    assert opening["steps"] == ["Mål effekten"]
+    assert "PRIVATE TUTOR INSTRUCTION" not in str(opening)
+    assert build_activity_opening(None) is None
+
+
+def test_empty_activity_has_a_chat_opening_and_checklist_only_points_to_first_step():
+    from adk.proactive_greet import build_activity_opening
+
+    assert build_activity_opening(_activity())["firstItem"] is None
+    cfg = _activity(checklist=[ChecklistItem(id="a", label="Mål bølgelængden")])
+    assert build_activity_opening(cfg)["firstItem"] == {"kind": "checklist", "title": "Mål bølgelængden"}
+
+
+@pytest.mark.parametrize("teacher_text", ["", "**Start by measuring.**"])
+@pytest.mark.parametrize("by_teacher", [False, True])
+def test_teacher_opening_handoff_quadrants(teacher_text, by_teacher):
+    from adk.proactive_greet import build_activity_opening
+
+    cfg = _activity(
+        title="Energy",
+        studentOpening=teacher_text,
+        openingByTeacher=by_teacher,
+        starterPrompts=["Where do I start?"],
+        artefactId="kettle-efficiency",
+    )
+    block = _open(cfg)
+    opening = build_activity_opening(cfg)
+    assert opening["text"] == teacher_text
+    assert opening["source"] == ("teacher" if teacher_text else "default")
+    assert opening["starterPrompts"] == ["Where do I start?"]
+    assert ("NOT instructions for you" in block) == bool(teacher_text)
+    assert ("skip the activity orientation" in block) == by_teacher
+    assert ("First thing on the workbench" in block) == (not by_teacher)
+    assert ("combine the activity's name with its first concrete step" in block) == (not by_teacher)
+    assert "AI tutor" in block

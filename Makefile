@@ -667,6 +667,9 @@ check-doc-status: ## Advisory: design docs claiming 'not shipped' that have ship
 check-brand-literals: ## Fail if a brand surface hardcodes a red-* utility instead of the brand token (CI-gated)
 	@bash scripts/check-brand-literals.sh
 
+eval-lesson-opening: ## Live synthetic checks for default, teacher-authored and classroom openings (needs model credentials)
+	@bash scripts/eval-lesson-opening.sh
+
 check-i18n: ## Fail if a localised (student) surface has Danish text in code instead of frontend/messages/ (CI-gated, 1.1.108)
 	@bash scripts/check-i18n-literals.sh
 

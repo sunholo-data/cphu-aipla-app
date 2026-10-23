@@ -50,6 +50,26 @@ def test_owner_gets_a_well_formed_proposal():
     assert "energibevarelse" in res["proposal"]["value"].lower()
 
 
+@pytest.mark.parametrize(
+    "name,value",
+    [("set_student_opening", "Start with the kettle."), ("set_starter_prompts", ["What should I measure?"])],
+)
+def test_opening_proposals_are_owner_scoped_and_never_persist(name, value):
+    from adk import authoring_tools
+    from db.activities import get_activity
+
+    aid = _make_activity(TEACHER)
+    tool = getattr(authoring_tools, name)
+    keyword = "text" if name == "set_student_opening" else "prompts"
+    assert tool(**{keyword: value}, activity_id=aid, tool_context=_tc(OTHER))["ok"] is False
+    assert tool(**{keyword: value}, activity_id="missing", tool_context=_tc(TEACHER))["ok"] is False
+    assert tool(**{keyword: value}, activity_id=aid, tool_context=_tc(None))["ok"] is False
+    result = tool(**{keyword: value}, activity_id=aid, tool_context=_tc(TEACHER))
+    assert result["proposal"]["value"] == value
+    assert get_activity(aid).student_opening == ""
+    assert get_activity(aid).starter_prompts == []
+
+
 def test_non_owner_is_denied():
     from adk.authoring_tools import set_lesson_prompt
 

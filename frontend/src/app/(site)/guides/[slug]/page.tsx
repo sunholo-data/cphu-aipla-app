@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { existsSync } from "node:fs";
+import path from "node:path";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, ArrowRight, FileText, Languages } from "lucide-react";
@@ -154,13 +156,13 @@ export default async function GuidePage({ params }: GuidePageProps) {
                   ))}
               </ul>
               <div className="mt-4 flex flex-col items-start gap-2 border-t border-border pt-3">
-                <a
+                {existsSync(path.join(process.cwd(), "public", "guides", `${guide.slug}.pdf`)) ? <a
                   href={`/guides/${guide.slug}.pdf`}
                   className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
                 >
                   <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                   {copy.pdf}
-                </a>
+                </a> : null}
                 <PrintButton label={copy.print} />
               </div>
           </div>

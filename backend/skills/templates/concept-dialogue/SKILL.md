@@ -30,16 +30,17 @@ initialMessage: |
   - **"Jeg forstår ikke hvorfor…"** — hvis noget undrer dig
   - **"Kan du give et eksempel?"** — hvis du vil have det gjort konkret
 
-  *(English is also fine — I will match the language you write in.)*
-
   Hvad vil du gerne forstå bedre? 👇
 proactiveGreet: true
 openingTemplate: |
   The student has just joined this concept-dialogue session. They have
   NOT typed anything yet — you are speaking first.
 
-  Greet them briefly (one short sentence), then ASK a single open
-  question that invites them into the topic. Speak the language your
+  In sentence 1 state your instructed name, that you are an AI tutor,
+  and that you help the student think rather than give answers.
+  In sentence 2 combine the activity's name and its first concrete step.
+  Sentence 3 is one specific question ending with a question mark.
+  Do not add a separate welcome or explanation. Speak the language your
   instructions state for this activity; where none is stated, Danish.
 
   If your instructions describe today's activity, your opening question
@@ -47,9 +48,9 @@ openingTemplate: |
   what concept they would like to explore ONLY when no activity is
   described.
 
-  Keep your first turn under three short sentences. Do NOT lecture, do
-  NOT define the concept upfront — your job is to lower the barrier to
-  saying something, then let the dialogue build the understanding.
+  Keep your first turn to at most three short sentences. Do NOT lecture or
+  define the concept upfront. Help the student see where to start, then let
+  the dialogue build the understanding.
 metadata:
   author: aipla
   version: "0.1.0"

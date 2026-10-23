@@ -56,6 +56,9 @@ function nonEmptyDraft(draft: SavePayload): Partial<SavePayload> | null {
   const out: Partial<SavePayload> = {};
   if (draft.title) out.title = draft.title;
   if (draft.teachingGoal) out.teachingGoal = draft.teachingGoal;
+  if (draft.studentOpening) out.studentOpening = draft.studentOpening;
+  if (draft.starterPrompts?.length) out.starterPrompts = draft.starterPrompts;
+  if (draft.openingByTeacher) out.openingByTeacher = draft.openingByTeacher;
   if (draft.artefactId) out.artefactId = draft.artefactId;
   if (draft.checklist.length) out.checklist = draft.checklist;
   if (draft.table.length) out.table = draft.table;
@@ -93,6 +96,8 @@ function draftContextBlock(draft: SavePayload | undefined): string {
  */
 export type Proposal =
   | { kind: "set_lesson_prompt"; value: string }
+  | { kind: "set_student_opening"; value: string }
+  | { kind: "set_starter_prompts"; value: string[] }
   | { kind: "add_element"; elementKind: "checklist"; items: string[]; label: string }
   | { kind: "add_element"; elementKind: "note"; title: string; body: string; label: string }
   | { kind: "add_element"; elementKind: "writing"; title: string; prompt: string; minWords: number; label: string }
@@ -183,6 +188,12 @@ export function parseProposal(tc: ToolCallState): Proposal | null {
   switch (p.kind) {
     case "set_lesson_prompt":
       return typeof p.value === "string" && p.field === "teachingGoal" ? { kind: "set_lesson_prompt", value: p.value } : null;
+    case "set_student_opening":
+      return typeof p.value === "string" && p.value.length <= 1500
+        ? { kind: "set_student_opening", value: p.value } : null;
+    case "set_starter_prompts":
+      return Array.isArray(p.value) && p.value.length <= 4 && p.value.every((v) => typeof v === "string" && v.trim() && v.length <= 120)
+        ? { kind: "set_starter_prompts", value: p.value as string[] } : null;
     case "add_element": {
       const ek = p.element_kind;
       const spec = (p.spec ?? {}) as Record<string, unknown>;
@@ -356,6 +367,10 @@ const authoringProposalDescriptor = (t: Translate<"AuthoringCopilot">): Proposal
     switch (p.kind) {
       case "set_lesson_prompt":
         return t("titleLessonPrompt");
+      case "set_student_opening":
+        return t("titleStudentOpening");
+      case "set_starter_prompts":
+        return t("titleStarterPrompts");
       case "add_element":
         return t("titleElement", { label: p.label || t("elementFallback") });
       case "set_artefact":
@@ -370,8 +385,12 @@ const authoringProposalDescriptor = (t: Translate<"AuthoringCopilot">): Proposal
         return t("titleConceptMap", { label: p.label || t("conceptMapFallback") });
     }
   },
-  editableText: (p) => (p.kind === "set_lesson_prompt" ? p.value : null),
-  withEditedText: (p, text) => (p.kind === "set_lesson_prompt" ? { ...p, value: text } : p),
+  editableText: (p) => p.kind === "set_starter_prompts" ? p.value.join("\n")
+    : p.kind === "set_lesson_prompt" || p.kind === "set_student_opening" ? p.value : null,
+  withEditedText: (p, text) => p.kind === "set_starter_prompts"
+    ? { ...p, value: text.split("\n").map((s) => s.trim()).filter(Boolean).slice(0, 4).map((s) => s.slice(0, 120)) }
+    : p.kind === "set_student_opening" ? { ...p, value: text.slice(0, 1500) }
+    : p.kind === "set_lesson_prompt" ? { ...p, value: text } : p,
   body: (p): ReactNode => {
     if (p.kind === "add_element") return <AddElementBody proposal={p} />;
     if (p.kind === "set_artefact") {

@@ -9,7 +9,7 @@ import { STAGE_ORDER, type Stage } from "@/lib/onboardingStage";
 import { useT } from "@/i18n";
 
 /** 1.1.108 M4 — copy lives here, never inline in JSX. */
-type StepKey = "createClass" | "mintCode" | "addActivity" | "shareLink" | "firstTurn";
+type StepKey = "createClass" | "mintCode" | "addActivity" | "previewOpening" | "shareLink" | "firstTurn";
 
 const DISMISS_KEY = "aipla.gettingStarted.dismissed";
 
@@ -35,7 +35,8 @@ function reached(stage: Stage, target: Stage): boolean {
 
 /**
  * The first-run checklist (1.1.124 M1) — the teacher's view of the same stage
- * the Programme page shows a researcher. Five steps, ticked from the stage;
+ * the Programme page shows a researcher. Five steps ticked from the stage,
+ * plus the teacher's own confirmation that they checked the student opening;
  * each undone step links to the CONTROL, not to a guide. Shown until the class
  * is live, dismissible after; renders nothing while the stage is unknown, so a
  * teacher already past all this never sees it flash.
@@ -49,6 +50,7 @@ export function GettingStartedCard({ onCreateClass }: { onCreateClass: () => voi
   const [stage, setStage] = useState<TeacherStagePayload | null>(null);
   const [hidden, setHidden] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [previewChecked, setPreviewChecked] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,6 +78,7 @@ export function GettingStartedCard({ onCreateClass }: { onCreateClass: () => voi
     { key: "createClass", done: reached(s, "no_code") },
     { key: "mintCode", done: reached(s, "no_activity") },
     { key: "addActivity", done: reached(s, "waiting") },
+    { key: "previewOpening", done: previewChecked },
     { key: "shareLink", done: reached(s, "live") },
     { key: "firstTurn", done: reached(s, "live") },
   ] as const;
@@ -127,7 +130,7 @@ export function GettingStartedCard({ onCreateClass }: { onCreateClass: () => voi
               <Circle className="h-4 w-4 shrink-0 text-muted-foreground/50" aria-hidden="true" />
             )}
             <span className={st.done ? "text-muted-foreground line-through" : "font-medium"}>{t(`step_${st.key}`)}</span>
-            {!st.done ? <StepAction step={st.key} firstClassId={first?.classId ?? null} firstCode={firstCode} copied={copied} onCreateClass={onCreateClass} onCopy={copyJoinLink} /> : null}
+            {!st.done ? <StepAction step={st.key} firstClassId={first?.classId ?? null} firstCode={firstCode} copied={copied} onCreateClass={onCreateClass} onCopy={copyJoinLink} onPreviewChecked={() => setPreviewChecked(true)} /> : null}
           </li>
         ))}
       </ol>
@@ -150,6 +153,7 @@ function StepAction({
   copied,
   onCreateClass,
   onCopy,
+  onPreviewChecked,
 }: {
   step: StepKey;
   firstClassId: string | null;
@@ -157,6 +161,7 @@ function StepAction({
   copied: boolean;
   onCreateClass: () => void;
   onCopy: () => void;
+  onPreviewChecked: () => void;
 }) {
   const t = useT("GettingStartedCard");
   switch (step) {
@@ -193,6 +198,11 @@ function StepAction({
           {copied ? t("action_copied") : t("action_copyLink")}
         </button>
       ) : null;
+    case "previewOpening":
+      return firstClassId ? <>
+        <Link href={`/teacher/classes/${encodeURIComponent(firstClassId)}`} className={linkClass}>{t("action_previewOpening")}</Link>
+        <button type="button" onClick={onPreviewChecked} className={linkClass}>{t("action_previewChecked")}</button>
+      </> : null;
     case "firstTurn":
       return <span className="text-xs text-muted-foreground">{t("action_waiting")}</span>;
   }

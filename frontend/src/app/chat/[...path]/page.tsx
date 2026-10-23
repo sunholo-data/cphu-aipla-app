@@ -76,6 +76,7 @@ import { type CalculatorElementDef } from "@/components/workspace/WorkbenchCalcu
 import { type NoteElementDef } from "@/components/workspace/WorkbenchNote";
 import { type WritingElementDef } from "@/components/workspace/WorkbenchWriting";
 import { type ActivityArtefact } from "@/components/workspace/GenericArtefactFrame";
+import type { ActivityOpening } from "@/lib/activityOpening";
 import { StudentWorkspace } from "@/components/workspace/StudentWorkspace";
 import type { SolutionElementDef } from "@/components/workspace/SolutionElementMount";
 import type { DocumentElementDef } from "@/components/workspace/DocumentElementMount";
@@ -499,6 +500,12 @@ function ChatShell({
   // The activity's title, stamped into a downloaded writing export so a file
   // that reaches a teacher says which lesson it came from.
   const [activeTitle, setActiveTitle] = useState<string>("");
+  const [resolvedOpening, setResolvedOpening] = useState<{
+    activityId: string;
+    title: string;
+    opening: ActivityOpening | null;
+  } | null>(null);
+  const currentOpening = resolvedOpening?.activityId === activityId ? resolvedOpening : null;
   // 1.1.108 M1 — the activity's language, from the same config field the tutor's
   // language directive reads. null until the config arrives (or when this chat
   // has no activity), in which case the skill's voice language decides below.
@@ -565,6 +572,7 @@ function ChatShell({
   // student's class). Optional — failure/absence leaves the chat-only render.
   useEffect(() => {
     if (!skillId || !isAnonymousGroupAuthMode()) {
+      setResolvedOpening(null);
       setActiveChecklist([]);
       setActiveTable([]);
       setActiveChart([]);
@@ -593,6 +601,7 @@ function ChatShell({
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (!alive || !data) return;
+        setResolvedOpening({ activityId, title: data.title ?? "", opening: data.opening ?? null });
         if (Array.isArray(data.checklist)) setActiveChecklist(data.checklist as ChecklistItem[]);
         if (Array.isArray(data.table)) setActiveTable(data.table as TableElementDef[]);
         if (Array.isArray(data.chart)) setActiveChart(data.chart as ChartElementDef[]);
@@ -1049,6 +1058,14 @@ function ChatShell({
     });
   }, [clearError, sendMessage, outgoingDocIds, enteredViaResume]);
 
+  const handleStarterPrompt = useCallback(async (text: string) => {
+    if (isLoading || greetLoading || groupTurnInFlight || error) return;
+    lastUserMessageRef.current = text;
+    await artefactFlushRef.current?.();
+    setMobileTab("chat");
+    await sendMessage(text, { documentIds: outgoingDocIds, resumedSession: enteredViaResume });
+  }, [isLoading, greetLoading, groupTurnInFlight, error, sendMessage, outgoingDocIds, enteredViaResume]);
+
   // 1.1.53 M1 — flush a queued message once the group's turn-lock clears (and
   // this device isn't mid-send). Sends exactly once, then clears the queue.
   useEffect(() => {
@@ -1436,6 +1453,10 @@ function ChatShell({
             sharedTranscript={groupShared ? sharedTranscriptOpts : undefined}
             interactionsTruncated={(enteredViaResume || groupShared) && interactionsTruncated}
             skillInitialMessage={skillInitialMessage}
+            activityOpening={currentOpening?.opening}
+            activityTitle={currentOpening?.title}
+            onStarterPrompt={handleStarterPrompt}
+            starterPromptsDisabled={isLoading || greetLoading || groupTurnInFlight || Boolean(error)}
             historyError={historyError}
             toolCalls={toolCalls}
             thinkingContent={thinkingContent}

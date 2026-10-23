@@ -3,17 +3,23 @@
 import { useEffect, useState } from "react";
 import { ShieldAlert } from "lucide-react";
 import type { PersonaSummary } from "@/components/chat/MessageBubble";
-import { useT } from "@/i18n";
+import { useLocaleMode, useT, type MessageKey } from "@/i18n";
+import type { ActivityOpening } from "@/lib/activityOpening";
 
 import { ChatMarkdown } from "./ChatMarkdown";
 
 interface PinnedWelcomeProps {
-  /** Markdown body — typically the skill's `initialMessage` field
-   * (starter prompts, tutorial). Empty disables the component. */
+  /** Skill Markdown, used when there is no resolved activity opening. */
   content: string;
   /** Skill id used to scope the collapse-state key so toggling on
    * one skill doesn't affect another. */
   skillId: string;
+  /** Activity facts take precedence over the skill's generic welcome. */
+  opening?: ActivityOpening | null;
+  activityTitle?: string;
+  activityId?: string | null;
+  onStarterPrompt?: (text: string) => void;
+  promptsDisabled?: boolean;
   /** 1.1.12 — the active persona. When set, it appears as a left-hand
    * column (large avatar + name + role) beside the welcome body, so the
    * avatar can be sizeable without pushing the orientation text down the
@@ -25,8 +31,8 @@ interface PinnedWelcomeProps {
 const KEY_PREFIX = "aipla.welcome.collapsed:";
 
 /**
- * PinnedWelcome — collapsible header that holds the skill's starter-
- * prompts / tutorial body and stays visible across all messages.
+ * PinnedWelcome — activity orientation (or the skill's welcome for standalone
+ * chats), kept above the transcript across all messages.
  *
  * Fixes the template-default behaviour where the welcome panel only
  * rendered on `messages.length === 0` and vanished the moment the
@@ -35,20 +41,25 @@ const KEY_PREFIX = "aipla.welcome.collapsed:";
  * scaffolding than the inherited "welcome blurb just for the empty
  * state" framing.
  *
- * Collapse state is per-skill (so a teacher demo skill and a student
- * skill don't share preference) and persists in sessionStorage.
+ * Collapse state is per-activity, falling back to the skill for standalone
+ * chats, and persists in sessionStorage.
  */
-export function PinnedWelcome({ content, skillId, persona }: PinnedWelcomeProps) {
+export function PinnedWelcome({ content, skillId, persona, opening, activityTitle, activityId, onStarterPrompt, promptsDisabled }: PinnedWelcomeProps) {
   const t = useT("PinnedWelcome");
+  const locale = useLocaleMode();
   const [collapsed, setCollapsed] = useState(false);
+  const scope = activityId || skillId;
+  const prompts = opening?.starterPrompts.length
+    ? opening.starterPrompts
+    : [t("promptStart"), t("promptStuck"), t("promptExample")];
 
   // Restore collapse state on mount; effect (not initial state) so SSR
   // doesn't read sessionStorage and React doesn't hydrate a mismatch.
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const stored = window.sessionStorage.getItem(KEY_PREFIX + skillId);
-    if (stored === "1") setCollapsed(true);
-  }, [skillId]);
+    const stored = window.sessionStorage.getItem(KEY_PREFIX + scope);
+    setCollapsed(stored === "1");
+  }, [scope]);
 
   // The privacy notice is the reason this box always renders now: KU legal
   // (2026-10-05) asked that students be told, explicitly and on screen, not to
@@ -59,7 +70,7 @@ export function PinnedWelcome({ content, skillId, persona }: PinnedWelcomeProps)
     setCollapsed((v) => {
       const next = !v;
       if (typeof window !== "undefined") {
-        window.sessionStorage.setItem(KEY_PREFIX + skillId, next ? "1" : "0");
+        window.sessionStorage.setItem(KEY_PREFIX + scope, next ? "1" : "0");
       }
       return next;
     });
@@ -91,7 +102,7 @@ export function PinnedWelcome({ content, skillId, persona }: PinnedWelcomeProps)
         <span>👋 {t("heading")}</span>
       </button>
       <PrivacyNotice title={t("privacyTitle")} body={t("privacyBody")} />
-      {!collapsed && content && (
+      {!collapsed && (opening || content) && (
         <div
           id="pinned-welcome-body"
           className="flex flex-col gap-4 px-4 pb-4 text-sm text-foreground sm:flex-row sm:items-start sm:gap-5"
@@ -120,13 +131,73 @@ export function PinnedWelcome({ content, skillId, persona }: PinnedWelcomeProps)
             </div>
           ) : null}
           <div className="min-w-0 flex-1">
-            <ChatMarkdown content={content} navigateToBlock={() => {}} />
+            {opening ? (
+              <div className="space-y-3">
+                {opening.source === "teacher" ? (
+                  <ChatMarkdown content={opening.text} navigateToBlock={() => {}} />
+                ) : <>
+                {activityTitle ? <p className="font-semibold">{activityTitle}</p> : null}
+                <p>
+                  {opening.firstItem
+                    ? t("startWith", {
+                        item: opening.firstItem.title || t(ITEM_LABELS[opening.firstItem.kind] ?? "kindItem"),
+                      })
+                    : t("startInChat")}
+                </p>
+                {opening.steps.length > 0 ? (
+                  <div>
+                    <p className="font-medium">{t("steps")}</p>
+                    <ol className="list-decimal space-y-1 pl-5">
+                      {opening.steps.map((step, index) => (
+                        <li key={index}>{step}</li>
+                      ))}
+                    </ol>
+                  </div>
+                ) : null}
+                <p>{persona?.name ? t("askTutor", { name: persona.name }) : t("askTutorDefault")}</p>
+                </>}
+                {onStarterPrompt ? (
+                  <div className="flex flex-wrap gap-2">
+                    {prompts.map((prompt, index) => (
+                      <button type="button" key={index} disabled={promptsDisabled}
+                        onClick={() => onStarterPrompt(prompt)}
+                        className="rounded-full border border-border bg-background px-3 py-1 text-left text-xs hover:bg-muted disabled:opacity-50">
+                        {prompt}
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                <a
+                  href={`/guides/s1-join-and-use-your-tutor${locale === "da" ? ".da" : ""}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline underline-offset-2"
+                >
+                  {t("studentGuide")}
+                </a>
+              </div>
+            ) : (
+              <ChatMarkdown content={content} navigateToBlock={() => {}} />
+            )}
           </div>
         </div>
       )}
     </div>
   );
 }
+
+const ITEM_LABELS: Record<string, MessageKey<"PinnedWelcome">> = {
+  simulation: "kindSimulation",
+  checklist: "kindChecklist",
+  table: "kindTable",
+  chart: "kindChart",
+  calculator: "kindCalculator",
+  note: "kindNote",
+  writing: "kindWriting",
+  solution: "kindSolution",
+  document: "kindDocument",
+  conceptMap: "kindConceptMap",
+};
 
 function PrivacyNotice({ title, body }: { title: string; body: string }) {
   return (

@@ -63,6 +63,8 @@ def test_first_student_turn_gets_a_true_block():
     assert "NOT yet sent a message" not in out
     assert "FIRST MESSAGE" in out
     assert "answer what they actually asked" in out
+    assert "If they are asking what to do" in out
+    assert "first concrete step on the workbench by name" in out
     assert GREETING not in out
 
 

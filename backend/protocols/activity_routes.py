@@ -61,6 +61,7 @@ from db.models.activity_config import (
     WorkbenchType,
     WritingElement,
 )
+from db.models.activity_opening import OpeningText, StarterPrompts
 from db.models.curriculum import CurriculumDoc
 from db.models.last_edit import LastEdit
 from db.models.taxonomy import MAX_SUBJECT_LEN, StxLevel, normalize_tags
@@ -88,6 +89,9 @@ class ActivityUpsert(BaseModel):
     class_id: str | None = Field(default=None, alias="classId", max_length=128)
     title: str = Field(default="", max_length=200)
     teaching_goal: str = Field(default="", alias="teachingGoal", max_length=2000)
+    student_opening: OpeningText = Field(default="", alias="studentOpening")
+    starter_prompts: StarterPrompts = Field(default_factory=list, alias="starterPrompts")
+    opening_by_teacher: bool = Field(default=False, alias="openingByTeacher")
     language: Language = "da"
     difficulty: Difficulty = "standard"
     interaction_style: InteractionStyle | None = Field(default=None, alias="interactionStyle")
@@ -201,6 +205,9 @@ def _activity_from_body(body: ActivityUpsert, *, owner_uid: str, activity_id: st
         ownerUid=owner_uid,
         title=body.title,
         teachingGoal=body.teaching_goal,
+        studentOpening=body.student_opening,
+        starterPrompts=body.starter_prompts,
+        openingByTeacher=body.opening_by_teacher,
         language=body.language,
         difficulty=body.difficulty,
         interactionStyle=body.interaction_style,

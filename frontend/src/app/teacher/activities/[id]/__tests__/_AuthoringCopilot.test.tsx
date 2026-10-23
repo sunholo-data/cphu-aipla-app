@@ -10,6 +10,9 @@ function savePayload(over: Partial<SavePayload> = {}): SavePayload {
   return {
     title: "",
     teachingGoal: "",
+    studentOpening: "",
+    starterPrompts: [],
+    openingByTeacher: false,
     language: "da",
     workbenchType: "none",
     artefactId: null,
@@ -97,6 +100,13 @@ afterEach(() => {
 });
 
 describe("parseProposal (generalized dispatch)", () => {
+  it("accepts bounded opening proposals and rejects invalid starter questions", () => {
+    const parse = (kind: string, value: unknown) => parseProposal(tc({ resultContent: JSON.stringify({ ok: true, proposal: { kind, value } }) }));
+    expect(parse("set_student_opening", "Start here.")).toEqual({ kind: "set_student_opening", value: "Start here." });
+    expect(parse("set_starter_prompts", ["What first?"])).toEqual({ kind: "set_starter_prompts", value: ["What first?"] });
+    expect(parse("set_starter_prompts", ["x".repeat(121)])).toBeNull();
+    expect(parse("set_starter_prompts", [" "])).toBeNull();
+  });
   it("returns a typed proposal for a successful set_lesson_prompt result", () => {
     expect(parseProposal(tc({ resultContent: PROPOSAL }))).toEqual({
       kind: "set_lesson_prompt",
@@ -243,6 +253,17 @@ describe("AuthoringCopilot — auth corner + panel", () => {
 });
 
 describe("AuthoringCopilot — proposal card", () => {
+  it("lets the teacher edit starter prompts before applying them", async () => {
+    mockHook.toolCalls = [tc({ name: "set_starter_prompts", resultContent: JSON.stringify({ ok: true,
+      proposal: { kind: "set_starter_prompts", field: "starterPrompts", value: ["First?", "Second?"] } }) })];
+    const onApply = vi.fn();
+    render(<AuthoringCopilot activityId="act-1" onApplyProposal={onApply} />);
+    await screen.findByTestId("proposal-card");
+    fireEvent.click(screen.getByRole("button", { name: /redig[eé]r/i }));
+    fireEvent.change(screen.getByLabelText(/redig[eé]r forslag/i), { target: { value: "My question?\nAnother question?" } });
+    fireEvent.click(screen.getByRole("button", { name: /brug denne/i }));
+    expect(onApply).toHaveBeenCalledWith({ kind: "set_starter_prompts", value: ["My question?", "Another question?"] });
+  });
   async function renderWithProposal(onApply = vi.fn()) {
     mockHook.toolCalls = [tc({ resultContent: PROPOSAL })];
     render(<AuthoringCopilot activityId="act-1" onApplyProposal={onApply} />);

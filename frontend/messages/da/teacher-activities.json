@@ -516,7 +516,9 @@
     "inputAria": "Beskriv hvad du vil undervise i",
     "empty": "Fortæl hvad du vil undervise i — jeg foreslår en lærer-prompt og elementer, du kan rette og anvende. Du kan stadig bladre i siden mens jeg arbejder.",
     "loading": "Indlæser medbygger…",
-    "minimize": "Skjul medbygger"
+    "minimize": "Skjul medbygger",
+    "titleStudentOpening": "Forslag til elevintroduktion",
+    "titleStarterPrompts": "Forslag til startspørgsmål"
   },
   "ElementKinds": {
     "checklist": "Fremgang",
@@ -528,5 +530,19 @@
     "solution": "Løsningsfelt",
     "document": "Filupload",
     "conceptMap": "Begrebskort"
+  },
+  "ActivityOpeningEditor": {
+    "heading": "Det første eleverne ser",
+    "help": "Skriv direkte til eleverne på aktivitetens sprog. Du kan bruge Markdown. Lad feltet stå tomt for at bruge den aktivitetsspecifikke introduktion nedenfor.",
+    "openingLabel": "Introduktion til eleverne (valgfri)",
+    "byTeacher": "Jeg introducerer selv aktiviteten i klassen",
+    "byTeacherHelp": "Tutoren præsenterer stadig sig selv og stiller derefter ét spørgsmål om aktiviteten. Den springer gennemgangen af aktiviteten over.",
+    "prompts": "Startspørgsmål",
+    "promptsHelp": "Op til fire korte spørgsmål, eleverne kan trykke på for at sende. Lad listen være tom for at bruge standardforslagene.",
+    "promptNumber": "Startspørgsmål {n}",
+    "removePrompt": "Fjern startspørgsmål {n}",
+    "remove": "Fjern",
+    "addPrompt": "Tilføj startspørgsmål",
+    "preview": "Forhåndsvisning af elevintroduktion"
   }
 }
