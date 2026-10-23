@@ -501,6 +501,16 @@ steps:
             fail=1
           fi
         done
+        # Browser writes must reach auth, not ADK's loopback Origin rejection.
+        code=$(curl -sS -o /tmp/body -w '%{http_code}' --max-time 20 -X POST \
+          -H "Origin: $${URL}" -H 'Content-Type: application/json' -d '{}' \
+          "$${URL}/api/proxy/api/folders") || code=000
+        if [ "$${code}" = "401" ]; then
+          echo "OK   POST /api/proxy/api/folders (browser Origin, anon) -> 401"
+        else
+          echo "FAIL POST /api/proxy/api/folders (browser Origin, anon) -> $${code} (expected 401)"
+          fail=1
+        fi
         exit $${fail}
 
   # --- Post-deploy seed: SKILL.md templates -> Firestore (P1.3) ---

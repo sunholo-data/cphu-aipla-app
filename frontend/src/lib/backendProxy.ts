@@ -34,6 +34,10 @@ const BLOCKED_REQUEST_HEADERS = new Set([
   // rejected outright by undici (UND_ERR_NOT_SUPPORTED) → every such upload
   // became a 502 "backend_unreachable". The sidecar never needed it.
   "expect",
+  // The browser reached this server on its public origin. The loopback sidecar
+  // sees a different host and ADK rejects the forwarded Origin before auth.
+  // Keep the caller's Bearer token; the server-to-server hop has no Origin.
+  "origin",
   // Next/fetch-internal
   "x-middleware-invoke",
   "x-invoke-path",

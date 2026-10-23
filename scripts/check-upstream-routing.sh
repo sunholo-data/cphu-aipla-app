@@ -51,7 +51,8 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
 REMOTE="${UPSTREAM_REMOTE:-upstream}"
-UBRANCH="${UPSTREAM_BRANCH:-main}"
+UBRANCH="${UPSTREAM_BRANCH:-$(sed -n 's/^UPSTREAM_BRANCH=//p' .template-fork-target 2>/dev/null | head -1)}"
+UBRANCH="${UBRANCH:-main}"
 UREF="$REMOTE/$UBRANCH"
 
 # Fork metadata lives in .template-fork-target so the pin and the base are

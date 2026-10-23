@@ -105,6 +105,11 @@ smoke_app() {
   # would mean the catch-all proxy is missing — the FE-BRINGUP-1 guard).
   probe GET "${url}/api/proxy/api/skills"      401     "/api/proxy/api/skills (anon)"      || fail=1
   probe GET "${url}/api/proxy/api/auth/whoami" 401     "/api/proxy/api/auth/whoami (anon)" || fail=1
+  # Browsers send Origin on writes; CLI-only probes missed ADK's pre-auth
+  # rejection after the SDK upgrade. No token means this must reach auth (401).
+  probe POST "${url}/api/proxy/api/folders" 401 \
+        "/api/proxy/api/folders (browser Origin, anon)" \
+        -H "Origin: ${url}" -H "Content-Type: application/json" --data-binary '{}' || fail=1
   probe GET "${url}/api/proxy/api/buckets"     "401|403" "/api/proxy/api/buckets (anon)"   || fail=1
   probe GET "${url}/api/proxy/api/media/pdf-info?url=https://storage.googleapis.com/test/test.pdf" \
         "401|403" "/api/proxy/api/media/pdf-info (anon)" || fail=1
@@ -154,6 +159,7 @@ smoke_upload() {
   local code token
   code=$(curl -sS -o "$BODY" -w '%{http_code}' --max-time 20 \
     -X POST "${url}/api/proxy/api/auth/group/join" \
+    -H "Origin: ${url}" \
     -H 'Content-Type: application/json' \
     -d "{\"group_id\":\"${SMOKE_GROUP_CODE}\"}" 2>/dev/null) || code=000
   if [[ "$code" != "200" ]]; then
@@ -175,6 +181,7 @@ smoke_upload() {
   if probe POST "${url}/api/proxy/api/documents/upload" 200 \
       "/api/proxy/api/documents/upload (student)" \
       -H "Authorization: Bearer ${token}" \
+      -H "Origin: ${url}" \
       -F "file=@${tmp};filename=aipla-smoke-check.txt"; then
     # A 200 with no storagePath would mean the record was written and the bytes
     # were not — exactly the half-success the GCS 403 produced for teachers.

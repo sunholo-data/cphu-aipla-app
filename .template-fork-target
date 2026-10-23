@@ -14,7 +14,7 @@
 # and the routing check uses it as one.
 
 UPSTREAM_REPO=https://github.com/sunholo-data/platform-source.git
-UPSTREAM_BRANCH=main
+UPSTREAM_BRANCH=dev
 FORK_BASE=160c9fe
 
 # Last upstream commit reconciled against, and when. Update when you port up.

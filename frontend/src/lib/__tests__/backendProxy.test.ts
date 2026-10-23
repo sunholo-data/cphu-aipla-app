@@ -32,7 +32,8 @@ beforeAll(async () => {
     req.on("data", (c: Buffer) => chunks.push(c));
     req.on("end", () => {
       seen.push({ method: req.method ?? "", url: req.url ?? "", headers: req.headers, body: Buffer.concat(chunks) });
-      res.writeHead(respondWith.status, { "content-type": "application/json" });
+      // Model ADK's loopback Origin check, which runs before the auth handler.
+      res.writeHead(req.headers.origin ? 403 : respondWith.status, { "content-type": "application/json" });
       res.end(respondWith.body);
     });
   });
@@ -86,6 +87,28 @@ function multipartRequest(extraHeaders: Record<string, string> = {}, payloadByte
 }
 
 describe("forwardToBackend — streamed request bodies", () => {
+  it.each(["POST", "PUT", "PATCH", "DELETE"])("drops browser Origin on %s while preserving Bearer auth", async (method) => {
+    seen = [];
+    respondWith = { status: 200, body: "{}" };
+    const req = new NextRequest("https://app.example.com/api/proxy/api/folders", {
+      method,
+      headers: {
+        Origin: "https://app.example.com",
+        Authorization: "Bearer group-token",
+        "Content-Type": "application/json",
+      },
+      body: "{}",
+    });
+
+    const resp = await forward(req, "api/folders");
+
+    expect(resp.status).toBe(200);
+    expect(seen).toHaveLength(1);
+    expect(seen[0].headers.origin).toBeUndefined();
+    expect(seen[0].headers.authorization).toBe("Bearer group-token");
+    expect(seen[0].method).toBe(method);
+  });
+
   it("passes a 401 from the sidecar through as a 401, not a 502, with a streamed body", async () => {
     seen = [];
     respondWith = { status: 401, body: '{"detail":"Invalid token"}' };

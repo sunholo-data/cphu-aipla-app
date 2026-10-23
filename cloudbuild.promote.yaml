@@ -312,6 +312,15 @@ steps:
           code=$$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 "$${URL}$${path}") || code=000
           if [ "$${code}" = "401" ]; then echo "OK   $${path} -> 401"; else echo "FAIL $${path} -> $${code} (expected 401)"; fail=1; fi
         done
+        code=$$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 -X POST \
+          -H "Origin: $${URL}" -H 'Content-Type: application/json' -d '{}' \
+          "$${URL}/api/proxy/api/folders") || code=000
+        if [ "$${code}" = "401" ]; then
+          echo "OK   POST /api/proxy/api/folders (browser Origin, anon) -> 401"
+        else
+          echo "FAIL POST /api/proxy/api/folders (browser Origin, anon) -> $${code} (expected 401)"
+          fail=1
+        fi
         exit $${fail}
 
   # --- Seed: reconcile SKILL.md templates -> Firestore on the TARGET ---
