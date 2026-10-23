@@ -267,7 +267,14 @@ async def _run_with_stage_marks(
             elif type_value == "TOOL_CALL_START":
                 tracker.increment_tool_invocations()
 
-        yield event.model_dump(by_alias=True, exclude_none=True)
+        payload = event.model_dump(by_alias=True, exclude_none=True)
+        if event_type is not None and getattr(event_type, "value", str(event_type)) == "STATE_DELTA":
+            # Protocol 1.0 types JSON Patch operations as models. exclude_none
+            # removes their required value when it is JSON null, turning a
+            # valid replacement into an invalid patch. Preserve delta values
+            # while still omitting optional null event-envelope fields.
+            payload["delta"] = event.model_dump(by_alias=True)["delta"]
+        yield payload
 
         # After each ADK event, flush any STAGE_PROGRESS that fired during
         # callback execution (e.g. before_model_callback marks

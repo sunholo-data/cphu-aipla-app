@@ -92,6 +92,14 @@ def test_the_tool_is_named_for_the_client_and_the_allow_list() -> None:
     assert _tool().name == "control_sim" == sct.TOOL_NAME
 
 
+@pytest.mark.parametrize("level", ["view", "scaffold", "restrict"])
+def test_the_model_receives_only_the_catalogue_parameter_schema(level) -> None:
+    declaration = _tool(level)._get_declaration()
+    assert declaration.parameters is not None
+    assert declaration.parameters_json_schema is None
+    assert declaration.parameters.properties["command"].enum == _declared_commands(_tool(level))
+
+
 # --- M2: the level shapes the schema ----------------------------------------
 
 

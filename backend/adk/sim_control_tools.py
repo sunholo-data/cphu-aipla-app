@@ -190,6 +190,9 @@ class _SimControlTool(FunctionTool):
         if decl is None:  # pragma: no cover — FunctionTool always declares
             return None
         decl.description = self._sim_description
+        # ADK 2's inferred JSON Schema and our catalogue-generated Schema are
+        # mutually exclusive in the model API. Keep only the narrowed one.
+        decl.parameters_json_schema = None
         decl.parameters = types.Schema(
             type=types.Type.OBJECT,
             properties={

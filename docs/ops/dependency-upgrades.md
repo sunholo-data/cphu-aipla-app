@@ -74,3 +74,23 @@ Additional pre-production evidence on 2026-10-23:
   successfully read four events, including user and model content, from that
   ADK 2 test session via the real Vertex session service. This proves history
   read compatibility; it does not constitute a full application rollback drill.
+
+The deeper contract review found two further ADK 2 issues before promotion:
+
+- Protocol 1.0 models JSON Patch operations. Omitting all `None` fields also
+  omitted the required `value` of a null-valued add/replace/test operation.
+  The event serializer now preserves the complete delta while omitting null
+  optional envelope fields. Regression tests cover add, replace, test and
+  remove; the installed frontend client successfully applies the backend's
+  serialized null replacement.
+- ADK 2 infers `parameters_json_schema` for FunctionTool. The catalogue-based
+  `control_sim` tool also set `parameters`, producing a declaration with both
+  mutually exclusive fields. A real request to the configured evaluation
+  model rejected that declaration with HTTP 400 and accepted the corrected
+  single-schema declaration. Tests cover view, scaffold and restrict levels.
+
+The `v0.1.103` app builds were cancelled before deployment so that candidate
+could not overwrite the complete correction. `v0.1.104` replaces it and
+includes the Origin fix and both additional protocol/schema corrections.
+The completed local backend gate passed 5,004 tests, and all six live lesson
+opening evaluations passed again with the existing models.

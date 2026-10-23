@@ -25,6 +25,9 @@ class _Tracker:
         out, self.queue = self.queue, []
         return out
 
+    def mark(self, _stage: str) -> None:
+        pass
+
 
 @pytest.mark.asyncio
 async def test_a_label_set_mid_step_is_flushed_before_the_step_ends():
@@ -54,3 +57,27 @@ async def test_a_fast_agent_passes_through_unchanged():
             yield i
 
     assert [e async for e in _with_progress_flush(agent(), tracker, poll_s=1.0)] == [0, 1, 2]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "operation",
+    [
+        {"op": "replace", "path": "/selection", "value": None},
+        {"op": "add", "path": "/selection", "value": None},
+        {"op": "test", "path": "/selection", "value": None},
+        {"op": "remove", "path": "/selection"},
+    ],
+)
+async def test_state_delta_keeps_json_patch_semantics_on_the_wire(operation):
+    from types import SimpleNamespace
+
+    from ag_ui.core import StateDeltaEvent
+
+    from adk.agui import _run_with_stage_marks
+
+    async def run(_input):
+        yield StateDeltaEvent(delta=[operation])
+
+    wire = [event async for event in _run_with_stage_marks(SimpleNamespace(run=run), None, _Tracker())]
+    assert wire == [{"type": "STATE_DELTA", "delta": [operation]}]
