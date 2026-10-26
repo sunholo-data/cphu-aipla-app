@@ -93,6 +93,9 @@ resource "google_bigquery_table" "chat_turns" {
         -- not recorded: every earlier row, and every student row.
         JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.tools_called") AS tools_called,
         SAFE_CAST(SAFE_CAST(JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.tool_call_count") AS FLOAT64) AS INT64) AS tool_call_count,
+        -- 1.1.142 M4 (2026-10-26): why the reply ran on the smart tier — failover |
+        -- escalation | opt_in. NULL = default route, or not recorded (earlier rows).
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.model_route") AS model_route,
         -- Which build produced this turn. `revision` is Cloud Run's K_REVISION
         -- and is the A/B ARM KEY: traffic tags route to revisions, so when two
         -- versions serve side by side this is what separates the arms. Without

@@ -66,6 +66,17 @@ def _served_model(event: Any, configured: str | None) -> str | None:
     return served if isinstance(served, str) and served else configured
 
 
+def _model_route(event: Any) -> str | None:
+    """Why ``event`` ran on the smart tier (``model_routing.MODEL_ROUTE_KEY``:
+    failover | escalation | opt_in), or None for the default route (1.1.142 M4)."""
+    try:
+        meta = getattr(event, "custom_metadata", None) or {}
+        route = meta.get("model_route") if isinstance(meta, dict) else None
+    except Exception:
+        route = None
+    return route if isinstance(route, str) and route else None
+
+
 def _tools_per_tutor_row(events: list[Any], invocation_id: str) -> dict[int, list[str]]:
     """Attribute this invocation's tool calls to the tutor rows that get logged.
 
@@ -247,6 +258,7 @@ def _emit_new_turns(
                 token_out=token_out,
                 latency_ms=latency_ms,
                 tools_called=",".join(row_tools) if row_tools is not None else None,
+                model_route=_model_route(event) if role == "tutor" else None,
                 tool_call_count=len(row_tools) if row_tools is not None else None,
             )
 

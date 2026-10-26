@@ -140,6 +140,7 @@ def emit_chat_turn(
     tutor_version: int | None = None,
     tools_called: str | None = None,
     tool_call_count: int | None = None,
+    model_route: str | None = None,
 ) -> None:
     """Emit one chat turn (student or tutor). Never raises.
 
@@ -194,6 +195,9 @@ def emit_chat_turn(
         "teaching_source": teaching_source,
         "tools_called": tools_called,
         "tool_call_count": tool_call_count,
+        # 1.1.142 M4 — why a reply ran on the smart tier: failover | escalation |
+        # opt_in. NULL = the default route, or not recorded (every earlier row).
+        "model_route": model_route,
         **_version_fields(),
     }
     try:
