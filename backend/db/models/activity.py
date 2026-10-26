@@ -107,6 +107,9 @@ class Activity(BaseModel):
     skill_id: str = Field(default="", alias="skillId", max_length=128)
     title: str = Field(default="", max_length=200)
     teaching_goal: str = Field(default="", alias="teachingGoal", max_length=2000)
+    # 1.1.141 M3 — see ActivityConfig.tutor_notes. Visible and editable in the
+    # builder; reaches the tutor only when the activity has no teaching approach.
+    tutor_notes: str = Field(default="", alias="tutorNotes", max_length=2000)
     student_opening: OpeningText = Field(default="", alias="studentOpening")
     starter_prompts: StarterPrompts = Field(default_factory=list, alias="starterPrompts")
     opening_by_teacher: bool = Field(default=False, alias="openingByTeacher")

@@ -94,8 +94,8 @@ from adk.sim_author import attach_sim_screenshots, record_sim_usage
 from adk.sim_control_tools import build_sim_control_tools, resolve_sim_control_level
 from adk.svg_preview import attach_svg_preview, make_final_svg_guard
 from adk.teacher_focus import build_ilo_precedence_block, inject_teacher_focus, resolve_active_config
+from adk.teaching_precedence import build_tutor_notes_block, inject_framework_preamble_with_precedence
 from adk.tools import resolve_mcp_tools, resolve_tools
-from adk.tutor_framework import inject_framework_preamble
 from adk.tutor_identity import build_identity_block
 from adk.tutor_resolution import resolve_teaching_context
 from adk.workbench_affordances import TurnFills, make_workbench_affordances_wrapper, resolve_workbench_use
@@ -938,7 +938,12 @@ def create_agent(
                         # moves by `build_framework_instruction` — chosen once,
                         # by whoever owns the approach, in the same preview as
                         # the moves it has to live with.
-                        inject_framework_preamble(
+                        #
+                        # 1.1.141 M1: followed IMMEDIATELY by the precedence
+                        # block — the activity says what to learn, the approach
+                        # says how to teach. Only when a preamble was composed,
+                        # so a framework-less turn stays byte-identical.
+                        inject_framework_preamble_with_precedence(
                             # Phase 1.1.7: when the skill opts into image
                             # upload, append the shared image-input guidance
                             # (units-loop / no-solve / privacy) right after
@@ -976,6 +981,11 @@ def create_agent(
                                 # (_doc_links_after) is the control, not this.
                                 + (build_document_links_block(_active_cfg) if user.group_id else "")
                                 + build_ilo_precedence_block(_active_cfg)
+                                # 1.1.141 M3 — pedagogy/persona lines moved out
+                                # of the teaching goal reach the tutor ONLY when
+                                # no approach is teaching. "" otherwise, and ""
+                                # for every activity without notes.
+                                + build_tutor_notes_block(_active_cfg, _teaching_ctx.framework_id)
                                 # 1.1.70 M1 — what this GROUP has already been
                                 # recorded as doing. Both summaries were
                                 # written, exported and unit-tested in 1.1.62 /

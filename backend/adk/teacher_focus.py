@@ -137,6 +137,7 @@ def _activity_to_config(activity: Activity, *, class_id: str) -> ActivityConfig:
         teacherUid=activity.owner_uid,
         title=activity.title,
         teachingGoal=activity.teaching_goal,
+        tutorNotes=activity.tutor_notes,
         studentOpening=activity.student_opening,
         starterPrompts=activity.starter_prompts,
         openingByTeacher=activity.opening_by_teacher,

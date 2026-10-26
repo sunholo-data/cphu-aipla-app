@@ -549,6 +549,11 @@ class ActivityConfig(BaseModel):
     teacher_uid: str = Field(alias="teacherUid")
     title: str = Field(default="", alias="title", max_length=200)
     teaching_goal: str = Field(default="", alias="teachingGoal", max_length=2000)
+    # 1.1.141 M3 — pedagogy/persona lines moved OUT of the teaching goal (tone,
+    # hint policy, a character to play). Shown to the tutor only when no
+    # teaching approach is teaching (adk/teaching_precedence.build_tutor_notes_block).
+    # Default "" composes byte-identically to before the field existed.
+    tutor_notes: str = Field(default="", alias="tutorNotes", max_length=2000)
     student_opening: OpeningText = Field(default="", alias="studentOpening")
     starter_prompts: StarterPrompts = Field(default_factory=list, alias="starterPrompts")
     opening_by_teacher: bool = Field(default=False, alias="openingByTeacher")
