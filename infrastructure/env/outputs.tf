@@ -62,6 +62,7 @@ output "post_apply_todo" {
     "backend/scripts/bootstrap_agent_engine.py  → fills AGENT_ENGINE_ID secret (europe-west1)",
     "scripts/provision-curriculum-rag.sh        → creates the RAG corpus + fills CURRICULUM_RAG_CORPUS_NAME (europe-west1), seed CLEARED content only",
     "populate the real DOCPARSE_API_KEY secret value",
+    "populate UCLOUD_AI_API_KEY once UCloud AI credits are granted (optional; docs/ops/runbooks/ucloud-ai.md)",
     "make seed ENV=<env>                         → platform skill templates → Firestore",
     "mint demo codes",
   ]

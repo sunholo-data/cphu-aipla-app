@@ -50,6 +50,24 @@ class TestEstimateCost:
         cost = estimate_cost("publishers/google/models/gemini-2.5-pro", 1000, 500)
         assert cost > 0
 
+    def test_ucloud_priced_under_the_name_the_spend_gate_sees(self):
+        """The gate reads llm_request.model, which LiteLlm sets to
+        "openai/<served>"; the chat log carries the registry "ucloud/<served>".
+        Both must price, and the same, or a ucloud turn is free AND ungated."""
+        as_gate_sees = estimate_cost("openai/glm-5.3-flash", 1_000_000, 1_000_000)
+        as_registry = estimate_cost("ucloud/glm-5.3-flash", 1_000_000, 1_000_000)
+        assert as_gate_sees == as_registry == 0.753 + 2.832
+
+    def test_ucloud_flash_not_priced_as_the_full_model(self):
+        assert estimate_cost("openai/glm-5.3", 1_000_000, 0) == 5.815
+        assert estimate_cost("openai/glm-5.3-flash", 1_000_000, 0) == 0.753
+
+    def test_every_registered_model_is_priced(self):
+        from config.models import model_api_names
+        from observability.llm_metrics import is_priced
+
+        assert not [name for name in model_api_names() if not is_priced(name)]
+
 
 class TestRecordLlmCost:
     def test_calls_counters(self):

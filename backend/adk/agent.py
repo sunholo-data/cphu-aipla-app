@@ -101,6 +101,7 @@ from adk.tutor_resolution import resolve_teaching_context
 from adk.workbench_affordances import TurnFills, make_workbench_affordances_wrapper, resolve_workbench_use
 from auth.access_context import AccessContext
 from auth.firebase_auth import User
+from config import ucloud
 from db.models import SkillConfig
 from skills.platform import PLATFORM_OWNER_UID
 from skills.skill_config import find_by_slug, get_skill
@@ -121,9 +122,12 @@ def resolve_model(model_id: str, first_token_deadline_s: float | None = None) ->
       Gemini model is a chain of one — retries, no fail-over (1.1.142).
     - `claude-*` -> `Claude(model=...)` (Vertex AI Anthropic models)
     - `gpt-*` / `o3*` -> `LiteLlm(model="openai/...")` (requires OPENAI_API_KEY)
+    - `ucloud/*` -> `LiteLlm` against UCloud AI's OpenAI-compatible endpoint
+      (SDU, Denmark — see config/ucloud.py; no retry/fail-over wrapper yet)
 
     Raises:
         ValueError: If the model_id does not match a known provider prefix.
+        RuntimeError: For a `ucloud/` model on a deploy without UCloud AI configured.
     """
     if model_id.startswith("gemini-"):
         chain = _gemini_chain_for(model_id)
@@ -136,6 +140,18 @@ def resolve_model(model_id: str, first_token_deadline_s: float | None = None) ->
         return Claude(model=model_id)
     if model_id.startswith("gpt-") or model_id.startswith("o3"):
         return LiteLlm(model=f"openai/{model_id}")
+    if model_id.startswith(ucloud.UCLOUD_PREFIX):
+        missing = ucloud.missing_settings()
+        if missing:
+            raise RuntimeError(
+                f"{model_id!r} needs UCloud AI, which this deploy has not configured "
+                f"(missing {', '.join(missing)}; see docs/ops/runbooks/ucloud-ai.md)"
+            )
+        return LiteLlm(
+            model=f"openai/{ucloud.served_name(model_id)}",
+            api_base=ucloud.ucloud_base_url(),
+            api_key=ucloud.ucloud_api_key(),
+        )
     raise ValueError(f"Unsupported model: {model_id!r}")
 
 

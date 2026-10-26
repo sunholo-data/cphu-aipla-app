@@ -45,6 +45,29 @@ resource "google_secret_manager_secret_version" "docparse" {
   }
 }
 
+# UCLOUD_AI_API_KEY — external key for UCloud AI (SDU, Denmark), same shape as
+# DOCPARSE_API_KEY: TF owns the secret + a placeholder, the operator adds the
+# real key out-of-band (docs/ops/runbooks/ucloud-ai.md). The backend treats the
+# placeholder as "not configured" (backend/config/ucloud.py), so mounting this
+# before the key exists hides the ucloud models rather than 401ing every turn.
+resource "google_secret_manager_secret" "ucloud_ai" {
+  project   = var.project_id
+  secret_id = "UCLOUD_AI_API_KEY"
+  replication {
+    auto {}
+  }
+  depends_on = [google_project_service.apis]
+}
+
+resource "google_secret_manager_secret_version" "ucloud_ai" {
+  secret      = google_secret_manager_secret.ucloud_ai.id
+  secret_data = "REPLACE_ME_WITH_UCLOUD_AI_API_KEY"
+
+  lifecycle {
+    ignore_changes = [secret_data]
+  }
+}
+
 # AGENT_ENGINE_ID — secret SHELL only. The numeric id can't be minted by
 # Terraform (no reasoning-engines resource); backend/scripts/bootstrap_agent_engine.py
 # creates the engine and adds the secret version post-apply. No version here.
@@ -65,6 +88,7 @@ locals {
   sa_secret_ids = {
     group_auth      = google_secret_manager_secret.group_auth.secret_id
     docparse        = google_secret_manager_secret.docparse.secret_id
+    ucloud_ai       = google_secret_manager_secret.ucloud_ai.secret_id
     agent_engine_id = google_secret_manager_secret.agent_engine_id.secret_id
   }
 }

@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from "react";
 
+type Provider = "google" | "anthropic" | "openai" | "ucloud";
+
 interface ModelEntry {
   id: string;
   api_name: string;
-  provider: "google" | "anthropic" | "openai";
+  provider: Provider;
   tier: "default" | "smart" | "fast";
   context_window: number;
   max_output_tokens: number;
@@ -22,6 +24,8 @@ const PROVIDER_LABELS: Record<string, string> = {
   google: "Google Gemini",
   anthropic: "Anthropic Claude",
   openai: "OpenAI",
+  // Listed by /api/models only on a deploy that has a UCloud AI key.
+  ucloud: "UCloud AI (Denmark)",
 };
 
 interface Props {
@@ -31,7 +35,7 @@ interface Props {
    *  default). The rubric-judge surface passes `["google"]` because judge
    *  execution is Gemini-only for now (multi-provider — local/Ollama-focused —
    *  is roadmapped, not built). */
-  providers?: ("google" | "anthropic" | "openai")[];
+  providers?: Provider[];
 }
 
 export default function ModelSelector({ value, onChange, providers }: Props) {
@@ -55,13 +59,14 @@ export default function ModelSelector({ value, onChange, providers }: Props) {
     (m) => m.id === config.platform_default
   )?.api_name;
 
-  const byProvider = (["google", "anthropic", "openai"] as const)
+  const byProvider = (["google", "anthropic", "openai", "ucloud"] as const)
     .filter((provider) => !providers || providers.includes(provider))
     .map((provider) => ({
       provider,
       label: PROVIDER_LABELS[provider],
       models: config.models.filter((m) => m.provider === provider),
-    }));
+    }))
+    .filter(({ models }) => models.length > 0);
 
   return (
     <select

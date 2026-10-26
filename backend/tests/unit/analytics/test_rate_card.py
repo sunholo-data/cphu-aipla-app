@@ -45,3 +45,17 @@ def test_cost_math() -> None:
 
 def test_negative_and_missing_tokens_treated_as_zero() -> None:
     assert cost_eur("gemini-2.5-flash", -5, 0) == 0.0
+
+
+def test_ucloud_models_price_by_their_registry_name() -> None:
+    """The chat-log `model` column carries the registry api_name."""
+    from config.models import load_models_config
+
+    for m in load_models_config().models:
+        if m.provider == "ucloud":
+            assert lookup_rate(m.api_name) is not None, m.api_name
+    assert lookup_rate("ucloud/glm-5.3-flash") == MODEL_RATE_CARD["ucloud/glm-5.3-flash"]
+
+
+def test_unknown_ucloud_model_prices_like_the_dearest() -> None:
+    assert lookup_rate("ucloud/some-new-model") == MODEL_RATE_CARD["ucloud/glm-5.3"]

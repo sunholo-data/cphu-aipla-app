@@ -57,3 +57,58 @@ def test_unsupported_model_raises_value_error():
 def test_empty_model_id_raises_value_error():
     with pytest.raises(ValueError, match="Unsupported model"):
         resolve_model("")
+
+
+# --- UCloud AI (SDU, Denmark) — config/ucloud.py -----------------------------
+
+_UCLOUD_BASE = "https://inference.example.dk/v1"
+
+
+@pytest.fixture
+def ucloud_env(monkeypatch):
+    monkeypatch.setenv("UCLOUD_AI_BASE_URL", _UCLOUD_BASE)
+    monkeypatch.setenv("UCLOUD_AI_API_KEY", "sk-test-ucloud")
+
+
+def test_ucloud_model_returns_litellm_against_the_ucloud_endpoint(ucloud_env):
+    model = resolve_model("ucloud/glm-5.3-flash")
+    assert isinstance(model, LiteLlm)
+    # The prefix is ours; the server is sent the served name over the OpenAI protocol.
+    assert model.model == "openai/glm-5.3-flash"
+    assert model._additional_args["api_base"] == _UCLOUD_BASE
+    assert model._additional_args["api_key"] == "sk-test-ucloud"
+
+
+def test_ucloud_model_without_a_key_names_what_is_missing(monkeypatch):
+    monkeypatch.setenv("UCLOUD_AI_BASE_URL", _UCLOUD_BASE)
+    monkeypatch.delenv("UCLOUD_AI_API_KEY", raising=False)
+    with pytest.raises(RuntimeError, match="UCLOUD_AI_API_KEY"):
+        resolve_model("ucloud/glm-5.3-flash")
+
+
+def test_ucloud_terraform_placeholder_counts_as_unconfigured(monkeypatch):
+    """secrets.tf seeds the secret with a placeholder; mounting it must not
+    switch the provider on with a key that 401s every turn."""
+    monkeypatch.setenv("UCLOUD_AI_BASE_URL", _UCLOUD_BASE)
+    monkeypatch.setenv("UCLOUD_AI_API_KEY", "REPLACE_ME_WITH_UCLOUD_AI_API_KEY")
+    with pytest.raises(RuntimeError, match="UCLOUD_AI_API_KEY"):
+        resolve_model("ucloud/glm-5.3-flash")
+
+
+def test_ucloud_gets_no_gemini_planner_or_code_executor(ucloud_env):
+    """BuiltInPlanner / BuiltInCodeExecutor are Gemini-only; a ucloud skill must
+    take the non-Gemini branch of both."""
+    from adk.agent import _resolve_code_executor
+
+    executor, extra = _resolve_code_executor(["code_execution"], "ucloud/glm-5.3-flash")
+    assert executor is None
+    assert len(extra) == 1
+
+
+def test_every_registered_ucloud_model_resolves(ucloud_env):
+    from config.models import load_models_config
+
+    names = [m.api_name for m in load_models_config().models if m.provider == "ucloud"]
+    assert names, "models.yaml registers no ucloud model"
+    for name in names:
+        assert isinstance(resolve_model(name), LiteLlm)

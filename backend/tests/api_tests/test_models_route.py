@@ -66,3 +66,21 @@ class TestGetModels:
         response = client.get("/api/models")
         data = response.json()
         assert "compaction" not in data
+
+
+class TestUcloudVisibility:
+    """UCloud AI models are offered only where they can answer."""
+
+    def test_hidden_without_a_key(self, monkeypatch):
+        monkeypatch.delenv("UCLOUD_AI_API_KEY", raising=False)
+        monkeypatch.setenv("UCLOUD_AI_BASE_URL", "https://inference.example.dk/v1")
+        data = client.get("/api/models").json()
+        assert "ucloud" not in {m["provider"] for m in data["models"]}
+        assert "ucloud" not in data["defaults"]
+
+    def test_listed_with_a_key(self, monkeypatch):
+        monkeypatch.setenv("UCLOUD_AI_API_KEY", "sk-test-ucloud")
+        monkeypatch.setenv("UCLOUD_AI_BASE_URL", "https://inference.example.dk/v1")
+        data = client.get("/api/models").json()
+        assert "ucloud" in {m["provider"] for m in data["models"]}
+        assert data["defaults"]["ucloud"] in {m["id"] for m in data["models"]}
