@@ -776,6 +776,42 @@ def access_revoke(body: AccessRevokeRequest, request: Request) -> dict[str, Any]
     return {"email": email, "tier": "visitor", "revoked": True, "claimSyncedUid": uid}
 
 
+class AccessFeatureRequest(BaseModel):
+    email: str
+    feature: str
+    enabled: bool = True
+
+
+@router.post(
+    "/access/features",
+    responses={
+        403: {"description": "Caller is not in ADMIN_SEED_ALLOWED_SAS"},
+        404: {"description": "Email is not on the register"},
+        422: {"description": "Unknown feature"},
+    },
+)
+def access_feature(body: AccessFeatureRequest, request: Request) -> dict[str, Any]:
+    """Switch a per-teacher feature (first: ``simWorkshop``) on or off.
+
+    The CLI twin of ``POST /api/programme/access/features``, which a researcher
+    reaches from the register on /teacher/programme. Same write, different door:
+    that one takes a researcher's Firebase token, this one the SA allowlist, so
+    the operator can answer a "may I use the Sim workshop?" mail from a laptop.
+    """
+    from db.teacher_access import KNOWN_FEATURES, set_feature
+
+    caller_email = _assert_caller_is_service_account(request)
+    if body.feature not in KNOWN_FEATURES:
+        raise HTTPException(status_code=422, detail=f"unknown feature; known: {sorted(KNOWN_FEATURES)}")
+    try:
+        grant = set_feature(body.email, body.feature, body.enabled, changed_by=caller_email)
+    except KeyError:
+        raise HTTPException(
+            status_code=404, detail=f"{body.email} is not on the access register: grant-access first"
+        ) from None
+    return {"email": grant.email, "features": dict(grant.features)}
+
+
 @router.get(
     "/access/list",
     responses={403: {"description": "Caller is not in ADMIN_SEED_ALLOWED_SAS"}},
@@ -804,6 +840,7 @@ def access_list(request: Request, include_revoked: bool = False) -> dict[str, An
                 # teacher is signed in as someone else. See `access_unregistered`.
                 "firstSeenAt": g.first_seen_at,
                 "note": g.note,
+                "features": dict(g.features),
             }
             for g in grants
         ],

@@ -1,4 +1,4 @@
-.PHONY: backfill-rag-status sync-tutor-assignments tf-plan tf-apply tf-local tf-fmt check-iam-posture check-spend-ceiling spend-ceiling check-eu-log-routing eu-log-routing list-privacy-acks check-domains deploy-status dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes check-role list-roles list-unregistered grant-researcher revoke-researcher register-demo-teacher force-seed-demo bind-demo-code reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content backfill-document-skill-ids seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check smoke-sim guides guides-pdf check-guides guide-screens seed-guide-corpus guide-staleness
+.PHONY: backfill-rag-status sync-tutor-assignments tf-plan tf-apply tf-local tf-fmt check-iam-posture check-spend-ceiling spend-ceiling check-eu-log-routing eu-log-routing list-privacy-acks check-domains deploy-status dev dev-local dev-recompile dev-status dev-stop proxy-check logs cloud-logs cloud-errors cloud-build verify-chat-logs smoke-session-persistence smoke-chat-resume smoke-curriculum-content smoke-teacher-cli help cli-install cli-reinstall cli-uninstall cli-doctor cli-selftest-mock cli-selftest-live cli-selftest seed seed-job seed-demo-codes check-role list-roles list-unregistered grant-researcher revoke-researcher sim-workshop register-demo-teacher force-seed-demo bind-demo-code reset-group-state provision-curriculum-rag provision-agent-engine copy-docparse-secret seed-curriculum backfill-curriculum-content backfill-document-skill-ids seed-curriculum-folders check-auth-config migrate-clear-persona-voice-override docs-linkcheck check-skills sim-build sim-build-check smoke-sim guides guides-pdf check-guides guide-screens seed-guide-corpus guide-staleness
 
 # Seed SKILL.md templates -> Firestore. Since P1.3 the Cloud Build deploy runs
 # this automatically via the `aipla-seed-skills` Cloud Run job (see
@@ -65,6 +65,15 @@ grant-researcher:
 	@scripts/aiplatform-admin.sh $(ENV) grant-researcher $(UID)
 revoke-researcher:
 	@scripts/aiplatform-admin.sh $(ENV) revoke-researcher $(UID)
+
+# Answer a "may I use the Sim workshop?" mail: switch the per-teacher feature
+# on (or OFF=1 off) for one or more register emails. Same write as the toggle a
+# researcher has on /teacher/programme. See docs/ops/runbooks/access-requests.md.
+#   make sim-workshop ENV=prod EMAIL="a@school.dk b@school.dk"
+#   make sim-workshop ENV=prod EMAIL=a@school.dk OFF=1
+sim-workshop:
+	@test -n "$(EMAIL)" || { echo 'EMAIL= is required (space-separated for several)'; exit 2; }
+	@scripts/aiplatform-admin.sh $(ENV) set-feature $(EMAIL) $(if $(OFF),--off)
 
 # Put the demo class's OWNER on the access register, so demo turns are allowed
 # to spend. Without it the spend gate refuses every `aipla-demo-1` turn with

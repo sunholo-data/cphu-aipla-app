@@ -189,8 +189,92 @@ def test_list_roles_spend_labels() -> None:
 @respx.mock
 def test_list_roles_empty() -> None:
     respx.get(f"{BASE}/api/admin/list-roles").mock(
-        return_value=httpx.Response(200, json={"count": 0, "users": [], "researchers": [], "admins": [], "programmeAdmins": []})
+        return_value=httpx.Response(
+            200, json={"count": 0, "users": [], "researchers": [], "admins": [], "programmeAdmins": []}
+        )
     )
     result = CliRunner().invoke(main, ["--env", "local", "users", "list-roles"])
     assert result.exit_code == 0, result.output
     assert "No one" in result.output
+
+
+# ─── set-feature / list-access FEATURES (2026-10-26) ─────────────────────────
+
+
+@respx.mock
+def test_set_feature_defaults_to_sim_workshop_on_for_each_email() -> None:
+    def _reply(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        return httpx.Response(200, json={"email": body["email"], "features": {body["feature"]: body["enabled"]}})
+
+    route = respx.post(f"{BASE}/api/admin/access/features").mock(side_effect=_reply)
+    result = CliRunner().invoke(
+        main, ["--env", "local", "users", "set-feature", "idaxmariepalm@gmail.com", "bn@nrgym.dk"]
+    )
+    assert result.exit_code == 0, result.output
+    bodies = [json.loads(c.request.content) for c in route.calls]
+    assert bodies == [
+        {"email": "idaxmariepalm@gmail.com", "feature": "simWorkshop", "enabled": True},
+        {"email": "bn@nrgym.dk", "feature": "simWorkshop", "enabled": True},
+    ]
+    assert "bn@nrgym.dk: simWorkshop on" in result.output
+
+
+@respx.mock
+def test_set_feature_off() -> None:
+    route = respx.post(f"{BASE}/api/admin/access/features").mock(
+        return_value=httpx.Response(200, json={"email": "bn@nrgym.dk", "features": {"simWorkshop": False}})
+    )
+    result = CliRunner().invoke(main, ["--env", "local", "users", "set-feature", "bn@nrgym.dk", "--off"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(route.calls.last.request.content)["enabled"] is False
+    assert "simWorkshop off" in result.output
+
+
+@respx.mock
+def test_set_feature_keeps_going_past_a_failed_email_and_exits_nonzero() -> None:
+    def _reply(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        if body["email"] == "typo@nrgym.dk":
+            return httpx.Response(404, json={"detail": "typo@nrgym.dk is not on the access register"})
+        return httpx.Response(200, json={"email": body["email"], "features": {"simWorkshop": True}})
+
+    route = respx.post(f"{BASE}/api/admin/access/features").mock(side_effect=_reply)
+    result = CliRunner().invoke(main, ["--env", "local", "users", "set-feature", "typo@nrgym.dk", "bn@nrgym.dk"])
+    assert result.exit_code != 0
+    assert route.call_count == 2
+    assert "bn@nrgym.dk: simWorkshop on" in result.output
+    assert "1 of 2 not changed" in result.output
+
+
+@respx.mock
+def test_list_access_shows_switched_on_features() -> None:
+    respx.get(f"{BASE}/api/admin/access/list").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "count": 2,
+                "grants": [
+                    {
+                        "email": "bn@nrgym.dk",
+                        "tier": "pilot",
+                        "monthlyCapUsd": 25,
+                        "active": True,
+                        "features": {"simWorkshop": True},
+                    },
+                    {
+                        "email": "tw@sag.dk",
+                        "tier": "pilot",
+                        "monthlyCapUsd": 25,
+                        "active": True,
+                        "features": {"simWorkshop": False},
+                    },
+                ],
+            },
+        )
+    )
+    result = CliRunner().invoke(main, ["--env", "local", "users", "list-access"])
+    assert result.exit_code == 0, result.output
+    rows = {line.split()[0]: line for line in result.output.splitlines() if "@" in line}
+    assert "simWorkshop" in rows["bn@nrgym.dk"]
+    assert "simWorkshop" not in rows["tw@sag.dk"]

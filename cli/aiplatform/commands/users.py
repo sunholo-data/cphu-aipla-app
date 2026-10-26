@@ -38,7 +38,7 @@ import json as _json
 
 import click
 
-from aiplatform.http import AIPlatformClient
+from aiplatform.http import AIPlatformClient, APIError
 
 
 def _client(ctx: click.Context) -> AIPlatformClient:
@@ -317,8 +317,7 @@ def list_access(ctx: click.Context, include_revoked: bool, as_json: bool) -> Non
         return
 
     click.echo(
-        f"{'EMAIL':<34} {'TIER':<8} {'CAP':>8}  {'ACTIVE':<7} {'SEEN':<11} "
-        f"{'EXPIRES':<26} NOTE"
+        f"{'EMAIL':<34} {'TIER':<8} {'CAP':>8}  {'ACTIVE':<7} {'SEEN':<11} {'EXPIRES':<26} {'FEATURES':<12} NOTE"
     )
     never_seen = 0
     for g in grants:
@@ -338,6 +337,7 @@ def list_access(ctx: click.Context, include_revoked: bool, as_json: bool) -> Non
             f"{'yes' if g.get('active') else 'NO':<7} "
             f"{seen:<11} "
             f"{(g.get('expiresAt') or 'never'):<26} "
+            f"{_features_label(g.get('features')):<12} "
             f"{g.get('note', '')}"
         )
     click.echo(f"\n{result.get('count', len(grants))} row(s).")
@@ -349,6 +349,62 @@ def list_access(ctx: click.Context, include_revoked: bool, as_json: bool) -> Non
             "account\n(Google auto-selects when the browser holds exactly one "
             "session). Ask them what address\nthe app shows in the banner."
         )
+
+
+def _features_label(features: dict | None) -> str:
+    """The switched-ON features, comma-joined; ``-`` for none (absent = off)."""
+    on = sorted(k for k, v in (features or {}).items() if v)
+    return ",".join(on) or "-"
+
+
+# ─── Per-teacher features (2026-10-13; first: the Sim workshop) ──────────────
+#
+# A teacher without the feature sees a locked Sim workshop whose button mails
+# M. Answering that mail used to mean opening /teacher/programme as a researcher;
+# this is the same switch from the terminal.
+
+
+@users.command("set-feature")
+@click.argument("emails", nargs=-1, required=True)
+@click.option(
+    "--feature",
+    default="simWorkshop",
+    show_default=True,
+    help="Which feature. The backend refuses a name it does not know.",
+)
+@click.option("--off", "turn_off", is_flag=True, help="Switch it OFF instead of on.")
+@click.pass_context
+def set_feature(ctx: click.Context, emails: tuple[str, ...], feature: str, turn_off: bool) -> None:
+    """Switch a per-teacher feature on (default) or off for one or more EMAILS.
+
+    Each email must already be on the access register: a feature confers nothing
+    on someone who may not use the platform, so `grant-access` first. The
+    teacher's existing monthly cap still meters every model call it makes.
+
+    \b
+        aiplatform --env prod users set-feature idaxmariepalm@gmail.com bn@nrgym.dk
+        aiplatform --env prod users set-feature bn@nrgym.dk --off
+
+    Takes effect on the teacher's next page load; no sign-out needed.
+    """
+    client = _client(ctx)
+    failed = 0
+    for email in emails:
+        # One typo must not leave the emails after it silently unswitched, so
+        # each is tried and reported on its own; the exit code says if any failed.
+        try:
+            result = client.post(
+                "/api/admin/access/features",
+                json={"email": email, "feature": feature, "enabled": not turn_off},
+            )
+        except APIError as exc:
+            failed += 1
+            click.echo(f"{email}: FAILED — {exc.message}", err=True)
+            continue
+        state = "on" if (result.get("features") or {}).get(feature) else "off"
+        click.echo(f"{result.get('email', email)}: {feature} {state}")
+    if failed:
+        raise click.ClickException(f"{failed} of {len(emails)} not changed")
 
 
 @users.command("list-unregistered")

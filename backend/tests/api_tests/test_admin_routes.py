@@ -977,3 +977,75 @@ def test_unregistered_flags_a_truncated_page(client, allow_env):
 def test_unregistered_requires_the_service_account_allowlist(client, allow_env):
     resp = client.get("/api/admin/access/unregistered")
     assert resp.status_code == 403
+
+
+# ─── Per-teacher features, the CLI door (2026-10-26) ─────────────────────────
+
+_FEATURES_URL = "/api/admin/access/features"
+
+
+def test_access_feature_requires_allowlisted_sa(client, allow_env):
+    resp = client.post(_FEATURES_URL, json={"email": "bn@nrgym.dk", "feature": "simWorkshop"})
+    assert resp.status_code == 403
+
+
+def test_access_feature_switches_on_by_default_and_records_the_caller(client, allow_env):
+    grant = type("G", (), {"email": "bn@nrgym.dk", "features": {"simWorkshop": True}})()
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("db.teacher_access.set_feature", return_value=grant) as mock_set,
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.post(
+            _FEATURES_URL,
+            json={"email": "bn@nrgym.dk", "feature": "simWorkshop"},
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+    assert resp.status_code == 200, resp.text
+    assert resp.json() == {"email": "bn@nrgym.dk", "features": {"simWorkshop": True}}
+    mock_set.assert_called_once_with("bn@nrgym.dk", "simWorkshop", True, changed_by=_ALLOWED_SA)
+
+
+def test_access_feature_rejects_an_unknown_feature_without_writing(client, allow_env):
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("db.teacher_access.set_feature") as mock_set,
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.post(
+            _FEATURES_URL,
+            json={"email": "bn@nrgym.dk", "feature": "simWorkshp", "enabled": True},
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+    assert resp.status_code == 422
+    assert "simWorkshop" in resp.json()["detail"]
+    mock_set.assert_not_called()
+
+
+def test_access_feature_404s_off_the_register(client, allow_env):
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("db.teacher_access.set_feature", side_effect=KeyError("stranger@example.dk")),
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.post(
+            _FEATURES_URL,
+            json={"email": "stranger@example.dk", "feature": "simWorkshop", "enabled": False},
+            headers={"Authorization": "Bearer stub-id-token"},
+        )
+    assert resp.status_code == 404
+    assert "grant-access" in resp.json()["detail"]
+
+
+def test_access_list_carries_features(client, allow_env):
+    from db.teacher_access import AccessGrant
+
+    grant = AccessGrant(email="bn@nrgym.dk", tier="pilot", monthly_cap_usd=25.0, features={"simWorkshop": True})
+    with (
+        patch("admin.auth.id_token.verify_oauth2_token") as mock_verify,
+        patch("db.teacher_access.list_grants", return_value=[grant]),
+    ):
+        mock_verify.return_value = {"email": _ALLOWED_SA, "email_verified": True}
+        resp = client.get("/api/admin/access/list", headers={"Authorization": "Bearer stub-id-token"})
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["grants"][0]["features"] == {"simWorkshop": True}

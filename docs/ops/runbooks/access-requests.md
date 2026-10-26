@@ -262,6 +262,34 @@ aiplatform --env $ENV users list-access
 aiplatform --env $ENV users list-access --include-revoked
 ```
 
+The `FEATURES` column lists the per-teacher features switched on (`-` = none).
+
+## Per-teacher features (the Sim workshop)
+
+A teacher without the Sim workshop sees it locked, with a button that **mails
+mark.edmondson@ind.ku.dk** (subject *AIPLA: Sim workshop access*). That mail is
+the request. It does **not** land in the `list-requests` queue, which is only
+for platform access. Check that the sender's address matches their register row
+(`list-access`); a teacher who mails from a school address may sign in with a
+Gmail one.
+
+Two ways to switch it, same write:
+
+- **In the app:** a researcher or programme admin opens `/teacher/programme` →
+  Register and flips the Sim workshop toggle on that teacher's row.
+- **From a laptop:**
+
+  ```bash
+  make sim-workshop ENV=prod EMAIL="idaxmariepalm@gmail.com bn@nrgym.dk"
+  make sim-workshop ENV=prod EMAIL=bn@nrgym.dk OFF=1
+  # = scripts/aiplatform-admin.sh prod set-feature <email…> [--off]
+  ```
+
+The email must already be on the register (`404 ... grant-access first`
+otherwise). It adds no spend beyond the teacher's monthly cap, which meters every
+model call the workshop makes. It takes effect on their next page load.
+Researchers have every feature anyway.
+
 ---
 
 ## Bulk: after a deploy to a fresh environment
@@ -292,6 +320,7 @@ you have watched usage; `--uncapped` exists if you truly need it, and warns.
 | `'prod' URL is a placeholder and gcloud could not resolve...` | gcloud is on the wrong configuration. `CLOUDSDK_ACTIVE_CONFIG_NAME=aipla` |
 | `no such command 'list-requests'` | **A stale CLI install.** `make cli-install` — it bakes in `--no-cache`, which is exactly why this failure mode exists |
 | Teacher still sees the recorded demo after a grant | They have not reloaded (the claim lands on the next `/api/teacher/bootstrap`) — **or** they signed in with a different address than the one granted. Check the address before assuming the reload |
+| `no such command 'set-feature'`, or `404` on `/api/admin/access/features` | The CLI is stale (`make cli-install`), or that env is older than the route (added 2026-10-26). Use the toggle on `/teacher/programme` meanwhile |
 | `404 ... has no active grant on the access register` from `invite-password` | Working as designed — `grant-access` that email first |
 | Teacher's school is Microsoft-only, so Google sign-in cannot return their address | [Section 6](#6-when-google-sign-in-cannot-work-for-them) — `users invite-password` |
 
