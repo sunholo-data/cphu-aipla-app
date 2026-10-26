@@ -1,5 +1,12 @@
 # Dependency upgrade notes
 
+## Security-only production candidate — 2026-10-26
+
+The compatible Zod and OpenTelemetry backports, dependency patch versions,
+verification evidence and production hold are recorded in
+[security-2026-10-26.md](security-2026-10-26.md). The production-only candidate
+retains ADK 1.31.1 and does not promote the ADK 2 migration described below.
+
 ## OpenTelemetry security fix — 2026-10-23
 
 `opentelemetry-api` 1.38.0 was affected by
