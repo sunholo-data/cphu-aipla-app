@@ -526,6 +526,16 @@ repair-revoked-codes:
 	@cd backend && uv run python -m scripts.repair_revoked_group_codes --env $(ENV) \
 		$(if $(CLASS),--class $(CLASS)) $(if $(filter 1,$(GO)),--go) $(if $(filter 1,$(FORCE)),--force)
 
+# Backfill 1.1.139 M0 structured concepts for one class's past sessions, so
+# the lesson overview can read lessons summarised before M0. Dry run by
+# default (lists the model calls it would make); GO=1 runs them.
+#   make backfill-lesson-concepts ENV=prod CLASS=<id> [DATE=2026-09-29] [GO=1]
+.PHONY: backfill-lesson-concepts
+backfill-lesson-concepts:
+	@test -n "$(ENV)" -a -n "$(CLASS)" || { echo "usage: make backfill-lesson-concepts ENV=dev|test|prod CLASS=<id> [DATE=YYYY-MM-DD] [GO=1] [REDO=1]"; exit 2; }
+	@cd backend && uv run python -m scripts.backfill_lesson_concepts --env $(ENV) --class $(CLASS) \
+		$(if $(DATE),--date $(DATE)) $(if $(filter 1,$(GO)),--go) $(if $(filter 1,$(REDO)),--redo)
+
 # What screen sizes are people using? Read-only distribution of the
 # `aipla_client_env` beacons (viewport width bucket x surface, DPR, pointer).
 #   make screen-sizes ENV=prod            # last 30 days

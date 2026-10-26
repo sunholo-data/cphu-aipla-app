@@ -332,6 +332,7 @@ from protocols.frameworks_routes import router as frameworks_router  # noqa: E40
 from protocols.iframe_context_routes import router as iframe_context_router  # noqa: E402
 from protocols.insights_routes import router as insights_router  # noqa: E402
 from protocols.internal_routes import router as internal_router  # noqa: E402
+from protocols.lesson_routes import router as lesson_router  # noqa: E402
 from protocols.mcp_proxy import router as mcp_proxy_router  # noqa: E402
 from protocols.mcp_server import get_mcp_asgi_app  # noqa: E402
 from protocols.mcp_server import mcp as mcp_server  # noqa: E402
@@ -414,6 +415,7 @@ app.include_router(client_error_router)
 app.include_router(teacher_bootstrap_router)
 app.include_router(analytics_router)
 app.include_router(insights_router)
+app.include_router(lesson_router)
 app.include_router(reports_router)
 app.include_router(internal_router)
 app.include_router(proactive_router)
