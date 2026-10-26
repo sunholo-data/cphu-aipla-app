@@ -10,6 +10,7 @@ import { BuilderSection, BuilderSectionNav, SECTION } from "@/components/teacher
 import { CalculatorEditor } from "@/components/teacher/CalculatorEditor";
 import { ChartEditor } from "@/components/teacher/ChartEditor";
 import { ConceptMapEditor } from "@/components/teacher/ConceptMapEditor";
+import { ConceptListNudge } from "@/components/teacher/lessons/ConceptListNudge";
 import { DocumentEditor } from "@/components/teacher/DocumentEditor";
 import { MaterialsSection } from "@/components/teacher/MaterialsSection";
 import { NoteEditor } from "@/components/teacher/NoteEditor";
@@ -236,6 +237,15 @@ export function ActivityBuilderBody({
 
           <DocumentEditor value={b.document} onChange={b.setDocument} />
 
+          {/* 1.1.139 M3 — the before-lesson nudge: the lesson overview is only
+              as good as this activity's list of concepts. */}
+          {CONCEPT_MAP_ENABLED && (
+            <ConceptListNudge
+              activityId={activityId}
+              hasConcepts={(b.conceptMap?.nodes.length ?? 0) > 0}
+              onPropose={proposeConceptMap}
+            />
+          )}
           {CONCEPT_MAP_ENABLED && (
             <ConceptMapEditor
               value={b.conceptMap}

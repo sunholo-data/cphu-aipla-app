@@ -87,5 +87,34 @@
   },
   "LessonBreadcrumb": {
     "lesson": "Lektion: {activity}, {date}"
+  },
+  "AfterLessonReview": {
+    "offer": "Gennemgå lektionen i fem korte trin?",
+    "start": "Start",
+    "skip": "Ikke nu",
+    "label": "Gennemgang af lektionen",
+    "progress": "Trin {n} af {total}",
+    "step_covered": "Hvad kom klassen omkring?",
+    "step_struggled": "Hvor kæmpede de?",
+    "step_approach": "Hvordan underviste tutoren?",
+    "step_groups": "Hvilke grupper skal du se på?",
+    "step_next": "Næste lektion",
+    "conceptGroups": "{concept} — {n, plural, one {# gruppe} other {# grupper}}",
+    "noConcepts": "Der er endnu ikke læst begreber ud af lektionen.",
+    "noStruggle": "Ingen gruppe kæmpede synligt med et begreb.",
+    "noFramework": "Tutoren kørte ingen navngiven undervisningstilgang i denne lektion.",
+    "coverage": "Vurderet i {assessed} af {groups} grupper.",
+    "approachPending": "Åbn lektionsoverblikket for vurderingen på tværs af klassen.",
+    "noOutliers": "Ingen gruppe skiller sig ud.",
+    "noNext": "Ingen gruppes opsummering har endnu en “næste gang”-linje.",
+    "back": "Tilbage",
+    "next": "Næste",
+    "finish": "Færdig",
+    "addToNext": "Tilføj til næste aktivitet"
+  },
+  "ConceptListNudge": {
+    "body": "Lektionsoverblikket er kun så godt som aktivitetens liste over begreber. Tilføj 4–8 begreber?",
+    "propose": "Foreslå begreber",
+    "dismiss": "Ikke nu"
   }
 }

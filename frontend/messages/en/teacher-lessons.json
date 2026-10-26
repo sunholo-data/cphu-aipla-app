@@ -87,5 +87,34 @@
   },
   "LessonBreadcrumb": {
     "lesson": "Lesson: {activity}, {date}"
+  },
+  "AfterLessonReview": {
+    "offer": "Review this lesson in five short steps?",
+    "start": "Start",
+    "skip": "Not now",
+    "label": "Lesson review",
+    "progress": "Step {n} of {total}",
+    "step_covered": "What did the class cover?",
+    "step_struggled": "Where did they struggle?",
+    "step_approach": "How did the tutor teach?",
+    "step_groups": "Which groups to look at?",
+    "step_next": "Next lesson",
+    "conceptGroups": "{concept} — {n, plural, one {# group} other {# groups}}",
+    "noConcepts": "No concepts have been read from this lesson yet.",
+    "noStruggle": "No group visibly struggled with a concept.",
+    "noFramework": "The tutor ran no named teaching approach in this lesson.",
+    "coverage": "Assessed in {assessed} of {groups} groups.",
+    "approachPending": "Open the lesson overview for the read across the class.",
+    "noOutliers": "No group stands out.",
+    "noNext": "No group summary has a “next time” line yet.",
+    "back": "Back",
+    "next": "Next",
+    "finish": "Done",
+    "addToNext": "Add to next activity"
+  },
+  "ConceptListNudge": {
+    "body": "The lesson overview is only as good as this activity's list of concepts. Add 4–8 concepts?",
+    "propose": "Suggest concepts",
+    "dismiss": "Not now"
   }
 }

@@ -2,9 +2,11 @@ import { fireEvent, render as rtlRender, screen, waitFor, type RenderOptions } f
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const pushMock = vi.fn();
+// 1.1.139 M3 — one test sets `?brief=`; every other test sees no params.
+let searchGet: (key: string) => string | null = () => null;
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: pushMock }),
-  useSearchParams: () => ({ get: () => null }),
+  useSearchParams: () => ({ get: (key: string) => searchGet(key) }),
 }));
 
 const listClassesMock = vi.fn();
@@ -96,6 +98,17 @@ describe("/teacher/activities/new — concept activity builder", () => {
         status: "live",
       },
     ]);
+  });
+
+  it("seeds the lesson prompt from the after-lesson review's brief (1.1.139 M3)", async () => {
+    searchGet = (key) => (key === "brief" ? "Start next lesson on frequency." : null);
+    try {
+      listClassesMock.mockResolvedValue(ONE_CLASS);
+      render(<NewActivityPage />);
+      expect(await screen.findByLabelText(/lesson prompt/i)).toHaveValue("Start next lesson on frequency.");
+    } finally {
+      searchGet = () => null;
+    }
   });
 
   it("renders the builder form once classes load", async () => {

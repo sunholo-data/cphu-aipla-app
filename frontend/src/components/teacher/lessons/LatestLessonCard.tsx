@@ -15,6 +15,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { AfterLessonReview } from "@/components/teacher/lessons/AfterLessonReview";
 import { useT } from "@/i18n";
 import {
   type LessonDetail,
@@ -87,6 +88,7 @@ export function LatestLessonCard({ classId }: { classId: string }) {
           {nextTime}
         </p>
       ) : null}
+      <AfterLessonReview lesson={lesson} />
       <div className="flex flex-wrap gap-3 text-sm">
         <Link href={lessonHref(classId, lesson.activityId, lesson.date)} className="font-medium text-primary hover:underline">
           {t("open")}

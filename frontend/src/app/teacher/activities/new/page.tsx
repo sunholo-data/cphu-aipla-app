@@ -57,9 +57,19 @@ function NewActivityForm() {
   const router = useRouter();
   // Pre-select the class the teacher came from (the "New activity" button on
   // the class-detail page passes ?classId=…).
-  const preferredClassId = useSearchParams().get("classId");
+  const searchParams = useSearchParams();
+  const preferredClassId = searchParams.get("classId");
+  // 1.1.139 M3 — "Add to next activity" from the after-lesson review carries
+  // the class's "next time" here as the teaching goal: the draft the authoring
+  // co-pilot reads as its starting brief. Seeded once, never over typed text.
+  const brief = searchParams.get("brief");
 
   const builder = useActivityBuilder();
+  useEffect(() => {
+    if (brief && !builder.teachingGoal) builder.setTeachingGoal(brief.slice(0, 2000));
+    // Seed exactly once, on arrival.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // 1.1.58 — seed the language from the account default, CREATE-time only and
   // only while the form is untouched (an explicit choice is never overridden).
   const { prefs, loaded: prefsLoaded } = useTeacherPrefs();
