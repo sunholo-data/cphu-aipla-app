@@ -1,6 +1,6 @@
 # No crash across a deploy — tell stale clients apart, and do not deploy into a lesson
 
-**Status:** **M0–M2 shipped 2026-09-29** (CLASSVISIT-1 lane B, not yet deployed) · M3 gated on M0 data · M4 open — **1.1.138**
+**Status:** **M0–M2 shipped 2026-09-29, deployed to prod in v0.1.70 (2026-09-30)** · **M3 shipped 2026-10-26** (option b, dev — not yet deployed) · **M4 measured 2026-10-26: 0 un-reloaded stale crashes in 21 days** — **1.1.138**. *(Corrected 2026-10-26: "not yet deployed" was stale — the tags containing all three M0–M2 commits start at v0.1.70.)*
 **Priority:** **P1** — the second cause behind *"the platform crashed, refreshing fixed it"*. Teachers and students both hit it, and every instance so far lines up with a school-hours prod deploy. **Un-gated**
 **Estimated:** ~1.25–1.75d (M0 know what happened ~0.25d · M1 school-hours promote guard ~0.25d · M2 `deploymentId` ~0.5d · M3 service-worker fallback ~0.25–0.5d · M4 re-measure ~0.25d)
 **Scope:** Frontend: `lib/staleDeployReload.ts`, `components/GlobalErrorReporter.tsx`, `app/error.tsx`, `next.config.*`, `public/sw.js`. Ops: `scripts/promote-env.sh`
@@ -78,8 +78,8 @@ crashes. Target **zero** outside a real bug. Write the number here.
 
 ## What shipped — 2026-09-29
 
-CLASSVISIT-1 lane B. Nothing is deployed yet; M0's data starts with the first
-prod promote that carries it.
+CLASSVISIT-1 lane B. *(Written before deploy; all three commits — `03891f45`
+M0, `5ab554ca` M1, `1da6681b` M2 — are in tag v0.1.70, 2026-09-30.)*
 
 ### M0 — every client report says which build and whether it reloaded
 
@@ -157,7 +157,61 @@ was out of scope for this lane.
 - Pass a real SHA/tag as `AIPLA_BUILD_ID`: a Dockerfile `ARG`/`ENV` plus a
   `--build-arg` in **both** `cloudbuild.yaml` and `cloudbuild.promote.yaml` (the
   twin rule). Nice for reading, not needed for correctness.
-- M3 once M0 has a week of rows. M4 after that.
+- ~~M3 once M0 has a week of rows. M4 after that.~~ Done 2026-10-26, above.
+
+## M4 — re-measure, 2026-10-26
+
+Prod, `logName:"aipla_client_error"`, **5–26 Oct (21 days), 31 rows**, every
+one carrying M0's fields. Read-only query, `gcloud logging read`.
+
+| | count |
+|---|---|
+| `reading 'call'` / `e[o] is undefined` render crashes | **6** — all teacher, on `/teacher/classes`, `/teacher/classes/<id>`, `/teacher/activities[/new]` (Chrome + Firefox) |
+| … of those with `auto_reloaded=false` | **0** |
+| `ChunkLoadError` render crashes (`Loading chunk N failed`, error/timeout) | **5** — all `auto_reloaded=true` |
+| `render` rows with `after_auto_reload=true` (the reload did NOT cure it) | **0** |
+| `kind="recovered"` | **10**, each 3–4 s after its crash |
+| … with `previous_build_id != client_build_id` (a real old tab, reading 1) | **0** |
+| … with `previous_build_id == client_build_id` | **10** |
+
+**The target is met:** zero stale-signature crashes the reload did not handle,
+and the reload cured every one it started (6 of 6 `call` crashes, 4 of 5 chunk
+failures logged a `recovered`; the fifth, `/teacher/sign-in` on 18 Oct, has no
+row either way). A teacher now sees a ~3 s reload, not an error page.
+
+**But the cause is not a deploy.** Every recovery stayed on the **same** build
+id, and the crashes came 4 h to 2 days after the build they ran on, with each
+row's `revision` the build's own. So the skew is not an old tab meeting a new
+deploy — reading 1 is ruled out for this period — and M1/M2 are not what is
+preventing these. It is a within-build lazy-chunk failure on teacher routes:
+the ChunkLoadErrors are the same thing seen at the fetch instead of at the
+module call. That points at the network (school Wi-Fi) or the service worker's
+static path, not at promote timing.
+
+Two other render crashes are a different signature and outside this doc:
+`(0 , o.y) is not a function` (teacher `/teacher/classes`, 14 Oct) and
+`(0 , en.yL) is not a function` (student `/chat`, 23 Oct), both
+`auto_reloaded=false`. The stale-deploy matcher does not cover them; if they
+recur they are a real bug, or a sibling signature to add to it.
+
+## M3 — shipped 2026-10-26 (option b)
+
+The rule above was *"crashes persist without a deploy nearby → do (b)"*, and
+they do. `public/sw.js` now answers a failed navigation with `/offline.html`
+**only**, and no longer caches navigation responses at all, so there is no
+cached app page left to pair with current chunks. `CACHE_VERSION` is bumped
+`aipla-v1` → `aipla-v2`, so activate deletes every page the v1 worker had
+cached. Witnessed by `frontend/src/__tests__/sw-navigation-fallback.test.ts`,
+which loads the shipping `sw.js` into a fake worker scope (fails 3/3 on the old
+worker, passes on the new).
+
+Honest scope: the M4 data does not show reading 2 as written either — a cached
+OLD page would carry the old build id, and none did. (b) removes a path that
+could produce the skew and costs nothing; it is not proven to be the path that
+did. **Next, if the same-build crashes continue after (b) is on prod:** look at
+the cache-first `/_next/static/` handler (a failed chunk response is never
+cached, but a slow one is not timed out either) and at which chunks fail — the
+logged chunk ids are stable within a build.
 
 ## Out of scope
 
