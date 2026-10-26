@@ -36,6 +36,7 @@ from db.models.activity_config import (
     InteractionStyle,
     Language,
     MaterialRef,
+    ModelTier,
     NoteElement,
     SolutionElement,
     TableElement,
@@ -113,6 +114,11 @@ class Activity(BaseModel):
     difficulty: Difficulty = "standard"
     interaction_style: InteractionStyle | None = Field(default=None, alias="interactionStyle")
     persona: str | None = Field(default=None, max_length=64)
+    # 1.1.142 M3 — ``smart`` starts every turn on the smart tier. Researcher-set
+    # only, via its own route; the full-payload PATCH preserves it, and a
+    # duplicate/adopt copy resets it (the opt-in was a researcher's decision
+    # about THIS activity, not a property of its content).
+    model_tier: ModelTier = Field(default="default", alias="modelTier")
     workbench_type: WorkbenchType = Field(default="none", alias="workbenchType")
     # The vetted sim artefact this activity hosts (1.1.41). Resolved to its skill at
     # student-instantiation time (M0.3); sets workbench_type=app via the validator.

@@ -30,6 +30,7 @@ import { ActingForOwnerBanner, LastEditedLine } from "@/components/teacher/Actin
 import { StudentsLanguageBadge } from "@/components/teacher/StudentsLanguageBadge";
 import { SettingsMap } from "@/components/teacher/SettingsMap";
 import { InheritedTutor } from "@/components/teacher/InheritedTutor";
+import { ModelTierControl } from "@/components/teacher/ModelTierControl";
 import { TryAsStudentButton } from "@/components/teacher/TryAsStudentButton";
 import { ActivityBuilderBody } from "@/components/teacher/ActivityBuilderBody";
 import { useActivityBuilder } from "@/hooks/useActivityBuilder";
@@ -303,6 +304,13 @@ export default function TeacherActivityConfigPage() {
               }
             />
           </form>
+          {/* 1.1.142 M3 — researcher-only smart-model opt-in; renders nothing
+              for anyone else. Saves through its own route, not handleSave. */}
+          {isActivityStore && meta ? (
+            <div className="mt-5">
+              <ModelTierControl key={meta.activityId} activityId={activityId} initialTier={meta.modelTier} />
+            </div>
+          ) : null}
           {/* COPILOT-1/2: the authoring co-pilot (dark-flagged → renders null
               when NEXT_PUBLIC_AUTHORING_COPILOT !== "1", so the builder is
               unaffected). The Apply router maps each proposal kind to a builder

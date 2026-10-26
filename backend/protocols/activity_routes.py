@@ -55,6 +55,7 @@ from db.models.activity_config import (
     InteractionStyle,
     Language,
     MaterialRef,
+    ModelTier,
     NoteElement,
     SolutionElement,
     TableElement,
@@ -439,6 +440,9 @@ async def patch_activity(
             "source_owner_uid": existing.source_owner_uid,
             "visibility": preserved_visibility,
             "last_edited_by": existing.last_edited_by,
+            # 1.1.142 M3 — not in the upsert body (researcher-only, own route),
+            # so a teacher's full-payload save must not reset it.
+            "model_tier": existing.model_tier,
         }
     )
     return _serialize(save_activity(_attributed(updated, user)))
@@ -600,6 +604,45 @@ async def set_visibility_route(
         user.uid,
     )
     return _set_visibility(_attributed(activity, user), body.visibility)
+
+
+class ModelTierSet(BaseModel):
+    """Body for ``POST /{activity_id}/model-tier`` (1.1.142 M3)."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    model_tier: ModelTier = Field(alias="modelTier")
+
+
+@router.post("/{activity_id}/model-tier", status_code=200)
+async def set_model_tier_route(
+    body: ModelTierSet,
+    activity_id: str = Path(...),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Opt an activity into (``smart``) or out of (``default``) the smart model
+    tier — every turn then starts on the smart tier (1.1.142 M3).
+
+    **Researcher-only for now** (retry-then-escalate.md open question 1): the
+    smart tier costs ~2.5x per turn, and the opt-in stays with the people who
+    watch the 1.1.106 envelope until the smart-tier share is measured on the
+    cost view. A teacher — the owner included — gets 403. Its own route, so the
+    teacher's full-payload save cannot set or clear it (that PATCH preserves it).
+    """
+    _assert_teacher(user)
+    if not user.is_researcher:
+        raise HTTPException(status_code=403, detail="researcher access required")
+    activity = _load_for_modify(activity_id, user)
+    log.info(
+        "activity model tier set id=%s %s -> %s owner=%s by=%s",
+        activity_id,
+        activity.model_tier,
+        body.model_tier,
+        activity.owner_uid,
+        user.uid,
+    )
+    updated = _attributed(activity.model_copy(update={"model_tier": body.model_tier}), user)
+    return _serialize(save_activity(updated))
 
 
 class PreviewStudentRequest(BaseModel):

@@ -27,11 +27,21 @@ multiply and blow the failover budget (upstream's warning, and the reason
 ``quota_retry`` had to be removed rather than kept underneath).
 
 Streaming contract. Yielded ``LlmResponse`` objects pass through as the same
-objects, in the same order. The one exception is a FAILED-OVER turn: each
-response is stamped ``custom_metadata["served_model"]`` so the chat-log row
-records the model that actually answered (``adk/callbacks/session.py``) and the
-cost dashboard prices it at the smart-tier rate. ag_ui_adk's translator ignores
-``custom_metadata``.
+objects, in the same order. The one exception is a turn answered by a model
+other than the chain head: each response is stamped
+``custom_metadata["served_model"]`` so the chat-log row records the model that
+actually answered (``adk/callbacks/session.py``) and the cost dashboard prices
+it at the smart-tier rate, plus ``custom_metadata["model_route"]`` naming why
+(``failover`` / ``escalation`` / ``opt_in``, ``adk/model_routing.py``).
+ag_ui_adk's translator ignores ``custom_metadata``.
+
+Pre-routing (1.1.142 M3). With ``escalation_index`` set (the platform default
+only — ``adk.agent._escalation_index_for``), a turn whose CURRENT student
+message carries an image, or any turn of an activity with ``modelTier: smart``,
+starts on ``chain[escalation_index]`` with the rest of the chain behind it. The
+escalated primary's first-token deadline is the budget less
+``ESCALATION_FALLBACK_RESERVE_S`` and it gets no stall retry, so a smart-tier
+stall still leaves the default time to answer.
 
 AIPLA adaptations, and why:
 
@@ -81,6 +91,13 @@ from adk.model_errors import (
     SilentStallError,
     classify,
 )
+from adk.model_routing import (
+    MODEL_ROUTE_KEY,
+    ROUTE_ESCALATION,
+    ROUTE_FAILOVER,
+    ROUTE_OPT_IN,
+    latest_student_message_has_image,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +143,14 @@ MODEL_FALLBACK_EVENT = "MODEL_FALLBACK"
 #: ``LlmResponse.custom_metadata`` key naming the model that answered a
 #: failed-over turn. Read by ``adk/callbacks/session.py`` for the chat-log stamp.
 SERVED_MODEL_KEY = "served_model"
+
+MODEL_ESCALATION_EVENT = "MODEL_ESCALATION"
+
+#: An escalated turn starts on the smart tier, whose first token is ~5 s median
+#: but ~20 s p90. Its first-token deadline is the budget LESS this reserve, so a
+#: smart-tier stall still leaves the default model time to answer (flash-lite's
+#: healthy first token is < 6.1 s on the real tutor prompt).
+ESCALATION_FALLBACK_RESERVE_S = 7.0
 
 _model_health: dict[str, dict[str, float]] = {}
 
@@ -253,10 +278,12 @@ async def _close_quietly(stream: Any) -> None:
         logger.debug("resilient_llm: aclose after stall raised %r (ignored)", exc)
 
 
-def _stamp_served_model(response: Any, model: str) -> None:
+def _stamp_served_model(response: Any, model: str, route: str | None = None) -> None:
     try:
         meta = dict(getattr(response, "custom_metadata", None) or {})
         meta[SERVED_MODEL_KEY] = model
+        if route:
+            meta[MODEL_ROUTE_KEY] = route
         response.custom_metadata = meta
     except Exception as exc:  # never break the turn on bookkeeping
         logger.debug("resilient_llm: could not stamp served_model (%s)", exc)
@@ -299,6 +326,13 @@ class ResilientLlm(BaseLlm):
     #: skill whose turns legitimately think before speaking (sim-author writes a
     #: whole simulation with thinking on); the 10 s default is tuned to tutors.
     first_token_deadline_s: float | None = None
+    #: 1.1.142 M3 — chain index of the smart-tier member a hard turn starts on
+    #: (``None``: this wrapper never pre-routes — a pinned model, a chain of one).
+    escalation_index: int | None = None
+    #: 1.1.142 M3 — the activity opted in (``modelTier: smart``): EVERY turn
+    #: starts on ``chain[escalation_index]``. Set per agent build by
+    #: ``adk.agent._apply_activity_model_tier``.
+    opt_in_smart: bool = False
 
     def __init__(
         self,
@@ -307,6 +341,7 @@ class ResilientLlm(BaseLlm):
         max_retries_per_model: int = 2,
         budget_s: float = FAILOVER_BUDGET_SECONDS,
         first_token_deadline_s: float | None = None,
+        escalation_index: int | None = None,
         **kwargs: Any,
     ) -> None:
         if not chain:
@@ -318,8 +353,11 @@ class ResilientLlm(BaseLlm):
             max_retries_per_model=max_retries_per_model,
             budget_s=budget_s,
             first_token_deadline_s=first_token_deadline_s,
+            escalation_index=escalation_index if escalation_index is not None and escalation_index > 0 else None,
             **kwargs,
         )
+        if self.escalation_index is not None and self.escalation_index >= len(chain):
+            raise ValueError(f"escalation_index {self.escalation_index} is outside a chain of {len(chain)}")
 
     @property
     def chain_models(self) -> list[str]:
@@ -338,10 +376,41 @@ class ResilientLlm(BaseLlm):
         except Exception as exc:  # fail-open: signalling must never break the turn
             logger.warning("reliability event emit failed (suppressed): %s", exc)
 
+    # -- routing (1.1.142 M3) ----------------------------------------------------
+
+    def route_for(self, llm_request: Any) -> tuple[str | None, list[Any]]:
+        """``(route, order)``: why this turn leaves the default, and the members
+        to try in order. ``route`` is ``None`` for an ordinary turn (order = the
+        chain). An escalated / opted-in turn starts on the smart member and keeps
+        the rest of the chain, in order, behind it — so a smart-tier failure
+        before visible output still gets the default model's answer."""
+        idx = self.escalation_index
+        if idx is None:
+            return None, list(self.chain)
+        route: str | None = None
+        if self.opt_in_smart:
+            route = ROUTE_OPT_IN
+        else:
+            try:
+                if latest_student_message_has_image(llm_request):
+                    route = ROUTE_ESCALATION
+            except Exception as exc:  # routing must never break a turn
+                logger.debug("resilient_llm: image check failed (%s) — not escalating", exc)
+        if route is None:
+            return None, list(self.chain)
+        order = [self.chain[idx], *(m for i, m in enumerate(self.chain) if i != idx)]
+        return route, order
+
     # -- core -----------------------------------------------------------------
 
     async def generate_content_async(self, llm_request: Any, stream: bool = False):
         started = _monotonic()
+        route, order = self.route_for(llm_request)
+        if route is not None:
+            target = getattr(order[0], "model", "unknown")
+            logger.info("model route %s: %s -> %s", route, self.model, target)
+            self._emit(MODEL_ESCALATION_EVENT, {"from_model": self.model, "to_model": target, "route": route})
+            _count("model_escalation_total", target, route)
 
         def remaining() -> float:
             return self.budget_s - (_monotonic() - started)
@@ -350,15 +419,20 @@ class ResilientLlm(BaseLlm):
         last_model = self.model
         last_exc: Exception | None = None
 
-        for idx, member in enumerate(self.chain):
+        for idx, member in enumerate(order):
             member_model = getattr(member, "model", "unknown")
             provider = _provider_of(member)
-            has_next = idx + 1 < len(self.chain)
+            has_next = idx + 1 < len(order)
+            # Stamped only when the answer is NOT the chain head's: the chat-log
+            # row then names (and prices) the model that answered, and why.
+            served_route: str | None = None
+            if member_model != self.model:
+                served_route = route if (route is not None and idx == 0) else ROUTE_FAILOVER
 
             # Cooldown bench: skip a known-bad model — never the last option
             # (a benched model still beats no answer at all).
             if has_next and _is_benched(member_model):
-                next_model = getattr(self.chain[idx + 1], "model", "unknown")
+                next_model = getattr(order[idx + 1], "model", "unknown")
                 logger.info("skipping benched model %s -> %s", member_model, next_model)
                 self._emit(
                     MODEL_FALLBACK_EVENT,
@@ -392,7 +466,7 @@ class ResilientLlm(BaseLlm):
                             pass
 
                     gen = member.generate_content_async(llm_request, stream)
-                    deadline = self._first_token_deadline(idx, stream, remaining())
+                    deadline = self._first_token_deadline(idx, stream, remaining(), escalated=route is not None)
                     if deadline is not None:
                         try:
                             first = await asyncio.wait_for(gen.__anext__(), timeout=deadline)
@@ -405,8 +479,8 @@ class ResilientLlm(BaseLlm):
                             if _has_visible_output(first):
                                 visible = True
                             _check_generated_tool_call(first)
-                            if idx > 0:
-                                _stamp_served_model(first, member_model)
+                            if served_route is not None:
+                                _stamp_served_model(first, member_model, served_route)
                             yield first
                         else:
                             _record_success(member_model)
@@ -416,8 +490,8 @@ class ResilientLlm(BaseLlm):
                         if not visible and _has_visible_output(response):
                             visible = True
                         _check_generated_tool_call(response)
-                        if idx > 0:
-                            _stamp_served_model(response, member_model)
+                        if served_route is not None:
+                            _stamp_served_model(response, member_model, served_route)
                         yield response
                     _record_success(member_model)
                     return
@@ -447,7 +521,7 @@ class ResilientLlm(BaseLlm):
                         # One fresh generation, same configured model. Never
                         # replay a tool or keep regenerating invalid calls.
                         retry_allowed = False
-                    if is_stall and (stalls > MAX_STALL_RETRIES or idx > 0):
+                    if is_stall and (stalls > MAX_STALL_RETRIES or idx > 0 or route is not None):
                         # One stall retry on the primary; a fallback member was
                         # already given the whole remaining budget to answer in.
                         retry_allowed = False
@@ -487,7 +561,7 @@ class ResilientLlm(BaseLlm):
 
                     if error_class.fallbackable and has_next and remaining() >= MIN_ATTEMPT_SECONDS:
                         _record_failure(member_model)
-                        next_model = getattr(self.chain[idx + 1], "model", "unknown")
+                        next_model = getattr(order[idx + 1], "model", "unknown")
                         logger.warning(
                             "model %s failed (%s, %s attempt(s)) — falling over to %s",
                             member_model,
@@ -528,12 +602,17 @@ class ResilientLlm(BaseLlm):
             last_model,
         )
 
-    def _first_token_deadline(self, idx: int, stream: bool, remaining: float) -> float | None:
+    def _first_token_deadline(
+        self, idx: int, stream: bool, remaining: float, *, escalated: bool = False
+    ) -> float | None:
         """Seconds the next attempt may wait for its first chunk, or ``None``.
 
         Streaming only: a non-streamed call's single response IS the whole
         answer, and its length is not a stall. The primary gets the configured
-        deadline; a fallback member gets whatever budget is left.
+        deadline; a fallback member gets whatever budget is left. An ESCALATED
+        primary (the smart tier, 1.1.142 M3) gets the budget less
+        ``ESCALATION_FALLBACK_RESERVE_S`` — its p90 first token is ~20 s, and a
+        10 s deadline would stall-kill most of the turns it exists for.
         """
         if not stream:
             return None
@@ -546,4 +625,6 @@ class ResilientLlm(BaseLlm):
         if configured is None:
             return None
         cap = max(remaining, 0.0)
+        if idx == 0 and escalated:
+            return min(max(configured, remaining - ESCALATION_FALLBACK_RESERVE_S), cap)
         return min(configured, cap) if idx == 0 else cap

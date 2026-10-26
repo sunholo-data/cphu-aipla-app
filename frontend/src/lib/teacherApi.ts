@@ -663,6 +663,8 @@ export interface ActivityPayload extends ActivityConfigPayload {
   sourceOwnerLabel?: string;
   /** ISO lifecycle timestamps (the create stamp; `updatedAt` is inherited). */
   createdAt?: string | null;
+  /** 1.1.142 M3 — researcher-set; absent on a backend older than it. */
+  modelTier?: "default" | "smart";
 }
 
 /** Create a new activity (mints a distinct `act-…` id — never collides). When
@@ -801,6 +803,22 @@ export async function setActivityVisibility(
     body: JSON.stringify({ visibility }),
   });
   return readJson<ActivityPayload>(resp, "set activity visibility");
+}
+
+/** 1.1.142 M3 — the activity's model tier. `smart` starts every tutor turn on
+ *  the smart model. */
+export type ModelTier = "default" | "smart";
+
+/** 1.1.142 M3 — set an activity's model tier. **Researcher-only** (403 for a
+ *  teacher, the owner included): the smart tier costs ~2.5x per turn. Its own
+ *  route, so the builder's full-payload save never touches it. */
+export async function setActivityModelTier(activityId: string, modelTier: ModelTier): Promise<ActivityPayload> {
+  const resp = await fetchWithAuth(`/api/proxy/api/activities/${encodeURIComponent(activityId)}/model-tier`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ modelTier }),
+  });
+  return readJson<ActivityPayload>(resp, "set activity model tier");
 }
 
 /** Adopt a published activity into your library as a fresh `draft` (ALS-SHARE

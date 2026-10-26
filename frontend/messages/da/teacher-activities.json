@@ -1,4 +1,12 @@
 {
+  "ModelTierControl": {
+    "title": "Model (kun forskere)",
+    "label": "Tutoren svarer med",
+    "tier_default": "Standardmodellen",
+    "tier_smart": "Den stærkere model",
+    "hint": "Den stærkere model er bedre til billeder og opgaver i flere trin, men er langsommere om at begynde at svare og koster cirka 2,5 gange så meget pr. svar. Gemmes med det samme. Elevbilleder sendes altid til den stærkere model.",
+    "error": "Kunne ikke gemme modelvalget. Prøv igen."
+  },
   "StageChip": {
     "invited": "Inviteret — ikke logget ind",
     "demo_only": "Kun demo",

@@ -34,6 +34,12 @@ Difficulty = Literal["standard", "guided"]
 # tutor's voice for this activity. See ``adk/interaction_style.py``.
 InteractionStyle = Literal["socratic", "concise", "rigorous", "warm"]
 
+# Model tier (1.1.142 M3). ``default`` = the platform default (flash-lite, with
+# fail-over); ``smart`` = every turn of the activity starts on the smart tier.
+# Researcher-set only (``POST /api/activities/{id}/model-tier``) to protect the
+# 1.1.106 cost envelope — the teacher's save never writes it.
+ModelTier = Literal["default", "smart"]
+
 
 class MaterialRef(BaseModel):
     """A resource cited for this activity.
@@ -567,6 +573,8 @@ class ActivityConfig(BaseModel):
     # above, which stay as the fallback path for every activity authored before
     # tutors existed. See ``adk/tutor_resolution.py``.
     tutor_id: str | None = Field(default=None, alias="tutorId", max_length=64)
+    # 1.1.142 M3 — read by ``adk.agent._apply_activity_model_tier``.
+    model_tier: ModelTier = Field(default="default", alias="modelTier")
     paired_workbench: str | None = Field(default=None, alias="pairedWorkbench")
     workbench_type: WorkbenchType = Field(default="none", alias="workbenchType")
     source_activity_id: str | None = Field(default=None, alias="sourceActivityId")

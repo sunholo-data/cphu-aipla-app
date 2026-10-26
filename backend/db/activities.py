@@ -93,6 +93,9 @@ def copy_activity(source: Activity, *, new_owner_uid: str) -> Activity:
             "source_activity_id": source.activity_id,
             "source_owner_uid": source.owner_uid,
             "visibility": "draft",
+            # 1.1.142 M3 — a researcher's smart-tier opt-in is about THIS
+            # activity's spend; a copy starts on the default tier.
+            "model_tier": "default",
             "created_at": None,
             "updated_at": None,
             "deleted_at": None,

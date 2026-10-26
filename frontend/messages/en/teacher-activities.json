@@ -1,4 +1,12 @@
 {
+  "ModelTierControl": {
+    "title": "Model (researchers only)",
+    "label": "The tutor answers with",
+    "tier_default": "The default model",
+    "tier_smart": "The smart model",
+    "hint": "The smart model is better at images and multi-step problems, but is slower to start answering and costs about 2.5x as much per turn. Saved immediately. Student images always go to the smart model.",
+    "error": "Could not save the model choice. Try again."
+  },
   "StageChip": {
     "invited": "Invited — not signed in",
     "demo_only": "Demo only",

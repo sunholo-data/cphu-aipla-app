@@ -316,7 +316,7 @@ async def test_persistent_5xx_on_the_primary_fails_over_to_the_smart_tier(harnes
     assert fb == [{"from_model": LITE, "to_model": SMART, "code": "MODEL_UNAVAILABLE", "provider": "gemini"}]
     # Every response of a failed-over turn names the model that answered, so the
     # chat-log row and the cost dashboard do not file it under flash-lite.
-    assert all(r.custom_metadata == {rl.SERVED_MODEL_KEY: SMART} for r in out)
+    assert all(r.custom_metadata == {rl.SERVED_MODEL_KEY: SMART, rl.MODEL_ROUTE_KEY: "failover"} for r in out)
 
 
 @pytest.mark.asyncio
@@ -721,7 +721,7 @@ async def test_the_stamp_survives_into_the_adk_session_event(harness):
 
     answers = [e for e in events if e.author == "tutor" and e.content and e.content.parts]
     assert [p.text for e in answers for p in e.content.parts] == ["Hej fra smart"]  # once
-    assert answers[0].custom_metadata == {rl.SERVED_MODEL_KEY: SMART}
+    assert answers[0].custom_metadata == {rl.SERVED_MODEL_KEY: SMART, rl.MODEL_ROUTE_KEY: "failover"}
 
 
 def test_a_model_turn_error_reads_as_a_student_message_not_a_stack():
@@ -734,6 +734,38 @@ def test_a_model_turn_error_reads_as_a_student_message_not_a_stack():
     assert code == "MODEL_UNAVAILABLE"
     assert "prøv igen" in message.lower()
     assert SMART not in message
+
+
+def test_ag_ui_adks_own_run_error_does_not_carry_the_provider_text():
+    """ag_ui_adk catches the runner's exception itself and emits
+    RUN_ERROR{BACKGROUND_EXECUTION_ERROR, str(exc)} — the skill_processor
+    branch above never sees it. The wire must not carry the raw text."""
+    from adk.model_errors import ErrorClass
+    from skills.skill_processor import _scrub_background_error
+
+    exc = ModelTurnError(
+        ErrorClass(transient=True, fallbackable=True, code="MODEL_UNAVAILABLE", message="500 INTERNAL secret"), SMART
+    )
+    scrubbed = _scrub_background_error(
+        {"type": "RUN_ERROR", "message": str(exc), "code": "BACKGROUND_EXECUTION_ERROR", "threadId": "t"}, "s"
+    )
+    assert scrubbed["code"] == "MODEL_UNAVAILABLE"
+    assert "prøv igen" in scrubbed["message"].lower()
+    assert SMART not in scrubbed["message"] and "INTERNAL" not in scrubbed["message"]
+    assert scrubbed["threadId"] == "t"
+
+    other = _scrub_background_error(
+        {"type": "RUN_ERROR", "message": "KeyError: 'x' at /app/adk/agent.py", "code": "BACKGROUND_EXECUTION_ERROR"},
+        "s",
+    )
+    assert other["code"] == "BACKGROUND_EXECUTION_ERROR"
+    assert "agent.py" not in other["message"]
+
+    # Everything else passes through untouched — the typed errors already speak.
+    budget = {"type": "RUN_ERROR", "message": "Over budget.", "code": "BUDGET_EXCEEDED"}
+    assert _scrub_background_error(budget, "s") is budget
+    text = {"type": "TEXT_MESSAGE_CONTENT", "delta": "hej"}
+    assert _scrub_background_error(text, "s") is text
 
 
 # --- per-agent first-token deadline (sim-author thinks before it speaks) ---
