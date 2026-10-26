@@ -21,19 +21,20 @@ vi.mock("@/components/workspace/StaticArtefactFrame", () => ({
 // The floating assistant is the shared TeacherCopilot (its own suite); stub it here.
 // It reports its conversation like the real one: `chat.thread` on mount, and the
 // thread of any resume request the page sends it.
-const chat = vi.hoisted(() => ({ thread: "d1", resumes: [] as string[] }));
+const chat = vi.hoisted(() => ({ thread: "d1", resumes: [] as string[], focused: [] as string[] }));
 vi.mock("@/components/teacher/copilot", async () => {
   const React = await import("react");
   return {
     TeacherCopilot: (p: {
       skillName: string;
-      resume?: { threadId: string; seq: number } | null;
+      resume?: { threadId: string; seq: number; focus?: boolean } | null;
       onThreadChange?: (id: string) => void;
     }) => {
       const [thread, setThread] = React.useState(chat.thread);
       React.useEffect(() => {
         if (p.resume) {
           chat.resumes.push(p.resume.threadId);
+          if (p.resume.focus) chat.focused.push(p.resume.threadId);
           setThread(p.resume.threadId);
         }
       }, [p.resume]);
@@ -87,6 +88,7 @@ function render(ui: ReactElement) {
 beforeEach(() => {
   chat.thread = "d1";
   chat.resumes = [];
+  chat.focused = [];
   me.researcher = false;
   simsApi.listMyTeacherSims.mockResolvedValue([]);
   simsApi.listLibraryRequests.mockResolvedValue([]);
@@ -128,6 +130,47 @@ describe("Sim workshop page", () => {
     render(<SimWorkshopPage />);
     expect(await screen.findByTestId("sim-workshop-empty")).toBeInTheDocument();
     expect(screen.getByTestId("copilot")).toHaveTextContent("sim-author");
+  });
+
+  it("with no drafts, the empty state IS a big New simulation button that brings the chat forward", async () => {
+    api.listSimDrafts.mockResolvedValue([]);
+    render(<SimWorkshopPage />);
+    const empty = await screen.findByTestId("sim-workshop-empty");
+    const button = screen.getByTestId("sim-new");
+    expect(empty).toContainElement(button);
+    expect(screen.getAllByTestId("sim-new")).toHaveLength(1);
+    fireEvent.click(button);
+    await waitFor(() => expect(chat.focused).toHaveLength(1));
+    expect(chat.focused[0]).not.toBe("d1");
+  });
+
+  it("New simulation sits beside the drafts and leaves the open draft's chat for a fresh one", async () => {
+    chat.thread = "s1";
+    api.listSimDrafts.mockResolvedValue([
+      { id: "d1", sessionId: "s1", title: "Pendul", latestVersion: 1, latestLevel: 3, artefactId: "pendul", updatedAt: "y" },
+    ]);
+    api.getSimDraft.mockResolvedValue({
+      id: "d1",
+      sessionId: "s1",
+      title: "Pendul",
+      artefactId: "pendul",
+      versions: [{ version: 1, level: 3, reasons: [], createdAt: "x", screenshots: [] }],
+    });
+    render(<SimWorkshopPage />);
+    expect(await screen.findByTestId("draft-chat-link")).toHaveTextContent("use New simulation");
+    const button = screen.getByTestId("sim-new");
+    expect(screen.getByRole("navigation", { name: "Your drafts" })).toContainElement(button);
+    expect(button).not.toHaveAttribute("aria-current");
+
+    fireEvent.click(button);
+    await waitFor(() => expect(chat.focused).toHaveLength(1));
+    const fresh = chat.focused[0];
+    expect(fresh).not.toBe("s1");
+    await waitFor(() => expect(screen.getByTestId("copilot")).toHaveAttribute("data-thread", fresh));
+    // The old draft is no longer the chat's, and the page says a new sim is under way.
+    expect(await screen.findByText(/You are starting a new simulation/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Pendul/ })).not.toHaveAttribute("aria-current");
+    expect(button).toHaveAttribute("aria-current", "true");
   });
 
   it("shows the latest version with its level, what stopped it, screenshots and downloads", async () => {
@@ -282,7 +325,7 @@ describe("Sim workshop page", () => {
       { id: "d1", sessionId: "s1", title: "Pendul", latestVersion: 1, latestLevel: 3, artefactId: "pendul", updatedAt: "y" },
     ]);
     render(<SimWorkshopPage />);
-    expect(await screen.findByText(/pick it above: its chat reopens/)).toBeInTheDocument();
+    expect(await screen.findByText(/pick it above and its chat reopens/)).toBeInTheDocument();
     expect(api.getSimDraft).not.toHaveBeenCalled();
   });
 

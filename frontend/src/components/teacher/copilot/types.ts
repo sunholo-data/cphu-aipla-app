@@ -110,8 +110,11 @@ export interface TeacherCopilotConfig<P> {
   docked?: boolean;
   /** Switch the chat to an existing conversation (e.g. the one a sim draft was
    *  built in), persisting it like any resumed thread. `seq` makes a repeat
-   *  request for the same thread count (back to it after a "New chat"). */
-  resume?: { threadId: string; seq: number } | null;
+   *  request for the same thread count (back to it after a "New chat").
+   *  `focus` also brings the chat forward and puts the cursor in it (the docked
+   *  panel is a closed sheet on a phone): for a page button that starts
+   *  something the teacher must now describe, e.g. "New simulation". */
+  resume?: { threadId: string; seq: number; focus?: boolean } | null;
   /** Told the conversation shown whenever it changes (mount, New chat, resume),
    *  so the surface can tell which of its items the chat belongs to. */
   onThreadChange?: (threadId: string) => void;

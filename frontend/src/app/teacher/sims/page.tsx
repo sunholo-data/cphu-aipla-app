@@ -24,7 +24,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { RefreshCw, Upload } from "lucide-react";
+import { Plus, RefreshCw, Upload } from "lucide-react";
 
 import { TeacherCopilot } from "@/components/teacher/copilot";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
@@ -205,6 +205,35 @@ function SimWorkshop() {
     setResume((prev) => ({ threadId: d.sessionId, seq: (prev?.seq ?? 0) + 1 }));
   };
 
+  // A new sim is a new conversation. The assistant's own "New chat" icon did
+  // this too, but too quietly: a teacher on an open draft described a second sim
+  // into its chat and got it as version 2 of the first. `focus` brings the chat
+  // forward (a closed sheet on a phone) with the cursor in it.
+  const newSim = () => {
+    setResume((prev) => ({
+      threadId: crypto.randomUUID(),
+      seq: (prev?.seq ?? 0) + 1,
+      focus: true,
+    }));
+  };
+  const newSimButton = (big: boolean) => (
+    <button
+      type="button"
+      onClick={newSim}
+      title={t("newSimHelp")}
+      data-testid="sim-new"
+      // Marked while the chat is a new one with no sim yet, so the teacher can
+      // see that what they describe next starts a sim of its own.
+      aria-current={drafts?.length && !selected ? "true" : undefined}
+      className={`flex items-center gap-2 self-stretch rounded bg-primary font-medium text-primary-foreground hover:bg-primary/90 aria-[current=true]:ring-2 aria-[current=true]:ring-primary aria-[current=true]:ring-offset-2 ${
+        big ? "px-5 py-3 text-base" : "px-4 py-2 text-sm"
+      }`}
+    >
+      <Plus className={big ? "h-5 w-5" : "h-4 w-4"} aria-hidden="true" />
+      {t("newSim")}
+    </button>
+  );
+
   useEffect(() => {
     void load();
     const timer = window.setInterval(() => {
@@ -305,13 +334,17 @@ function SimWorkshop() {
               <p className="text-sm text-muted-foreground">{t("loading")}</p>
             ) : null}
             {drafts !== null && drafts.length === 0 ? (
-              <p
+              <div
                 data-testid="sim-workshop-empty"
-                className="text-sm text-muted-foreground"
+                className="flex w-full flex-col items-start gap-3 rounded border border-dashed border-border p-4"
               >
-                {t("empty")}
-              </p>
+                {newSimButton(true)}
+                <p className="max-w-prose text-sm text-muted-foreground">
+                  {t("empty")}
+                </p>
+              </div>
             ) : null}
+            {drafts?.length ? newSimButton(false) : null}
             {(drafts ?? []).map((d) => (
               <button
                 key={d.id}

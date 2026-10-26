@@ -82,6 +82,7 @@ export function TeacherCopilot<P>(config: TeacherCopilotConfig<P>) {
   // with this sim"). Keyed on `seq` so asking for the same thread again counts.
   const resumeId = config.resume?.threadId;
   const resumeSeq = config.resume?.seq;
+  const focusSeq = config.resume?.focus ? resumeSeq : undefined;
   useEffect(() => {
     if (!resumeId) return;
     try {
@@ -99,7 +100,12 @@ export function TeacherCopilot<P>(config: TeacherCopilotConfig<P>) {
 
   if (config.docked) {
     return (
-      <DockedCopilot title={config.title} onNewChat={newChat} busy={busy}>
+      <DockedCopilot
+        title={config.title}
+        onNewChat={newChat}
+        busy={busy}
+        focusSeq={focusSeq}
+      >
         <CopilotResolver
           config={config}
           threadId={threadId}
@@ -142,15 +148,29 @@ function DockedCopilot({
   title,
   onNewChat,
   busy,
+  focusSeq,
   children,
 }: {
   title: string;
   onNewChat: () => void;
   busy: boolean;
+  /** Changes when the page asks for the chat: open the sheet, focus the input. */
+  focusSeq?: number;
   children: React.ReactNode;
 }) {
   const t = useT("FloatingCopilot");
   const [open, setOpen] = useState(false);
+  const panel = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (focusSeq === undefined) return;
+    // The sheet only matters below `lg`; above it the panel is always shown.
+    setOpen(true);
+    // After the thread switch has rendered, so the input is the new chat's.
+    const timer = window.setTimeout(() => {
+      panel.current?.querySelector<HTMLInputElement>("form input")?.focus();
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [focusSeq]);
   return (
     <>
       <button
@@ -170,6 +190,7 @@ function DockedCopilot({
         </span>
       </button>
     <section
+      ref={panel}
       aria-label={title}
       data-testid="docked-copilot"
       className={`${open ? "fixed inset-0 z-50 flex h-dvh" : "hidden"} flex-col overflow-hidden bg-background lg:static lg:z-auto lg:flex lg:h-[min(80vh,760px)] lg:min-h-[420px] lg:rounded lg:border lg:border-border`}

@@ -1,4 +1,4 @@
-import { act, fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render as rtlRender, screen, waitFor, within } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { LocaleProvider } from "@/i18n";
 import { afterEach, describe, expect, it, vi, beforeEach } from "vitest";
@@ -339,6 +339,20 @@ describe("TeacherCopilot on a phone, and after a dropped connection", () => {
     expect(panel.className).toMatch(/(^| )hidden( |$)/);
     // Hidden, not unmounted: a build keeps streaming while the teacher looks at the sim.
     expect(screen.getByTestId("teacher-copilot")).toBeInTheDocument();
+  });
+
+  it("docked: a page's focus request opens the sheet on the new thread and puts the cursor in the chat", async () => {
+    const { rerender } = render(<TeacherCopilot {...config()} docked persistKey="k" />);
+    const panel = screen.getByTestId("docked-copilot");
+    // A plain resume (picking a draft) leaves the sheet shut: the teacher wanted the sim.
+    rerender(<TeacherCopilot {...config()} docked persistKey="k" resume={{ threadId: "t-old", seq: 1 }} />);
+    expect(panel.className).toMatch(/(^| )hidden( |$)/);
+    rerender(
+      <TeacherCopilot {...config()} docked persistKey="k" resume={{ threadId: "t-new", seq: 2, focus: true }} />,
+    );
+    expect(panel.className).toContain("fixed inset-0");
+    expect(localStorage.getItem("teacherCopilot:k")).toBe("t-new");
+    await waitFor(() => expect(document.activeElement).toBe(within(panel).getByRole("textbox")));
   });
 
   it("docked: the launcher says when the assistant is working", () => {
