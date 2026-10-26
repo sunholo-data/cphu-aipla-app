@@ -163,6 +163,9 @@ def _parse_template(skill_md: Path) -> dict[str, Any]:
         "openingTemplate": (front.get("openingTemplate") or "").strip(),
         # 1.1.7 — show the photo/doc upload button for this skill.
         "multimodalInput": bool(front.get("multimodalInput") or False),
+        # 1.1.152 M4 — "hold" keeps the final value off the student's calculation
+        # card until their own answer matches it. Anything else is "show".
+        "calculationResults": "hold" if front.get("calculationResults") == "hold" else "show",
         # 1.1.2 — proactive sim-reactive tutor (Phase B). Per-skill opt-in
         # flag + tuning knobs + skill-author reactive guidance. See
         # docs/design/aipla/v1.1.0-feedback/proactive-sim-reactive-tutor.md.
@@ -246,6 +249,9 @@ def _template_updates(parsed: dict[str, Any]) -> dict[str, Any]:
     updates["proactiveGreet"] = parsed["proactiveGreet"]
     updates["openingTemplate"] = parsed["openingTemplate"]
     updates["multimodalInput"] = parsed["multimodalInput"]
+    # Unconditional, like multimodalInput: switching a tutor back to "show" in
+    # its template must reach the already-registered skill.
+    updates["calculationResults"] = parsed["calculationResults"]
     # 1.1.2 Phase B sim-reactive — same unconditional-apply rationale as
     # proactiveGreet above; toggling proactiveEventReactive off in the
     # template must take effect on existing skills.
@@ -374,6 +380,8 @@ def seed(templates_root: Path | None = None) -> SeedSummary:
                 optional_kwargs["reactiveTemplate"] = parsed["reactiveTemplate"]
             if parsed["avatar"]:
                 optional_kwargs["avatar"] = parsed["avatar"]
+            if parsed["calculationResults"] != "show":
+                optional_kwargs["calculationResults"] = parsed["calculationResults"]
             access_control = parsed["accessControl"] or {"type": "public"}
             skill_config.create_skill(
                 name=parsed["name"],

@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 import time
 import uuid
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -239,6 +240,12 @@ class SkillConfig(BaseModel):
     # for this skill. Off by default (text-only skills stay clean). Backend
     # image injection works regardless; this only gates the UI.
     multimodal_input: bool = Field(default=False, alias="multimodalInput")
+    # 1.1.152 M4 — what a student's calculation card shows. ``show`` (default):
+    # the whole calculation. ``hold``: the working without the final value, until
+    # the student's own answer matches it — for a tutor whose job is that the
+    # student works the number out (problem-set-hints). Config, never the model's
+    # call. See maths/card.py.
+    calculation_results: Literal["show", "hold"] = Field(default="show", alias="calculationResults")
     tags: list[str] = Field(default_factory=list)
     featured: bool = False
     usage_count: int = Field(default=0, alias="usageCount")

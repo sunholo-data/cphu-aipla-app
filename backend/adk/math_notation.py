@@ -80,4 +80,32 @@ def build_math_notation_block() -> str:
     return f"\n\n{preamble}"
 
 
-__all__ = ["build_math_notation_block"]
+_HOLD_PATH = _PREAMBLE_PATH.with_name("calculation_hold.md")
+
+
+@lru_cache(maxsize=1)
+def _load_hold_preamble() -> str:
+    try:
+        return _HOLD_PATH.read_text(encoding="utf-8").strip()
+    except OSError:
+        log.warning("calculation_hold preamble missing: %s", _HOLD_PATH)
+        return ""
+
+
+def build_calculation_hold_block(calculation_results: str | None) -> str:
+    """1.1.152 M4: the rules for a tutor whose students work the numbers out themselves.
+
+    Unlike the notation block this IS conditional, on the skill's
+    ``calculationResults``: it tells the tutor how the ``show_calculation`` card
+    behaves, and the card only holds a value back on a ``hold`` skill. The
+    condition is the same config that drives the card (``adk.calc_tools``), so
+    the instruction and the behaviour cannot disagree. Byte-identical (``""``) on
+    every ``show`` skill, which is all of them but ``problem-set-hints``.
+    """
+    if calculation_results != "hold":
+        return ""
+    preamble = _load_hold_preamble()
+    return f"\n\n{preamble}" if preamble else ""
+
+
+__all__ = ["build_calculation_hold_block", "build_math_notation_block"]

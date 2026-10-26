@@ -30,6 +30,7 @@ import hashlib
 import json
 import math
 import re
+from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any
 
@@ -579,12 +580,37 @@ def calculate(
     language: str = "da",
 ) -> dict[str, Any]:
     """Evaluate one calculation. Never raises: a refusal is ``{"ok": False, "error": …}``."""
+    return evaluate_full(expression, quantities, result_unit, check, language).result
+
+
+@dataclass(frozen=True)
+class Evaluation:
+    """``calculate``'s result, plus what a card needs that the JSON flattens away.
+
+    ``shown`` is the pint result in the reported unit and ``working`` the LaTeX
+    steps before the result (symbolic, then substituted when that differs). Both
+    are None/empty when ``result["ok"]`` is False.
+    """
+
+    result: dict[str, Any]
+    shown: Any = None
+    working: tuple[str, ...] = ()
+
+
+def evaluate_full(
+    expression: str,
+    quantities: Any = None,
+    result_unit: str | None = None,
+    check: str | None = None,
+    language: str = "da",
+) -> Evaluation:
+    """``calculate``, keeping the quantity and the working steps (``maths.card``)."""
     language = "en" if language == "en" else "da"
     normalised = _normalise_expression(expression or "")
     try:
         given = _parse_quantities(quantities)
     except CalcError as exc:
-        return {"ok": False, "error": str(exc), "expression": normalised, "engine": engine_label()}
+        return Evaluation({"ok": False, "error": str(exc), "expression": normalised, "engine": engine_label()})
     cid = calc_id(normalised, given, result_unit, check)
     base: dict[str, Any] = {"expression": normalised, "quantities": given, "calc_id": cid, "engine": engine_label()}
     try:
@@ -611,8 +637,8 @@ def calculate(
         )
         symbolic, _ = _to_latex(tree, language, None)
         substituted, _ = _to_latex(tree, language, subs)
-        steps = [symbolic] + ([substituted] if substituted != symbolic else []) + [format_quantity(shown, language)]
-        latex = "$" + " = ".join(steps) + "$"
+        working = (symbolic,) + ((substituted,) if substituted != symbolic else ())
+        latex = "$" + " = ".join((*working, format_quantity(shown, language))) + "$"
 
         out = {
             **base,
@@ -630,6 +656,6 @@ def calculate(
             out["constants_used"] = constants_used
         if check:
             out["dimension_check"] = _dimension_check(check, values, raw_result)
-        return out
+        return Evaluation(out, shown, working)
     except CalcError as exc:
-        return {**base, "ok": False, "error": str(exc)}
+        return Evaluation({**base, "ok": False, "error": str(exc)})

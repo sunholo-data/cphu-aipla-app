@@ -126,6 +126,14 @@ _CLIENT_RENDER_TOOLS = frozenset(
         # that copy two times in three in live runs. It carries nothing the
         # illustrator was not asked to draw for the student.
         "svg_illustrator",
+        # CalculationCard (1.1.152 M4) — the calculation the tutor chose to show.
+        # Card-safe by construction: the engine re-evaluates the tutor's inputs,
+        # so the payload is the expression, the inputs, the engine's own result
+        # and, for a student answer, a match/direction. On a `hold` skill the
+        # final value is ABSENT from the payload (not merely undrawn), because
+        # this result reaches the browser. Its private twin `calculate` stays
+        # redacted: that is how the tutor checks without showing.
+        "show_calculation",
     }
 )
 

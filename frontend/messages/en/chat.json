@@ -13,6 +13,23 @@
     "changed": "The tutor changed your simulation",
     "canChangeBack": "You can change it back yourself in the simulation."
   },
+  "CalculationCard": {
+    "title": "Calculation",
+    "yourTurn": "Your turn: work out the result and write your answer.",
+    "matches": "That matches your answer ({value}).",
+    "tooLarge": "Your answer ({value}) is too large.",
+    "tooSmall": "Your answer ({value}) is too small.",
+    "wrongSign": "Your answer ({value}) has the wrong sign.",
+    "powerOfTen": "It is off by a factor of {factor}: look at prefixes and units.",
+    "timeUnit": "It is off by a factor of {factor}: look at the unit of time.",
+    "speedUnit": "It is off by a factor of 3.6: look at km/h and m/s.",
+    "factorTwo": "It is off by a factor of 2: is a half or a 2 missing?",
+    "differentQuantity": "Your answer ({value}) is a different kind of quantity: check the unit.",
+    "noUnit": "Your answer ({value}) has no unit.",
+    "unreadable": "The answer ({value}) could not be read as a number with a unit.",
+    "constants": "Used {constants}",
+    "computed": "The platform calculated this, not the AI."
+  },
   "CheckpointCard": {
     "observed": "noticed",
     "demonstrated": "understood",

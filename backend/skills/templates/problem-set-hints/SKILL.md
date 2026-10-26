@@ -9,6 +9,10 @@ isTutor: true
 displayName: Problem-set hints (Boldkast)
 avatar: /lesson-images/problem-set-hints.svg
 multimodalInput: true  # 1.1.7 — students can attach a photo of their working
+# 1.1.152 M4 — this tutor "scaffolds without giving the final answer", so its
+# calculation cards show the working and hold the final value back until the
+# student's own answer matches it. M 2026-10-26, pending AR/JB review (O2).
+calculationResults: hold
 voice:
   ttsProvider: gcp_chirp3hd
   ttsVoice: da-DK-Chirp3-HD-Aoede

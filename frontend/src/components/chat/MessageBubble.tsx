@@ -31,6 +31,7 @@ import { ChecklistMarkCard, parseChecklistMarkResult } from "@/components/chat/C
 import { IllustrationCard, parseIllustrationResult } from "@/components/chat/IllustrationCard";
 import { CheckpointCard, parseCheckpointResult } from "@/components/chat/CheckpointCard";
 import { SimCommandCard, parseSimCommandResult } from "@/components/chat/SimCommandCard";
+import { CalculationCard, parseCalculationResult } from "@/components/chat/CalculationCard";
 import { useSurfaceRegistry } from "@/providers/SurfaceRegistry";
 import type { SkillMessage, ToolCallState } from "@/hooks/useSkillAgent";
 
@@ -347,6 +348,16 @@ export const MessageBubble = React.memo(function MessageBubble({
                 const result = parseSimCommandResult(tc.resultContent);
                 return result ? <SimCommandCard key={tc.id} toolCallId={tc.id} result={result} /> : null;
               })}
+            {/* 1.1.152 M4 — a calculation the tutor chose to show. Drawn from
+                the RESULT (the engine's re-evaluation), never the call args,
+                so the number is the platform's. A held result has no value
+                in it at all; the card shows "= ?" and the direction. */}
+            {nonA2uiCalls
+              .filter((tc) => tc.name === "show_calculation")
+              .map((tc) => {
+                const result = parseCalculationResult(tc.resultContent);
+                return result ? <CalculationCard key={tc.id} result={result} /> : null;
+              })}
             {/* svg-illustrator — the computed, render-checked diagram is
                 delivered from the tool result, never from a copy the tutor
                 may drop (see IllustrationCard). */}
@@ -367,6 +378,7 @@ export const MessageBubble = React.memo(function MessageBubble({
                       ) &&
                       !(tc.name === "mark_checklist_item" && parseChecklistMarkResult(tc.resultContent)) &&
                       !(tc.name === "control_sim" && parseSimCommandResult(tc.resultContent)) &&
+                      !(tc.name === "show_calculation" && parseCalculationResult(tc.resultContent)) &&
                       !(tc.name === "svg_illustrator" && parseIllustrationResult(tc.resultContent)),
                   )
                   .map((tc) => (

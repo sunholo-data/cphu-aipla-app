@@ -13,6 +13,23 @@
     "changed": "Tutoren ændrede din simulation",
     "canChangeBack": "Du kan selv stille den tilbage i simulationen."
   },
+  "CalculationCard": {
+    "title": "Udregning",
+    "yourTurn": "Din tur: regn resultatet ud, og skriv dit svar.",
+    "matches": "Det passer med dit svar ({value}).",
+    "tooLarge": "Dit svar ({value}) er for stort.",
+    "tooSmall": "Dit svar ({value}) er for lille.",
+    "wrongSign": "Dit svar ({value}) har det forkerte fortegn.",
+    "powerOfTen": "Det er en faktor {factor} fra: kig på præfikser og enheder.",
+    "timeUnit": "Det er en faktor {factor} fra: kig på tidens enhed.",
+    "speedUnit": "Det er en faktor 3,6 fra: kig på km/h og m/s.",
+    "factorTwo": "Det er en faktor 2 fra: mangler der en halv eller et 2-tal?",
+    "differentQuantity": "Dit svar ({value}) er en anden slags størrelse: tjek enheden.",
+    "noUnit": "Dit svar ({value}) mangler en enhed.",
+    "unreadable": "Svaret ({value}) kunne ikke læses som et tal med en enhed.",
+    "constants": "Brugte {constants}",
+    "computed": "Platformen har regnet det ud, ikke AI'en."
+  },
   "CheckpointCard": {
     "observed": "bemærket",
     "demonstrated": "forstået",

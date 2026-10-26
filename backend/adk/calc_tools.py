@@ -1,4 +1,4 @@
-r"""``calculate``: the tutor's verifiable calculator, as an ADK FunctionTool (1.1.152 M2).
+r"""``calculate`` and ``show_calculation``: the tutor's verifiable calculator (1.1.152 M2, M4).
 
 Design: docs/design/aipla/v1.1.0-feedback/verifiable-maths-tool.md
 
@@ -16,9 +16,16 @@ arithmetic is better off with the tool than without it.
 ``adk.stream_redaction._CLIENT_RENDER_TOOLS``, so a student stream carries the
 redaction sentinel in its place. That is the design's rule 1: ``calculate`` is
 how the tutor *checks*, and a check of a student's answer must not hand them
-the answer. Showing a worked calculation is ``show_calculation`` (M4), which
-waits on AR/JB (O2). The call's NAME still reaches the chip ("Bruger
-calculate…"), which is why the tool has a neutral name and not ``check_answer``.
+the answer. The call's NAME still reaches the chip ("Bruger calculate…"), which
+is why the tool has a neutral name and not ``check_answer``.
+
+**``show_calculation`` is the visible one (M4).** Same inputs, same engine,
+re-evaluated, so the number on the student's ``CalculationCard`` is the
+engine's and never the model's. It IS in ``_CLIENT_RENDER_TOOLS``. On a tutor
+whose SKILL.md says ``calculationResults: hold`` the payload carries the working
+but not the final value until the student's own answer matches it, and the
+student's answer counts only when it is in the student's own message. The rules
+and why live in ``maths/card.py``.
 
 **In-process and offline.** Never Gemini's ``BuiltInCodeExecutor`` (design F2,
 1.1.158 F4): the same call returns the same ``calc_id`` on any model tier.
@@ -35,13 +42,27 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from google.adk.tools import FunctionTool
+from google.adk.tools import FunctionTool, ToolContext
 
 from maths import calculate as _engine_calculate
+from maths.card import CalculationResults, calculation_card
 
 log = logging.getLogger(__name__)
 
 TOOL_NAME = "calculate"
+SHOW_TOOL_NAME = "show_calculation"
+
+
+def _student_text(tool_context: ToolContext | None) -> str | None:
+    """The text of the message this turn answers, or None when there is none to read.
+
+    None makes a ``student_value`` not count (fail closed): without the student's
+    message there is no way to tell their answer from one the model made up.
+    """
+    content = getattr(tool_context, "user_content", None) if tool_context is not None else None
+    parts = getattr(content, "parts", None) or []
+    text = " ".join(p.text for p in parts if getattr(p, "text", None))
+    return text or None
 
 
 def _language(cfg: Any, student_language: str | None) -> str:
@@ -52,9 +73,19 @@ def _language(cfg: Any, student_language: str | None) -> str:
     return "da"
 
 
-def build_calc_tools(cfg: Any = None, *, student_language: str | None = None) -> list[FunctionTool]:
-    """The ``calculate`` tool, with its LaTeX in the conversation's language."""
+def build_calc_tools(
+    cfg: Any = None,
+    *,
+    student_language: str | None = None,
+    calculation_results: CalculationResults = "show",
+) -> list[FunctionTool]:
+    """``calculate`` and ``show_calculation``, with LaTeX in the conversation's language.
+
+    ``calculation_results`` is the skill's ``calculationResults``: ``hold`` keeps
+    the final value off the student's card until their own answer matches it.
+    """
     language = _language(cfg, student_language)
+    mode: CalculationResults = "hold" if calculation_results == "hold" else "show"
 
     def calculate(
         expression: str,
@@ -115,7 +146,65 @@ def build_calc_tools(cfg: Any = None, *, student_language: str | None = None) ->
         )
         return result
 
-    return [FunctionTool(calculate)]
+    def show_calculation(
+        expression: str,
+        quantities: list[str] | None = None,
+        result_unit: str = "",
+        student_value: str = "",
+        tool_context: ToolContext | None = None,
+    ) -> dict[str, Any]:
+        """Show the student a calculation as a card: the equation, the values put in, and the result.
+
+        The platform works the calculation out again itself, so the number the
+        student sees is always right. Use it for a worked example (with numbers
+        that are NOT the student's own task), to relate two simulation readings
+        the student has taken, or to check an answer the student gave. The card
+        is the calculation: do not repeat its number in your reply; say what it
+        means.
+
+        Some tutors let the student work the number out themselves. Then the
+        card shows the working but not the final value, and the result says
+        ``held: true``. When the student gives an answer, pass it as
+        ``student_value``: the card tells them whether it matches, or which way
+        it is off, still without the value.
+
+        Args:
+            expression: The relationship, in symbols, as for calculate: "P * t".
+            quantities: One string per symbol, "symbol = value unit", as for
+                calculate: ["P = 2000 W", "t = 150 s"].
+            result_unit: The unit to show the answer in, e.g. "kJ". Leave empty
+                for the SI unit.
+            student_value: The student's own answer with its unit, EXACTLY as
+                they wrote it in their message ("18000 kJ"). Leave empty if they
+                have not given one. A value that is not in their message is
+                ignored.
+
+        Returns:
+            ok, held, working (the equation with the values put in), result and
+            latex when not held, student (status match | mismatch |
+            different_quantity | no_unit | unreadable, and a direction for a
+            mismatch), and error when ok is false.
+        """
+        card = calculation_card(
+            expression,
+            quantities,
+            result_unit=result_unit or None,
+            student_value=student_value or None,
+            mode=mode,
+            language=language,
+            student_text=_student_text(tool_context),
+        )
+        log.info(
+            "show_calculation %s ok=%s held=%s student=%s calc_id=%s",
+            card.get("expression"),
+            card.get("ok"),
+            card.get("held"),
+            (card.get("student") or {}).get("status"),
+            card.get("calc_id"),
+        )
+        return card
+
+    return [FunctionTool(calculate), FunctionTool(show_calculation)]
 
 
-__all__ = ["TOOL_NAME", "build_calc_tools"]
+__all__ = ["SHOW_TOOL_NAME", "TOOL_NAME", "build_calc_tools"]

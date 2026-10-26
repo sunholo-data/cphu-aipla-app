@@ -136,10 +136,14 @@ def _compose(skill_name: str, framework_id: str | None) -> tuple[str, dict[str, 
     # there is something to run, so an instruction-less tutor still reads empty
     # to `run_preview_turn`'s guard rather than as "house style only".
     if instruction.strip():
-        from adk.math_notation import build_math_notation_block
+        from adk.math_notation import build_calculation_hold_block, build_math_notation_block
         from adk.praise_style import build_praise_block
 
-        instruction += build_math_notation_block() + build_praise_block()
+        instruction += (
+            build_math_notation_block()
+            + build_praise_block()
+            + build_calculation_hold_block(getattr(skill, "calculation_results", None))
+        )
     return instruction, {
         "skill": skill_name,
         "skillFound": skill is not None,

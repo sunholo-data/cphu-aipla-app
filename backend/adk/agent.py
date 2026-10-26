@@ -74,7 +74,7 @@ from adk.document_links import build_document_links_block, make_document_link_gu
 from adk.element_state import make_element_state_wrapper
 from adk.iframe_context import wrap_with_iframe_context
 from adk.instruction_provider_chain import compose_instruction_providers
-from adk.math_notation import build_math_notation_block
+from adk.math_notation import build_calculation_hold_block, build_math_notation_block
 from adk.mcp_observability import (
     compose_after_tool_callbacks,
     compose_before_tool_callbacks,
@@ -605,7 +605,15 @@ def create_agent(
     tools.extend(build_checklist_tools(_active_cfg, user))
     # 1.1.152 M2 — the verifiable calculator. Unconditional, like the notation
     # preamble that tells every agent to use it (see adk/calc_tools.py).
-    tools.extend(build_calc_tools(_active_cfg, student_language=student_language))
+    # M4 adds show_calculation, the visible card; the skill's calculationResults
+    # decides whether the card holds the final value back (maths/card.py).
+    tools.extend(
+        build_calc_tools(
+            _active_cfg,
+            student_language=student_language,
+            calculation_results=skill_config.calculation_results,
+        )
+    )
     # MULTI-SURFACE-A2UI M1 — read the skill's `tool_configs.a2ui` block so
     # the toolset emits `surface_id`/`update_mode` siblings alongside
     # `validated_a2ui_json`. Defaults (no a2ui block) preserve pre-M1
@@ -1057,6 +1065,11 @@ def create_agent(
                                 # habit, so house style, UNCONDITIONAL like the
                                 # notation block. See adk/praise_style.py.
                                 + build_praise_block()
+                                # 1.1.152 M4 — how the calculation card behaves
+                                # on a skill that holds results back. Keyed on
+                                # the SAME skill field as the tool's mode, so
+                                # they cannot disagree; "" on every other skill.
+                                + build_calculation_hold_block(skill_config.calculation_results)
                                 # 1.1.126 — the name the student SEES, from the
                                 # same resolution the chat log stamps. Students
                                 # only: the persona renders in the anonymous-group
