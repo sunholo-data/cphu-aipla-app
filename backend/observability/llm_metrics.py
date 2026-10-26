@@ -57,6 +57,18 @@ _COST_PER_1M: dict[str, tuple[float, float]] = {
     "gpt-5": (1.10, 8.80),
     "gpt-4o": (2.50, 10.00),
     "gpt-4o-mini": (0.15, 0.60),
+    # UCloud AI (SDU, Denmark), added 2026-10-26. ⚠️ PROVISIONAL: UCloud bills
+    # in CREDITS (0.753 / 2.832 per 1M for Flash, 5.815 / 17.362 for GLM 5.3)
+    # and the credit -> money rate is unconfirmed. Priced here at 1 credit =
+    # 1 USD, which overstates if a credit is a krone — wrong-high, the safe
+    # direction for the spend gate. Keys are BARE served names because the gate
+    # reads llm_request.model, which LiteLlm sets to "openai/glm-5.3-flash", not
+    # the registry's "ucloud/glm-5.3-flash"; a substring of both matches both.
+    # "-flash" before the bare id; the "glm-" catch-all last, priced like the
+    # dearest model.
+    "glm-5.3-flash": (0.753, 2.832),
+    "glm-5.3": (5.815, 17.362),
+    "glm-": (5.815, 17.362),
 }
 
 # KNOWN DIVERGENCE (recorded 2026-08-12, not resolved here):

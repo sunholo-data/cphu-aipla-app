@@ -20,7 +20,7 @@ _YAML_PATH = Path(__file__).parent / "models.yaml"
 class ModelEntry(BaseModel):
     id: str
     api_name: str
-    provider: Literal["google", "anthropic", "openai"]
+    provider: Literal["google", "anthropic", "openai", "ucloud"]
     tier: Literal["default", "smart", "fast"]
     context_window: int
     max_output_tokens: int
@@ -198,6 +198,6 @@ def model_api_names() -> set[str]:
 
 
 def provider_for_api_name(api_name: str) -> str | None:
-    """The provider (``google`` | ``anthropic`` | ``openai``) for a curated
+    """The provider (``google`` | ``anthropic`` | ``openai`` | ``ucloud``) for a curated
     api_name, or ``None`` if the api_name isn't in the registry."""
     return next((m.provider for m in load_models_config().models if m.api_name == api_name), None)

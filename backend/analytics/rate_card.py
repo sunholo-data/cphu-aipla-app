@@ -71,6 +71,15 @@ MODEL_RATE_CARD: dict[str, Rate] = {
     "gpt-5.1": Rate(0.0011, 0.0088),
     "gpt-5": Rate(0.0011, 0.0088),
     "gpt": Rate(0.0011, 0.0088),  # family fallback
+    # --- UCloud AI (SDU, Denmark) ---
+    # ⚠️ PROVISIONAL: billed in UCloud credits per 1M tokens, credit -> EUR rate
+    # unconfirmed; priced at 1 credit = 1 EUR, which overstates if a credit is a
+    # krone. Same figures as observability/llm_metrics.py. Replace once the
+    # front office confirms what a credit costs. Keyed by the registry api_name,
+    # which is what the chat-log `model` column carries.
+    "ucloud/glm-5.3-flash": Rate(0.000753, 0.002832),
+    "ucloud/glm-5.3": Rate(0.005815, 0.017362),
+    "ucloud/": Rate(0.005815, 0.017362),  # family fallback (assume the dearest)
 }
 
 #: Display currency for everything the rate card produces.

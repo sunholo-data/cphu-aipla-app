@@ -715,6 +715,13 @@ check-tutor-docs: ## Fail if the tutor docs have drifted from the framework YAML
 smoke-sim-verify: ## Authenticated end-to-end check of the private sim-verify service (ENV=dev; FILE=<index.html> ID=<id> to check any page)
 	@scripts/smoke-sim-verify.sh $(or $(ENV),dev)
 
+# UCloud AI (SDU, Denmark): checks the key, the served model names against
+# models.yaml, a raw streamed completion and one ADK turn with a tool call.
+# Reads UCLOUD_AI_BASE_URL / UCLOUD_AI_API_KEY from the env or backend/.env.
+.PHONY: ucloud-smoke
+ucloud-smoke: ## Check UCloud AI end to end from this laptop before any deploy uses it (MODEL=ucloud/<name> for one; costs a few thousand tokens)
+	@cd backend && uv run python scripts/ucloud_ai_smoke.py $(if $(MODEL),--model $(MODEL))
+
 .PHONY: sim-author-local
 sim-author-local: ## Local backend for iterating on the Sim workshop: LOCAL_MODE store, real Gemini (Vertex eu), local browser check; then SIM_TOKEN=local-mode-stub-token SIM_API=http://localhost:1966 scripts/smoke-sim-author.sh (PORT=1966; 1956 is often another project)
 	@cd backend && env -u GOOGLE_API_KEY -u GEMINI_API_KEY LOCAL_MODE=1 GOOGLE_GENAI_USE_VERTEXAI=True GOOGLE_CLOUD_PROJECT=aipla-dev-2026 GOOGLE_CLOUD_LOCATION=eu PLATFORM_OWNER_UID=aipla-platform uv run uvicorn fast_api_app:app --port $(or $(PORT),1966)

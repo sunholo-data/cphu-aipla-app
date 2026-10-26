@@ -97,6 +97,43 @@ describe("ModelSelector", () => {
     expect(labels.some((l) => l?.toLowerCase().includes("openai"))).toBe(true);
   });
 
+  it("renders no empty group for a provider the deploy does not list", async () => {
+    // /api/models omits UCloud AI on a deploy without its key.
+    render(<ModelSelector value={null} onChange={vi.fn()} />);
+    await screen.findByRole("option", { name: /gemini 3 flash/i });
+    const labels = screen.getAllByRole("group").map((g) => g.getAttribute("label") ?? "");
+    expect(labels.some((l) => l.toLowerCase().includes("ucloud"))).toBe(false);
+  });
+
+  it("groups UCloud AI models when the deploy lists them", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            ...MOCK_MODELS_RESPONSE,
+            models: [
+              ...MOCK_MODELS_RESPONSE.models,
+              {
+                id: "ucloud-glm-5-3-flash",
+                api_name: "ucloud/glm-5.3-flash",
+                provider: "ucloud",
+                tier: "default",
+                context_window: 1_000_000,
+                max_output_tokens: 32_768,
+                description: "GLM 5.3-Flash on UCloud AI",
+              },
+            ],
+          }),
+      })
+    );
+    render(<ModelSelector value={null} onChange={vi.fn()} />);
+    const option = await screen.findByRole("option", { name: /glm 5\.3-flash/i });
+    expect(option).toHaveValue("ucloud/glm-5.3-flash");
+    expect(option.closest("optgroup")?.getAttribute("label")).toBe("UCloud AI (Denmark)");
+  });
+
   it("defaults to platform_default when value is null", async () => {
     render(<ModelSelector value={null} onChange={vi.fn()} />);
     // The component renders a loading <select disabled> first (also a
