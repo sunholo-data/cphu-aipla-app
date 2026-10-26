@@ -72,7 +72,7 @@ make guides-pdf                                        # reprint the PDFs
   `make guides-pdf BASE_URL=http://localhost:3456`.
 - **`make guide-staleness`** flags a guide whose documented UI surface has a
   newer commit than the guide (manifest: `guide-surfaces.json`).
-- **`make seed-guide-corpus ENV=dev`** ingests those PDFs into the in-product
+- **`make seed-guide-corpus ENV=dev [GO=1]`** (dry run unless `GO=1`; runs as the env's runtime SA) ingests those PDFs into the in-product
   corpus so the tutors can answer "how do I create a class?".
 
 Screenshots and PDFs are committed so the app serves them without a capture or

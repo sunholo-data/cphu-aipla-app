@@ -555,7 +555,7 @@ Any local workflow that requires more than one manual step — setting env vars,
 | Start local dev servers | `make dev` |
 | **Seed SKILL.md templates → Firestore** — *automatic on deploy since P1.3* (Cloud Build runs the `aipla-seed-skills` job) | `make seed-job ENV=dev` (job path, same as CI) · `make seed ENV=dev` (HTTP path, seed without a deploy) |
 | **(Re)assert demo student join codes (e.g. `aipla-demo-1`) — manual, like seed; demo codes lapse on TTL/clean-slate** | `make seed-demo-codes ENV=dev` |
-| **Seed the in-product how-to guides** (shared corpus + onboarding tutors) — manual, per env, NOT part of any deploy. Idempotent, so re-run to publish updated guides | `make seed-guide-corpus ENV=dev` |
+| **Seed the in-product how-to guides** (shared corpus + platform-owned onboarding tutors) — manual, per env, NOT part of any deploy. Runs as the env runtime SA via `/api/admin/guide-corpus/*` (no person's account). Dry run unless `GO=1`; idempotent (an unchanged PDF writes nothing), so re-run to publish updated guides; `GUIDE_EXCLUDE=<slug>` leaves an unreleased guide out | `make seed-guide-corpus ENV=prod [GUIDE_EXCLUDE=t5-introduce-the-tutor] [GO=1]` |
 | Smoke-test proxy bridge | `make proxy-check` |
 | Verify chat-log pipeline e2e (join → turn → BigQuery) | `make verify-chat-logs GROUP=<code> ENV=<env>` |
 | Backend tests (fast) | `cd backend && make test-fast` |

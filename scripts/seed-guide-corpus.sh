@@ -3,24 +3,38 @@
 # into the SHARED curriculum corpus (subject "AIPLA guides") and build an
 # onboarding class with teacher + student + researcher tutors grounded in them.
 #
-#   scripts/seed-guide-corpus.sh            # deployed dev (default)
-#   scripts/seed-guide-corpus.sh test       # = make seed-guide-corpus ENV=test
-#   scripts/seed-guide-corpus.sh prod
+#   scripts/seed-guide-corpus.sh prod               # DRY RUN: what would change
+#   GO=1 scripts/seed-guide-corpus.sh prod          # = make seed-guide-corpus ENV=prod GO=1
+#   GUIDE_EXCLUDE=t5-introduce-the-tutor GO=1 scripts/seed-guide-corpus.sh prod
+#   GUIDE_SLUGS=t1-set-up-a-class GO=1 scripts/seed-guide-corpus.sh dev   # subset, no prune
+#
+# DRY RUN UNLESS GO=1 (the repo's backfill/repair convention). A dry run reads
+# and hashes; it never extracts text or touches the RAG corpus.
 #
 # Seeds the PUBLISHED PDFs (frontend/public/guides/, committed) — the exact bytes
 # the /guides page serves — so the queryable corpus and the static pages cannot
-# disagree. It does NOT render; `make guides-publish` is the render+commit step,
-# and the staleness check below refuses to seed if you skipped it.
+# disagree. It does NOT render; `make guides-pdf` is the print step, and the
+# staleness check below refuses to seed if you skipped it.
 #
-# Idempotent since 2026-08-04 — re-running reconciles rather than duplicating.
-# Until then this took no env argument at all and the .mjs defaulted to dev's
-# hardcoded URL, which is why the guides only ever existed in dev.
+# Idempotent — re-running reconciles rather than duplicating, and since
+# 2026-10-26 an unchanged guide is not re-ingested at all (content hash).
 #
-# Teacher account: defaults to test-teacher@example.dk, which exists on all three
-# envs (verified on prod 2026-08-05). Override with TEACHER_EMAIL/TEACHER_PASSWORD.
+# IDENTITY (2026-10-26): the env's runtime service account, through the
+# SA-allowlisted /api/admin/guide-corpus/* routes — no person's account, no
+# password. It used to sign in as test-teacher@example.dk and call the teacher
+# routes, which two later gates (shared ingest is researcher-only; ingest is a
+# paid call) refuse — prod's corpus sat frozen at the 2026-08-05 text because of
+# it. Needs roles/iam.serviceAccountTokenCreator on aipla-v6@<project>, the same
+# grant `make list-roles` needs.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+
+if ! command -v gcloud >/dev/null 2>&1 && [ -x "$HOME/dev/google-cloud-sdk/bin/gcloud" ]; then
+  PATH="$HOME/dev/google-cloud-sdk/bin:$PATH"
+fi
+# The ACTIVE gcloud config is not an AIPLA one (see scripts/aiplatform-admin.sh).
+export CLOUDSDK_ACTIVE_CONFIG_NAME="${CLOUDSDK_ACTIVE_CONFIG_NAME:-aipla}"
 
 ENV="${1:-dev}"
 case "$ENV" in
@@ -80,10 +94,25 @@ if [ -z "${STALE_OK:-}" ] && git rev-parse --git-dir >/dev/null 2>&1; then
   fi
 fi
 
-echo "Seeding guides from $GUIDE_DIR ($(ls "$GUIDE_DIR"/*.pdf | wc -l | tr -d ' ') PDFs)."
+echo "Seeding guides from $GUIDE_DIR."
 
-echo "Minting teacher token for ${ENV}…"
-TOKEN="$(scripts/mint-test-teacher-token.sh "$ENV" 2>/dev/null | tail -1)"
-[ -z "$TOKEN" ] && { echo "Could not mint a token for $ENV — aborting." >&2; exit 1; }
+# The platform seeds platform content: an ID token for the env's runtime SA,
+# which is what ADMIN_SEED_ALLOWED_SAS allowlists (same mint as
+# scripts/aiplatform-admin.sh). Needs roles/iam.serviceAccountTokenCreator on it.
+SA="aipla-v6@${PROJECT}.iam.gserviceaccount.com"
+echo "Minting an admin ID token as ${SA}…"
+# stderr suppressed on purpose: the impersonation WARNING otherwise prepends
+# onto the JWT and the backend rejects it as malformed (seed-platform-skills.sh).
+TOKEN="$(gcloud auth print-identity-token \
+  --impersonate-service-account="$SA" \
+  --audiences="$BASE_URL" \
+  --include-email \
+  2>/dev/null || true)"
+if [ -z "$TOKEN" ]; then
+  echo "Empty token — likely missing roles/iam.serviceAccountTokenCreator on $SA." >&2
+  exit 1
+fi
 
-GUIDE_TEACHER_TOKEN="$TOKEN" BASE_URL="$BASE_URL" node scripts/seed-guide-corpus.mjs
+GUIDE_ADMIN_TOKEN="$TOKEN" BASE_URL="$BASE_URL" GO="${GO:-}" \
+  GUIDE_SLUGS="${GUIDE_SLUGS:-}" GUIDE_EXCLUDE="${GUIDE_EXCLUDE:-}" \
+  node scripts/seed-guide-corpus.mjs
