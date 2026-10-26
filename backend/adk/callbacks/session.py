@@ -112,6 +112,112 @@ def _tools_per_tutor_row(events: list[Any], invocation_id: str) -> dict[int, lis
     return out
 
 
+def _response_outcome(response: Any) -> tuple[bool | None, str | None]:
+    """``(ok, error)`` of one ``function_response``. ``ok`` is None when unseen.
+
+    A tool that answers ``{"ok": False, "error": ...}`` (``calculate``) or
+    ``{"error": ...}`` (ADK's shape for a raised tool) failed. Anything else
+    that came back is a success, including a non-dict result.
+    """
+    if response is None:
+        return None, None
+    if isinstance(response, dict):
+        err = response.get("error")
+        if response.get("ok") is False or (err and response.get("ok") is not True):
+            return False, str(err) if err else None
+    return True, None
+
+
+def _tool_calls_of_invocation(events: list[Any], invocation_id: str) -> list[dict[str, Any]]:
+    """Every tool call of this invocation, paired with its response (1.1.152 M1b).
+
+    Each record is ``{call_index, name, args, response, turn_index}``.
+    ``turn_index`` follows ``_tools_per_tutor_row`` exactly (the next tutor text
+    event, or the last one for a trailing call, or None when the invocation has
+    no tutor text), so the tool-call rows and the chat row's ``tools_called``
+    never disagree about which reply a call served. A response is matched to its
+    call by ``id``, falling back to the earliest unanswered call of that name
+    (a model or test that sends no ids).
+    """
+    calls: list[dict[str, Any]] = []
+    by_id: dict[str, dict[str, Any]] = {}
+    pending: list[dict[str, Any]] = []
+    last_tutor: int | None = None
+    for idx, event in enumerate(events):
+        if getattr(event, "invocation_id", None) != invocation_id:
+            continue
+        content_obj = getattr(event, "content", None)
+        parts = (getattr(content_obj, "parts", None) if content_obj else None) or []
+        for p in parts:
+            fc = getattr(p, "function_call", None)
+            name = getattr(fc, "name", None) if fc is not None else None
+            if isinstance(name, str) and name:
+                rec: dict[str, Any] = {
+                    "call_index": len(calls),
+                    "name": name,
+                    "args": dict(getattr(fc, "args", None) or {}),
+                    "response": None,
+                    "answered": False,
+                    "turn_index": None,
+                }
+                calls.append(rec)
+                pending.append(rec)
+                if getattr(fc, "id", None):
+                    by_id[fc.id] = rec
+            fr = getattr(p, "function_response", None)
+            if fr is not None and getattr(fr, "name", None):
+                target = by_id.get(getattr(fr, "id", None) or "")
+                if target is None or target["answered"]:
+                    target = next((c for c in calls if c["name"] == fr.name and not c["answered"]), None)
+                if target is not None:
+                    target["response"] = getattr(fr, "response", None)
+                    target["answered"] = True
+        if getattr(event, "author", None) == "user":
+            continue
+        if any(getattr(p, "text", None) and p.text.strip() for p in parts):
+            for rec in pending:
+                rec["turn_index"] = idx
+            pending = []
+            last_tutor = idx
+    for rec in pending:
+        rec["turn_index"] = last_tutor
+    return calls
+
+
+def _emit_tool_calls(
+    events: list[Any],
+    invocation_id: str,
+    *,
+    group_code: str,
+    session_id: str,
+    skill_id: str,
+    teaching: Any = None,
+) -> None:
+    """One ``aipla_tool_call`` row per call of this invocation. Never raises."""
+    try:
+        from observability.chat_log import emit_tool_call
+
+        for rec in _tool_calls_of_invocation(events, invocation_id):
+            ok, error = _response_outcome(rec["response"]) if rec["answered"] else (None, None)
+            emit_tool_call(
+                group_id=group_code,
+                session_id=session_id,
+                skill_id=skill_id,
+                invocation_id=invocation_id,
+                turn_index=rec["turn_index"],
+                call_index=rec["call_index"],
+                tool=rec["name"],
+                ok=ok,
+                error=error,
+                args=rec["args"],
+                result=rec["response"],
+                class_id=getattr(teaching, "class_id", None),
+                activity_id=getattr(teaching, "activity_id", None),
+            )
+    except Exception as exc:
+        logger.warning("tool-call log emit failed (suppressed): %s", exc)
+
+
 def _emit_new_turns(
     session: Any,
     session_id: str,
@@ -189,6 +295,16 @@ def _emit_new_turns(
             return
 
         tools_by_idx = _tools_per_tutor_row(events, current_inv)
+        # 1.1.152 M1b: the calls themselves, one row each. Its own try, so a
+        # failure here can never cost the chat rows below.
+        _emit_tool_calls(
+            events,
+            current_inv,
+            group_code=group_code,
+            session_id=session_id,
+            skill_id=skill_id,
+            teaching=teaching,
+        )
 
         # latency_ms was accepted by the emitter and passed by nobody for four
         # months — 0 of 870 prod rows carried it (2026-09-11). ADK stamps every

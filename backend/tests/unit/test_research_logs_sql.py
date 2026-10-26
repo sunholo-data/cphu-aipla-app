@@ -38,6 +38,47 @@ def test_projection_selects_every_field_the_view_does():
     )
 
 
+def _tool_calls_view_query() -> str:
+    """The tool_calls view body from views.tf (1.1.152 M1b), to the end of its SQL."""
+    text = VIEWS_TF.read_text()
+    start = text.index('table_id            = "tool_calls"')
+    return text[start : text.index("SQL\n", text.index("<<-SQL", start) + 6)]
+
+
+def test_tool_calls_projection_matches_view():
+    """Both directions: a column in either copy and not the other is drift."""
+    view_keys = set(re.findall(r'"\$\.(\w+)"', _tool_calls_view_query()))
+    cte = research_logs._tool_calls_cte()
+    cte_keys = set(re.findall(r'"\$\.(\w+)"', cte))
+    assert view_keys == cte_keys, f"view only: {sorted(view_keys - cte_keys)}; CTE only: {sorted(cte_keys - view_keys)}"
+    assert "JSON_VALUE(" in cte and not re.search(r"jsonPayload\.\w+", cte)
+
+
+def test_tool_calls_view_selects_exactly_what_the_emitter_writes():
+    """The emitter's keys are the view's columns, so nothing lands un-columned."""
+    from unittest.mock import MagicMock, patch
+
+    from observability import chat_log
+
+    gl = MagicMock()
+    with patch.object(chat_log, "_get_logger", return_value=gl):
+        chat_log.emit_tool_call(
+            group_id="g", session_id="s", skill_id="k", invocation_id="i", turn_index=1, call_index=0, tool="t", ok=True
+        )
+    emitted = set(gl.log_struct.call_args.args[0])
+    view_keys = set(re.findall(r'"\$\.(\w+)"', _tool_calls_view_query()))
+    assert emitted == view_keys, (
+        f"emitted only: {sorted(emitted - view_keys)}; view only: {sorted(view_keys - emitted)}"
+    )
+
+
+def test_tool_calls_view_is_gated_on_its_own_flag():
+    """A view over a not-yet-created raw table fails the whole apply."""
+    text = VIEWS_TF.read_text()
+    block = text[text.index('resource "google_bigquery_table" "tool_calls"') :]
+    assert "count               = var.create_tool_calls_view ? 1 : 0" in block
+
+
 def test_projection_uses_json_value_never_struct_members():
     """A struct-member read fails the WHOLE query on a young dataset.
 

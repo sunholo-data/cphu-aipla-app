@@ -33,6 +33,13 @@ module "chat_logs" {
   # `aipla_chat_turn` and `aipla_workbench_event` both exist and carry data.
   create_views = true
 
+  # 1.1.152 M1b — the `tool_calls` view. FALSE until the environment has run a
+  # release that emits `aipla_tool_call` and the sink has created that table:
+  # a view over a missing table fails the whole apply. Check with
+  #   bq ls <project>:chat_logs | grep aipla_tool_call
+  # then flip to true (per env, if they diverge) and `make tf-apply ENV=<env>`.
+  create_tool_calls_view = false
+
   depends_on = [google_project_service.apis]
 }
 

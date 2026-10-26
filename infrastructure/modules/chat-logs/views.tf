@@ -141,3 +141,48 @@ resource "google_bigquery_table" "workbench_events" {
     SQL
   }
 }
+
+# 1.1.152 M1b (2026-10-26): one row per tool call the tutor made. Gated on its
+# own flag because the base table only exists after the first `aipla_tool_call`
+# write, and a view over a missing table fails the whole apply (see the
+# variable). `args` / `result` are JSON strings and are non-NULL ONLY for
+# `calculate` / `show_calculation` (observability/chat_log.TOOL_CALL_DETAIL_TOOLS):
+# no other tool's arguments are logged, because they can quote the student.
+# `turn_index` is the chat_turns tutor row the call served, by the same
+# attribution as chat_turns.tools_called, so the two join on
+# (session_id, turn_index). NULL turn_index = the invocation had no tutor text.
+# NULL ok = no response was seen for the call.
+resource "google_bigquery_table" "tool_calls" {
+  count               = var.create_tool_calls_view ? 1 : 0
+  project             = var.project_id
+  dataset_id          = google_bigquery_dataset.chat_logs.dataset_id
+  table_id            = "tool_calls"
+  deletion_protection = false
+
+  description = "Flattened view of tool calls (1.1.152 M1b). Source: ${var.tool_call_table} (sink-created)."
+
+  view {
+    use_legacy_sql = false
+    query          = <<-SQL
+      SELECT
+        timestamp AS ts,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.group_id") AS group_id,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.session_id") AS session_id,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.skill_id") AS skill_id,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.invocation_id") AS invocation_id,
+        SAFE_CAST(SAFE_CAST(JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.turn_index") AS FLOAT64) AS INT64) AS turn_index,
+        SAFE_CAST(SAFE_CAST(JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.call_index") AS FLOAT64) AS INT64) AS call_index,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.tool") AS tool,
+        SAFE_CAST(JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.ok") AS BOOL) AS ok,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.error") AS error,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.args") AS args,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.result") AS result,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.calc_id") AS calc_id,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.class_id") AS class_id,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.activity_id") AS activity_id,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.revision") AS revision,
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.app_version") AS app_version
+      FROM `${var.project_id}.${var.dataset_id}.${var.tool_call_table}`
+    SQL
+  }
+}

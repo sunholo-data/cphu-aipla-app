@@ -38,10 +38,11 @@ variable "log_filter" {
     suffix so the same default works in every env. The backend emitter
     must write under log ids `aipla_chat_turn`, `aipla_workbench_event`,
     `aipla_voice_cost` (1.1.9 voice-cost integration), and
-    `aipla_rubric_run` (RUBRIC-2 M3 — rubric run provenance) and
-    `aipla_rubric_review` (1.1.148 M4 — append-only researcher reviews).
+    `aipla_rubric_run` (RUBRIC-2 M3 — rubric run provenance),
+    `aipla_rubric_review` (1.1.148 M4 — append-only researcher reviews) and
+    `aipla_tool_call` (1.1.152 M1b — one row per tool call).
   EOT
-  default     = "logName=~\"/logs/aipla_(chat_turn|workbench_event|voice_cost|rubric_run|rubric_review)$\""
+  default     = "logName=~\"/logs/aipla_(chat_turn|workbench_event|voice_cost|rubric_run|rubric_review|tool_call)$\""
 }
 
 variable "partition_expiration_days" {
@@ -94,6 +95,24 @@ variable "event_table" {
   type        = string
   description = "Sink-created raw table for workbench events (derived from the log id `aipla_workbench_event`). Only used when create_views = true."
   default     = "aipla_workbench_event"
+}
+
+variable "create_tool_calls_view" {
+  type        = bool
+  description = <<-EOT
+    Create the flattened `tool_calls` view (1.1.152 M1b) over the sink's raw
+    `aipla_tool_call` table. Separate from `create_views` because that table
+    appears only on the first tool-call log write, which needs a release that
+    emits it, and a view over a missing table fails the WHOLE apply. Flip to
+    TRUE per environment once `aipla_tool_call` exists there.
+  EOT
+  default     = false
+}
+
+variable "tool_call_table" {
+  type        = string
+  description = "Sink-created raw table for tool calls (derived from the log id `aipla_tool_call`). Only used when create_tool_calls_view = true."
+  default     = "aipla_tool_call"
 }
 
 # ---- Backup (backup.tf) -----------------------------------------------------

@@ -94,8 +94,9 @@ so the default `log_filter` and view source tables match:
 
 - `aipla_chat_turn` — `jsonPayload = {group_id, session_id, skill_id, turn_index, role, content, model, token_in, token_out, latency_ms, teacher_focus}`
 - `aipla_workbench_event` — `jsonPayload = {group_id, session_id, skill_id, server, tool, field, value}`
+- `aipla_tool_call` (1.1.152 M1b) — one row per tool call: `jsonPayload = {group_id, session_id, skill_id, invocation_id, turn_index, call_index, tool, ok, error, args, result, calc_id, class_id, activity_id, revision, app_version}`. `args`/`result` are JSON strings, set only for `calculate`/`show_calculation`. Its `tool_calls` view is behind `create_tool_calls_view` (default false), because the raw table exists only after the first write.
 
-If you change the log ids, override `log_filter`, `turn_table`, `event_table`.
+If you change the log ids, override `log_filter`, `turn_table`, `event_table`, `tool_call_table`.
 
 ## Outputs
 

@@ -356,3 +356,36 @@ Deleted; the region is now pinned in the script so it cannot recur.
 indexing the RagFile due to: ', {'code': 13})` that names nothing. The display
 name must be a plain filename, and `.txt` is the suffix known to index (the
 curriculum path's shape).
+
+---
+
+## 2026-10-26 — Tool-call log + `tool_calls` view (1.1.152 M1b)
+
+**New log id:** `aipla_tool_call` (`observability/chat_log.emit_tool_call`), one
+row per tool call. **New BigQuery table:** `chat_logs.aipla_tool_call`,
+auto-created by the existing `aipla-chat-logs` sink on the first write. It
+**requires the sink FILTER to include `tool_call`**, or rows are dropped
+silently.
+
+**Terraform module:** `infrastructure/modules/chat-logs/` — `log_filter` default
+gains `tool_call`; a new `tool_calls` view behind `create_tool_calls_view`
+(default false, and `env/modules.tf` sets false). The view waits for its own flag
+because a view over the not-yet-created raw table fails the whole apply.
+
+**How (repeatable):**
+- Test/prod: `make tf-apply ENV=<env> GO=1` converges the filter (one in-place
+  sink update). After a release that emits tool calls has run there and
+  `bq ls <project>:chat_logs` shows `aipla_tool_call`, flip
+  `create_tool_calls_view = true` and apply again.
+- Dev (never Terraform-applied): `scripts/bootstrap-aipla-dev.sh` `sink_filter`
+  now matches the Terraform default. Dev's live filter was behind it already
+  (`chat_turn|workbench_event|voice_cost` only, so dev's `rubric_run` /
+  `rubric_review` rows were being dropped), so converge it directly:
+
+  ```
+  gcloud logging sinks update aipla-chat-logs \
+    --log-filter='logName=~"/logs/aipla_(chat_turn|workbench_event|voice_cost|rubric_run|rubric_review|tool_call)$"' \
+    --project=aipla-dev-2026
+  ```
+
+  Dev has no views; readers use `analytics/research_logs._tool_calls_cte`.

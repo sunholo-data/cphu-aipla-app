@@ -400,15 +400,99 @@ def emit_rubric_review(row: dict[str, Any]) -> None:
         logger.warning("chat_log: emit_rubric_review failed (suppressed): %s", exc)
 
 
+LOG_ID_TOOL_CALL = "aipla_tool_call"  # 1.1.152 M1b — one row per tool call
+
+#: The only tools whose arguments and results are logged. Their inputs are
+#: model-authored numbers with units, and the point of the row is that a
+#: researcher can re-run the calculation (``calc_id``). Every other tool logs
+#: its name and outcome only: an illustrator request or a sim control can quote
+#: what the student wrote, and the chat row already carries that text once.
+TOOL_CALL_DETAIL_TOOLS = frozenset({"calculate", "show_calculation"})
+
+#: Cap on each logged JSON string. The engine's own caps keep a real call far
+#: below this; the cap is for a call the engine refused for being too long.
+TOOL_CALL_JSON_CAP = 4000
+TOOL_CALL_ERROR_CAP = 300
+
+
+def _capped_json(value: Any) -> str:
+    """``value`` as a JSON string, still valid JSON when it is over the cap."""
+    text = json.dumps(value, ensure_ascii=False, default=str)
+    if len(text) <= TOOL_CALL_JSON_CAP:
+        return text
+    return json.dumps({"truncated": True, "chars": len(text), "head": text[: TOOL_CALL_JSON_CAP // 2]})
+
+
+def emit_tool_call(
+    *,
+    group_id: str,
+    session_id: str,
+    skill_id: str,
+    invocation_id: str,
+    turn_index: int | None,
+    call_index: int,
+    tool: str,
+    ok: bool | None,
+    error: str | None = None,
+    args: Any = None,
+    result: Any = None,
+    class_id: str | None = None,
+    activity_id: str | None = None,
+) -> None:
+    """Emit one tool call (1.1.152 M1b). Never raises; no-op in LOCAL_MODE.
+
+    ``turn_index`` is the tutor row the call is credited to, by the same rule as
+    the chat row's ``tools_called`` (the NEXT tutor text event of the invocation,
+    or the last one for a trailing call), so a join on
+    ``(session_id, turn_index)`` puts every call beside the reply it served.
+    NULL when the invocation produced no tutor text at all. ``call_index`` is
+    the call's order within its invocation.
+
+    ``ok`` is NULL when no response was seen for the call. ``args`` /
+    ``result`` / ``calc_id`` are written ONLY for ``TOOL_CALL_DETAIL_TOOLS``;
+    for any other tool they are NULL whatever the caller passes. They are JSON
+    STRINGS, not structs, so the sink's inferred schema stays scalar.
+    """
+    gl = _get_logger(LOG_ID_TOOL_CALL)
+    if gl is None:
+        return
+    detailed = tool in TOOL_CALL_DETAIL_TOOLS
+    calc_id = result.get("calc_id") if detailed and isinstance(result, dict) else None
+    payload = {
+        "group_id": group_id,
+        "session_id": session_id,
+        "skill_id": skill_id,
+        "invocation_id": invocation_id,
+        "turn_index": turn_index,
+        "call_index": call_index,
+        "tool": tool,
+        "ok": ok,
+        "error": error[:TOOL_CALL_ERROR_CAP] if isinstance(error, str) else None,
+        "args": _capped_json(args) if detailed and args is not None else None,
+        "result": _capped_json(result) if detailed and result is not None else None,
+        "calc_id": calc_id if isinstance(calc_id, str) else None,
+        "class_id": class_id,
+        "activity_id": activity_id,
+        **_version_fields(),
+    }
+    try:
+        gl.log_struct(payload)
+    except Exception as exc:  # telemetry must never break the chat path
+        logger.warning("chat_log: emit_tool_call failed (suppressed): %s", exc)
+
+
 __all__ = [
     "LOG_ID_CHAT_TURN",
     "LOG_ID_RUBRIC_REVIEW",
     "LOG_ID_RUBRIC_RUN",
+    "LOG_ID_TOOL_CALL",
     "LOG_ID_VOICE_COST",
     "LOG_ID_WORKBENCH_EVENT",
+    "TOOL_CALL_DETAIL_TOOLS",
     "emit_chat_turn",
     "emit_rubric_review",
     "emit_rubric_run",
+    "emit_tool_call",
     "emit_voice_cost",
     "emit_workbench_event",
     "group_code_from_owner_uid",

@@ -39,7 +39,7 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from db.bigquery import CHAT_TURN_TABLE, WORKBENCH_EVENT_TABLE, run_query, table_ref
+from db.bigquery import CHAT_TURN_TABLE, TOOL_CALL_TABLE, WORKBENCH_EVENT_TABLE, run_query, table_ref
 
 log = logging.getLogger(__name__)
 
@@ -325,6 +325,46 @@ def _work_cte() -> str:
         {j.format("label")} AS label,
         {j.format("revision")} AS revision
       FROM {table_ref(WORKBENCH_EVENT_TABLE)}
+    """
+
+
+def _tool_calls_cte() -> str:
+    """Projection over the raw ``aipla_tool_call`` table (1.1.152 M1b): the
+    ``tool_calls`` view's SELECT list, inlined for the same reason as
+    :func:`_turns_cte`. That view is behind its own terraform flag and dev has
+    no views at all, so a reader bound to it would fail exactly where the data
+    first appears. ``test_tool_calls_projection_matches_view`` holds the two in
+    lockstep.
+
+    ⚠️ The raw table does not exist until an environment's first tool-call
+    write, so a query over this CTE fails with ``Not found`` before then. That is
+    an honest error rather than an empty answer; do not catch it into one.
+
+    ``turn_index`` joins ``turns.turn_index`` on ``session_id`` (same
+    attribution as ``tools_called``). ``args`` / ``result`` are JSON strings,
+    non-NULL only for ``calculate`` / ``show_calculation``.
+    """
+    j = 'JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.{}")'
+    return f"""
+      SELECT
+        timestamp AS ts,
+        {j.format("group_id")} AS group_id,
+        {j.format("session_id")} AS session_id,
+        {j.format("skill_id")} AS skill_id,
+        {j.format("invocation_id")} AS invocation_id,
+        SAFE_CAST(SAFE_CAST({j.format("turn_index")} AS FLOAT64) AS INT64) AS turn_index,
+        SAFE_CAST(SAFE_CAST({j.format("call_index")} AS FLOAT64) AS INT64) AS call_index,
+        {j.format("tool")} AS tool,
+        SAFE_CAST({j.format("ok")} AS BOOL) AS ok,
+        {j.format("error")} AS error,
+        {j.format("args")} AS args,
+        {j.format("result")} AS result,
+        {j.format("calc_id")} AS calc_id,
+        {j.format("class_id")} AS class_id,
+        {j.format("activity_id")} AS activity_id,
+        {j.format("revision")} AS revision,
+        {j.format("app_version")} AS app_version
+      FROM {table_ref(TOOL_CALL_TABLE)}
     """
 
 
