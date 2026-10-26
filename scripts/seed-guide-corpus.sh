@@ -35,7 +35,7 @@ SERVICE="aipla-v01-frontend"
 command -v gcloud >/dev/null 2>&1 || { echo "gcloud not on PATH" >&2; exit 2; }
 command -v node   >/dev/null 2>&1 || { echo "node not on PATH" >&2; exit 2; }
 
-echo "Resolving $SERVICE in $PROJECT…"
+echo "Resolving $SERVICE in ${PROJECT}…"
 BASE_URL="$(gcloud run services describe "$SERVICE" \
   --project="$PROJECT" --region="$REGION" \
   --format='value(status.url)' 2>/dev/null || true)"
@@ -82,7 +82,7 @@ fi
 
 echo "Seeding guides from $GUIDE_DIR ($(ls "$GUIDE_DIR"/*.pdf | wc -l | tr -d ' ') PDFs)."
 
-echo "Minting teacher token for $ENV…"
+echo "Minting teacher token for ${ENV}…"
 TOKEN="$(scripts/mint-test-teacher-token.sh "$ENV" 2>/dev/null | tail -1)"
 [ -z "$TOKEN" ] && { echo "Could not mint a token for $ENV — aborting." >&2; exit 1; }
 
