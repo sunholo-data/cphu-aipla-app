@@ -78,9 +78,44 @@ describe("BudgetPanel", () => {
     );
     render(<BudgetPanel classId="c-1" />);
     const line = await screen.findByTestId("voice-cost-line");
-    expect(line).toHaveTextContent("Includes voice €0.12");
-    expect(line).toHaveTextContent("STT €0.10");
-    expect(line).toHaveTextContent("TTS €0.02");
+    expect(line).toHaveTextContent("Includes voice €0.120");
+    expect(line).toHaveTextContent("STT €0.100");
+    expect(line).toHaveTextContent("TTS €0.020");
+  });
+
+  it("lists each lesson day with its cost, replies and groups", async () => {
+    vi.spyOn(costApi, "fetchClassSpend").mockResolvedValue(
+      payload({
+        by_day: [
+          { day: "2026-10-20", eur: 0.1367, replies: 60, groups: 4 },
+          { day: "2026-10-05", eur: 0.5006, replies: 255, groups: 9 },
+        ],
+      }),
+    );
+    render(<BudgetPanel classId="c-1" />);
+    const list = await screen.findByTestId("spend-by-day");
+    const rows = list.querySelectorAll("li");
+    expect(rows).toHaveLength(2);
+    expect(rows[0].querySelector("time")).toHaveAttribute("dateTime", "2026-10-20");
+    expect(rows[0]).toHaveTextContent("Tue 20 Oct");
+    expect(rows[0]).toHaveTextContent("60 replies · 4 groups");
+    expect(rows[0]).toHaveTextContent("€0.137");
+    expect(rows[1]).toHaveTextContent("€0.501");
+  });
+
+  it("names activities by title, falling back to the id", async () => {
+    vi.spyOn(costApi, "fetchClassSpend").mockResolvedValue(
+      payload({
+        by_activity: [
+          { activity_id: "act-1", skill_id: "uuid-1", title: "Den hoppende bold", eur: 2.5 },
+          { activity_id: null, skill_id: "kinebot", title: null, eur: 1.7 },
+        ],
+      }),
+    );
+    render(<BudgetPanel classId="c-1" />);
+    expect(await screen.findByText("Den hoppende bold")).toBeInTheDocument();
+    expect(screen.getByText("kinebot")).toBeInTheDocument();
+    expect(screen.queryByText("uuid-1")).not.toBeInTheDocument();
   });
 
   it("omits the voice line when there is no voice cost", async () => {

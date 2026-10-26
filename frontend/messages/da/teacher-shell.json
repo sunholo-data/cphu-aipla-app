@@ -105,7 +105,9 @@
     "voice": "Heraf stemme {amount}",
     "noSpend": "Intet forbrug registreret i denne periode.",
     "topActivities": "Største aktiviteter",
-    "topGroups": "Største grupper"
+    "topGroups": "Største grupper",
+    "byDay": "Pr. dag",
+    "dayDetail": "{replies} svar · {groups, plural, one {# gruppe} other {# grupper}}"
   },
   "AskAiplaButton": {
     "button": "Spørg AIPLA",

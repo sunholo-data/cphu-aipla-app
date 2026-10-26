@@ -105,7 +105,9 @@
     "voice": "Includes voice {amount}",
     "noSpend": "No spend recorded for this period.",
     "topActivities": "Top activities",
-    "topGroups": "Top groups"
+    "topGroups": "Top groups",
+    "byDay": "By day",
+    "dayDetail": "{replies, plural, one {# reply} other {# replies}} · {groups, plural, one {# group} other {# groups}}"
   },
   "AskAiplaButton": {
     "button": "Ask AIPLA",

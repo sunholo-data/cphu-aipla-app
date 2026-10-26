@@ -25,6 +25,18 @@ def test_none_model_prices_zero() -> None:
     assert cost_eur(None, 1000, 1000) == 0.0
 
 
+def test_nothing_to_price_does_not_warn(caplog) -> None:
+    """A student's own turn has no model and no tokens. Warning on it buried
+    the one warning that matters — a real call priced at zero — under one
+    line per student row."""
+    with caplog.at_level("WARNING", logger="analytics.rate_card"):
+        assert cost_eur(None, 0, 0) == 0.0
+    assert caplog.records == []
+    with caplog.at_level("WARNING", logger="analytics.rate_card"):
+        assert cost_eur(None, 10, 0) == 0.0
+    assert len(caplog.records) == 1
+
+
 def test_cost_math() -> None:
     # 10k in + 5k out on claude-sonnet-4-6 (0.0027 / 0.0135 per 1k)
     expected = (10000 / 1000) * 0.0027 + (5000 / 1000) * 0.0135

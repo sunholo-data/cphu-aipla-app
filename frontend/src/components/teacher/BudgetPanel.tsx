@@ -3,13 +3,15 @@
 import { useEffect, useState } from "react";
 
 import {
+  type ActivitySpend,
   type ClassSpendPayload,
+  type DaySpend,
   type SpendPeriod,
   fetchClassSpend,
   formatEur,
   usedVoice,
 } from "@/lib/costApi";
-import { useT, type MessageKey } from "@/i18n";
+import { useLocaleMode, useT, type MessageKey } from "@/i18n";
 
 const PERIODS: { value: SpendPeriod; label: MessageKey<"BudgetPanel"> }[] = [
   { value: "this_month", label: "thisMonth" },
@@ -20,9 +22,10 @@ const PERIODS: { value: SpendPeriod; label: MessageKey<"BudgetPanel"> }[] = [
 /**
  * Per-class spend panel for the class-detail screen (sprint 1.1.9).
  *
- * Shows this-period spend, a month-end projection (this_month only), and
- * the top activities / groups by cost. No cap progress bar — class-level
- * caps are deferred (the shipped enforcer is skill-level). EUR only.
+ * Shows this-period spend, a month-end projection (this_month only), the
+ * cost of each lesson day, and the top activities / groups by cost. No cap
+ * progress bar — class-level caps are deferred (the shipped enforcer is
+ * skill-level). EUR only.
  */
 export function BudgetPanel({ classId }: { classId: string }) {
   const t = useT("BudgetPanel");
@@ -106,9 +109,10 @@ export function BudgetPanel({ classId }: { classId: string }) {
             <p className="text-sm text-muted-foreground">{t("noSpend")}</p>
           ) : (
             <div className="grid gap-4 sm:grid-cols-2">
+              <DayList days={data.by_day ?? []} />
               <SpendList
                 title={t("topActivities")}
-                rows={data.by_activity.slice(0, 3).map((a) => ({ label: a.skill_id, eur: a.eur }))}
+                rows={data.by_activity.slice(0, 3).map((a) => ({ label: activityLabel(a), eur: a.eur }))}
               />
               <SpendList
                 title={t("topGroups")}
@@ -119,6 +123,45 @@ export function BudgetPanel({ classId }: { classId: string }) {
         </div>
       ) : null}
     </section>
+  );
+}
+
+function activityLabel(a: ActivitySpend): string {
+  return a.title || a.activity_id || a.skill_id;
+}
+
+/** One row per lesson day, newest first — "what did Tuesday cost?" without
+ *  leaving the class page. Scrolls rather than truncating: an all-time view
+ *  of a busy class is still one list. */
+function DayList({ days }: { days: DaySpend[] }) {
+  const t = useT("BudgetPanel");
+  const mode = useLocaleMode();
+  if (days.length === 0) return null;
+  const fmt = new Intl.DateTimeFormat(mode === "en" ? "en-GB" : "da-DK", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
+  return (
+    <div className="flex flex-col gap-1 sm:col-span-2" data-testid="spend-by-day">
+      <h4 className="text-xs font-medium text-muted-foreground">{t("byDay")}</h4>
+      <ul className="flex max-h-48 flex-col gap-0.5 overflow-y-auto text-sm">
+        {days.map((d) => {
+          const [y, m, day] = d.day.split("-").map(Number);
+          return (
+            <li key={d.day} className="flex items-center justify-between gap-2">
+              <span className="truncate">
+                <time dateTime={d.day}>{fmt.format(new Date(y, m - 1, day))}</time>
+                <span className="ml-2 text-xs text-muted-foreground">
+                  {t("dayDetail", { replies: d.replies, groups: d.groups })}
+                </span>
+              </span>
+              <span className="tabular-nums text-muted-foreground">{formatEur(d.eur)}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
   );
 }
 

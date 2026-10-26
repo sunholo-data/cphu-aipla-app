@@ -233,8 +233,12 @@ async def class_spend(
         period: "this_month" (default), "last_month", or "all_time".
 
     Returns:
-        ``{"total_eur", "by_activity", "by_group", "by_model", "voice_eur",
-        "by_voice_kind", "projected_eur", "period", "class_id", ...}``.
+        ``{"total_eur", "by_activity", "by_group", "by_model", "by_day",
+        "voice_eur", "by_voice_kind", "projected_eur", "period", "class_id",
+        ...}``. ``by_day`` is one entry per lesson day (Copenhagen date,
+        newest first) with its ``eur``, tutor ``replies`` and active
+        ``groups`` — use it for "what did yesterday's lesson cost?".
+        ``by_activity`` entries carry the activity ``title`` when known.
         ``projected_eur`` is a month-end estimate, set only for
         "this_month".
     """

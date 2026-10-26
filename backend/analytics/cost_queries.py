@@ -17,6 +17,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 from analytics.rate_card import CURRENCY, cost_eur, usd_to_eur
+from db.activities import get_activity
 from db.bigquery import CHAT_TURN_TABLE, jsonpayload_columns, run_query, table_ref
 from db.classes import get_class, list_all_classes
 
@@ -25,6 +26,10 @@ VOICE_COST_TABLE = "aipla_voice_cost"
 log = logging.getLogger(__name__)
 
 Period = Literal["this_month", "last_month", "all_time"]
+
+#: The calendar a lesson happens in. Day buckets use it so an 08:15 lesson
+#: and a 23:30 one land on the date the teacher would name.
+LESSON_TZ = "Europe/Copenhagen"
 
 #: Far-past lower bound for "all_time" so the BQ scan still has a bound.
 _EPOCH = datetime(2026, 1, 1, tzinfo=UTC)
@@ -68,21 +73,36 @@ def spend_rows(group_codes: list[str], since: datetime, until: datetime) -> list
     ship). We probe the live schema and reference only existing columns:
     a missing ``model`` becomes NULL (→ "unknown" at pricing), missing token
     columns become 0. The column-name selection is from the BQ schema, not
-    caller input — no injection surface (group codes/timestamps stay bound)."""
+    caller input — no injection surface (group codes/timestamps stay bound).
+
+    Each row also carries its ``day`` (Copenhagen calendar date — a lesson is
+    a local-time thing), its ``activity_id`` when the turn was stamped with one,
+    and ``replies``, the number of priced tutor turns. They are what let the
+    class panel answer "what did Tuesday's lesson cost?" without a second
+    query; consumers that only want totals simply sum across them."""
     if not group_codes:
         return []
     cols = jsonpayload_columns(CHAT_TURN_TABLE)
     model_sel = "jsonPayload.model" if "model" in cols else "CAST(NULL AS STRING)"
     tin_sel = "SUM(CAST(jsonPayload.token_in AS INT64))" if "token_in" in cols else "0"
     tout_sel = "SUM(CAST(jsonPayload.token_out AS INT64))" if "token_out" in cols else "0"
-    group_by = "jsonPayload.skill_id, jsonPayload.group_id" + (", jsonPayload.model" if "model" in cols else "")
+    act_sel = "jsonPayload.activity_id" if "activity_id" in cols else "CAST(NULL AS STRING)"
+    replies_sel = "COUNTIF(jsonPayload.token_in IS NOT NULL)" if "token_in" in cols else "0"
+    group_by = (
+        "jsonPayload.skill_id, jsonPayload.group_id, day"
+        + (", jsonPayload.activity_id" if "activity_id" in cols else "")
+        + (", jsonPayload.model" if "model" in cols else "")
+    )
     sql = f"""
         SELECT
           {model_sel} AS model,
           jsonPayload.skill_id AS skill_id,
           jsonPayload.group_id AS group_id,
+          {act_sel} AS activity_id,
+          DATE(timestamp, '{LESSON_TZ}') AS day,
           {tin_sel} AS token_in,
-          {tout_sel} AS token_out
+          {tout_sel} AS token_out,
+          {replies_sel} AS replies
         FROM {table_ref(CHAT_TURN_TABLE)}
         WHERE jsonPayload.group_id IN UNNEST(@group_codes)
           AND timestamp BETWEEN @since AND @until
@@ -101,6 +121,9 @@ def spend_rows(group_codes: list[str], since: datetime, until: datetime) -> list
                 "group_id": r["group_id"],
                 "token_in": int(r["token_in"] or 0),
                 "token_out": int(r["token_out"] or 0),
+                "activity_id": r.get("activity_id"),
+                "day": r["day"].isoformat() if r.get("day") else None,
+                "replies": int(r.get("replies") or 0),
             }
         )
     return out
@@ -208,10 +231,16 @@ def _fold_voice(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 def _fold(rows: list[dict[str, Any]]) -> dict[str, Any]:
     """Price raw token rows into EUR totals + by-activity / by-group / by-model
-    breakdowns (each a descending-by-spend list)."""
-    by_activity: dict[str, float] = {}
+    breakdowns (each a descending-by-spend list), and a by-day breakdown
+    (newest first) so one lesson's cost can be read off directly.
+
+    An activity bucket is the (activity_id, skill_id) pair: rows logged before
+    turns were stamped with an activity, or outside one, carry no activity_id
+    and fall back to their skill."""
+    by_activity: dict[tuple[str | None, str], float] = {}
     by_group: dict[str, float] = {}
     by_model: dict[str, float] = {}
+    by_day: dict[str, dict[str, Any]] = {}
     total = 0.0
     total_in = 0
     total_out = 0
@@ -220,9 +249,16 @@ def _fold(rows: list[dict[str, Any]]) -> dict[str, Any]:
         total += c
         total_in += r["token_in"]
         total_out += r["token_out"]
-        by_activity[r["skill_id"]] = by_activity.get(r["skill_id"], 0.0) + c
+        act_key = (r.get("activity_id") or None, r["skill_id"])
+        by_activity[act_key] = by_activity.get(act_key, 0.0) + c
         by_group[r["group_id"]] = by_group.get(r["group_id"], 0.0) + c
         by_model[r["model"] or "unknown"] = by_model.get(r["model"] or "unknown", 0.0) + c
+        if r.get("day"):
+            d = by_day.setdefault(r["day"], {"eur": 0.0, "replies": 0, "groups": set()})
+            d["eur"] += c
+            d["replies"] += int(r.get("replies") or 0)
+            if r.get("replies"):
+                d["groups"].add(r["group_id"])
 
     def _ranked(d: dict[str, float], key: str) -> list[dict[str, Any]]:
         return [{key: k, "eur": round(v, 4)} for k, v in sorted(d.items(), key=lambda kv: kv[1], reverse=True)]
@@ -232,10 +268,33 @@ def _fold(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "total_eur": round(total, 4),
         "token_in": total_in,
         "token_out": total_out,
-        "by_activity": _ranked(by_activity, "skill_id"),
+        "by_activity": [
+            {"activity_id": act, "skill_id": skill, "eur": round(v, 4)}
+            for (act, skill), v in sorted(by_activity.items(), key=lambda kv: kv[1], reverse=True)
+        ],
         "by_group": _ranked(by_group, "group_id"),
         "by_model": _ranked(by_model, "model"),
+        "by_day": [
+            {"day": day, "eur": round(d["eur"], 4), "replies": d["replies"], "groups": len(d["groups"])}
+            for day, d in sorted(by_day.items(), reverse=True)
+        ],
     }
+
+
+def _title_activities(by_activity: list[dict[str, Any]]) -> None:
+    """Give each activity bucket the title a teacher knows it by, in place.
+
+    A missing or deleted activity keeps ``title: None`` and the panel falls
+    back to the id — a cost view must not fail on a lookup."""
+    for a in by_activity:
+        title = None
+        if a.get("activity_id"):
+            try:
+                act = get_activity(a["activity_id"], include_deleted=True)
+                title = act.title if act and act.title else None
+            except Exception as exc:
+                log.warning("cost_queries: activity title lookup failed (%s)", type(exc).__name__)
+        a["title"] = title
 
 
 def class_spend(class_id: str, period: Period, *, now: datetime | None = None) -> dict[str, Any]:
@@ -246,6 +305,7 @@ def class_spend(class_id: str, period: Period, *, now: datetime | None = None) -
     cls = get_class(class_id)
     codes = list(cls.group_codes) if cls else []
     folded = _fold(_safe_spend_rows(codes, since, until))
+    _title_activities(folded["by_activity"])
     voice = _fold_voice(_safe_voice_spend(codes, since, until))
     # total = LLM token cost + voice (STT/TTS); breakdowns stay LLM, voice is
     # its own line. Combine BEFORE projecting so the projection includes voice.

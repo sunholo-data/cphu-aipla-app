@@ -347,3 +347,101 @@ def test_no_voice_reports_no_volume() -> None:
     folded = cost_queries._fold_voice([])
     assert folded["voice_units"] == 0
     assert folded["voice_eur"] == 0.0
+
+
+# --- one lesson's cost: by_day + activity titles ----------------------------
+
+
+def test_spend_rows_buckets_by_copenhagen_day_and_activity() -> None:
+    """The question this answers is "what did Tuesday's lesson cost?" — so the
+    day is the teacher's calendar date, not UTC's."""
+    with (
+        patch.object(cost_queries, "jsonpayload_columns", return_value=_ALL_COLS | {"activity_id"}),
+        patch.object(cost_queries, "run_query") as mock_q,
+    ):
+        mock_q.return_value = []
+        cost_queries.spend_rows(["a-b-1"], datetime(2026, 6, 1, tzinfo=UTC), NOW)
+        sql = mock_q.call_args.args[0]
+    assert "DATE(timestamp, 'Europe/Copenhagen') AS day" in sql
+    assert "jsonPayload.activity_id AS activity_id" in sql
+    assert "COUNTIF(jsonPayload.token_in IS NOT NULL) AS replies" in sql
+
+
+def test_spend_rows_tolerates_missing_activity_column() -> None:
+    with (
+        patch.object(cost_queries, "jsonpayload_columns", return_value=_ALL_COLS),
+        patch.object(cost_queries, "run_query") as mock_q,
+    ):
+        mock_q.return_value = []
+        cost_queries.spend_rows(["a-b-1"], datetime(2026, 6, 1, tzinfo=UTC), NOW)
+        sql = mock_q.call_args.args[0]
+    assert "jsonPayload.activity_id" not in sql
+    assert "CAST(NULL AS STRING) AS activity_id" in sql
+
+
+def test_class_spend_by_day_reads_one_lesson_off_directly() -> None:
+    from db.activities import create_activity
+    from db.models.activity import Activity
+
+    act = create_activity(Activity.model_validate({"activityId": "act-1", "ownerUid": "teacher-A", "title": "Kast"}))
+    cls = _seed_class("teacher-A", group_codes=["g-1", "g-2"])
+    flash = "gemini-3.5-flash-lite"
+    fake = [
+        {
+            "model": flash,
+            "skill_id": "s",
+            "group_id": "g-1",
+            "activity_id": act.activity_id,
+            "day": "2026-06-09",
+            "token_in": 100_000,
+            "token_out": 1_000,
+            "replies": 20,
+        },
+        {
+            "model": flash,
+            "skill_id": "s",
+            "group_id": "g-2",
+            "activity_id": act.activity_id,
+            "day": "2026-06-09",
+            "token_in": 100_000,
+            "token_out": 1_000,
+            "replies": 15,
+        },
+        # The student's own rows: no model, no tokens, no replies — not a group "using" the tutor.
+        {
+            "model": None,
+            "skill_id": "s",
+            "group_id": "g-2",
+            "activity_id": act.activity_id,
+            "day": "2026-06-11",
+            "token_in": 0,
+            "token_out": 0,
+            "replies": 0,
+        },
+        {
+            "model": flash,
+            "skill_id": "s",
+            "group_id": "g-1",
+            "activity_id": None,
+            "day": "2026-06-11",
+            "token_in": 10_000,
+            "token_out": 0,
+            "replies": 2,
+        },
+    ]
+    with patch.object(cost_queries, "spend_rows", return_value=fake):
+        result = cost_queries.class_spend(cls.class_id, "this_month", now=NOW)
+
+    days = result["by_day"]
+    assert [d["day"] for d in days] == ["2026-06-11", "2026-06-09"]  # newest first
+    tuesday = days[1]
+    # 2 x (100k * 0.0003 + 1k * 0.0025) = 2 x 0.0325
+    assert tuesday["eur"] == pytest.approx(0.065)
+    assert tuesday["replies"] == 35
+    assert tuesday["groups"] == 2
+    assert days[0]["groups"] == 1  # g-2 only sent student rows that day
+
+    titled = result["by_activity"][0]
+    assert titled["activity_id"] == "act-1" and titled["title"] == "Kast"
+    untitled = next(a for a in result["by_activity"] if a["activity_id"] is None)
+    assert untitled["skill_id"] == "s" and untitled["title"] is None

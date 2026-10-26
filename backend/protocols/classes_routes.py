@@ -732,8 +732,8 @@ async def get_class_spend(
 
     Owner — or a researcher reading any class (via ``_load_readable``).
     ``period`` is ``this_month`` (default) / ``last_month`` / ``all_time``.
-    Returns EUR totals + by-activity / by-group / by-model + a linear
-    month-end projection for ``this_month``.
+    Returns EUR totals + by-activity (titled) / by-group / by-model / by-day
+    + a linear month-end projection for ``this_month``.
     """
     _assert_teacher(user)
     _load_readable(class_id, user)

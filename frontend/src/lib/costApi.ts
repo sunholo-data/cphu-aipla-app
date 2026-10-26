@@ -17,6 +17,19 @@ export interface SpendBucket {
 }
 export interface ActivitySpend extends SpendBucket {
   skill_id: string;
+  /** The activity the turns ran in — absent on rows logged outside one, and
+   *  on payloads from before turns were stamped with it. */
+  activity_id?: string | null;
+  /** The activity's title, when the class view could look it up. */
+  title?: string | null;
+}
+/** One lesson day (Copenhagen calendar date, `YYYY-MM-DD`). */
+export interface DaySpend extends SpendBucket {
+  day: string;
+  /** Tutor replies priced that day. */
+  replies: number;
+  /** Groups the tutor replied to that day. */
+  groups: number;
 }
 export interface GroupSpend extends SpendBucket {
   group_id: string;
@@ -46,6 +59,8 @@ export interface ClassSpendPayload {
   by_activity: ActivitySpend[];
   by_group: GroupSpend[];
   by_model: ModelSpend[];
+  /** Newest first. Older payloads omit it. */
+  by_day?: DaySpend[];
   /** Voice (STT/TTS) cost, EUR — included in total_eur. */
   voice_eur: number;
   /** Total voice volume (TTS characters + STT milliseconds). Non-zero whenever
@@ -137,7 +152,10 @@ export async function fetchTeacherSpend(
   return readJson<TeacherSpendPayload>(resp, "fetch teacher spend");
 }
 
-/** Format an EUR amount for display (2 dp, € prefix). */
+/** Format an EUR amount for display (€ prefix). Two decimals from €1 up;
+ *  three below, because a lesson costs cents and €0.05 vs €0.00 hid which
+ *  group spent what. */
 export function formatEur(eur: number): string {
-  return `€${eur.toFixed(2)}`;
+  if (eur > 0 && eur < 0.0005) return "<€0.001";
+  return `€${eur.toFixed(eur > 0 && eur < 1 ? 3 : 2)}`;
 }

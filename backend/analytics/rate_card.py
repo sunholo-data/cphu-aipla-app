@@ -118,8 +118,12 @@ def cost_eur(model: str | None, token_in: int, token_out: int) -> float:
     """Cost in EUR of one model call (or aggregate) at the carded rate.
 
     Unknown model → 0.0 + a single logged warning (never raises). Negative
-    or missing token counts are treated as 0.
+    or missing token counts are treated as 0. Nothing to price (a student's
+    own turn: no model, no tokens) is 0.0 without a warning, so the warning
+    still means a real call went unpriced.
     """
+    if not (token_in or 0) > 0 and not (token_out or 0) > 0:
+        return 0.0
     rate = lookup_rate(model)
     if rate is None:
         logger.warning("rate_card: no rate for model %r — pricing at 0.0", model)
