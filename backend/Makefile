@@ -38,6 +38,7 @@ test:
 # Fast CI tests (skip slow and integration)
 test-fast:
 	uv sync --dev
+	uv run --frozen python scripts/backport_otel_tracestate.py
 	uv run pytest tests/ -m "not slow and not integration" -v --tb=short
 
 # Authenticated /api/auth/whoami round-trip against deployed dev. Proves a

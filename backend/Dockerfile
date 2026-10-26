@@ -31,6 +31,7 @@ ENV GOOGLE_CLOUD_LOGGING=1
 ENV COMMIT_SHA=${COMMIT_SHA}
 
 RUN uv sync --frozen --no-install-project
+RUN uv run --frozen python scripts/backport_otel_tracestate.py
 
 EXPOSE 8080
 
@@ -41,4 +42,4 @@ EXPOSE 8080
 #     sidecars, so ${PORT:-1956} falls through to 1956 — which is what the
 #     frontend's proxy (BACKEND_URL=http://localhost:1956) expects.
 # Do not "simplify" this to a hardcoded port — it would break one of the roles.
-CMD ["sh", "-c", "uv run uvicorn fast_api_app:app --host 0.0.0.0 --port ${PORT:-1956} --workers 1"]
+CMD ["sh", "-c", "uv run --frozen python scripts/backport_otel_tracestate.py --check && exec uv run uvicorn fast_api_app:app --host 0.0.0.0 --port ${PORT:-1956} --workers 1"]

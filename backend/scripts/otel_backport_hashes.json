@@ -1,0 +1,4 @@
+{
+  "opentelemetry/trace/span.py": "69c52c9c49132ed3133f0711f3787b07a5f4f0595ff941eb23225743ff027d94",
+  "opentelemetry/trace/propagation/tracecontext.py": "94eed694d09fae4e983e2764684a779320b26980891a9e5c4c64e18a30ca1105"
+}

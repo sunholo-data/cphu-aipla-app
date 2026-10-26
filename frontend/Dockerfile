@@ -57,6 +57,7 @@ ENV NEXT_PUBLIC_SIM_WORKSHOP=$NEXT_PUBLIC_SIM_WORKSHOP
 ENV MAILGUN_WEBHOOK_SECRET=$MAILGUN_WEBHOOK_SECRET
 
 COPY package*.json ./
+COPY scripts/patch-legacy-zod.mjs scripts/legacy-zod-originals.json ./scripts/
 RUN npm cache clean --force && npm ci --no-audit --no-fund
 
 COPY . .
