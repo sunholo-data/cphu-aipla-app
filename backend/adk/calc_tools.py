@@ -83,7 +83,8 @@ def build_calc_tools(cfg: Any = None, *, student_language: str | None = None) ->
                 "m * c * ΔT", "sqrt(2 * g * h)", "v_0 * t + 0.5 * a * t**2".
                 Operators: + - * / ** (or ^). Functions: sqrt sin cos tan asin
                 acos atan exp ln log abs. Constants: pi, g (9.82 m/s^2, unless
-                you give g yourself) and c.
+                you give g yourself), c, and q_e (the elementary charge). There
+                is no e: write q_e for the charge, exp(x) for Euler's number.
             quantities: One string per symbol, "symbol = value unit":
                 ["P = 2000 W", "t = 3 min"]. Danish decimal commas are fine
                 ("9,82 m/s^2"). An angle needs its unit ("30 deg", "0.5 rad"). A

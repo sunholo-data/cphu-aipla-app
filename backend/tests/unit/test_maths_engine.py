@@ -244,3 +244,34 @@ def test_constants_are_substituted_in_the_worked_line():
 )
 def test_number_formatting(value, language, text):
     assert format_number(value, language) == text
+
+
+def test_bare_e_is_refused_with_both_unambiguous_spellings():
+    for expr in ("e", "2 * e", "Q / e"):
+        r = calculate(expr, ["Q = 3.2e-19 C"])
+        assert r["ok"] is False
+        assert "q_e" in r["error"] and "exp(" in r["error"]
+
+
+def test_q_e_is_the_elementary_charge_and_is_named():
+    r = calculate("Q / q_e", ["Q = 3.2e-19 C"])
+    assert r["ok"] is True
+    assert abs(r["result"]["value"] - 3.2 / 1.602176634) < 1e-5  # a count of charges
+    assert r["constants_used"] == {"q_e": "1.602176634e-19 C"}
+
+
+def test_e_given_in_quantities_is_the_callers_symbol():
+    r = calculate("e * U", ["e = 0.8", "U = 230 V"])  # an efficiency, not a charge
+    assert (r["result"]["value"], r["result"]["unit"]) == (184.0, "V")
+
+
+def test_pint_e_unit_inside_a_value_is_refused():
+    # pint would read "2 e" as two elementary charges, silently.
+    r = calculate("U * I", ["U = 2 e", "I = 1 A"])
+    assert r["ok"] is False and "ambiguous" in r["error"]
+
+
+def test_scientific_notation_and_ev_are_not_mistaken_for_e():
+    assert calculate("Q * 2", ["Q = 1.6e-19 C"])["ok"] is True
+    r = calculate("E", ["E = 2 eV"], result_unit="J")
+    assert r["ok"] is True and abs(r["result"]["value"] - 3.204e-19) < 1e-21

@@ -44,10 +44,22 @@ MAX_EXPONENT = 10
 #: Constants a model may use without passing them. Each one used is named in
 #: the result, so the student can be told which value was assumed. ``g`` is the
 #: Danish stx value (open question O6); a ``g`` in ``quantities`` wins.
+#: The elementary charge is ``q_e``, never ``e``: see ``_AMBIGUOUS_E``.
 _CONSTANTS: dict[str, str] = {
     "g": "9.82 m/s**2",
     "c": "299792458 m/s",
+    "q_e": "1.602176634e-19 C",
 }
+
+#: A bare ``e`` is either the elementary charge or Euler's number, and a wrong
+#: guess is off by nineteen orders of magnitude without a unit error to show it.
+#: So the engine never guesses: ``e`` means what the caller binds it to in
+#: ``quantities`` (an efficiency, an emf), and otherwise it is refused with both
+#: spellings that are unambiguous.
+_AMBIGUOUS_E = (
+    "'e' is ambiguous: use q_e for the elementary charge (1.602176634e-19 C) or exp(x) for "
+    "Euler's number (exp(1) = 2.718...), or give e in quantities if it is your own symbol"
+)
 
 _ANGLE_UNIT_NAMES = ("degree", "radian", "arcminute", "arcsecond", "turn")
 
@@ -105,6 +117,10 @@ def _parse_quantity_value(raw: str) -> Any:
         raise CalcError(f"cannot read the quantity {raw!r} ({type(exc).__name__}); write it like '2000 W'") from exc
     if not isinstance(q, ureg.Quantity):
         q = ureg.Quantity(q)
+    if any(name == "elementary_charge" for name, _ in q.unit_items()):
+        # pint reads a lone "e" in a value as the elementary charge: "2 e" is
+        # silently 3.2e-19 C. Scientific notation ("3.2e-19 C") and eV are fine.
+        raise CalcError(f"{raw!r}: {_AMBIGUOUS_E}")
     mag = q.magnitude
     if isinstance(mag, bool) or not isinstance(mag, (int, float)) or not math.isfinite(float(mag)):
         raise CalcError(f"{raw!r} is not a finite number with a unit")
@@ -285,6 +301,8 @@ def _evaluate(tree: ast.Expression, values: dict[str, Any], constants_used: dict
             if node.id in _CONSTANTS:
                 constants_used[node.id] = _CONSTANTS[node.id].replace("**", "^")
                 return _parse_quantity_value(_CONSTANTS[node.id])
+            if node.id == "e":
+                raise CalcError(_AMBIGUOUS_E)
             raise CalcError(f"unknown symbol {node.id!r}: give it in quantities, e.g. '{node.id} = 2 m'")
         if isinstance(node, ast.UnaryOp):
             value = ev(node.operand)
