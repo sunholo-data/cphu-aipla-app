@@ -79,18 +79,13 @@ const isNoise = (kind: string): boolean =>
 // v₀=15 m/s, θ=40°"): the student's visible confirmation that THIS action
 // reached the tutor (pending → confirmed/failed). The artefact supplies the
 // label in its `update-model-context` payload — it's self-contained and knows
-// its own symbols/units/language. We fall back to a generic `key=value` summary
-// of `state` so a card still renders for an artefact that hasn't adopted
-// `label` yet. Returns null → no card (e.g. an `open` ping with nothing to show).
+// its own symbols/units/language. No `label` → no card: a label marks a
+// deliberate share (Run, Capture), and an unlabelled push is a state sync that
+// still reaches the tutor and the log, just without a card. 1.1.155 M1 removed
+// the old `key=value` fallback over `state`, which put a raw-settings card in
+// the student's chat for every sync (`power_W=2000, volume_L=1.4, …`).
 function cardLabel(sc: Record<string, unknown>): string | null {
   if (typeof sc.label === "string" && sc.label.trim()) return sc.label.trim();
-  const state = sc.state;
-  if (state && typeof state === "object" && !Array.isArray(state)) {
-    const parts = Object.entries(state as Record<string, unknown>)
-      .filter(([, v]) => typeof v === "number" || typeof v === "string")
-      .map(([k, v]) => `${k}=${v}`);
-    if (parts.length) return parts.join(", ");
-  }
   return null;
 }
 

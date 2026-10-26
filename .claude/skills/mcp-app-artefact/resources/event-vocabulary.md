@@ -27,8 +27,9 @@ one of them silently.
 `GenericArtefactFrame.cardLabel()`:
 
 - `structuredContent.label` present and non-empty → that string becomes the card
-- no `label` → falls back to a generic `key=value` summary of `state`
-- neither → **no card**, the push is silent
+- no `label` → **no card**. The push still reaches the tutor and is logged under
+  `<sim> · <kind>`. (Until 1.1.155 M1, 2026-10-26, a `key=value` summary of
+  `state` was shown as a card instead, which flooded the chat on every sync.)
 
 A labelled emit also fires ChatGPT's `sendFollowUpMessage` when the sim runs in
 an external host. So:

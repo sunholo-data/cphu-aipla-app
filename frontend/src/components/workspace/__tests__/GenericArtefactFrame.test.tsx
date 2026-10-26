@@ -220,7 +220,10 @@ describe("GenericArtefactFrame", () => {
     expect(body.label).toBe("Afspillede med v₀=15 m/s, θ=40°");
   });
 
-  it("falls back to a generic key=value label when the artefact emits none", () => {
+  // 1.1.155 M1 — an unlabelled state sync used to become a `v0=15, theta=40`
+  // card; the kettle sim filled the chat with them. It now reaches the tutor
+  // and the log with no card.
+  it("renders NO card for an unlabelled state push, but still pushes and logs it", () => {
     render(
       <GenericArtefactFrame
         sandboxOrigin="https://sandbox"
@@ -229,8 +232,14 @@ describe("GenericArtefactFrame", () => {
       />,
     );
     onUpdate()({ kind: "boldkast.state-change", state: { v0: 15, theta: 40 } });
-    expect(dispatchSpy).toHaveBeenCalledTimes(1);
-    expect(dispatchSpy.mock.calls[0][0].label).toBe("v0=15, theta=40");
+    expect(dispatchSpy).not.toHaveBeenCalled();
+    expect(fetchWithAuth).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(
+      (vi.mocked(fetchWithAuth).mock.calls[0][1] as RequestInit).body as string,
+    );
+    expect(body.structuredContent.state).toEqual({ v0: 15, theta: 40 });
+    expect(body.label).toBeUndefined(); // the transcript must not re-render one
+    expect(body.logLabel).toContain("boldkast.state-change"); // still named in the log
   });
 
   it("pushes but renders NO card when there's nothing to show (no label, no state)", () => {
