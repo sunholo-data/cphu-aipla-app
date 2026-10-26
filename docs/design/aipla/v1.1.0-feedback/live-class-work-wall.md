@@ -1,12 +1,46 @@
 # The class view is a room — groups at tables, their work on them, their devices live
 
-**Status**: **Design (OPEN)** — **1.1.99**
+**Status**: **M1 SHIPPED 2026-10-26 (compare one element); M0/M2–M4 not built** — **1.1.99**. Slimmed to its M1 by the 30 Sep plan revision ([plan](../v2.1.0-extension/plan-2026-09-to-2027-04.md): *"1.1.99 should slim to its M1"*)
 **Priority**: **P1** — the most-repeated teacher ask across three separate feedback rounds, and its enabler landed 2026-08-31. Needs **only teachers**, so it is un-gated by either legal blocker
 **Estimated**: ~4–6d (M0 work wall ~2d · M1 compare-one-element ~1.5d · M2 drill-in wiring ~0.5d · M3 signals as overlay ~0.5d · M4 live transport ~1d)
 **Scope**: Frontend-heavy — a new class view rendering per-group artefact miniatures; backend — a class-scoped read across the four per-group stores; transport for live updates
 **Dependencies**: **[1.1.53 group-shared-session-sync](group-shared-session-sync.md) M3 (SHIPPED — `touch_presence` / `activeDevices`, the device-presence signal M6 surfaces)**; **[1.1.88 group-shared-table](group-shared-table.md) (SHIPPED 2026-08-31 — this is what makes the doc possible at all, see below)**; `db/{table,writing,checklist,concept}_progress.py` (**all four shipped**); [1.1.31 teacher-analytics-framework](teacher-analytics-framework.md) (**M0/M1 shipped** — the signals this demotes); [live-group-drilldown](live-group-drilldown.md) (**1.1.31 M2** — the per-group report this becomes a front door to); [1.1.29 call-teacher](call-teacher.md) (raised hands)
 **Created**: 2026-09-02
 **Source**: M, 2026-09-02 — *"the teacher actually requests being able to see what students do a lot better. I think we need a totally new UI for the class view that is more visual based to show student work in real time"* and *"the view should look a bit like a classroom with groups around tables… they can see different devices are live and around tables via our multi-session detection"*
+
+## What shipped (M1, 2026-10-26)
+
+**Compare one element across all groups** — `/teacher/classes/<id>/compare`,
+reached from the class page's header (**Compare groups**).
+
+- **Teacher sees:** pick an activity of the class and one of its elements (a
+  table, a chart, a writing box or the checklist); every group of the class gets
+  a card in a grid — group code, "Updated …" time, the element rendered by the
+  shared miniatures (`components/shared/work/` — `WorkTableGrid`, `WorkChart` /
+  `ChartSvg`, `WorkWriting`, `WorkChecklist`), and an honest **Nothing yet** when
+  the group has not touched it. Revoked codes still show (their work is evidence,
+  1.1.146), labelled.
+- **The one outlier hint:** on a scatter/line chart, each card shows its fitted
+  slope, and a card whose slope is >30% from the class **median** (or of the
+  opposite sign) is outlined — with ≥3 fitted groups only, and worded as "worth a
+  look, not a verdict". The median is the reference, not a right answer
+  (`lib/compareOutliers.ts`). Tables/writing get no outlier logic.
+- **Refresh:** a 30-second poll of the one read (pausable; skipped while the tab
+  is hidden). A failed refresh keeps the last read up and says it is stale; a
+  failed first read is an explicit "could not read — this does not mean they have
+  done nothing", never a grid of empty cards. No new realtime transport (M4).
+- **Backend:** `protocols/class_compare_routes.py` — `GET /api/classes/{id}/compare/elements`
+  (the picker: definitions only) and `GET /api/classes/{id}/compare?activityId=&kind=&elementId=`
+  (THE read: element definitions + every class group code's slice of the one
+  relevant `*_progress` store, one scan). Class-scoped via
+  `analytics.auth.assert_can_read_class` (owner, or researcher span-tagged); an
+  activity the class does not run, a missing element, another teacher's class →
+  the same 404; a store read failure → 503. Runs in `asyncio.to_thread`. A
+  **student** is refused 403 — proven with a real minted group token through the
+  real dispatcher (`tests/api_tests/test_class_compare.py`).
+- **Not built:** M0 (the work wall), M0b, M2 (card → group report), M3, M4
+  (`onSnapshot`), M5, M6. Follow-ups: per-table outliers (a decimal error in one
+  group's column) and a slope reference the teacher sets.
 
 ## Problem Statement
 

@@ -10,6 +10,7 @@ import { BuilderSection, BuilderSectionNav, SECTION } from "@/components/teacher
 import { CalculatorEditor } from "@/components/teacher/CalculatorEditor";
 import { ChartEditor } from "@/components/teacher/ChartEditor";
 import { ConceptMapEditor } from "@/components/teacher/ConceptMapEditor";
+import { ConceptListNudge } from "@/components/teacher/lessons/ConceptListNudge";
 import { DocumentEditor } from "@/components/teacher/DocumentEditor";
 import { MaterialsSection } from "@/components/teacher/MaterialsSection";
 import { NoteEditor } from "@/components/teacher/NoteEditor";
@@ -19,8 +20,10 @@ import { SolutionEditor } from "@/components/teacher/SolutionEditor";
 import { TableEditor } from "@/components/teacher/TableEditor";
 import { useCopilotEntry } from "@/components/teacher/copilot";
 import type { ActivityBuilder } from "@/hooks/useActivityBuilder";
+import { TeachingGoalLint, TutorNotesField } from "@/components/teacher/TeachingGoalLint";
 import { useT } from "@/i18n";
 import { languageHint, tableHints, type BuilderHint } from "@/lib/builderHints";
+import { runGoalLint, type GoalLintContext } from "@/lib/teachingGoalLint";
 
 // Living concept map (CONCEPT-1 M1) — dark-flagged like the authoring co-pilot;
 // bakes at build time (cloudbuild `_CONCEPT_MAP`), on for dev.
@@ -42,6 +45,9 @@ interface ActivityBuilderBodyProps {
   /** The read-only inherited tutor — needs the page's classId, so it's passed
    *  in rather than resolved here. */
   tutorSlot?: ReactNode;
+  /** 1.1.141 M2 — the class (and activity) the teaching goal is linted
+   *  against: its tutor's approach decides which lines would conflict. */
+  lintContext?: GoalLintContext;
   /** Actions row (Create / Save), rendered under the config column. */
   footer: ReactNode;
   /** Optional error/alert node rendered above the footer. */
@@ -60,6 +66,7 @@ export function ActivityBuilderBody({
   activityId,
   classControl,
   tutorSlot,
+  lintContext,
   footer,
   error,
 }: ActivityBuilderBodyProps) {
@@ -140,6 +147,13 @@ export function ActivityBuilderBody({
               id="activity-goal"
               value={b.teachingGoal}
               onChange={(e) => b.setTeachingGoal(e.target.value)}
+              // 1.1.141 M2 — lint once the teacher leaves the field; skipped
+              // when this exact text was already linted (the backend caches too).
+              onBlur={() => {
+                if (b.goalLint?.text !== b.teachingGoal.trim()) {
+                  void runGoalLint(b.setGoalLint, b.teachingGoal, lintContext ?? {});
+                }
+              }}
               placeholder={t("goalPlaceholder")}
               rows={6}
               maxLength={2000}
@@ -149,6 +163,8 @@ export function ActivityBuilderBody({
           <p className="text-xs text-slate-500">
             {t("goalHelp")}
           </p>
+          <TeachingGoalLint builder={b} />
+          <TutorNotesField builder={b} />
           <ActivityOpeningEditor builder={b} />
         </BuilderSection>
 
@@ -221,6 +237,15 @@ export function ActivityBuilderBody({
 
           <DocumentEditor value={b.document} onChange={b.setDocument} />
 
+          {/* 1.1.139 M3 — the before-lesson nudge: the lesson overview is only
+              as good as this activity's list of concepts. */}
+          {CONCEPT_MAP_ENABLED && (
+            <ConceptListNudge
+              activityId={activityId}
+              hasConcepts={(b.conceptMap?.nodes.length ?? 0) > 0}
+              onPropose={proposeConceptMap}
+            />
+          )}
           {CONCEPT_MAP_ENABLED && (
             <ConceptMapEditor
               value={b.conceptMap}

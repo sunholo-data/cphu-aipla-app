@@ -19,6 +19,7 @@ and header handling; this module just produces the event stream.
 from __future__ import annotations
 
 import logging
+import re
 import uuid
 from collections.abc import AsyncGenerator
 from typing import Any
@@ -468,7 +469,7 @@ async def _run_skill_turn(
 
     try:
         async for event in stream_agui_events(agui_agent, run_input):
-            yield event
+            yield _scrub_background_error(event, skill_id)
     except BudgetExceededError as exc:
         # Sprint 2.12 — the budget enforcer's before_model callback
         # refused the turn (cohort over cap). Translate to a typed
@@ -612,6 +613,42 @@ def _derive_initial_access_control(document_id: str | None):
     except Exception as exc:
         logger.warning("could not derive access_control for new session: %s", exc)
     return AccessControl(type="private")
+
+
+#: ag_ui_adk's code for an exception it caught inside its own background runner.
+_AGUI_BACKGROUND_ERROR = "BACKGROUND_EXECUTION_ERROR"
+
+# `ModelTurnError.__str__` — "model turn failed on <model>: <CODE> (<provider text>)".
+_MODEL_TURN_FAILED_RE = re.compile(r"^model turn failed on \S+: ([A-Z_]+) \(")
+
+
+def _scrub_background_error(event: Any, skill_id: str) -> Any:
+    """Replace the raw exception text in ag_ui_adk's own RUN_ERROR (1.1.142).
+
+    ag_ui_adk catches runner exceptions itself and emits
+    ``RUN_ERROR{code: BACKGROUND_EXECUTION_ERROR, message: str(exc)}`` — so the
+    ``except ModelTurnError`` branch below rarely sees the exception, and the
+    wire carried ``model turn failed on gemini-…: MODEL_UNAVAILABLE (500
+    INTERNAL …)`` or any other provider text. The chat UI renders by ``code``
+    (``classifyRunError`` → ``error_agentError``), so a student never READ it,
+    but it is one devtools tab away and is not ours to send. The raw text stays
+    in the server log; the wire gets the same Danish line and typed code as the
+    ``ModelTurnError`` branch when the text is one, else a neutral line.
+    """
+    if not isinstance(event, dict) or event.get("type") != "RUN_ERROR":
+        return event
+    if event.get("code") != _AGUI_BACKGROUND_ERROR:
+        return event
+    raw = str(event.get("message") or "")
+    logger.error("skill=%s background execution error: %s", skill_id, raw)
+    match = _MODEL_TURN_FAILED_RE.match(raw)
+    if match:
+        return {
+            **event,
+            "message": "Vejlederen svarer ikke lige nu. Prøv igen om et øjeblik.",
+            "code": match.group(1),
+        }
+    return {**event, "message": "Vejlederen løb ind i en fejl. Prøv igen."}
 
 
 def _translate_model_turn_error(exc: ModelTurnError) -> tuple[str, str]:

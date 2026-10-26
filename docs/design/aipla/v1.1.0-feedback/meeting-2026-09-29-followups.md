@@ -1,6 +1,7 @@
 # What the 29 September meeting left open — completion turns, sim chrome, real-session fidelity, model routing, local models
 
-**Status:** Design (OPEN) — **1.1.140**
+**Status:** **M0–M3 and M7 SHIPPED, on prod** (M0/M2/M3/M7 in tag v0.1.75, 2026-09-30; M1 and the M0/M3 follow-ups in v0.1.77, 2026-10-01; prod runs v0.1.99) · M4/M5/M6 split out to [1.1.141](activity-persona-precedence.md) / [1.1.142](retry-then-escalate.md) / [1.1.143](local-model-test-plan.md) · **M8 outcome: picker-only kept; more built-in avatars shipped** (four added in `6de62a72`, 2026-10-19, tag v0.1.97) — decision by M pending confirmation — **1.1.140**
+*(Corrected 2026-10-26: this line said "Design (OPEN)" after M0–M3 and M7 had shipped; checked against the release tags containing each milestone's commits.)*
 **Priority:** **P1** for M0–M3 (each is a teacher- or researcher-visible gap from a live session, un-gated) · **P2** for M4–M8
 **Estimated:** ~7–9d phased (M0 completion turns ~0.75d · M1 sim chrome ~0.75d · M2 test/dev tutor assignments ~0.25d · M3 real-session fidelity ~1d · M4 persona↔activity contradiction pass ~1.5d · M5 stronger-model fallback ~1d · M6 local-model test plan + run ~1.5d · M7 release plumbing ~0.5d · M8 avatar-upload decision ~0.25d, build only if decided)
 **Scope:** Frontend: `lib/proactiveEventCheck.ts`, `components/workspace/GenericArtefactFrame.tsx` + `SimFrameHeader`. Sim authoring: `.claude/skills/mcp-app-artefact/resources/authoring-prompt.md` (→ `make sim-prompt`). Backend: `adk/` prompt composition, `analytics/framework_discrimination.py` + `scripts/bench-tutor-discrimination.py`, `adk/` model call path. Ops: `cloudbuild*.yaml` sandbox trigger, a release-notes script, a tutor-assignment sync script. Research: `research/stx-bench/`

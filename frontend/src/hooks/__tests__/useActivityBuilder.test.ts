@@ -671,6 +671,8 @@ describe("useActivityBuilder — toSavePayload + isFormValid (F5)", () => {
         // wrapper fields
         "title",
         "teachingGoal",
+        // 1.1.141 M3 — tutor notes ride the full-overwrite save too.
+        "tutorNotes",
         "studentOpening",
         "starterPrompts",
         "openingByTeacher",

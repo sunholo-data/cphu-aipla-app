@@ -208,7 +208,9 @@ async def test_session_index_io_runs_off_the_event_loop() -> None:
     with (
         patch.object(narrative, "get_session_index", fake_index),
         patch.object(narrative, "update_session_fields", fake_update),
-        patch.object(narrative, "generate_narrative", AsyncMock(return_value="**Narrative** ok")),
+        patch.object(
+            narrative, "generate_report", AsyncMock(return_value=narrative.NarrativeResult("**Narrative** ok"))
+        ),
     ):
         out = await narrative.resolve_narrative(_summary())
 

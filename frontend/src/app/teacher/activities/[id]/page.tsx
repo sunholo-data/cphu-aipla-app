@@ -30,11 +30,13 @@ import { ActingForOwnerBanner, LastEditedLine } from "@/components/teacher/Actin
 import { StudentsLanguageBadge } from "@/components/teacher/StudentsLanguageBadge";
 import { SettingsMap } from "@/components/teacher/SettingsMap";
 import { InheritedTutor } from "@/components/teacher/InheritedTutor";
+import { ModelTierControl } from "@/components/teacher/ModelTierControl";
 import { TryAsStudentButton } from "@/components/teacher/TryAsStudentButton";
 import { ActivityBuilderBody } from "@/components/teacher/ActivityBuilderBody";
 import { useActivityBuilder } from "@/hooks/useActivityBuilder";
 import { AuthoringCopilot } from "./_AuthoringCopilot";
 import { applyCopilotProposal } from "../applyCopilotProposal";
+import { runGoalLint } from "@/lib/teachingGoalLint";
 import { useLocaleMode, useT } from "@/i18n";
 import { visibilityLabel } from "@/components/teacher/activityDisplay";
 
@@ -157,6 +159,9 @@ export default function TeacherActivityConfigPage() {
         await saveActivityConfig({ activityId, classId, ...elementSlice });
       }
       showToast(t("saved"), 4000);
+      // 1.1.141 M2 — once per save (cached by text), never per turn. Advisory:
+      // the save above has already succeeded whatever this returns.
+      void runGoalLint(builder.setGoalLint, payload.teachingGoal, { classId, activityId });
     } catch (err) {
       console.error("[teacher-ui] activity save failed:", err);
       showToast(t("saveFailed"), 4000);
@@ -283,6 +288,7 @@ export default function TeacherActivityConfigPage() {
               builder={builder}
               activityId={activityId}
               tutorSlot={<InheritedTutor classId={classId} />}
+              lintContext={{ classId, activityId }}
               footer={
                 <div className="flex flex-wrap gap-2">
                   {/* The live preview (+ its full-screen pop-out) replaces the
@@ -303,6 +309,13 @@ export default function TeacherActivityConfigPage() {
               }
             />
           </form>
+          {/* 1.1.142 M3 — researcher-only smart-model opt-in; renders nothing
+              for anyone else. Saves through its own route, not handleSave. */}
+          {isActivityStore && meta ? (
+            <div className="mt-5">
+              <ModelTierControl key={meta.activityId} activityId={activityId} initialTier={meta.modelTier} />
+            </div>
+          ) : null}
           {/* COPILOT-1/2: the authoring co-pilot (dark-flagged → renders null
               when NEXT_PUBLIC_AUTHORING_COPILOT !== "1", so the builder is
               unaffected). The Apply router maps each proposal kind to a builder
@@ -310,7 +323,14 @@ export default function TeacherActivityConfigPage() {
           <AuthoringCopilot
             activityId={activityId}
             draft={builder.toSavePayload()}
-            onApplyProposal={(p) => applyCopilotProposal(p, builder)}
+            onApplyProposal={(p) => {
+              applyCopilotProposal(p, builder);
+              // 1.1.141 M3 — a drafted goal is linted and its how-to-teach
+              // lines are moved into tutor notes, visibly and with Undo.
+              if (p.kind === "set_lesson_prompt") {
+                void runGoalLint(builder.setGoalLint, p.value, { classId, activityId }, "move");
+              }
+            }}
           />
         </section>
       ) : null}

@@ -110,6 +110,12 @@ class SessionSummary(BaseModel):
     revision: str | None = Field(default=None, alias="revision")
     """1.1.92 M0 — the Cloud Run revision that served the session (the A/B arm
     key already on every chat-log row). None from the live-state fallback."""
+    lesson_activity_id: str | None = Field(default=None, alias="lessonActivityId")
+    """1.1.139 M0 — the ``act-…`` activity the session ran, from the chat-turn
+    log's TUTOR-5 ``activity_id`` stamp. ``activity_id`` above is the SKILL id
+    (what the row has always carried); the concept map lives on the activity, so
+    the narrative's closed vocabulary is read through this. None on rows from
+    before the stamp — the caller then falls back to ``activity_id``."""
     """1.1.36 — recorded segment count for the group."""
 
     model_config = ConfigDict(populate_by_name=True)
@@ -269,7 +275,9 @@ async def summarize_session_bq(session_id: str) -> SessionSummary | None:
             # a struct-member read of tutor_version would 400 the whole query on any
             # table that predates the stamp (the chat_turns view's rule).
             "JSON_VALUE(TO_JSON_STRING(jsonPayload), '$.tutor_version') AS tutor_version, "
-            "JSON_VALUE(TO_JSON_STRING(jsonPayload), '$.revision') AS revision "
+            "JSON_VALUE(TO_JSON_STRING(jsonPayload), '$.revision') AS revision, "
+            # 1.1.139 M0 — same JSON_VALUE rule: older tables may lack the field.
+            "JSON_VALUE(TO_JSON_STRING(jsonPayload), '$.activity_id') AS activity_id "
             f"FROM {table_ref(CHAT_TURN_TABLE)} "
             "WHERE jsonPayload.session_id = @session_id "
             "ORDER BY turn_index",
@@ -339,6 +347,7 @@ async def summarize_session_bq(session_id: str) -> SessionSummary | None:
     tutor_row = next((r for r in reversed(turn_rows) if r.get("tutor_id")), None)
     tutor_version = _as_int(tutor_row.get("tutor_version")) if tutor_row is not None else None
     revision = next((r.get("revision") for r in reversed(turn_rows) if r.get("revision")), None)
+    lesson_activity_id = next((r.get("activity_id") for r in reversed(turn_rows) if r.get("activity_id")), None)
 
     return SessionSummary(
         sessionId=session_id,
@@ -355,6 +364,7 @@ async def summarize_session_bq(session_id: str) -> SessionSummary | None:
         tutorId=tutor_id,
         tutorVersion=tutor_version,
         revision=revision,
+        lessonActivityId=lesson_activity_id,
     )
 
 

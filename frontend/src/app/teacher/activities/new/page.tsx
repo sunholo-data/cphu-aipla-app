@@ -20,6 +20,7 @@ import { useT } from "@/i18n";
 import { conceptMapDefault, languageSeed, useTeacherPrefs } from "@/hooks/useTeacherPrefs";
 import { AuthoringCopilot } from "../[id]/_AuthoringCopilot";
 import { applyCopilotProposal } from "../applyCopilotProposal";
+import { runGoalLint } from "@/lib/teachingGoalLint";
 
 // TAA-1 M0: a from-scratch activity runs the `concept-dialogue` base
 // skill (chat-only Socratic tutor). The teacher's title + lesson prompt
@@ -56,9 +57,19 @@ function NewActivityForm() {
   const router = useRouter();
   // Pre-select the class the teacher came from (the "New activity" button on
   // the class-detail page passes ?classId=…).
-  const preferredClassId = useSearchParams().get("classId");
+  const searchParams = useSearchParams();
+  const preferredClassId = searchParams.get("classId");
+  // 1.1.139 M3 — "Add to next activity" from the after-lesson review carries
+  // the class's "next time" here as the teaching goal: the draft the authoring
+  // co-pilot reads as its starting brief. Seeded once, never over typed text.
+  const brief = searchParams.get("brief");
 
   const builder = useActivityBuilder();
+  useEffect(() => {
+    if (brief && !builder.teachingGoal) builder.setTeachingGoal(brief.slice(0, 2000));
+    // Seed exactly once, on arrival.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // 1.1.58 — seed the language from the account default, CREATE-time only and
   // only while the form is untouched (an explicit choice is never overridden).
   const { prefs, loaded: prefsLoaded } = useTeacherPrefs();
@@ -235,6 +246,7 @@ function NewActivityForm() {
               </label>
             }
             tutorSlot={<InheritedTutor classId={classId} />}
+            lintContext={{ classId }}
             error={
               saveError ? (
                 <p role="alert" className="text-sm text-red-600">
@@ -261,7 +273,18 @@ function NewActivityForm() {
           (renders null when NEXT_PUBLIC_AUTHORING_COPILOT !== "1"). No activity_id
           yet — it proposes into the draft (the Save is owner-scoped). */}
       {classesState.status === "ready" ? (
-        <AuthoringCopilot activityId="" draft={builder.toSavePayload()} onApplyProposal={(p) => applyCopilotProposal(p, builder)} />
+        <AuthoringCopilot
+          activityId=""
+          draft={builder.toSavePayload()}
+          onApplyProposal={(p) => {
+            applyCopilotProposal(p, builder);
+            // 1.1.141 M3 — the co-pilot's drafted goal: how-to-teach lines move
+            // into tutor notes, visibly and with Undo.
+            if (p.kind === "set_lesson_prompt") {
+              void runGoalLint(builder.setGoalLint, p.value, { classId }, "move");
+            }
+          }}
+        />
       ) : null}
     </div>
   );

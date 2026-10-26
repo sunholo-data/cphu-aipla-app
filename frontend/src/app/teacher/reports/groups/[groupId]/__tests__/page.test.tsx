@@ -316,3 +316,27 @@ describe("/teacher/reports/groups/[groupId] — exports carry the timeline (1.1.
     expect(data.timeline[1].value).toBe(WORK_VALUE);
   });
 });
+
+describe("/teacher/reports/groups/[groupId] — breadcrumb back to its lesson (1.1.139 M2)", () => {
+  it("links to the lesson the session belongs to, on its Copenhagen day", async () => {
+    fetchReport.mockResolvedValueOnce({
+      ...LIVE_REPORT,
+      classId: "class-7b",
+      className: "7B",
+      activityName: "Projectile motion",
+      lessonActivityId: "act-boldkast",
+      startedAt: "2026-06-15T22:30:00Z",
+    });
+    render(<TeacherGroupReportPage />);
+    const crumb = await screen.findByTestId("lesson-breadcrumb");
+    expect(crumb).toHaveAttribute("href", "/teacher/insights/lessons/class-7b/act-boldkast?date=2026-06-16");
+    expect(crumb).toHaveTextContent("Lesson: Projectile motion, 2026-06-16");
+  });
+
+  it("shows no lesson crumb for a group outside a class", async () => {
+    fetchReport.mockResolvedValueOnce(LIVE_REPORT);
+    render(<TeacherGroupReportPage />);
+    await waitFor(() => expect(screen.queryByText(/loading report/i)).not.toBeInTheDocument());
+    expect(screen.queryByTestId("lesson-breadcrumb")).toBeNull();
+  });
+});

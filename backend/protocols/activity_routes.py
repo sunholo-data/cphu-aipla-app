@@ -17,6 +17,7 @@ Cross-teacher publish/adopt + researcher CRUD are M3/M3b — not here.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Literal
 from urllib.parse import quote
@@ -25,6 +26,7 @@ from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from opentelemetry import trace
 from pydantic import BaseModel, ConfigDict, Field
 
+from analytics.teaching_goal_lint import activity_class_id, authoring_teaching, clean_import, lint_teaching_goal
 from artefacts.loader import can_attach, is_known_artefact
 from auth import User, get_current_user
 from auth import assert_teacher as _assert_teacher
@@ -55,6 +57,7 @@ from db.models.activity_config import (
     InteractionStyle,
     Language,
     MaterialRef,
+    ModelTier,
     NoteElement,
     SolutionElement,
     TableElement,
@@ -89,6 +92,7 @@ class ActivityUpsert(BaseModel):
     class_id: str | None = Field(default=None, alias="classId", max_length=128)
     title: str = Field(default="", max_length=200)
     teaching_goal: str = Field(default="", alias="teachingGoal", max_length=2000)
+    tutor_notes: str = Field(default="", alias="tutorNotes", max_length=2000)
     student_opening: OpeningText = Field(default="", alias="studentOpening")
     starter_prompts: StarterPrompts = Field(default_factory=list, alias="starterPrompts")
     opening_by_teacher: bool = Field(default=False, alias="openingByTeacher")
@@ -205,6 +209,7 @@ def _activity_from_body(body: ActivityUpsert, *, owner_uid: str, activity_id: st
         ownerUid=owner_uid,
         title=body.title,
         teachingGoal=body.teaching_goal,
+        tutorNotes=body.tutor_notes,
         studentOpening=body.student_opening,
         starterPrompts=body.starter_prompts,
         openingByTeacher=body.opening_by_teacher,
@@ -317,6 +322,52 @@ def _select_activities(
     if owner != "me":
         raise HTTPException(status_code=400, detail="only owner=me, scope=all, or published=true are supported")
     return list_activities_by_owner(user.uid), False
+
+
+class GoalLintRequest(BaseModel):
+    """Body for ``POST /api/activities/lint-teaching-goal`` (1.1.141 M2)."""
+
+    text: str = Field(default="", max_length=2000)
+    #: The class the teacher is editing in — its tutor's approach is the one
+    #: the goal is checked against. Falls back to the activity's first class.
+    class_id: str | None = Field(default=None, alias="classId", max_length=128)
+    activity_id: str | None = Field(default=None, alias="activityId", max_length=128)
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+
+@router.post("/lint-teaching-goal")
+async def lint_teaching_goal_route(
+    body: GoalLintRequest,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Which lines of this teaching goal tell the tutor HOW to teach (1.1.141 M2)?
+
+    Called by the editor after a save and after a co-pilot draft is applied —
+    once per distinct text (cached by hash), never per turn. Advisory only: it
+    never blocks or alters a save, and any failure returns no spans.
+
+    Teacher-auth. A ``classId`` must be one the caller may edit (owner or
+    researcher) — the same gate as every write here — or the lint runs against
+    no approach rather than reveal another teacher's tutor.
+    """
+    _assert_teacher(user)
+    class_id = body.class_id
+    if class_id:
+        cls = await asyncio.to_thread(get_class, class_id)
+        if cls is None or (cls.owner_uid != user.uid and not user.is_researcher):
+            class_id = None
+    elif body.activity_id:
+        activity = await asyncio.to_thread(get_activity, body.activity_id)
+        if activity is not None and (activity.owner_uid == user.uid or user.is_researcher):
+            class_id = await asyncio.to_thread(activity_class_id, activity.activity_id, activity.owner_uid)
+    try:
+        framework_id, tutor_name = await asyncio.to_thread(authoring_teaching, class_id)
+    except Exception as exc:  # advisory: an unresolvable tutor is "no approach"
+        log.warning("lint-teaching-goal: tutor unresolved for class=%s: %s", class_id, exc)
+        framework_id, tutor_name = None, None
+    result = await lint_teaching_goal(body.text, framework_id=framework_id, tutor_name=tutor_name)
+    return result.model_dump(by_alias=True, mode="json")
 
 
 @router.get("/facets")
@@ -439,6 +490,9 @@ async def patch_activity(
             "source_owner_uid": existing.source_owner_uid,
             "visibility": preserved_visibility,
             "last_edited_by": existing.last_edited_by,
+            # 1.1.142 M3 — not in the upsert body (researcher-only, own route),
+            # so a teacher's full-payload save must not reset it.
+            "model_tier": existing.model_tier,
         }
     )
     return _serialize(save_activity(_attributed(updated, user)))
@@ -534,7 +588,9 @@ async def duplicate_activity_route(
     source = get_activity(activity_id)
     if source is None or (source.owner_uid != user.uid and source.visibility != "published"):
         raise HTTPException(status_code=404, detail="Activity not found")
-    copy = copy_activity(source, new_owner_uid=user.uid)
+    # 1.1.141 M3 — a copy moves pedagogy/persona lines into tutor notes,
+    # visibly (the editor shows them) and reversibly (one click moves them back).
+    copy = copy_activity(await clean_import(source), new_owner_uid=user.uid)
     log.info("activity duplicated src=%s -> %s owner=%s", activity_id, copy.activity_id, user.uid)
     return _serialize(copy)
 
@@ -554,7 +610,7 @@ async def adopt_activity_route(
     source = get_activity(activity_id)
     if source is None or source.visibility != "published":
         raise HTTPException(status_code=404, detail="Activity not found")
-    copy = copy_activity(source, new_owner_uid=user.uid)
+    copy = copy_activity(await clean_import(source), new_owner_uid=user.uid)  # 1.1.141 M3
     log.info("activity adopted src=%s owner=%s -> %s by=%s", activity_id, source.owner_uid, copy.activity_id, user.uid)
     return _serialize(copy)
 
@@ -600,6 +656,45 @@ async def set_visibility_route(
         user.uid,
     )
     return _set_visibility(_attributed(activity, user), body.visibility)
+
+
+class ModelTierSet(BaseModel):
+    """Body for ``POST /{activity_id}/model-tier`` (1.1.142 M3)."""
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    model_tier: ModelTier = Field(alias="modelTier")
+
+
+@router.post("/{activity_id}/model-tier", status_code=200)
+async def set_model_tier_route(
+    body: ModelTierSet,
+    activity_id: str = Path(...),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Opt an activity into (``smart``) or out of (``default``) the smart model
+    tier — every turn then starts on the smart tier (1.1.142 M3).
+
+    **Researcher-only for now** (retry-then-escalate.md open question 1): the
+    smart tier costs ~2.5x per turn, and the opt-in stays with the people who
+    watch the 1.1.106 envelope until the smart-tier share is measured on the
+    cost view. A teacher — the owner included — gets 403. Its own route, so the
+    teacher's full-payload save cannot set or clear it (that PATCH preserves it).
+    """
+    _assert_teacher(user)
+    if not user.is_researcher:
+        raise HTTPException(status_code=403, detail="researcher access required")
+    activity = _load_for_modify(activity_id, user)
+    log.info(
+        "activity model tier set id=%s %s -> %s owner=%s by=%s",
+        activity_id,
+        activity.model_tier,
+        body.model_tier,
+        activity.owner_uid,
+        user.uid,
+    )
+    updated = _attributed(activity.model_copy(update={"model_tier": body.model_tier}), user)
+    return _serialize(save_activity(updated))
 
 
 class PreviewStudentRequest(BaseModel):

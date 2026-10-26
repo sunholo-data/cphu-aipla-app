@@ -4,6 +4,7 @@
     "showData": "Vis data"
   },
   "InsightsTabs": {
+    "lessons": "Lektioner",
     "overview": "Overblik",
     "conversations": "Samtaler",
     "cost": "Omkostninger",
@@ -447,7 +448,17 @@
     "kind": "Type",
     "byClass": "Pr. klasse",
     "class": "Klasse",
-    "none": "Der er ikke registreret noget forbrug i denne periode."
+    "none": "Der er ikke registreret noget forbrug i denne periode.",
+    "smartTierTitle": "Tutorsvar fra den stærkere model",
+    "smartTierNoTurns": "Der er ikke registreret nogen tutorsvar i denne periode.",
+    "smartTierShare": "{share} af tutorsvarene ({smart} af {turns}) kom fra den stærkere model.",
+    "smartTierRoute": "Hvorfor",
+    "smartTierTurns": "Svar",
+    "smartTierRoute_failover": "Reserve (standardmodellen fejlede)",
+    "smartTierRoute_escalation": "Eskalering (eleven sendte et billede)",
+    "smartTierRoute_opt_in": "Tilvalg (aktiviteten er sat til den stærkere model)",
+    "smartTierRoute_unattributed": "Ikke registreret (en skill låst til modellen, eller logget før årsagen blev det)",
+    "smartTierOverThreshold": "Andelen fra den stærkere model ({share}) er over advarselsgrænsen på {threshold}, som er aftalt ud fra cloud-budgettet. Tjek om et tilvalg står tændt, eller om standardmodellen falder over til reserven."
   },
   "ResearchLogsPage": {
     "title": "Samtaler efter undervisningstilgang",

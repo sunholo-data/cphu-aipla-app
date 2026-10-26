@@ -1,0 +1,18 @@
+# Base tutor for the Kasper persona (added 2026-10-26).
+#
+# ⚠️ `frameworkId` is null on EVERY base tutor — the safety property of this
+# catalogue, not an omission (see henrik.yaml for the full reasoning). An
+# approach arrives only when a researcher assigns one in the running app
+# (/teacher/research/frameworks → "What each tutor teaches with").
+id: kasper
+displayName: Kasper — Hverdagsfysiker
+summary: >
+  Everyday-physics storyteller — starts from the bike, the kettle and the weather, and finds the physics in them.
+personaId: kasper
+frameworkId: null
+interactionStyle: warm
+status: ready
+authorRole: researcher
+promptProvenance: authored
+lineage:
+  kind: original

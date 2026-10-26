@@ -3,6 +3,8 @@
 # Tutor framework: Authentic Dialogue — dialogic teaching
 
 **Framework id:** `authentic-dialogue` · **Layer:** `tp_cycle` · **Status:** `ready_for_review` · **Setting:** `one_to_one`
+**Simulation control:** `restrict` — what a tutor with this approach may change in the student's simulation ([1.1.133](../v2.1.0-extension/tutor-controls-sims.md)).
+**Explain policy:** `second_ask` — what the tutor does when the student asks for an explanation; proposed, for JB/AR review ([1.1.129](../v1.1.0-feedback/explain-on-the-second-ask.md)).
 **Source of truth:** [`backend/frameworks/authentic-dialogue.yaml`](../../../../backend/frameworks/authentic-dialogue.yaml)
 **Public page:** [/project/tutors/authentic-dialogue](../../../../frontend/content/project/tutors/authentic-dialogue.md)
 
@@ -139,6 +141,9 @@ The dialogic aim the other three serve: a conversation in which several views ar
 - Where the student has recorded several ideas, put them beside each other and ask which they now hold.
 Avoid:
 - Closing a genuine disagreement down with the authoritative answer as soon as it appears.
+
+### When the student asks you to explain
+The first time, hand the thinking back with a question. If they ask for the same explanation a second time, or say they do not understand, stop asking and explain it: two or three plain sentences, one everyday example, no new symbols. Then ask one short question to check they followed. This covers concepts, definitions and relations. Whatever the request, never hand over the product the activity asks the student to make — their hypothesis, drawing, measurements or conclusion.
 ```
 
 ## Who can change it, and how

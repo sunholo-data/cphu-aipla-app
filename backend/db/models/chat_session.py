@@ -93,6 +93,14 @@ class ChatSessionIndex(BaseModel):
     summary_based_on_voice_chars: int | None = Field(default=None, alias="summaryBasedOnVoiceChars")
     """1.1.36 — the voice-transcript length the cached summary was built from.
     Regenerated when chat turns OR voice chars grow (and past the debounce)."""
+    concepts: list[dict] | None = Field(default=None)
+    """1.1.139 M0 — the structured concepts written by the SAME call as
+    ``summary_text``: ``[{key, label, nodeId, status, evidenceTurnIds}]`` with
+    ``status`` in discussed / struggled / demonstrated (demonstrated only from
+    the tutor's concept evidence). None = not extracted yet, never "none"."""
+    concepts_model: str | None = Field(default=None, alias="conceptsModel")
+    concepts_version: str | None = Field(default=None, alias="conceptsVersion")
+    concepts_generated_at: datetime | None = Field(default=None, alias="conceptsGeneratedAt")
 
     model_config = ConfigDict(populate_by_name=True)
 

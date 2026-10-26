@@ -126,3 +126,28 @@ describe("/teacher/classes/[id] — concepts at the top", () => {
     );
   }, 20_000);
 });
+
+describe("/teacher/classes/[id] — the latest lesson leads (1.1.139 M2)", () => {
+  it("renders the Latest lesson card above the concepts, from a cached-only read", async () => {
+    const lessonApi = await import("@/lib/lessonOverviewApi");
+    const { makeLesson } = await import("@/components/teacher/lessons/__tests__/fixtures");
+    vi.spyOn(lessonApi, "fetchClassLessons").mockResolvedValue([
+      {
+        activityId: "act-1",
+        activityTitle: "Waves",
+        date: "2026-10-20",
+        groups: 3,
+        sessions: 3,
+        turns: 30,
+        startedAt: null,
+        lastAt: null,
+      },
+    ]);
+    const fetchLesson = vi.spyOn(lessonApi, "fetchLesson").mockResolvedValue(makeLesson({ classId: CLASS_ID }));
+    renderPage();
+    const card = await screen.findByTestId("latest-lesson-card", {}, SLOW);
+    const concepts = await screen.findByRole("heading", { name: "Concepts across the class" }, SLOW);
+    expect(card.compareDocumentPosition(concepts) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(fetchLesson).toHaveBeenCalledWith(CLASS_ID, "act-1", "2026-10-20", { synthesis: "cached" });
+  }, 20_000);
+});

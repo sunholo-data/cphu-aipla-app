@@ -1,6 +1,6 @@
 # A class list that never leaves the teacher's device — names against codes, exported to Excel
 
-**Status:** ✅ M0–M2 SHIPPED 2026-09-29 (CLASSVISIT-1 lane C) — **1.1.137**. The CI guard (§Guard) is not built yet
+**Status:** ✅ COMPLETE — M0–M2 SHIPPED 2026-09-29 (CLASSVISIT-1 lane C) — **1.1.137**. The CI guard (§Guard) SHIPPED 2026-10-26: `make check-student-identity`, CI `local-mode-safety`
 **Priority:** **P1 (M0–M1)** — teacher-sourced, cheap, and needs only teachers, so it is **un-gated**. **M0 also fixes a latent bug in every existing export.** The server-side alternative is **not** P-anything until JB decides, see *The line this does not cross*
 **Estimated:** ~1–1.25d (M0 Excel-safe export ~0.25d · M1 the class list sheet ~0.75d · M2 import back ~0.25d)
 **Scope:** Frontend only: `lib/download.ts`, `app/teacher/classes/[id]/page.tsx` (codes list :400–515), a new `_ClassListSheet.tsx`, `messages/{da,en}/`. **No backend change, by design**
@@ -102,6 +102,18 @@ A small CI check in the shape of `check-literature-corpus-isolation.sh`:
 DPIA decision. The cost is small, and it makes the
 ADR-001 line enforced rather than remembered, which is the direction the
 footguns table asks for.
+
+**Built 2026-10-26:** `scripts/check-student-identity-fields.py`
+(`make check-student-identity`, CI `local-mode-safety`). It parses every model
+under `backend/db/models/` with `ast`, tokenises each field name **and its
+`alias`** (`studentName` → `student`, `name`), and fails on student/first/last/
+full + name, `names`, `roster`, `pupil`, `elev`/`elever`/`navn`. It checks every
+model, not only class/group records — a roster hung off anything is the same
+map. An exception is a line in `scripts/student-identity-allowlist.txt` of the
+form `<file>:<Class>.<field> | <reason>`, and a reason that does not cite the
+DPIA is itself a failure (exit 2). The allowlist is empty. The fixture test
+`scripts/tests/test_check_student_identity.py` plants each shape and asserts
+the check fails, so the guard is seen to fail rather than assumed to.
 
 ## The server-side alternative, if JB ever wants it
 

@@ -23,11 +23,21 @@ function render(ui: ReactElement, options?: Parameters<typeof rtlRender>[1]) {
 afterEach(() => mockIsResearcher.mockReturnValue(false));
 
 describe("InsightsTabs", () => {
-  it("renders nothing for a non-researcher (Overview is the only destination)", () => {
+  it("gives a non-researcher Lessons first, then Overview (1.1.139 M2)", () => {
     mockIsResearcher.mockReturnValue(false);
     mockPathname.mockReturnValue("/teacher/insights");
-    const { container } = render(<InsightsTabs />);
-    expect(container).toBeEmptyDOMElement();
+    render(<InsightsTabs />);
+    const links = screen.getAllByRole("link");
+    expect(links.map((l) => l.getAttribute("href"))).toEqual(["/teacher/insights/lessons", "/teacher/insights"]);
+    expect(screen.queryByRole("link", { name: /Cost/ })).not.toBeInTheDocument();
+  });
+
+  it("marks only Lessons active on a lesson page — Overview is not a prefix match", () => {
+    mockIsResearcher.mockReturnValue(false);
+    mockPathname.mockReturnValue("/teacher/insights/lessons/c1/act-1");
+    render(<InsightsTabs />);
+    expect(screen.getByRole("link", { name: /Lessons/ })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("link", { name: /Overview/ })).not.toHaveAttribute("aria-current");
   });
 
   it("never links to the retired /teacher/analytics chat surface", () => {

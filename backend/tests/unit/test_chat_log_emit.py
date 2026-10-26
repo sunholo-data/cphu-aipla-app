@@ -62,6 +62,8 @@ CHAT_TURN_KEYS = {
     # 1.1.152 M1a — which tools this tutor reply called; NULL = not recorded.
     "tools_called",
     "tool_call_count",
+    # 1.1.142 M4 — why a reply ran on the smart tier; NULL = default / not recorded.
+    "model_route",
     # A/B arm key — which build produced the row (see _version_fields).
     "revision",
     "app_version",

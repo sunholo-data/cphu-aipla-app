@@ -264,10 +264,25 @@ class TeachingFramework(BaseModel):
     # student's simulation (``control_sim``). Cumulative: none < view < scaffold
     # < restrict. None means "the approach says nothing", which resolves to the
     # platform default (``adk.sim_control_tools.DEFAULT_SIM_CONTROL`` = view).
-    # ⚠️ No published framework sets it yet. A POE tutor that locks time until a
-    # prediction is in needs ``restrict``, and that is a claim about the approach
-    # for the people who own the pedagogy to make in the YAML — not a default.
+    # Every published framework sets ``restrict`` since 2026-10-26 (M: "no reason
+    # for all of them not to control"). The platform default stays ``view``, so
+    # a tutor with no framework — and a custom approach that says nothing — is
+    # unchanged; the level remains a per-approach decision made in the YAML.
     sim_control: Literal["none", "view", "scaffold", "restrict"] | None = Field(default=None, alias="simControl")
+
+    # 1.1.129 M0 (per-approach, 2026-10-26) — what the tutor does when the
+    # student asks for an explanation. Whether to explain is a claim about the
+    # approach, not a platform rule (M: "isn't that teaching approach
+    # specific?"), so it lives here and is rendered into the approach's own
+    # instruction by ``frameworks.instruction``:
+    #   ``hand_back``  — never explain the answer; hand the thinking back (ESRU).
+    #   ``second_ask`` — hand it back once; explain when asked a second time.
+    #   ``first_ask``  — explain on request, then check understanding.
+    # In every case the product the activity asks for is never handed over.
+    # None renders NOTHING — the instruction is byte-identical to before the
+    # field existed (the passthrough guarantee). The published values are
+    # PROPOSED, for JB/AR review — see explain-on-the-second-ask.md.
+    explain_policy: Literal["hand_back", "second_ask", "first_ask"] | None = Field(default=None, alias="explainPolicy")
 
     # 1.1.149 M4 — how early and how often a tutor teaching with this approach
     # sends the student to the WORKBENCH (sim, table, checklist …). The platform

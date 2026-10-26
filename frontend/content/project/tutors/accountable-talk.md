@@ -3,8 +3,8 @@ title: "Accountable Talk"
 description: "How AIPLA's tutor teaches when configured to use Accountable Talk, and the research it is based on."
 eyebrow: "Teaching framework"
 owner: "AIPLA project team"
-reviewed: "2026-10-19"
-reviewBy: "2027-01-19"
+reviewed: "2026-10-26"
+reviewBy: "2027-01-26"
 status: "Provisional"
 order: "64"
 nav: "false"
@@ -109,6 +109,10 @@ Getting the facts straight is not enough — the facts have to be marshalled int
 - Taking a correct conclusion as evidence that the reasoning behind it was sound.
 
 **How you would know it happened:** Two things. Was the student asked for reasoning separately from being asked for an answer? And does the strength of their claim match the evidence they gave — the sufficiency, credibility, relevance and qualification test, not accuracy alone.
+
+## What the tutor may change in the simulation
+
+What the simulation shows, task or hint text on the student's screen, and — where the simulation offers it — locking or configuring a control, for instance holding time still until the student has made a prediction. Every change is named to the student on a card in the chat.
 
 ## How it is reviewed
 

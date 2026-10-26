@@ -783,6 +783,31 @@ describe("useSkillAgent — error classification", () => {
     expect(result.current.isLoading).toBe(false);
   });
 
+  // 1.1.142 — ag_ui_adk catches runner exceptions itself and emits
+  // RUN_ERROR{code: BACKGROUND_EXECUTION_ERROR, message: str(exc)}. The backend
+  // now scrubs that text, but the client must never depend on it: the student
+  // sees the friendly agentError copy, keyed by code, never the raw message.
+  it("maps a raw BACKGROUND_EXECUTION_ERROR to the friendly agentError, not the provider text", async () => {
+    const raw = "model turn failed on gemini-3.8-flash: MODEL_UNAVAILABLE (500 INTERNAL. {'error': ...})";
+    fake.runAgent.mockImplementation(async () => {
+      fake.emitRunFailed({ message: raw, code: "BACKGROUND_EXECUTION_ERROR" });
+      return { newMessages: [] };
+    });
+    const { result } = renderHook(() => useSkillAgent());
+
+    await act(async () => {
+      await result.current.sendMessage("test");
+    });
+
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    const err = result.current.error;
+    expect(err?.kind).toBe("run_error");
+    expect(err?.code).toBe("agentError");
+    expect(err?.message).not.toContain("gemini");
+    expect(err?.message).not.toContain("INTERNAL");
+    expect(err?.retryable).toBe(true);
+  });
+
   // Sprint 2.12 — typed budget-exceeded branch.
   it("sets kind=budget_exceeded when onRunFailed carries code=BUDGET_EXCEEDED", async () => {
     fake.runAgent.mockImplementation(async () => {

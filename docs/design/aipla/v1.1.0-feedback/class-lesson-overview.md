@@ -1,6 +1,6 @@
 # The lesson, for the whole class first — concepts and teaching approach aggregated, groups second
 
-**Status:** Design (OPEN) — **1.1.139**. **D1 BUILT 2026-09-30** (sprint BENCH-1, lane 1): `config.models.analysis_model()` + `analysis_model:` in `models.yaml` (default `gemini-3-8-flash`, env `ANALYSIS_MODEL`); the narrative and the rubric lens defaults use it. M0–M4 not started
+**Status:** **M0–M3 BUILT 2026-10-26** (not yet deployed); **M4 OPEN** (a calibration with JB, not code) — **1.1.139**. **D1 BUILT 2026-09-30** (sprint BENCH-1, lane 1): `config.models.analysis_model()` + `analysis_model:` in `models.yaml` (default `gemini-3-8-flash`, env `ANALYSIS_MODEL`); the narrative and the rubric lens defaults use it. See *What shipped — 2026-10-26* at the end
 **Priority:** **P1** — the teacher's first question after a lesson is *"what did the class get?"*, and today the only answer is to read one report per group. JB, 2026-09-29: *"reports for each group is too much to the teachers — in the insights have the concepts discussed in aggregate"*. Needs only teachers and existing sessions, so it is **un-gated**
 **Estimated:** ~6–6.5d phased (M0 structured concepts per session ~1d · M1 class roll-up ~1–1.5d · M2 the overview UI ~2d · M3 the wizard ~1–1.5d · M4 calibration on JB's session ~0.5d)
 **Scope:** Backend: `reports/narrative.py`, `reports/session_summary.py` (cache doc), `analytics/framework_fidelity.py` (read side only), `db/concept_progress.py` (`docs_for_class`), `protocols/insights_routes.py`, `config/models.yaml`. Frontend: `app/teacher/insights/` (new **Lessons** entry), `components/teacher/ClassConceptGraph.tsx`, `components/teacher/TeachingApproachSection.tsx`, `app/teacher/classes/[id]/page.tsx`, `app/teacher/reports/groups/[groupId]/page.tsx`
@@ -213,3 +213,74 @@ tutor.**
 - The page loads with no synchronous BigQuery on the loop and no per-group model
   fan-out on load.
 - JB's M4 read is recorded here.
+
+## What shipped — 2026-10-26
+
+M0–M3 on `dev` (not deployed). Acceptance 1–4 are met in tests; 5 (JB's read)
+is M4 and still open.
+
+**M0 — concepts as data.** `reports/narrative.py`: the narrative call now sends
+a Gemini `response_schema` (`NARRATIVE_SCHEMA`) and gets back
+`{narrative, concepts}` in ONE request; the Markdown is unchanged. The closed
+vocabulary is the activity's concept map, read through the chat turn's TUTOR-5
+`activity_id` stamp (new `SessionSummary.lesson_activity_id`; `activity_id`
+there is the *skill* id). The schema's status enum is `discussed | struggled`
+only; `demonstrated` is added afterwards from `concept_progress` alone
+(`finalise_concepts`). Stored on `chat_sessions/{id}` as `concepts`,
+`conceptsModel`, `conceptsVersion` (`concepts-v1`), `conceptsGeneratedAt`. A
+reply that is not the JSON object keeps its narrative with concepts *not
+extracted* (never "none"), and a failed extraction never blanks a stored one.
+Backfill: `make backfill-lesson-concepts ENV= CLASS= [DATE=] [GO=1]`
+(`backend/scripts/backfill_lesson_concepts.py`, dry run by default, `--max` 60).
+
+**M1 — the roll-up** (`insights/lessons.py`, `protocols/lesson_routes.py`):
+
+- `GET /api/insights/classes/{id}/lessons`; `GET …/lessons/{activity}?date=&synthesis=generate|cached`;
+  `POST …/lessons/{activity}/summarise?date=`. Owner or researcher, byte-identical 404 otherwise.
+- A lesson is `(activity_id stamp, else skill_id; Copenhagen start date)`, from
+  ONE BigQuery query over the class's `groupCodes` (revoked included — evidence).
+- Concepts: map-backed concepts key on the node label's `normalise_concept`
+  (the 1.1.121 join key) and take `demonstrated` **only** from
+  `concept_progress` — a narrative's stamped "demonstrated" reads as discussed —
+  so the count equals the class graph's (`test_mapped_counts_equal_the_class_graph_for_the_activity`).
+- Approach: STORED fidelity runs only (`framework_fidelity._cached`); the judge
+  never runs here. Coverage: assessed / too short / abstained / not judged yet /
+  other approach. Teachers get prose; researchers also get per-construct bands.
+  No framework → `no_framework`, said in words.
+- Class prose (approach + next time) is ONE call per lesson, cached in
+  `lesson_syntheses/{class}__{activity}__{date}` on an input fingerprint,
+  5-min debounce, in-flight dedupe; `synthesis=cached` makes no call.
+
+**Cost / latency safeguards.** The lesson read never generates a group
+summary: missing ones are counted ("not summarised yet"), and the teacher's
+explicit *Summarise them now* runs at most 8 calls, 2 in flight. A session with
+no `chat_sessions` row is counted as *cannot be summarised here* and never
+queued (nowhere to cache it, so it would be paid for on every read). All
+BigQuery/Firestore goes through `CACHE.aget_or_compute` / `asyncio.to_thread`.
+
+**M2 — the UI.** *Lessons* is the first Insights tab
+(`/teacher/insights/lessons`, class picker → lessons → `/teacher/insights/lessons/{class}/{activity}?date=`).
+The lesson page: a concept × group strip with search, status chips and concept
+chips; a click shows the groups and the tutor's evidence summary; then the
+approach with coverage first, what next, groups with outliers first. The class
+page gains a *Latest lesson* card above *Concepts across the class* (names
+concepts, never repeats the graph; cached-only read). The group report gains a
+breadcrumb to its lesson. Copy lives in a NEW area,
+`messages/{da,en}/teacher-lessons.json` (not `teacher-{research,classes}.json`
+as planned above — kept separate so parallel work on those files does not
+collide), plus `InsightsTabs.lessons`. Side fix: the Overview tab no longer
+lights up on every sub-tab's path.
+
+**M3 — the order.** The *Latest lesson* card offers a five-step after-lesson
+review when the lesson had ≥2 groups (skippable, remembered per lesson **in
+this browser**, not per teacher account). *Add to next activity* opens
+`/teacher/activities/new?classId=&brief=`, which seeds the teaching goal — the
+draft the authoring co-pilot reads — rather than sending a co-pilot turn. The
+before-lesson nudge (`ConceptListNudge`) sits beside the concept-map editor when
+the activity has no concepts and asks the co-pilot via the existing
+"propose concept map" request; it is not yet a step in 1.1.124's checklist.
+
+**Not done.** M4 (JB). Sessions without a `chat_sessions` index row cannot carry
+concepts. Free-label near-duplicates merge only on normalisation, no aliasing.
+Lesson naming (D2) not built. The 1.1.106 cost-envelope check for the
+analysis model is still owed.

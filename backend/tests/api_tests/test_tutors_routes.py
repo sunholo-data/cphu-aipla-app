@@ -23,7 +23,19 @@ RESEARCHER = User(uid="r-1", is_teacher=True, is_researcher=True)
 #: the loader the route itself reads would make the assertions tautological —
 #: their job is to notice a tutor appearing or disappearing, which only an
 #: independent list can do. Adding a persona is one edit here.
-BASE_TUTOR_IDS = {"amina", "astrid", "frida", "henrik", "jonas", "mikkel", "sofie"}
+BASE_TUTOR_IDS = {
+    "amina",
+    "astrid",
+    "frida",
+    "henrik",
+    "jonas",
+    "kasper",
+    "lars",
+    "mikkel",
+    "nadia",
+    "omar",
+    "sofie",
+}
 TEACHER = User(uid="t-1", is_teacher=True)
 STUDENT = User(uid="grp-1", is_teacher=False)
 

@@ -39,11 +39,13 @@ import { ClassDetailsPanel } from "@/components/teacher/ClassDetailsPanel";
 import { ClassVoiceSettingsPanel } from "@/components/teacher/ClassVoiceSettingsPanel";
 import { TutorPicker } from "@/components/teacher/TutorPicker";
 import { ClassConceptsOverview } from "@/components/teacher/ClassConceptsOverview";
+import { LatestLessonCard } from "@/components/teacher/lessons/LatestLessonCard";
 import { ClassGroupPairings } from "@/components/teacher/ClassGroupPairings";
 import { SettingsSection } from "@/components/teacher/ui/SettingsSection";
 import { SettingsMap } from "@/components/teacher/SettingsMap";
 import { citedDocIds, FailedMaterialsWarning, useRagStatuses } from "@/components/teacher/FailedMaterialsWarning";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
+import { CompareGroupsLink } from "@/components/teacher/compare/CompareGroupsLink";
 
 import { handleExportSessions } from "./_exportHelpers";
 import { ClassAnalyticsCopilot } from "./_ClassAnalyticsCopilot";
@@ -378,6 +380,7 @@ export default function TeacherClassDetailPage() {
       }
       title={cls.name}
       subtitle={t("subtitle", { groups: liveCodes.length, activities: (cls.activityIds ?? []).length })}
+      actions={<CompareGroupsLink classId={cls.classId} />}
     >
       <ActingForOwnerBanner resource={cls} kind="class" />
       <SettingsMap highlight="class" classId={cls.classId} />
@@ -385,6 +388,10 @@ export default function TeacherClassDetailPage() {
           the first thing after the header. They used to sit collapsed at the
           very bottom; JB: "the UI of finding concepts [should be] easier".
           Renders nothing (or one muted line) until there are concepts. */}
+      {/* 1.1.139 M2 — the latest lesson leads: what the class struggled with
+          and what next, linking to the full lesson overview. It names concepts
+          but never repeats the graph below. Cached read only — no model call. */}
+      <LatestLessonCard classId={cls.classId} />
       <ClassConceptsOverview classId={cls.classId} />
       <LiveClassView classId={cls.classId} />
       <SettingsSection

@@ -526,6 +526,16 @@ repair-revoked-codes:
 	@cd backend && uv run python -m scripts.repair_revoked_group_codes --env $(ENV) \
 		$(if $(CLASS),--class $(CLASS)) $(if $(filter 1,$(GO)),--go) $(if $(filter 1,$(FORCE)),--force)
 
+# Backfill 1.1.139 M0 structured concepts for one class's past sessions, so
+# the lesson overview can read lessons summarised before M0. Dry run by
+# default (lists the model calls it would make); GO=1 runs them.
+#   make backfill-lesson-concepts ENV=prod CLASS=<id> [DATE=2026-09-29] [GO=1]
+.PHONY: backfill-lesson-concepts
+backfill-lesson-concepts:
+	@test -n "$(ENV)" -a -n "$(CLASS)" || { echo "usage: make backfill-lesson-concepts ENV=dev|test|prod CLASS=<id> [DATE=YYYY-MM-DD] [GO=1] [REDO=1]"; exit 2; }
+	@cd backend && uv run python -m scripts.backfill_lesson_concepts --env $(ENV) --class $(CLASS) \
+		$(if $(DATE),--date $(DATE)) $(if $(filter 1,$(GO)),--go) $(if $(filter 1,$(REDO)),--redo)
+
 # What screen sizes are people using? Read-only distribution of the
 # `aipla_client_env` beacons (viewport width bucket x surface, DPR, pointer).
 #   make screen-sizes ENV=prod            # last 30 days
@@ -637,6 +647,14 @@ check-routes-tracked: ## Verify every Next.js route is tracked by git (CI-gated)
 check-literature-isolation: ## Verify the literature RAG corpus is unreachable from student turns (CI-gated)
 	@bash scripts/check-literature-corpus-isolation.sh
 
+# 1.1.137 §Guard: ADR-001 keeps no server-side map from a group code to a
+# person. Fails if a backend model grows a student_name / names / roster /
+# pupil / elev field without a DPIA-citing entry in
+# scripts/student-identity-allowlist.txt. The fixture test proves it fails.
+check-student-identity: ## Fail if a backend model gains a student-identity field without a DPIA allowlist entry (CI-gated)
+	@python3 scripts/check-student-identity-fields.py
+	@python3 -m unittest discover -s scripts/tests -p 'test_check_student_identity.py'
+
 # Trust-card footgun gate (P1.4). Flags any workspace element that pushes state
 # to the tutor (useSimSnapshotPush) without dispatching the visible "shared with
 # the AI" card (useHumanToolEvents) — the calculator+table bug. Same script the
@@ -721,6 +739,14 @@ bench-tutors: ## Tutor discrimination benchmark (ARGS=--dry-run | ARGS=--go; ENV
 .PHONY: bench-tutor-sessions
 bench-tutor-sessions: ## Tutor discrimination on real sessions (ARGS="--dry-run --since YYYY-MM-DD" | add --go)
 	@cd backend && uv run python ../scripts/bench-tutor-discrimination.py --from-sessions $(ARGS)
+
+# 1.1.141 M0 — which real sessions ran on an activity whose teaching goal
+# carries pedagogy (tone / hints / character / answer-giving)? Read-only BigQuery
+# selection + Firestore goal reads. --dry-run makes ZERO model calls; --go runs
+# the M2 lint (costs money; M's go-ahead) and writes a per-session label file.
+.PHONY: goal-lint-sessions
+goal-lint-sessions: ## 1.1.141 M0 goal-pedagogy labels for real sessions (ARGS="--dry-run --since YYYY-MM-DD" | add --go)
+	@cd backend && uv run python ../scripts/goal-lint-sessions.py $(ARGS)
 
 # Home-screen icon gate (2026-08-14). The PWA shipped in v0.1.18 with icons cut
 # from the ROUNDED aipla-mark.svg, so their corners were transparent. iOS rounds

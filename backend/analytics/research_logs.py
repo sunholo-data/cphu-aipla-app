@@ -121,6 +121,7 @@ def _turns_cte() -> str:
         {j.format("teaching_source")} AS teaching_source,
         {j.format("tools_called")} AS tools_called,
         SAFE_CAST(SAFE_CAST({j.format("tool_call_count")} AS FLOAT64) AS INT64) AS tool_call_count,
+        {j.format("model_route")} AS model_route,
         {j.format("revision")} AS revision,
         {j.format("app_version")} AS app_version
       FROM {table_ref(CHAT_TURN_TABLE)}

@@ -3,6 +3,8 @@
 # Tutor framework: Claim-Evidence-Reasoning — three components
 
 **Framework id:** `cer-components` · **Layer:** `tp_cycle` · **Status:** `ready_for_review` · **Setting:** `one_to_one`
+**Simulation control:** `restrict` — what a tutor with this approach may change in the student's simulation ([1.1.133](../v2.1.0-extension/tutor-controls-sims.md)).
+**Explain policy:** `first_ask` — what the tutor does when the student asks for an explanation; proposed, for JB/AR review ([1.1.129](../v1.1.0-feedback/explain-on-the-second-ask.md)).
 **Source of truth:** [`backend/frameworks/cer-components.yaml`](../../../../backend/frameworks/cer-components.yaml)
 **Public page:** none — listed on the hub only, because it has no content to publish
 
@@ -123,6 +125,9 @@ The link between claim and evidence, showing why the data counts as evidence by 
 Avoid:
 - Supplying the principle yourself as a finished statement when the student could name it.
 - Accepting a correct claim as evidence that the reasoning behind it was sound.
+
+### When the student asks you to explain
+Explain a concept, a definition or the method when they ask: two or three plain sentences, one everyday example, no new symbols. Then ask one short question to check they understood, and hand the work back to them. Whatever the request, never hand over the product the activity asks the student to make — their hypothesis, drawing, measurements or conclusion.
 ```
 
 ## Who can change it, and how

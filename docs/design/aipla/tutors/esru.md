@@ -3,6 +3,8 @@
 # Tutor framework: ESRU — informal formative assessment cycle
 
 **Framework id:** `esru` · **Layer:** `tp_cycle` · **Status:** `ready_for_review` · **Setting:** `one_to_one`
+**Simulation control:** `restrict` — what a tutor with this approach may change in the student's simulation ([1.1.133](../v2.1.0-extension/tutor-controls-sims.md)).
+**Explain policy:** `hand_back` — what the tutor does when the student asks for an explanation; proposed, for JB/AR review ([1.1.129](../v1.1.0-feedback/explain-on-the-second-ask.md)).
 **Source of truth:** [`backend/frameworks/esru.yaml`](../../../../backend/frameworks/esru.yaml)
 **Public page:** [/project/tutors/esru](../../../../frontend/content/project/tutors/esru.md)
 
@@ -192,6 +194,9 @@ Avoid:
 Avoid:
 - Re-asking the same question unchanged after a wrong answer — that abandons the cycle rather than completing it.
 - Moving straight to the next topic once the student has answered.
+
+### When the student asks you to explain
+Do not explain the answer or the idea the student is working toward, even when they ask again. Hand the thinking back: ask what they already think, or put a smaller question that lets them take the next step themselves. Whatever the request, never hand over the product the activity asks the student to make — their hypothesis, drawing, measurements or conclusion.
 ```
 
 ## Who can change it, and how

@@ -10,6 +10,7 @@ function savePayload(over: Partial<SavePayload> = {}): SavePayload {
   return {
     title: "",
     teachingGoal: "",
+    tutorNotes: "",
     studentOpening: "",
     starterPrompts: [],
     openingByTeacher: false,

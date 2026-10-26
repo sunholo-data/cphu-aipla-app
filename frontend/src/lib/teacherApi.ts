@@ -46,6 +46,9 @@ export interface ActivityConfigPayload {
   teacherUid: string;
   title?: string;
   teachingGoal: string;
+  /** 1.1.141 M3 — how-to-teach lines moved out of the goal. Reaches the tutor
+   *  only when the class's tutor has no teaching approach. */
+  tutorNotes?: string;
   studentOpening?: string;
   starterPrompts?: string[];
   openingByTeacher?: boolean;
@@ -283,6 +286,9 @@ export interface SessionSummaryPayload {
   sessionId: string;
   groupCode: string | null;
   activityId: string;
+  /** 1.1.139 M0 — the act-… activity stamped on the chat turns (activityId is
+   *  the skill id). Null on sessions from before the stamp. */
+  lessonActivityId?: string | null;
   /** Activity display name (resolved server-side), falls back to activityId. */
   activityName?: string | null;
   /** The class this group belongs to (for a back-link), null if unbound. */
@@ -608,6 +614,8 @@ export interface ActivityUpsertBody {
   classId?: string;
   title?: string;
   teachingGoal: string;
+  /** 1.1.141 M3 — carried so the full-overwrite save cannot wipe it. */
+  tutorNotes?: string;
   studentOpening?: string;
   starterPrompts?: string[];
   openingByTeacher?: boolean;
@@ -663,6 +671,8 @@ export interface ActivityPayload extends ActivityConfigPayload {
   sourceOwnerLabel?: string;
   /** ISO lifecycle timestamps (the create stamp; `updatedAt` is inherited). */
   createdAt?: string | null;
+  /** 1.1.142 M3 — researcher-set; absent on a backend older than it. */
+  modelTier?: "default" | "smart";
 }
 
 /** Create a new activity (mints a distinct `act-…` id — never collides). When
@@ -674,6 +684,47 @@ export async function createActivity(body: ActivityUpsertBody): Promise<Activity
     body: JSON.stringify(body),
   });
   return readJson<ActivityPayload>(resp, "create activity");
+}
+
+/** 1.1.141 M2 — one line of a teaching goal that tells the tutor HOW to teach. */
+export interface PedagogySpan {
+  /** Verbatim from the goal (the backend drops anything it cannot find). */
+  text: string;
+  kind: "tone" | "hint_policy" | "character" | "answer_policy";
+  /** Construct keys of the class tutor's approach this line competes with. */
+  conflictsWith: string[];
+  why: string;
+}
+
+export interface GoalLintResult {
+  spans: PedagogySpan[];
+  frameworkId: string | null;
+  frameworkLabel: string | null;
+  tutorName: string | null;
+  constructNames: Record<string, string>;
+  textHash: string;
+  degraded: boolean;
+}
+
+/** 1.1.141 M2 — which lines of a teaching goal tell the tutor how to teach?
+ *  Advisory: one cached analysis-model call per distinct text, never per turn;
+ *  any failure comes back as no spans. `classId` picks the tutor whose
+ *  approach the lines are checked against. */
+export async function lintTeachingGoal(body: {
+  text: string;
+  classId?: string;
+  activityId?: string;
+}): Promise<GoalLintResult> {
+  const resp = await fetchWithAuth(`/api/proxy/api/activities/lint-teaching-goal`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      text: body.text,
+      classId: body.classId || undefined,
+      activityId: body.activityId?.startsWith("act-") ? body.activityId : undefined,
+    }),
+  });
+  return readJson<GoalLintResult>(resp, "lint teaching goal");
 }
 
 /** Load one activity for editing (owner-only). */
@@ -801,6 +852,22 @@ export async function setActivityVisibility(
     body: JSON.stringify({ visibility }),
   });
   return readJson<ActivityPayload>(resp, "set activity visibility");
+}
+
+/** 1.1.142 M3 — the activity's model tier. `smart` starts every tutor turn on
+ *  the smart model. */
+export type ModelTier = "default" | "smart";
+
+/** 1.1.142 M3 — set an activity's model tier. **Researcher-only** (403 for a
+ *  teacher, the owner included): the smart tier costs ~2.5x per turn. Its own
+ *  route, so the builder's full-payload save never touches it. */
+export async function setActivityModelTier(activityId: string, modelTier: ModelTier): Promise<ActivityPayload> {
+  const resp = await fetchWithAuth(`/api/proxy/api/activities/${encodeURIComponent(activityId)}/model-tier`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ modelTier }),
+  });
+  return readJson<ActivityPayload>(resp, "set activity model tier");
 }
 
 /** Adopt a published activity into your library as a fresh `draft` (ALS-SHARE

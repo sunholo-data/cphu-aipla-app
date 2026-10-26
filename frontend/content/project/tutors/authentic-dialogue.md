@@ -3,8 +3,8 @@ title: "Authentic Dialogue — dialogic teaching"
 description: "How AIPLA's tutor teaches when configured to use Authentic Dialogue, and the research it is based on."
 eyebrow: "Teaching framework"
 owner: "AIPLA project team"
-reviewed: "2026-10-19"
-reviewBy: "2027-01-19"
+reviewed: "2026-10-26"
+reviewBy: "2027-01-26"
 status: "Provisional"
 order: "65"
 nav: "false"
@@ -101,6 +101,10 @@ The dialogic aim the other three serve: a conversation in which several views ar
 - Closing a genuine disagreement down with the authoritative answer as soon as it appears.
 
 **How you would know it happened:** Did more than one position get a hearing in this conversation, or did it converge on the tutor's view as soon as one appeared?
+
+## What the tutor may change in the simulation
+
+What the simulation shows, task or hint text on the student's screen, and — where the simulation offers it — locking or configuring a control, for instance holding time still until the student has made a prediction. Every change is named to the student on a card in the chat.
 
 ## How it is reviewed
 

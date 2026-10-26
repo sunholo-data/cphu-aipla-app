@@ -17,6 +17,7 @@ import daTeacherShell from "../../messages/da/teacher-shell.json";
 import daTeacherClasses from "../../messages/da/teacher-classes.json";
 import daTeacherActivities from "../../messages/da/teacher-activities.json";
 import daTeacherResearch from "../../messages/da/teacher-research.json";
+import daTeacherLessons from "../../messages/da/teacher-lessons.json";
 import daTeacherHints from "../../messages/da/teacher-hints.json";
 import daTeacherSims from "../../messages/da/teacher-sims.json";
 import daWorkspace from "../../messages/da/workspace.json";
@@ -29,6 +30,7 @@ import enTeacherShell from "../../messages/en/teacher-shell.json";
 import enTeacherClasses from "../../messages/en/teacher-classes.json";
 import enTeacherActivities from "../../messages/en/teacher-activities.json";
 import enTeacherResearch from "../../messages/en/teacher-research.json";
+import enTeacherLessons from "../../messages/en/teacher-lessons.json";
 import enTeacherHints from "../../messages/en/teacher-hints.json";
 import enTeacherSims from "../../messages/en/teacher-sims.json";
 import enWorkspace from "../../messages/en/workspace.json";
@@ -47,6 +49,7 @@ export const MESSAGE_AREAS = {
     teacherClasses: daTeacherClasses,
     teacherActivities: daTeacherActivities,
     teacherResearch: daTeacherResearch,
+    teacherLessons: daTeacherLessons,
     teacherHints: daTeacherHints,
     teacherSims: daTeacherSims,
     workspace: daWorkspace,
@@ -61,6 +64,7 @@ export const MESSAGE_AREAS = {
     teacherClasses: enTeacherClasses,
     teacherActivities: enTeacherActivities,
     teacherResearch: enTeacherResearch,
+    teacherLessons: enTeacherLessons,
     teacherHints: enTeacherHints,
     teacherSims: enTeacherSims,
     workspace: enWorkspace,
@@ -77,6 +81,7 @@ const da = {
   ...daTeacherClasses,
   ...daTeacherActivities,
   ...daTeacherResearch,
+  ...daTeacherLessons,
   ...daTeacherHints,
   ...daTeacherSims,
   ...daWorkspace,
@@ -97,6 +102,7 @@ const en: Messages = {
   ...enTeacherClasses,
   ...enTeacherActivities,
   ...enTeacherResearch,
+  ...enTeacherLessons,
   ...enTeacherHints,
   ...enTeacherSims,
   ...enWorkspace,

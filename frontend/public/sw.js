@@ -26,15 +26,18 @@
  * activate, so a bad cache is one deploy away from gone.
  */
 
-const CACHE_VERSION = "aipla-v1";
+// v2 (1.1.138 M3, 2026-10-26): navigations no longer fall back to a cached app
+// page, and the bump deletes every app page the v1 worker had cached.
+const CACHE_VERSION = "aipla-v2";
 const SHELL_CACHE = `${CACHE_VERSION}-shell`;
 const STATIC_CACHE = `${CACHE_VERSION}-static`;
 const OFFLINE_URL = "/offline.html";
 
 // Kept deliberately tiny. Precaching routes would bake in a build's HTML, and
 // Next serves content-hashed chunks that the HTML must match — a stale shell
-// paired with fresh chunks is the classic PWA white screen. Navigations are
-// network-first below precisely so that cannot happen while online.
+// paired with fresh chunks is the classic PWA white screen. For the same reason
+// navigations are never cached at all (below): the offline page is the only
+// HTML this worker ever serves.
 const PRECACHE = [OFFLINE_URL, "/images/logo/icon-192.png"];
 
 self.addEventListener("install", (event) => {
@@ -103,25 +106,19 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Navigations: network-first, so an online student always gets current HTML.
-  // Falling back to the cached shell and then to the offline page means the
-  // worst case is an honest "you are offline" instead of a browser error.
+  // Navigations: network only, and on a network failure the OFFLINE PAGE —
+  // never a cached app page (1.1.138 M3, option b). A cached page is HTML from
+  // whichever build last served it; on a school Wi-Fi blip it would be paired
+  // with the current build's chunks — the module-map skew behind the
+  // `reading 'call'` crashes. An offline app page cannot reach the tutor
+  // anyway, so the honest "you are offline" loses nothing.
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request)
-        .then((res) => {
-          if (res.ok) {
-            const copy = res.clone();
-            caches.open(SHELL_CACHE).then((c) => c.put(request, copy));
-          }
-          return res;
-        })
-        .catch(() =>
-          caches
-            .match(request)
-            .then((hit) => hit || caches.match(OFFLINE_URL))
-            .then((hit) => hit || Response.error()),
-        ),
+      fetch(request).catch(() =>
+        caches
+          .match(OFFLINE_URL)
+          .then((hit) => hit || Response.error()),
+      ),
     );
     return;
   }

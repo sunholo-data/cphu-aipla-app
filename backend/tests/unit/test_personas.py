@@ -8,7 +8,19 @@ from db.models.activity_config import ActivityConfig
 from db.models.persona import Persona
 from personas.loader import load_persona, load_personas
 
-EXPECTED_IDS = {"amina", "astrid", "frida", "henrik", "jonas", "mikkel", "sofie"}
+EXPECTED_IDS = {
+    "amina",
+    "astrid",
+    "frida",
+    "henrik",
+    "jonas",
+    "kasper",
+    "lars",
+    "mikkel",
+    "nadia",
+    "omar",
+    "sofie",
+}
 VALID_STYLES = {"socratic", "concise", "rigorous", "warm"}
 
 

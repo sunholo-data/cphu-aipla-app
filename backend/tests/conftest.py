@@ -100,3 +100,22 @@ def _stub_firestore_client():
     fs._client = fake
     yield fake
     fs._client = saved
+
+
+@pytest.fixture(autouse=True)
+def _no_real_goal_lint_calls(monkeypatch):
+    """1.1.141 M2 — the teaching-goal lint runs on activity copy/adopt routes.
+
+    No test may reach a real model through it: the seam returns "no spans" and
+    the cache is cleared per test. Tests that exercise the lint patch
+    ``analytics.teaching_goal_lint._call_lint_model`` themselves.
+    """
+    import analytics.teaching_goal_lint as lint
+
+    async def _quiet(_prompt: str, _model: str) -> str:
+        return '{"spans": []}'
+
+    monkeypatch.setattr(lint, "_call_lint_model", _quiet)
+    lint._reset_cache_for_testing()
+    yield
+    lint._reset_cache_for_testing()

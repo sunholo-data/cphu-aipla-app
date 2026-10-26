@@ -81,6 +81,7 @@ from adk.mcp_observability import (
     make_mcp_after_tool_callback,
     make_mcp_before_tool_callback,
 )
+from adk.model_routing import activity_opts_into_smart
 from adk.multimodal import inject_image_input_preamble
 from adk.praise_style import build_praise_block
 from adk.proactive_greet import inject_opening_guidance, wrap_opening_guidance_per_turn
@@ -93,8 +94,8 @@ from adk.sim_author import attach_sim_screenshots, record_sim_usage
 from adk.sim_control_tools import build_sim_control_tools, resolve_sim_control_level
 from adk.svg_preview import attach_svg_preview, make_final_svg_guard
 from adk.teacher_focus import build_ilo_precedence_block, inject_teacher_focus, resolve_active_config
+from adk.teaching_precedence import build_tutor_notes_block, inject_framework_preamble_with_precedence
 from adk.tools import resolve_mcp_tools, resolve_tools
-from adk.tutor_framework import inject_framework_preamble
 from adk.tutor_identity import build_identity_block
 from adk.tutor_resolution import resolve_teaching_context
 from adk.workbench_affordances import TurnFills, make_workbench_affordances_wrapper, resolve_workbench_use
@@ -125,9 +126,11 @@ def resolve_model(model_id: str, first_token_deadline_s: float | None = None) ->
         ValueError: If the model_id does not match a known provider prefix.
     """
     if model_id.startswith("gemini-"):
+        chain = _gemini_chain_for(model_id)
         return ResilientLlm(
-            chain=[Gemini(model=member) for member in _gemini_chain_for(model_id)],
+            chain=[Gemini(model=member) for member in chain],
             first_token_deadline_s=first_token_deadline_s,
+            escalation_index=_escalation_index_for(chain),
         )
     if model_id.startswith("claude-"):
         return Claude(model=model_id)
@@ -157,6 +160,37 @@ def _gemini_chain_for(model_id: str) -> list[str]:
     if chain and chain[0] == model_id:
         return chain
     return [model_id]
+
+
+def _escalation_index_for(chain: list[str]) -> int | None:
+    """Where in `chain` a hard turn starts (1.1.142 M3), or `None`.
+
+    The smart tier (`config.models.smart_model()`) when it is a member of the
+    fail-over chain other than its head — i.e. only for the platform default,
+    the same rule as fail-over and for the same reason: a skill that pins a
+    model asked for that model. A chain of one never escalates. The smart tier
+    must already be in `tutor_chain` (registered, Gemini, validated) — this adds
+    no second place to configure a model.
+    """
+    if len(chain) < 2:
+        return None
+    try:
+        from config.models import smart_model
+
+        smart = smart_model()
+    except Exception as exc:  # a broken registry must not take the model down with it
+        logger.warning("smart tier unavailable (%s) — %s runs without escalation", exc, chain[0])
+        return None
+    return chain.index(smart) if smart in chain[1:] else None
+
+
+def _apply_activity_model_tier(model: object, active_cfg: object) -> None:
+    """Opt the agent's model into the smart tier when the activity says so
+    (`modelTier: smart`, 1.1.142 M3 — researcher-set). No-op for any model that
+    cannot escalate (a pinned model, a non-Gemini provider, a chain of one), so
+    an opted-in activity running a pinned skill keeps its pin."""
+    if isinstance(model, ResilientLlm) and model.escalation_index is not None:
+        model.opt_in_smart = activity_opts_into_smart(active_cfg)
 
 
 # --- Name sanitisation ---
@@ -532,6 +566,8 @@ def create_agent(
     # below; the double read is acceptable at agent-build-time (once per session).
     _active_cfg = resolve_active_config(_activity_id, group_tags=user.group_tags)
     _materials = _active_cfg.materials if _active_cfg else []
+    # 1.1.142 M3 — an activity with `modelTier: smart` starts every turn on the smart tier.
+    _apply_activity_model_tier(model, _active_cfg)
     # 1.1.151 F1d — session_key lets a doc the tutor cannot read be logged once
     # per (group/teacher, activity) rather than on every turn's rebuild.
     _curriculum_tool = build_curriculum_retrieval_tool(
@@ -902,7 +938,12 @@ def create_agent(
                         # moves by `build_framework_instruction` — chosen once,
                         # by whoever owns the approach, in the same preview as
                         # the moves it has to live with.
-                        inject_framework_preamble(
+                        #
+                        # 1.1.141 M1: followed IMMEDIATELY by the precedence
+                        # block — the activity says what to learn, the approach
+                        # says how to teach. Only when a preamble was composed,
+                        # so a framework-less turn stays byte-identical.
+                        inject_framework_preamble_with_precedence(
                             # Phase 1.1.7: when the skill opts into image
                             # upload, append the shared image-input guidance
                             # (units-loop / no-solve / privacy) right after
@@ -940,6 +981,11 @@ def create_agent(
                                 # (_doc_links_after) is the control, not this.
                                 + (build_document_links_block(_active_cfg) if user.group_id else "")
                                 + build_ilo_precedence_block(_active_cfg)
+                                # 1.1.141 M3 — pedagogy/persona lines moved out
+                                # of the teaching goal reach the tutor ONLY when
+                                # no approach is teaching. "" otherwise, and ""
+                                # for every activity without notes.
+                                + build_tutor_notes_block(_active_cfg, _teaching_ctx.framework_id)
                                 # 1.1.70 M1 — what this GROUP has already been
                                 # recorded as doing. Both summaries were
                                 # written, exported and unit-tested in 1.1.62 /

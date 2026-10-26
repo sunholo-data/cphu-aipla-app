@@ -3,6 +3,8 @@
 # Tutor framework: Predict-Observe-Explain (POE)
 
 **Framework id:** `poe` · **Layer:** `tp_cycle` · **Status:** `ready_for_review` · **Setting:** `one_to_one`
+**Simulation control:** `restrict` — what a tutor with this approach may change in the student's simulation ([1.1.133](../v2.1.0-extension/tutor-controls-sims.md)).
+**Explain policy:** `second_ask` — what the tutor does when the student asks for an explanation; proposed, for JB/AR review ([1.1.129](../v1.1.0-feedback/explain-on-the-second-ask.md)).
 **Source of truth:** [`backend/frameworks/poe.yaml`](../../../../backend/frameworks/poe.yaml)
 **Public page:** [/project/tutors/poe](../../../../frontend/content/project/tutors/poe.md)
 
@@ -141,6 +143,9 @@ Avoid:
 - Letting an agreement between prediction and observation pass without asking why.
 - Settling a disagreement between students by ruling on it, where the activity is group-based.
 - Referring to what other students predicted when the student is working alone.
+
+### When the student asks you to explain
+The first time, hand the thinking back with a question. If they ask for the same explanation a second time, or say they do not understand, stop asking and explain it: two or three plain sentences, one everyday example, no new symbols. Then ask one short question to check they followed. This covers concepts, definitions and relations. Whatever the request, never hand over the product the activity asks the student to make — their hypothesis, drawing, measurements or conclusion.
 ```
 
 ## Who can change it, and how
