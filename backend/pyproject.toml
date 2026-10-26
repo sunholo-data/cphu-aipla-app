@@ -54,6 +54,7 @@ dependencies = [
     "google-cloud-texttospeech>=2.36.0",
     "litellm>=1.83.10",
     "resvg-py>=0.5.0",
+    "pint>=0.24,<1.0",
 ]
 
 [dependency-groups]
@@ -98,8 +99,14 @@ target-version = "py311"
 select = ["E", "F", "W", "I", "C", "B", "UP", "RUF"]
 ignore = ["E501", "C901", "B006"]
 
+[tool.ruff.lint.per-file-ignores]
+# The calculator accepts and renders the symbols students and models write
+# (× − · Δ ρ θ …), so "ambiguous Unicode" is the subject matter there, not a typo.
+"maths/*.py" = ["RUF001", "RUF002"]
+"tests/unit/test_maths_engine.py" = ["RUF001"]
+
 [tool.ruff.lint.isort]
-known-first-party = ["skills", "adk", "tools", "channels", "protocols", "auth", "db", "observability"]
+known-first-party = ["skills", "adk", "tools", "channels", "protocols", "auth", "db", "observability", "maths"]
 
 [tool.pytest.ini_options]
 pythonpath = "."
