@@ -74,6 +74,47 @@ _CUSTOM_PREFACE = (
 )
 
 
+# 1.1.129 M0 (per-approach) — what the tutor does when asked to explain. Prose
+# is language-neutral: it names the situation ("asks you to explain", "says they
+# do not understand") rather than matching words in one language, because the
+# directive about WHICH language comes from config, never from here.
+_EXPLAIN_HEADING = "### When the student asks you to explain"
+_EXPLAIN_PRODUCT = (
+    "Whatever the request, never hand over the product the activity asks the student to make — "
+    "their hypothesis, drawing, measurements or conclusion."
+)
+_EXPLAIN_POLICY_TEXT = {
+    "hand_back": (
+        "Do not explain the answer or the idea the student is working toward, even when they ask again. "
+        "Hand the thinking back: ask what they already think, or put a smaller question that lets them take "
+        "the next step themselves."
+    ),
+    "second_ask": (
+        "The first time, hand the thinking back with a question. If they ask for the same explanation a second "
+        "time, or say they do not understand, stop asking and explain it: two or three plain sentences, one "
+        "everyday example, no new symbols. Then ask one short question to check they followed. This covers "
+        "concepts, definitions and relations."
+    ),
+    "first_ask": (
+        "Explain a concept, a definition or the method when they ask: two or three plain sentences, one "
+        "everyday example, no new symbols. Then ask one short question to check they understood, and hand the "
+        "work back to them."
+    ),
+}
+
+
+def _explain_block(framework: TeachingFramework) -> list[str]:
+    """The approach's explain policy as a block, empty when it declares none.
+
+    Empty is the passthrough: a framework without ``explainPolicy`` renders
+    byte-identically to the instruction before the field existed.
+    """
+    text = _EXPLAIN_POLICY_TEXT.get(framework.explain_policy or "")
+    if not text:
+        return []
+    return [f"{_EXPLAIN_HEADING}\n{text} {_EXPLAIN_PRODUCT}"]
+
+
 def _register_block(framework: TeachingFramework) -> list[str]:
     """The register preamble as a list, empty when the approach declares none.
 
@@ -107,7 +148,7 @@ def build_framework_instruction(framework: TeachingFramework | None) -> str:
         if not text:
             return ""
         parts = [_CUSTOM_HEADER.format(label=framework.label), _CUSTOM_PREFACE, text]
-        return "\n\n".join(parts + _register_block(framework))
+        return "\n\n".join(parts + _explain_block(framework) + _register_block(framework))
 
     lines = [line for line in (framework.summary or "").strip().splitlines() if line.strip()]
     summary = " ".join(s.strip() for s in lines)
@@ -152,6 +193,10 @@ def build_framework_instruction(framework: TeachingFramework | None) -> str:
     if summary:
         parts.append(summary)
     parts.extend(blocks)
+    # The explain policy follows the moves: it bounds how they run when the
+    # student asks outright, and it is part of the approach, so it precedes the
+    # register (which stays last, see below).
+    parts.extend(_explain_block(framework))
     # The register goes LAST, after the moves. On the "later instruction wins"
     # convention this chain runs on, that is the strong position — which is
     # correct only because the register is now part of the approach rather than

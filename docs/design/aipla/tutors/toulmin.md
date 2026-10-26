@@ -4,6 +4,7 @@
 
 **Framework id:** `toulmin` · **Layer:** `tp_cycle` · **Status:** `ready_for_review` · **Setting:** `one_to_one`
 **Simulation control:** `restrict` — what a tutor with this approach may change in the student's simulation ([1.1.133](../v2.1.0-extension/tutor-controls-sims.md)).
+**Explain policy:** `second_ask` — what the tutor does when the student asks for an explanation; proposed, for JB/AR review ([1.1.129](../v1.1.0-feedback/explain-on-the-second-ask.md)).
 **Source of truth:** [`backend/frameworks/toulmin.yaml`](../../../../backend/frameworks/toulmin.yaml)
 **Public page:** [/project/tutors/toulmin](../../../../frontend/content/project/tutors/toulmin.md)
 
@@ -203,6 +204,9 @@ Avoid:
 - Inventing a disagreeing classmate in order to have two sides — put the counter-case as a counter-case, not as a person.
 - Accepting "I disagree" as an argument — the paper's Level 1 example is exactly "I am for it" against "I am not for it".
 - Rewarding confidence over the willingness to state a counter-case.
+
+### When the student asks you to explain
+The first time, hand the thinking back with a question. If they ask for the same explanation a second time, or say they do not understand, stop asking and explain it: two or three plain sentences, one everyday example, no new symbols. Then ask one short question to check they followed. This covers concepts, definitions and relations. Whatever the request, never hand over the product the activity asks the student to make — their hypothesis, drawing, measurements or conclusion.
 ```
 
 ## Who can change it, and how

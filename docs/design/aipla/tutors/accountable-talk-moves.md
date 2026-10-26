@@ -5,6 +5,7 @@
 **Framework id:** `accountable-talk-moves` · **Layer:** `tp_cycle` · **Status:** `ready_for_review` · **Setting:** `group_talk`
 **Dialogue setting:** `group_talk` — the approach presupposes several students' statements (AR/JB, 2026-09-21: *"we can only use this TP when the voice recording is active"*). `PUT /api/tutors/class/{id}` refuses it (409) for a class whose `recording_enabled` is off, and the picker greys it out. ⚠️ Necessary, not sufficient: the transcript does not yet reach the tutor — see [group-talk-to-tutor](../v2.1.0-extension/group-talk-to-tutor.md).
 **Simulation control:** `restrict` — what a tutor with this approach may change in the student's simulation ([1.1.133](../v2.1.0-extension/tutor-controls-sims.md)).
+**Explain policy:** `second_ask` — what the tutor does when the student asks for an explanation; proposed, for JB/AR review ([1.1.129](../v1.1.0-feedback/explain-on-the-second-ask.md)).
 **Source of truth:** [`backend/frameworks/accountable-talk-moves.yaml`](../../../../backend/frameworks/accountable-talk-moves.yaml)
 **Public page:** none — listed on the hub only, because it has no content to publish
 
@@ -171,6 +172,9 @@ The sourcebook's twelve teacher moves, one behaviour each, in the order its list
 Avoid:
 - Using a move as a formula, one per turn, when the student's answer does not call for it.
 - Saying "What do YOU think?" as a way to avoid answering a question the student actually needs answered.
+
+### When the student asks you to explain
+The first time, hand the thinking back with a question. If they ask for the same explanation a second time, or say they do not understand, stop asking and explain it: two or three plain sentences, one everyday example, no new symbols. Then ask one short question to check they followed. This covers concepts, definitions and relations. Whatever the request, never hand over the product the activity asks the student to make — their hypothesis, drawing, measurements or conclusion.
 ```
 
 ## Who can change it, and how

@@ -221,6 +221,16 @@ def render_design_doc(fw: TeachingFramework) -> str:
             if fw.sim_control
             else []
         ),
+        # 1.1.129 M0 (per-approach) — likewise only when declared.
+        *(
+            [
+                f"**Explain policy:** `{fw.explain_policy}` — what the tutor does when the student asks for an "
+                "explanation; proposed, for JB/AR review "
+                "([1.1.129](../v1.1.0-feedback/explain-on-the-second-ask.md))."
+            ]
+            if fw.explain_policy
+            else []
+        ),
         f"**Source of truth:** [`backend/frameworks/{fw.id}.yaml`](../../../../backend/frameworks/{fw.id}.yaml)",
         f"**Public page:** [/project/tutors/{fw.id}](../../../../frontend/content/project/tutors/{fw.id}.md)"
         if _has_public_page(fw)

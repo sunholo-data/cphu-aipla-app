@@ -270,6 +270,20 @@ class TeachingFramework(BaseModel):
     # unchanged; the level remains a per-approach decision made in the YAML.
     sim_control: Literal["none", "view", "scaffold", "restrict"] | None = Field(default=None, alias="simControl")
 
+    # 1.1.129 M0 (per-approach, 2026-10-26) — what the tutor does when the
+    # student asks for an explanation. Whether to explain is a claim about the
+    # approach, not a platform rule (M: "isn't that teaching approach
+    # specific?"), so it lives here and is rendered into the approach's own
+    # instruction by ``frameworks.instruction``:
+    #   ``hand_back``  — never explain the answer; hand the thinking back (ESRU).
+    #   ``second_ask`` — hand it back once; explain when asked a second time.
+    #   ``first_ask``  — explain on request, then check understanding.
+    # In every case the product the activity asks for is never handed over.
+    # None renders NOTHING — the instruction is byte-identical to before the
+    # field existed (the passthrough guarantee). The published values are
+    # PROPOSED, for JB/AR review — see explain-on-the-second-ask.md.
+    explain_policy: Literal["hand_back", "second_ask", "first_ask"] | None = Field(default=None, alias="explainPolicy")
+
     # 1.1.149 M4 — how early and how often a tutor teaching with this approach
     # sends the student to the WORKBENCH (sim, table, checklist …). The platform
     # owns THAT the tutor refers to the bench (``adk.workbench_affordances``);
