@@ -48,6 +48,7 @@ frontend/src/lib/writingApi.ts
 frontend/src/lib/costApi.ts
 frontend/src/lib/groupSessionApi.ts
 frontend/src/lib/classCompareApi.ts
+frontend/src/lib/lessonOverviewApi.ts
 "
 
 [ -d "$SRC" ] || { echo "SKIP: $SRC not found"; exit 0; }

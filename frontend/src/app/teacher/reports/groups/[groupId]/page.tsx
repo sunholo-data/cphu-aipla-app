@@ -14,6 +14,7 @@ import {
   getGroupReportTimeline,
 } from "@/lib/teacherApi";
 import { downloadCsv, downloadJson } from "@/lib/download";
+import { lessonDateFor, lessonHref } from "@/lib/lessonOverviewApi";
 import { ChatLogTranscript, timelineFromSummary } from "@/components/teacher/research/ChatLogTranscript";
 import {
   type ExportTimeline,
@@ -107,6 +108,7 @@ export default function TeacherGroupReportPage() {
   const t = useT("TeacherGroupReportPage");
   // The work cards' labels (and their fallback for unlabelled rows), for exports.
   const tCards = useT("ChatLogTranscript");
+  const tLesson = useT("LessonBreadcrumb");
   const params = useParams();
   const searchParams = useSearchParams();
   const groupId =
@@ -255,6 +257,16 @@ export default function TeacherGroupReportPage() {
     !sessionId &&
     lastActivityIso !== null &&
     (Date.now() - new Date(lastActivityIso).getTime()) / 1000 < LIVE_WINDOW_S;
+  // 1.1.139 M2 — a group report sits inside its lesson. The lesson page passes
+  // its own (activity, date); a report reached any other way derives them
+  // from the session, the same way the backend files lessons.
+  const lessonActivity =
+    searchParams?.get("lessonActivity") ??
+    (state.kind === "live" ? state.data.lessonActivityId || state.data.activityId : null);
+  const lessonDay =
+    searchParams?.get("lessonDate") ?? (state.kind === "live" ? lessonDateFor(state.data.startedAt) : null);
+  const lessonLink =
+    report.classId && lessonActivity && lessonDay ? lessonHref(report.classId, lessonActivity, lessonDay) : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -271,6 +283,14 @@ export default function TeacherGroupReportPage() {
             <span aria-hidden="true">/</span>
             <Link href={`/teacher/classes/${report.classId}`} className="hover:text-foreground hover:underline">
               {report.className || t("classFallback")}
+            </Link>
+          </>
+        ) : null}
+        {lessonLink ? (
+          <>
+            <span aria-hidden="true">/</span>
+            <Link href={lessonLink} className="hover:text-foreground hover:underline" data-testid="lesson-breadcrumb">
+              {tLesson("lesson", { activity: report.activityName, date: lessonDay ?? "" })}
             </Link>
           </>
         ) : null}

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { BarChart3, Coins, MessagesSquare } from "lucide-react";
+import { BarChart3, BookOpenCheck, Coins, MessagesSquare } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
@@ -20,7 +20,12 @@ import { useT } from "@/i18n";
  * Overview for a non-researcher there's a single destination, so the bar hides
  * itself (nothing to switch between).
  */
-const TABS = [{ href: "/teacher/insights", key: "overview", icon: BarChart3 }] as const;
+// Lessons (1.1.139 M2) is FIRST: a teacher's first question after a lesson is
+// "what did the class get?", and that page answers it before any single group.
+const TABS = [
+  { href: "/teacher/insights/lessons", key: "lessons", icon: BookOpenCheck },
+  { href: "/teacher/insights", key: "overview", icon: BarChart3 },
+] as const;
 
 // Conversations (1.1.109) joined Insights in 1.1.125 M2: "what did students say
 // to the tutor" is an insight, and its only reason to be a top-level
@@ -44,7 +49,12 @@ export function InsightsTabs() {
   return (
     <nav aria-label={t("navLabel")} className="flex items-center gap-1 border-b border-border">
       {tabs.map((tab) => {
-        const active = pathname === tab.href || pathname.startsWith(`${tab.href}/`);
+        // Overview's path is the parent of every other tab's, so it is active
+        // on its own path only — otherwise it lit up beside Lessons/Cost too.
+        const active =
+          tab.href === "/teacher/insights"
+            ? pathname === tab.href
+            : pathname === tab.href || pathname.startsWith(`${tab.href}/`);
         const Icon = tab.icon;
         return (
           <Link

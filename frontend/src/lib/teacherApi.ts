@@ -286,6 +286,9 @@ export interface SessionSummaryPayload {
   sessionId: string;
   groupCode: string | null;
   activityId: string;
+  /** 1.1.139 M0 — the act-… activity stamped on the chat turns (activityId is
+   *  the skill id). Null on sessions from before the stamp. */
+  lessonActivityId?: string | null;
   /** Activity display name (resolved server-side), falls back to activityId. */
   activityName?: string | null;
   /** The class this group belongs to (for a back-link), null if unbound. */
