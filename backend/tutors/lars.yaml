@@ -1,0 +1,18 @@
+# Base tutor for the Lars persona (added 2026-10-26).
+#
+# ⚠️ `frameworkId` is null on EVERY base tutor — the safety property of this
+# catalogue, not an omission (see henrik.yaml for the full reasoning). An
+# approach arrives only when a researcher assigns one in the running app
+# (/teacher/research/frameworks → "What each tutor teaches with").
+id: lars
+displayName: Lars — Pensioneret lektor
+summary: >
+  Physics-history guide — has students retrace how an idea was actually discovered, one experiment at a time.
+personaId: lars
+frameworkId: null
+interactionStyle: socratic
+status: ready
+authorRole: researcher
+promptProvenance: authored
+lineage:
+  kind: original

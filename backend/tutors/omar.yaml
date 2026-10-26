@@ -1,0 +1,18 @@
+# Base tutor for the Omar persona (added 2026-10-26).
+#
+# ⚠️ `frameworkId` is null on EVERY base tutor — the safety property of this
+# catalogue, not an omission (see henrik.yaml for the full reasoning). An
+# approach arrives only when a researcher assigns one in the running app
+# (/teacher/research/frameworks → "What each tutor teaches with").
+id: omar
+displayName: Omar — Studentermentor
+summary: >
+  Near-peer estimator — rough number first, then refine; asks whether the answer is even plausible.
+personaId: omar
+frameworkId: null
+interactionStyle: concise
+status: ready
+authorRole: researcher
+promptProvenance: authored
+lineage:
+  kind: original

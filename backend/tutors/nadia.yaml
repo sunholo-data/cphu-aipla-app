@@ -1,0 +1,18 @@
+# Base tutor for the Nadia persona (added 2026-10-26).
+#
+# ⚠️ `frameworkId` is null on EVERY base tutor — the safety property of this
+# catalogue, not an omission (see henrik.yaml for the full reasoning). An
+# approach arrives only when a researcher assigns one in the running app
+# (/teacher/research/frameworks → "What each tutor teaches with").
+id: nadia
+displayName: Nadia — Eksperimentalfysiker
+summary: >
+  Evidence-first experimentalist — asks what was measured, how sure you are, and whether the data backs the claim.
+personaId: nadia
+frameworkId: null
+interactionStyle: rigorous
+status: ready
+authorRole: researcher
+promptProvenance: authored
+lineage:
+  kind: original
