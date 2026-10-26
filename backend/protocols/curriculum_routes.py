@@ -338,6 +338,133 @@ async def _extract_text(tmp_path: str, filename: str) -> str:
     return outcome.markdown
 
 
+async def extract_upload_text(data: bytes, filename: str) -> str:
+    """Write an upload to a temp file and extract its text (``_extract_text``).
+
+    Shared by the teacher ingest route and the platform guide seed
+    (``admin/guide_corpus.py``) so both read a file the same way.
+    """
+    tmp_dir = tempfile.mkdtemp(prefix="curriculum_ingest_")
+    tmp_path = os.path.join(tmp_dir, filename.replace("/", "_").replace("\\", "_"))
+    try:
+        await asyncio.to_thread(lambda: open(tmp_path, "wb").write(data))
+        return await _extract_text(tmp_path, filename)
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+
+
+async def store_ingested_text(
+    text: str,
+    *,
+    title: str,
+    origin: str,
+    level: StxLevel | None,
+    topic: str | None,
+    tags: list[str],
+    subject: str | None,
+    folder_id: str | None,
+    folder_name: str | None,
+    shared: bool,
+    owner_scope: str,
+    copyright_status: CopyrightStatus,
+    created_by: str | None = None,
+    source_sha256: str | None = None,
+) -> CurriculumDoc:
+    """Upload extracted text to the RAG corpus and persist the ``CurriculumDoc``.
+
+    The one write path for a new curriculum document: the teacher ingest route
+    and the platform guide seed (``POST /api/admin/guide-corpus/doc``) both call
+    it, so a seeded guide gets the same RAG retry, the same stored ``ragStatus``
+    and the same parsed-text copy as a teacher's upload. Authorisation is the
+    CALLER's job — this function trusts its arguments.
+    """
+    doc_id = str(uuid.uuid4())
+    # RAG upload, retried in-request (1.1.151 F1b; 3 attempts since 2026-10-06),
+    # then on a schedule (db/curriculum_auto_retry.py). Never raises: a failure
+    # comes back as an outcome that is STORED on the doc below, so the teacher
+    # sees it and can retry — it is no longer a log line nobody reads.
+    rag = await upload_with_retry(
+        text,
+        doc_id,
+        title=title,
+        level=level,
+        topic=topic,
+        owner_scope=owner_scope,
+    )
+    rag_file_name = rag.rag_file_name
+
+    # 1.1.52 — a catalogue summary the co-pilot + Materials browse read to judge
+    # relevance without opening the doc. Best-effort ("" on failure — never blocks
+    # ingest; the `summarize` backfill can fill it in later).
+    summary = await summarise_curriculum_text(text)
+
+    now = datetime.now(UTC)
+    doc = CurriculumDoc(
+        docId=doc_id,
+        title=title,
+        level=level,
+        topic=topic,
+        summary=summary,
+        tags=normalize_tags(tags),
+        subject=normalize_subject(subject),
+        folderId=folder_id,
+        folderName=folder_name,
+        source="shared" if shared else "teacher_upload",
+        ownerScope=owner_scope,
+        origin=origin,
+        docArtifactId=rag_file_name or "",
+        copyrightStatus=copyright_status,
+        createdAt=now,
+        updatedAt=now,
+        ragStatus=rag.status,
+        ragError=rag.error,
+        ragAttempts=rag.attempts,
+        ragUpdatedAt=now,
+        createdBy=created_by,
+        sourceSha256=source_sha256,
+    )
+    if not rag_file_name:
+        schedule_next(doc, now)
+    create_curriculum_doc(doc)
+    # 1.1.33 M3 — persist the parsed text so a teacher/student can READ a shared
+    # doc later (not just see its name). Kept in a separate collection. Also the
+    # source a re-ingest (1.1.151 F1b) uploads from.
+    set_curriculum_content(doc_id, text)
+
+    if rag_file_name:
+        logger.info(
+            "Curriculum doc ingested: %s level=%s subject=%s folder=%s shared=%s rag=ready attempts=%d",
+            doc_id,
+            level,
+            doc.subject,
+            folder_id,
+            shared,
+            rag.attempts,
+        )
+    else:
+        # 1.1.151 F1a — never "ingested" for a document the tutor cannot read.
+        logger.warning(
+            "Curriculum doc rag_failed: %s shared=%s attempts=%d error=%s",
+            doc_id,
+            shared,
+            rag.attempts,
+            rag.error,
+        )
+    return doc
+
+
+async def remove_curriculum_doc(doc: CurriculumDoc) -> None:
+    """Delete a doc's RagFile (best-effort), parsed content and metadata.
+
+    The body of ``DELETE /api/curriculum/{id}`` after its ACL check; also how the
+    platform guide seed retires a replaced guide.
+    """
+    if doc.doc_artifact_id:
+        await delete_rag_file(doc.doc_artifact_id)
+    delete_curriculum_content(doc.doc_id)
+    delete_curriculum_doc(doc.doc_id)
+
+
 @router.post("/ingest", status_code=201)
 async def ingest_curriculum(
     file: UploadFile,
@@ -380,7 +507,6 @@ async def ingest_curriculum(
             )
 
     filename = file.filename or "upload"
-    doc_id = str(uuid.uuid4())
     owner_scope = SHARED_SCOPE if shared else user.uid
 
     # Resolve the folder BEFORE parsing/uploading — a bad folder should 4xx
@@ -395,86 +521,22 @@ async def ingest_curriculum(
             raise HTTPException(status_code=400, detail="Folder and document are in different scopes.")
         folder_name = folder.name
 
-    tmp_dir = tempfile.mkdtemp(prefix="curriculum_ingest_")
-    tmp_path = os.path.join(tmp_dir, filename.replace("/", "_").replace("\\", "_"))
-    try:
-        # Stream upload to temp file.
-        chunk_bytes = await file.read()
-        await asyncio.to_thread(lambda: open(tmp_path, "wb").write(chunk_bytes))
-
-        text = await _extract_text(tmp_path, filename)
-    finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
-
-    # RAG upload, retried in-request (1.1.151 F1b; 3 attempts since 2026-10-06),
-    # then on a schedule (db/curriculum_auto_retry.py). Never raises: a failure
-    # comes back as an outcome that is STORED on the doc below, so the teacher
-    # sees it and can retry — it is no longer a log line nobody reads.
-    rag = await upload_with_retry(
+    chunk_bytes = await file.read()
+    text = await extract_upload_text(chunk_bytes, filename)
+    doc = await store_ingested_text(
         text,
-        doc_id,
         title=title,
-        level=level,
-        topic=topic,
-        owner_scope=owner_scope,
-    )
-    rag_file_name = rag.rag_file_name
-
-    # 1.1.52 — a catalogue summary the co-pilot + Materials browse read to judge
-    # relevance without opening the doc. Best-effort ("" on failure — never blocks
-    # ingest; the `summarize` backfill can fill it in later).
-    summary = await summarise_curriculum_text(text)
-
-    now = datetime.now(UTC)
-    doc = CurriculumDoc(
-        docId=doc_id,
-        title=title,
-        level=level,
-        topic=topic,
-        summary=summary,
-        tags=normalize_tags(tags.split(",")) if tags else [],
-        subject=normalize_subject(subject),
-        folderId=folder_id or None,
-        folderName=folder_name,
-        source="shared" if shared else "teacher_upload",
-        ownerScope=owner_scope,
         origin=origin,
-        docArtifactId=rag_file_name or "",
-        copyrightStatus=copyright_status,
-        createdAt=now,
-        updatedAt=now,
-        ragStatus=rag.status,
-        ragError=rag.error,
-        ragAttempts=rag.attempts,
-        ragUpdatedAt=now,
+        level=level,
+        topic=topic,
+        tags=normalize_tags(tags.split(",")) if tags else [],
+        subject=subject,
+        folder_id=folder_id or None,
+        folder_name=folder_name,
+        shared=shared,
+        owner_scope=owner_scope,
+        copyright_status=copyright_status,
     )
-    if not rag_file_name:
-        schedule_next(doc, now)
-    create_curriculum_doc(doc)
-    # 1.1.33 M3 — persist the parsed text so a teacher/student can READ a shared
-    # doc later (not just see its name). Kept in a separate collection. Also the
-    # source a re-ingest (1.1.151 F1b) uploads from.
-    set_curriculum_content(doc_id, text)
-
-    if rag_file_name:
-        logger.info(
-            "Curriculum doc ingested: %s level=%s subject=%s folder=%s shared=%s rag=ready attempts=%d",
-            doc_id,
-            level,
-            doc.subject,
-            folder_id,
-            shared,
-            rag.attempts,
-        )
-    else:
-        # 1.1.151 F1a — never "ingested" for a document the tutor cannot read.
-        logger.warning(
-            "Curriculum doc rag_failed: %s shared=%s attempts=%d error=%s",
-            doc_id,
-            shared,
-            rag.attempts,
-            rag.error,
-        )
     # 1.1.33 M4 — return what AILANG Parse extracted so the teacher can VERIFY
     # the parse before it grounds the tutor (the text is already computed above
     # and uploaded to RAG; we were discarding the copy). Preview capped; the full
@@ -660,10 +722,7 @@ async def delete_curriculum(
     elif doc.owner_scope != user.uid:
         raise HTTPException(status_code=403, detail="You can only delete your own uploads.")
 
-    if doc.doc_artifact_id:
-        await delete_rag_file(doc.doc_artifact_id)
-    delete_curriculum_content(doc_id)
-    delete_curriculum_doc(doc_id)
+    await remove_curriculum_doc(doc)
     logger.info("Curriculum doc deleted: %s (owner_scope=%s)", doc_id, doc.owner_scope)
 
 

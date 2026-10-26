@@ -130,6 +130,14 @@ class CurriculumDoc(BaseModel):
     # many have run. Schedule + kick: ``db/curriculum_auto_retry.py``.
     rag_next_retry_at: datetime | None = Field(default=None, alias="ragNextRetryAt")
     rag_auto_retries: int = Field(default=0, alias="ragAutoRetries", ge=0)
+    # 2026-10-26 — provenance for rows no person uploaded. The platform guide seed
+    # (``admin/guide_corpus.py``) stamps ``platform-seed:guide-corpus`` here rather
+    # than borrowing a user's identity; a teacher upload leaves it None (its owner
+    # is ``owner_scope``, or "shared" for the library). ``source_sha256`` is the
+    # hash of the uploaded bytes, which is how a re-run of the seed tells an
+    # unchanged guide (write nothing) from a changed one (replace it).
+    created_by: str | None = Field(default=None, alias="createdBy", max_length=200)
+    source_sha256: str | None = Field(default=None, alias="sourceSha256", max_length=64)
 
     model_config = ConfigDict(populate_by_name=True)
 

@@ -234,11 +234,15 @@ guide-screens:
 # shared curriculum corpus (subject "AIPLA guides") + an onboarding class with
 # teacher + student + researcher tutors grounded in them. Dogfoods the product.
 # Idempotent — re-run to publish updated guides (see the .mjs header).
-#   make seed-guide-corpus              # dev (default)
-#   make seed-guide-corpus ENV=test
+# Dry-run unless GO=1. Runs as the env's runtime SA through /api/admin/guide-corpus/*
+# (no person's account; needs serviceAccountTokenCreator on aipla-v6@, like list-roles).
+# GUIDE_EXCLUDE=<slug,…> leaves unreleased guides out; GUIDE_SLUGS=<slug,…> seeds a
+# subset (and never prunes).
+#   make seed-guide-corpus ENV=prod GUIDE_EXCLUDE=t5-introduce-the-tutor          # dry run
+#   make seed-guide-corpus ENV=prod GUIDE_EXCLUDE=t5-introduce-the-tutor GO=1     # write
 seed-guide-corpus:
 	@chmod +x scripts/seed-guide-corpus.sh
-	@scripts/seed-guide-corpus.sh $(ENV)
+	@GO="$(GO)" GUIDE_SLUGS="$(GUIDE_SLUGS)" GUIDE_EXCLUDE="$(GUIDE_EXCLUDE)" scripts/seed-guide-corpus.sh $(ENV)
 
 # Flag guides that may be out of date: compares each guide against the UI
 # surfaces it documents (docs/guides/guide-surfaces.json). Heuristic — a prompt
@@ -870,5 +874,5 @@ help:
 	@echo "make sim-build-check    — CI drift guard: fail if any artefact's inlined bridge != the canonical source"
 	@echo "make guides             — render user guides (docs/guides/*.qmd) to PDF in docs/guides/_output/"
 	@echo "make guide-screens      — capture real teacher-guide screenshots via Playwright (logs into deployed dev as the test teacher)"
-	@echo "make seed-guide-corpus  — ingest the guide PDFs into the shared corpus + onboarding tutors (ENV=dev|test|prod, idempotent)"
+	@echo "make seed-guide-corpus  — ingest the guide PDFs into the shared corpus + onboarding tutors (ENV=dev|test|prod, idempotent, dry run unless GO=1)"
 	@echo "make guide-staleness    — flag guides whose documented UI changed after the guide (heuristic staleness check)"

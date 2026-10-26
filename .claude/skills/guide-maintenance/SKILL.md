@@ -74,7 +74,7 @@ Run from the repo root. Order matters: capture → publish → (seed).
 | `make guide-screens` | Re-capture screenshots. Logs into **deployed dev** as the test teacher (Playwright) for the teacher guides, and joins with the demo code for the student guide. Writes `frontend/public/guides/assets/*.png` — one copy, served straight to the page. |
 | `make check-guides` (= `make guides`) | The CI gate: front matter, a `.da.md` with no English source, a lang/filename disagreement, a missing screenshot, a review past its deadline. |
 | `make guides-pdf` | Print each guide PAGE to `frontend/public/guides/<slug>.pdf` with Playwright. Needs a running app — deployed dev by default, `BASE_URL=http://localhost:3456` for a local one. |
-| `make seed-guide-corpus ENV=dev\|test\|prod` | Ingest the guide PDFs into that env's **shared corpus** (subject "AIPLA guides") + build the onboarding class with teacher/student/researcher tutors. Dogfoods the guides. **Idempotent** since 2026-08-04 — re-running is how you publish an updated guide. |
+| `make seed-guide-corpus ENV=dev\|test\|prod [GO=1]` | Ingest the guide PDFs into that env's **shared corpus** (subject "AIPLA guides") + build the platform-owned onboarding class with teacher/student/researcher tutors, as the env's runtime SA. Dogfoods the guides. **Dry run unless `GO=1`; idempotent** — re-running is how you publish an updated guide. |
 
 **Typical "the guides drifted" loop:** `make guide-staleness` → for each flagged
 guide, look at the change → edit `frontend/content/guides/<slug>.md` (and its
@@ -151,11 +151,13 @@ those links around.
   CI rather than committing them.
 - **Re-seeding is now the update path, not a hazard.** `make seed-guide-corpus`
   reconciles: guide docs are matched by title within the "AIPLA guides" subject
-  and replaced in place (new doc ingested, then the old one deleted), the class
-  is matched by name, the tutors by title, and a group code is minted only if the
-  class has none. So the loop for a changed guide is `make guides-publish &&
-  make seed-guide-corpus ENV=<env>`. Note docIds churn on every run by design —
-  the tutors are re-pointed at the fresh ids in the same pass.
+  and by the PDF's hash (`sourceSha256`) — an unchanged guide is left alone (a
+  second run writes nothing), a changed one is ingested fresh and the old copy
+  deleted once the new one is readable, a failed RAG upload is re-sent. The
+  class is matched by name, the tutors by title (re-pointed when a doc id
+  changes), and a group code is minted only if the class has none. So the loop
+  for a changed guide is `make guides-pdf`, commit, then
+  `make seed-guide-corpus ENV=<env>` (dry run) and again with `GO=1`.
 - **The corpus + tutors are per-env and NOT seeded by any deploy.** The static
   `/guides` pages ride the frontend image, so they exist everywhere; the
   queryable corpus does not. Until 2026-08-04 this script took no env argument
@@ -170,8 +172,19 @@ those links around.
   page, so point it at something serving the new markdown: deployed dev by
   default, or `BASE_URL=http://localhost:3456` against `make dev`. Printing a
   URL that still serves the old text is the one way to get a stale PDF.
-- **The test-teacher exists on all three envs.** `test-teacher@example.dk` /
-  `aipla-demo-1` authenticated against prod on 2026-08-05, so
-  `make seed-guide-corpus ENV=prod` needs no extra credentials. Override with
-  `TEACHER_EMAIL` / `TEACHER_PASSWORD` if that account is ever removed (it is a
-  convenience account and is a reasonable thing to retire before the pilot).
+- **The seed runs as the platform, not as a person (since 2026-10-26).**
+  `make seed-guide-corpus` mints an ID token for the env's runtime SA
+  (`aipla-v6@`, on `ADMIN_SEED_ALLOWED_SAS`) and calls
+  `/api/admin/guide-corpus/{doc,finalize}` (`backend/admin/guide_corpus.py`). It
+  used to sign in as the test teacher, which the shared-ingest researcher gate
+  and the spend gate now refuse — prod's corpus was frozen at the 2026-08-05
+  text because of it. Needs `roles/iam.serviceAccountTokenCreator` on that SA
+  (same as `make list-roles`). **Dry run unless `GO=1`.** Docs are stamped
+  `createdBy: platform-seed:guide-corpus`; the class + tutors are owned by
+  `PLATFORM_OWNER_UID`. An older "AIPLA onboarding" class owned by the test
+  teacher is reported as a WARNING and left alone (its tag namespace embeds that
+  uid, so it cannot be re-owned) — revoke it by hand once its codes are unused.
+- **Unreleased guides:** `GUIDE_EXCLUDE=t5-introduce-the-tutor` leaves one out
+  (a full run also prunes it if an earlier run seeded it); `GUIDE_SLUGS=<slug,…>`
+  seeds a subset and never prunes. A guide in the list with no PDF is an error,
+  not a silent skip.

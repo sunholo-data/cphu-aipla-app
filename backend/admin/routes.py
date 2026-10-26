@@ -9,11 +9,11 @@ from __future__ import annotations
 
 import logging
 import secrets
-from typing import Any
+from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Form, HTTPException, Request, UploadFile
 from firebase_admin import auth as fb_auth
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from admin import platform_seed
 from admin.auth import _assert_caller_is_service_account
@@ -1022,3 +1022,73 @@ def access_requests(request: Request, status: str = "pending") -> dict[str, Any]
             for r in requests
         ],
     }
+
+
+# ─── How-to-guide corpus (2026-10-26) ────────────────────────────────────────
+#
+# `make seed-guide-corpus ENV=<env>` calls these two, as the env's runtime SA.
+# The teacher routes it used to call now refuse it (shared ingest is
+# researcher-only; ingest is a paid call), and the right identity for platform
+# content is the platform, not a convenience account. Logic: admin/guide_corpus.py.
+
+#: A guide PDF is ~1 MB; anything near this is not a guide.
+_GUIDE_MAX_BYTES = 15 * 1024 * 1024
+
+
+@router.post(
+    "/guide-corpus/doc",
+    responses={403: {"description": "Caller is not in ADMIN_SEED_ALLOWED_SAS"}},
+)
+async def guide_corpus_doc(
+    request: Request,
+    file: UploadFile,
+    title: Annotated[str, Form(min_length=1, max_length=300)],
+    audience: Annotated[Literal["teacher", "student", "researcher"], Form()],
+    # DEFAULT TRUE: a caller has to say dryRun=false to write anything.
+    dry_run: Annotated[bool, Form(alias="dryRun")] = True,
+) -> dict[str, Any]:
+    """Reconcile ONE guide PDF into the shared corpus (subject "AIPLA guides").
+
+    Add / replace / re-ingest / leave unchanged, by title + content hash. One
+    guide per request so each stays well inside the request timeout (text
+    extraction + RAG upload with retries is the slow part).
+    """
+    from admin import guide_corpus
+
+    caller = _assert_caller_is_service_account(request)
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=422, detail="Empty file.")
+    if len(data) > _GUIDE_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="File too large for a guide.")
+    return await guide_corpus.reconcile_guide_doc(
+        data=data,
+        filename=file.filename or "guide.pdf",
+        title=title,
+        audience=audience,
+        dry_run=dry_run,
+        caller=caller,
+    )
+
+
+@router.post(
+    "/guide-corpus/finalize",
+    responses={
+        403: {"description": "Caller is not in ADMIN_SEED_ALLOWED_SAS"},
+        409: {"description": "The tutor skill is not seeded in this env"},
+    },
+)
+async def guide_corpus_finalize(request: Request) -> dict[str, Any]:
+    """Prune retired guides, find-or-create the platform-owned onboarding class,
+    upsert its tutors onto the current guide docs, ensure a join code."""
+    from admin import guide_corpus
+
+    caller = _assert_caller_is_service_account(request)
+    try:
+        body = guide_corpus.FinalizeRequest.model_validate(await request.json())
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail=exc.errors(include_url=False)) from exc
+    try:
+        return await guide_corpus.finalize(body, caller=caller)
+    except LookupError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
