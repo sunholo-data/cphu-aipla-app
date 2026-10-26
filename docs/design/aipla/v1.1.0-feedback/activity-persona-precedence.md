@@ -1,6 +1,6 @@
 # The activity says what to learn, the tutor says how to teach — precedence, detection, and a clean import
 
-**Status:** Design (OPEN) — **1.1.141**
+**Status:** **M1–M3 BUILT on `dev` 2026-10-26** (not yet released); **M0 prepared, not run** (`make goal-lint-sessions ARGS=--dry-run …` — zero model calls; `--go` needs M's go-ahead); M4 waits on M0 + one teaching week — **1.1.141**. See [What shipped](#what-shipped--2026-10-26)
 **Priority:** **P2** — the likeliest reason JB sees personas "give the same answers" in real lessons, while BENCH-2 sees the approaches differ in previews
 **Estimated:** ~1.5–2d (M0 measure first ~0.25d · M1 explicit precedence block ~0.25d · M2 authoring-time conflict lint ~0.75d · M3 clean import ~0.5d · M4 re-measure ~0.25d)
 **Scope:** Backend: a new `adk/teaching_precedence.py` + one line in the composition in `adk/agent.py`; `activity_copilot` / activity import path; an analysis-model lint call at save time. Frontend: one warning in the activity editor. Research: the 1.1.140 M3 real-session harness
@@ -96,6 +96,28 @@ Re-run M0's selection on sessions after M1 ships (one teaching week). Report the
 own-column margin before and after, per approach, in this doc. If the margin does not
 move, the blend is not the cause, and the next suspect is the model tier (1.1.142 escalation
 data, BENCH's 3.8-flash row).
+
+## What shipped — 2026-10-26
+
+| | What | Where |
+|---|---|---|
+| **M1** | The precedence block (the text above, verbatim, under `## Which instruction decides how you teach`), appended **immediately after** the approach preamble and only when one was composed: `inject_framework_preamble_with_precedence` returns its input unchanged whenever `inject_framework_preamble` does, so no framework ⇒ byte-identical | `backend/adk/teaching_precedence.py`; one call swapped in the composition in `adk/agent.py` |
+| **M2** | `POST /api/activities/lint-teaching-goal` — ONE `analysis_model()` call per distinct (goal, approach, criteria edition), in-process cache by SHA-256; spans of kind `tone` / `hint_policy` / `character` / `answer_policy`, each **verbatim** or dropped; construct conflicts checked against the fidelity judge's own `criteria_block` (no second description). Firestore reads `asyncio.to_thread`, model call async with a 25 s timeout; every failure is "no spans". The class's tutor decides the approach (owner/researcher-gated; another teacher's class lints as "no approach") | `backend/analytics/teaching_goal_lint.py`, `protocols/activity_routes.py` |
+| **M2 UI** | Non-blocking amber warning under the teaching goal — *"These lines tell the tutor how to teach… Mikkel teaches with ESRU, which will take precedence:"* with the quoted line, its kind, which construct it competes with, and **Move to tutor notes** / **Keep**. Runs when the teacher leaves the goal field, after a save, and after a co-pilot draft. da + en in `messages/{da,en}/teacher-activities.json` (`TeachingGoalLint`) | `frontend/src/components/teacher/TeachingGoalLint.tsx`, `lib/teachingGoalLint.ts` |
+| **M3** | `tutorNotes` on `Activity` / `ActivityConfig` / the upsert body (default `""`), visible + editable in the builder once non-empty, with **Move back to the teaching goal**. Composed for the tutor **only when no approach teaches** (`build_tutor_notes_block`). Automatic move on **duplicate / adopt** (server, `clean_import`; a lint failure copies unchanged; a goal made only of pedagogy is left alone) and on a **co-pilot `set_lesson_prompt` Apply** (client, with *"N lines … moved into tutor notes"* + **Undo**). There is no other import path in the app | `db/models/*`, `activity_routes.py`, `useActivityBuilder.ts` |
+| **M0 prep** | `make goal-lint-sessions ARGS="--dry-run --since … --until …"` — read-only `chat_turns` selection (tutor-taught, framework, activity, students only) + read-only Firestore goal reads → lint call count and cost. `--go` writes `research/goal-lint-sessions/<UTC>/sessions.jsonl` (session id, activity id, approach, `carriesPedagogy`, span kinds, conflicts — no goal text, no group id) to join onto the 1.1.140 M3 run. **Not run** | `backend/analytics/goal_lint_sessions.py`, `scripts/goal-lint-sessions.py` |
+
+**Passthrough proof.** `test_teaching_precedence_reaches_the_model.py` builds the real
+`create_agent` on the real `concept-dialogue` SKILL.md and awaits `agent.instruction(ctx)`:
+with an approach the block sits immediately after the preamble (`preamble + BLOCK in out`) and
+the tutor notes are held back; with no approach the instruction is **byte-identical** to the
+same build with the injector swapped back to plain `inject_framework_preamble` and the notes
+block stubbed out, and the activity's tutor notes reach the tutor. The model is mocked
+everywhere (conftest stubs the lint seam for every test).
+
+**Not done.** The cache is per instance (a redeploy relints — pennies); old activities are
+not rewritten (out of scope), they get the warning when next edited; JB's open question 1
+(Accountable Talk) is unanswered — the block applies to every approach as written.
 
 ## Out of scope
 

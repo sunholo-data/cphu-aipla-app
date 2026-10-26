@@ -730,6 +730,14 @@ bench-tutors: ## Tutor discrimination benchmark (ARGS=--dry-run | ARGS=--go; ENV
 bench-tutor-sessions: ## Tutor discrimination on real sessions (ARGS="--dry-run --since YYYY-MM-DD" | add --go)
 	@cd backend && uv run python ../scripts/bench-tutor-discrimination.py --from-sessions $(ARGS)
 
+# 1.1.141 M0 — which real sessions ran on an activity whose teaching goal
+# carries pedagogy (tone / hints / character / answer-giving)? Read-only BigQuery
+# selection + Firestore goal reads. --dry-run makes ZERO model calls; --go runs
+# the M2 lint (costs money; M's go-ahead) and writes a per-session label file.
+.PHONY: goal-lint-sessions
+goal-lint-sessions: ## 1.1.141 M0 goal-pedagogy labels for real sessions (ARGS="--dry-run --since YYYY-MM-DD" | add --go)
+	@cd backend && uv run python ../scripts/goal-lint-sessions.py $(ARGS)
+
 # Home-screen icon gate (2026-08-14). The PWA shipped in v0.1.18 with icons cut
 # from the ROUNDED aipla-mark.svg, so their corners were transparent. iOS rounds
 # apple-touch-icon itself and, given transparency, shows a blank tile — reported
