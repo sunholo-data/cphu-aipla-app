@@ -23,6 +23,32 @@ eventVocabulary:
   - reset
   - reading
   - state-change
+# 1.1.155 M2 — what this experiment is made of. The tutor's sim block is built
+# from this (adk/sim_ledger.py) instead of the raw latest push, so it keeps every
+# reading. Heating time is NOT a setting here: the student sets it by pressing
+# Stop, which is why a "parameters varied" report never found it.
+record:
+  settings:
+    - { key: power_W, label: { da: "Effekt", en: "Power" }, unit: W }
+    - { key: volume_L, label: { da: "Vandmængde", en: "Water" }, unit: L }
+  controlledByAction:
+    - { key: duration_s, label: { da: "Opvarmningstid", en: "Heating time" }, unit: s, from: reading }
+  measurements:
+    event: reading
+    path: reading
+    keep: 10
+    fields:
+      - { key: power_W, label: { da: "P", en: "P" }, unit: W }
+      - { key: mass_kg, label: { da: "m", en: "m" }, unit: kg }
+      - { key: t_start_C, label: { da: "start", en: "start" }, unit: °C }
+      - { key: t_end_C, label: { da: "slut", en: "end" }, unit: °C }
+      - { key: duration_s, label: { da: "t", en: "t" }, unit: s }
+      - { key: meter_kWh, label: { da: "måler", en: "meter" }, unit: kWh }
+  runEvent: run
+  # The capture is "the moment to ask what they intend to do with it" (below).
+  # Without this, Start took the 30 s proactive cooldown and Capture, ~9 s later,
+  # was suppressed (1.1.155 F6).
+  tutorTurnOn: reading
 tutorBlock: |
   The student is working with a simulated electric kettle on a bench carrying a
   kWh meter, a thermometer and a stopwatch. They choose a power setting

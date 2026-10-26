@@ -244,6 +244,41 @@ def _enforce_size_cap(structured_content: dict[str, Any] | None) -> str:
     return str(size)
 
 
+def _ledger_delta(body: IframeContextRequest, session: Any, user: User) -> dict[str, Any] | None:
+    """1.1.155 M3 — fold this push into the sim's ledger, for a built-in sim
+    that declares ``record:``. Returns the state delta, or None.
+
+    The latest-value key is written exactly as before; the ledger sits beside it
+    so the tutor keeps every reading instead of only the last push. The language
+    is resolved ONCE, when the ledger is created, from the activity the client
+    names (telemetry-grade: it only picks label language) and otherwise from the
+    sim's own catalogue language. Never raises — a ledger failure must not cost
+    the push.
+    """
+    try:
+        from adk.sim_ledger import append, ledger_key
+        from artefacts.loader import builtin_artefact
+
+        meta = builtin_artefact(body.server_id)
+        if meta is None or meta.record is None or not isinstance(body.structured_content, dict):
+            return None
+        key = ledger_key(body.server_id)
+        existing = (getattr(session, "state", None) or {}).get(key)
+        lang = meta.language
+        if not existing and body.activity_id:
+            try:
+                from adk.teacher_focus import resolve_active_config
+
+                cfg = resolve_active_config(body.activity_id, group_tags=getattr(user, "group_tags", None))
+                lang = getattr(cfg, "language", None) or lang
+            except Exception:
+                log.info("iframe_context: activity language unreadable for ledger; using %s", lang)
+        return {key: append(existing, body.structured_content, meta.record, at=time.time(), lang=lang)}
+    except Exception:
+        log.warning("iframe_context: sim ledger append failed (push kept)", exc_info=True)
+        return None
+
+
 @router.post("/{session_id}/iframe-context", status_code=204)
 async def post_iframe_context(
     session_id: str,
@@ -363,7 +398,11 @@ async def post_iframe_context(
         )
         raise HTTPException(status_code=404, detail="Session backend not found")
 
-    actions = EventActions(state_delta={state_key: state_value})
+    state_delta: dict[str, Any] = {state_key: state_value}
+    ledger = _ledger_delta(body, session, user)
+    if ledger is not None:
+        state_delta.update(ledger)
+    actions = EventActions(state_delta=state_delta)
     event = Event(
         invocation_id=f"iframe_context_{int(time.time() * 1000)}",
         author="user",

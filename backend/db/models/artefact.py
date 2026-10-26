@@ -130,6 +130,102 @@ class ArtefactAssessment(BaseModel):
         return self
 
 
+_RECORD_KEY = r"^[a-zA-Z][a-zA-Z0-9_]{0,39}$"
+
+
+class RecordField(BaseModel):
+    """One quantity a sim declares in its ``record:`` (1.1.155 D1).
+
+    ``label`` is keyed by language (``{da: …, en: …}``). Which one is shown is
+    chosen per session from the activity's language, never baked in here.
+    """
+
+    key: str = Field(pattern=_RECORD_KEY)
+    label: dict[str, str] = Field(default_factory=dict)
+    unit: str = Field(default="", max_length=12)
+    # controlledByAction only: the event whose payload carries the value.
+    from_event: str | None = Field(default=None, alias="from", max_length=40)
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    def label_for(self, lang: str) -> str:
+        return self.label.get(lang) or self.label.get("en") or next(iter(self.label.values()), self.key)
+
+
+def _as_fields(v: Any) -> Any:
+    # A bare key ("power_W") is shorthand for a field with no label or unit.
+    if isinstance(v, list):
+        return [{"key": f} if isinstance(f, str) else f for f in v]
+    return v
+
+
+class RecordMeasurements(BaseModel):
+    """What one captured measurement holds: ``structuredContent[path]`` on ``event``."""
+
+    event: str = Field(min_length=1, max_length=40)
+    path: str = Field(pattern=_RECORD_KEY)
+    fields: list[RecordField] = Field(min_length=1, max_length=20)
+    # How many of the latest measurements the tutor sees. Older ones are
+    # counted, not shown, so the prompt stays bounded.
+    keep: int = Field(default=10, ge=1, le=50)
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("fields", mode="before")
+    @classmethod
+    def _shorthand(cls, v: Any) -> Any:
+        return _as_fields(v)
+
+
+class ArtefactRecord(BaseModel):
+    """What a sim's experiment is made of (1.1.155 D1), so readers work from a
+    declaration instead of guessing from raw JSON. Every field is optional, and
+    a sim without ``record:`` keeps the raw latest-value behaviour.
+
+    Server-side apart from ``tutorTurnOn``, which the frame needs (see
+    ``ArtefactMeta.public``). ``extra="forbid"``, so a misspelt key fails the
+    load: ``ArtefactMeta`` itself silently drops unknown keys, and a declaration
+    that silently does nothing is worse than none.
+    """
+
+    settings: list[RecordField] = Field(default_factory=list, max_length=20)
+    controlled_by_action: list[RecordField] = Field(default_factory=list, alias="controlledByAction", max_length=10)
+    measurements: RecordMeasurements | None = None
+    # The event kind (suffix, e.g. "run") that counts as one sim run.
+    run_event: str | None = Field(default=None, alias="runEvent", max_length=40)
+    # The event kinds that may take the proactive tutor turn (F6). Unset: any
+    # meaningful kind may, as before.
+    tutor_turn_on: list[str] = Field(default_factory=list, alias="tutorTurnOn", max_length=10)
+
+    model_config = ConfigDict(populate_by_name=True, extra="forbid")
+
+    @field_validator("settings", "controlled_by_action", mode="before")
+    @classmethod
+    def _shorthand(cls, v: Any) -> Any:
+        return _as_fields(v)
+
+    @field_validator("tutor_turn_on", mode="before")
+    @classmethod
+    def _one_or_many(cls, v: Any) -> Any:
+        return [v] if isinstance(v, str) else v
+
+    def event_names(self) -> set[str]:
+        names = {*self.tutor_turn_on}
+        if self.run_event:
+            names.add(self.run_event)
+        if self.measurements:
+            names.add(self.measurements.event)
+        names.update(f.from_event for f in self.controlled_by_action if f.from_event)
+        return names
+
+    def declared_keys(self) -> set[str]:
+        keys = {f.key for f in [*self.settings, *self.controlled_by_action]}
+        if self.measurements:
+            keys.add(self.measurements.path)
+            keys.update(f.key for f in self.measurements.fields)
+        return keys
+
+
 class ArtefactMeta(BaseModel):
     """A vetted MCP-App artefact in the catalogue."""
 
@@ -174,6 +270,10 @@ class ArtefactMeta(BaseModel):
     # 1.1.133 M3 — the construct map's vocabulary, for ``record_assessment``.
     # Server-side only, like tutor_block: excluded from ``public()``.
     assessment: ArtefactAssessment | None = None
+    # 1.1.155 M2 — what the sim's experiment is made of: settings, measurements,
+    # which event is a run, which event takes the tutor's proactive turn.
+    # Optional and additive; built-in sims only (not a teacher-settable field).
+    record: ArtefactRecord | None = None
     # in-app-sim-authoring M6 — where the entry comes from. Set by the loader,
     # never read from a YAML: "builtin" is a reviewed file in this repo; "teacher"
     # was published from the Sim workshop (db/teacher_sims.py) and its page is
@@ -190,6 +290,16 @@ class ArtefactMeta(BaseModel):
         dupes = sorted({n for n in names if names.count(n) > 1})
         if dupes:
             raise ValueError(f"artefact {self.id!r}: duplicate command name(s) {dupes}")
+        return self
+
+    @model_validator(mode="after")
+    def _record_names_real_events(self) -> ArtefactMeta:
+        # A record that names an event the sim never emits would silently never
+        # match — the same class as a misspelt key, so it fails the load.
+        if self.record is not None and self.event_vocabulary:
+            unknown = sorted(self.record.event_names() - set(self.event_vocabulary))
+            if unknown:
+                raise ValueError(f"artefact {self.id!r}: record names event(s) {unknown} not in eventVocabulary")
         return self
 
     def command(self, name: str) -> ArtefactCommand | None:
@@ -220,7 +330,19 @@ class ArtefactMeta(BaseModel):
             "commands": [c.public() for c in self.commands],
             "source": self.source,
             **({"scope": self.scope} if self.source == "teacher" else {}),
+            # The frame decides which push may ask for a proactive turn, so it
+            # needs this one field of the record. The rest stays server-side.
+            **({"tutorTurnOn": self.record.tutor_turn_on} if self.record and self.record.tutor_turn_on else {}),
         }
 
 
-__all__ = ["ArtefactAssessment", "ArtefactCommand", "ArtefactMeta", "ArtefactStatus", "CommandPower"]
+__all__ = [
+    "ArtefactAssessment",
+    "ArtefactCommand",
+    "ArtefactMeta",
+    "ArtefactRecord",
+    "ArtefactStatus",
+    "CommandPower",
+    "RecordField",
+    "RecordMeasurements",
+]

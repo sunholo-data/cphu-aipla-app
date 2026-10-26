@@ -49,6 +49,9 @@ export interface ActivityArtefact {
   /** "teacher": published from the Sim workshop; its page comes from the backend
    *  (with a no-network CSP), not the sandbox's /artefacts/ route. */
   source?: "builtin" | "teacher";
+  /** 1.1.155 M2 — the event kinds (by suffix) that may take the proactive tutor
+   *  turn, from the catalogue's `record.tutorTurnOn`. Absent = any meaningful kind. */
+  tutorTurnOn?: string[];
 }
 
 interface GenericArtefactFrameProps {
@@ -219,6 +222,7 @@ export function GenericArtefactFrame({
     const req = pushSnapshot(sc, kind, label, {
       logLabel: label ?? `${artefact.displayName || artefact.id} · ${kind}`,
       activityId,
+      tutorTurnOn: artefact.tutorTurnOn,
     });
     // If a flush is awaiting, hand it THIS push so it resolves on commit.
     const awaiting = flushAwaitRef.current;

@@ -81,12 +81,39 @@ How to use this block:
 """.strip()
 
 
-def _format_block(items: list[tuple[str, Any]]) -> str:
+#: Host bookkeeping stored inside each state value: the card text (for transcript
+#: restore) and an epoch float. Neither is about the sim, so neither reaches the
+#: prompt (1.1.155 F3: both were printed into every turn).
+_HOST_FIELDS = ("_label", "_pushedAt")
+
+
+def _ledger_prose(suffix: str, state: dict[str, Any], since: float | None) -> str | None:
+    """1.1.155 M3 — the declared sim's ledger as prose, or None to fall back to
+    the raw dump (no ledger yet, no record, or anything unexpected)."""
+    server_id = suffix.split(".", 1)[0]
+    try:
+        from adk.sim_ledger import ledger_key, render
+        from artefacts.loader import builtin_artefact
+
+        ledger = state.get(ledger_key(server_id))
+        if not isinstance(ledger, dict):
+            return None
+        meta = builtin_artefact(server_id)
+        if meta is None or meta.record is None:
+            return None
+        return render(ledger, meta.record, meta.display_name, since=since)
+    except Exception:
+        _log.warning("iframe_context: sim ledger render failed for %s; raw dump used", server_id, exc_info=True)
+        return None
+
+
+def _format_block(items: list[tuple[str, Any]], state: dict[str, Any] | None = None, since: float | None = None) -> str:
     """Format the namespaced state entries into a readable block.
 
     Each entry shows ``server.tool: <json structured content>``. We
     pretty-print one entry per server-tool pair so the model can scan
-    them individually rather than parsing one giant blob.
+    them individually rather than parsing one giant blob. A sim that
+    declares ``record:`` is shown as its ledger's prose instead (1.1.155).
     """
     if not items:
         return ""
@@ -94,6 +121,12 @@ def _format_block(items: list[tuple[str, Any]]) -> str:
     for key, value in sorted(items):
         # Strip the prefix so the key shown is `server.tool`
         suffix = key[len(_NAMESPACE_PREFIX) :]
+        prose = _ledger_prose(suffix, state or {}, since)
+        if prose is not None:
+            lines.append(f"## {suffix}\n{prose}")
+            continue
+        if isinstance(value, dict):
+            value = {k: v for k, v in value.items() if k not in _HOST_FIELDS}
         # Pretty-print the value; default=str handles datetime etc.
         try:
             rendered = json.dumps(value, indent=2, default=str, sort_keys=True)
@@ -104,10 +137,18 @@ def _format_block(items: list[tuple[str, Any]]) -> str:
     return _BLOCK_TEMPLATE.format(contents=contents)
 
 
-def render_instruction_with_iframe_context(base_instruction: str, state: dict[str, Any]) -> str:
+def render_instruction_with_iframe_context(
+    base_instruction: str,
+    state: dict[str, Any],
+    *,
+    last_tutor_reply_at: float | None = None,
+) -> str:
     """Return ``base_instruction`` with the iframe-context block
     appended (if any ``mcp_app_context.*`` keys are present) or
     unchanged (if none are).
+
+    ``last_tutor_reply_at`` (1.1.155) is when the tutor last replied, so a
+    declared sim's block can say what happened since. None summarises the session.
 
     Pure function — exposed for testability without spinning up an ADK
     runtime. The InstructionProvider callable below is a thin wrapper
@@ -116,8 +157,27 @@ def render_instruction_with_iframe_context(base_instruction: str, state: dict[st
     items = [(k, v) for k, v in state.items() if k.startswith(_NAMESPACE_PREFIX)]
     if not items:
         return base_instruction
-    block = _format_block(items)
+    block = _format_block(items, state, last_tutor_reply_at)
     return f"{base_instruction.rstrip()}\n\n{block}"
+
+
+def last_tutor_reply_at(session: Any) -> float | None:
+    """The timestamp of the tutor's latest TEXT reply in ``session``, or None.
+
+    A tool-call event has no text and does not count: "since your last reply"
+    means since the student last heard from the tutor."""
+    try:
+        for event in reversed(list(getattr(session, "events", None) or [])):
+            if getattr(event, "author", None) == "user":
+                continue
+            content = getattr(event, "content", None)
+            parts = getattr(content, "parts", None) or []
+            if any(getattr(p, "text", None) and str(p.text).strip() for p in parts):
+                ts = getattr(event, "timestamp", None)
+                return float(ts) if isinstance(ts, (int, float)) else None
+    except Exception:
+        return None
+    return None
 
 
 def wrap_with_iframe_context(
@@ -158,12 +218,19 @@ def wrap_with_iframe_context(
                 len(state),
                 mcp_keys,
             )
-        return render_instruction_with_iframe_context(base_instruction, state)
+        since = None
+        if any(k.startswith("mcp_app_ledger.") for k in state):
+            try:
+                since = last_tutor_reply_at(ctx.session)
+            except Exception:
+                since = None
+        return render_instruction_with_iframe_context(base_instruction, state, last_tutor_reply_at=since)
 
     return _provider
 
 
 __all__ = [
+    "last_tutor_reply_at",
     "render_instruction_with_iframe_context",
     "wrap_with_iframe_context",
 ]
