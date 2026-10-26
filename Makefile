@@ -655,6 +655,14 @@ check-student-identity: ## Fail if a backend model gains a student-identity fiel
 	@python3 scripts/check-student-identity-fields.py
 	@python3 -m unittest discover -s scripts/tests -p 'test_check_student_identity.py'
 
+# 2026-10-26: one-shot model calls go through llm.generate(purpose=...), so the
+# provider for each purpose is a models.yaml edit. Fails on a genai.Client or
+# litellm call outside backend/llm/ (+ voice/, scripts/, tests/).
+.PHONY: check-model-calls
+check-model-calls: ## Fail on a direct model-provider call outside backend/llm/ (CI-gated)
+	@python3 scripts/check-direct-model-calls.py
+	@python3 -m unittest discover -s scripts/tests -p 'test_check_direct_model_calls.py'
+
 # Trust-card footgun gate (P1.4). Flags any workspace element that pushes state
 # to the tutor (useSimSnapshotPush) without dispatching the visible "shared with
 # the AI" card (useHumanToolEvents) — the calculator+table bug. Same script the

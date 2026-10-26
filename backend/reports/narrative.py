@@ -33,7 +33,7 @@ from reports.session_summary import SessionSummary
 
 log = logging.getLogger(__name__)
 
-#: Model is config-driven — config/models.yaml ``analysis_model`` (BENCH-1,
+#: Model is config-driven — models.yaml ``purposes.analysis`` (BENCH-1,
 #: 1.1.139 D1). The narrative is after-the-fact (a report read after the lesson,
 #: pre-warmed by the internal warm route), so it runs on the analysis model,
 #: not the tutor's lite model.
@@ -296,19 +296,12 @@ def parse_report(raw: str, vocab: ConceptVocabulary) -> NarrativeResult:
     return NarrativeResult(text=data["narrative"].strip(), concepts=finalise_concepts(data.get("concepts"), vocab))
 
 
-async def _call_gemini(prompt: str, *, schema: dict[str, Any] | None = None) -> str:
-    """Run the prompt through the analysis model. With ``schema`` the reply is
-    JSON constrained by Gemini ``response_schema`` (1.1.139 M0). Mocked in tests."""
-    from google import genai
+async def _call_model(prompt: str, *, schema: dict[str, Any] | None = None) -> str:
+    """Run the prompt on the ``analysis`` model. With ``schema`` the reply is
+    JSON constrained to it (1.1.139 M0). Mocked in tests."""
+    from llm import generate
 
-    client = genai.Client(vertexai=True)
-    kwargs: dict[str, Any] = {"model": analysis_model(), "contents": prompt}
-    if schema is not None:
-        from google.genai import types
-
-        kwargs["config"] = types.GenerateContentConfig(response_mime_type="application/json", response_schema=schema)
-    response = await client.aio.models.generate_content(**kwargs)
-    return (response.text or "").strip()
+    return (await generate(prompt, purpose="analysis", schema=schema)).text.strip()
 
 
 async def generate_report(summary: SessionSummary, vocab: ConceptVocabulary | None = None) -> NarrativeResult:
@@ -318,7 +311,7 @@ async def generate_report(summary: SessionSummary, vocab: ConceptVocabulary | No
         return NarrativeResult(text="", concepts=None)
     if vocab is None:
         vocab = await asyncio.to_thread(concept_vocabulary, summary)
-    raw = await _call_gemini(build_report_prompt(summary, vocab), schema=NARRATIVE_SCHEMA)
+    raw = await _call_model(build_report_prompt(summary, vocab), schema=NARRATIVE_SCHEMA)
     return parse_report(raw, vocab)
 
 

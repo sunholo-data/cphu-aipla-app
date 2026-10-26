@@ -182,7 +182,7 @@ def test_a_dialogue_turn_carries_history_the_chosen_model_and_logs_as_preview(mo
     assert out["ok"] and out["reply"] == "Hvad bygger du det på?" and out["tokenIn"] == 1200
     assert captured["model"] == "m-x"
     assert [c["role"] for c in captured["contents"]] == ["user", "model", "user"]
-    assert captured["config"]["system_instruction"] == "SYSTEM"
+    assert captured["config"].system_instruction == "SYSTEM"
     # The last emit is the tutor row; it carries the reply (logged since 2026-09-30).
     assert logged["group_id"] == "preview:bench" and logged["content"] == "Hvad bygger du det på?"
     assert logged["model"] == "m-x"

@@ -1,7 +1,8 @@
 """Flash-tier session title generator.
 
 Generates a ≤6-word human-readable title from the first few events of a
-session using the model configured via `CHAT_TITLE_MODEL` env var.
+session, on the ``chat_title`` purpose model (models.yaml ``purposes``;
+env ``CHAT_TITLE_MODEL`` overrides).
 
 Runs in the after_agent_callback — never on the critical path.
 All errors return None (title is optional; the session record is not
@@ -11,9 +12,6 @@ affected by title generation failure).
 from __future__ import annotations
 
 import logging
-import os
-
-from config.models import default_model
 
 logger = logging.getLogger(__name__)
 
@@ -33,21 +31,19 @@ def generate_title_fast(events: list) -> str | None:
     if not excerpt:
         return None
 
-    model_name = os.environ.get("CHAT_TITLE_MODEL") or default_model()
+    model_name = "chat_title"
     try:
-        from google import genai
-        from google.genai import types as genai_types
+        from config.models import model_for
+        from llm import generate_sync
 
-        client = genai.Client()
-        response = client.models.generate_content(
+        model_name = model_for("chat_title")
+        response = generate_sync(
+            _PROMPT.format(excerpt=excerpt[:1000]),
             model=model_name,
-            contents=_PROMPT.format(excerpt=excerpt[:1000]),
-            config=genai_types.GenerateContentConfig(
-                temperature=0.3,
-                max_output_tokens=32,
-            ),
+            temperature=0.3,
+            max_output_tokens=32,
         )
-        title = response.text.strip() if response.text else None
+        title = response.text.strip() or None
         if title:
             # Truncate aggressively in case the model ignores the instruction
             words = title.split()

@@ -61,15 +61,11 @@ def build_prompt(signals, framework: LiveFrameworkConfig) -> str:
     return f"{framework.prompt_preamble}\n\nLive group signals:\n" + "\n".join(lines)
 
 
-async def _call_gemini(prompt: str) -> str:
-    """Run the prompt through Gemini Flash (plain text). Mocked in tests."""
-    from google import genai
+async def _call_model(prompt: str) -> str:
+    """Run the prompt on the ``live_summary`` model (plain text). Mocked in tests."""
+    from llm import generate
 
-    from config.models import default_model
-
-    client = genai.Client(vertexai=True)
-    response = await client.aio.models.generate_content(model=default_model(), contents=prompt)
-    return (response.text or "").strip()
+    return (await generate(prompt, purpose="live_summary")).text.strip()
 
 
 async def resolve_live_summary(
@@ -95,7 +91,7 @@ async def resolve_live_summary(
             return summary
 
     try:
-        text = await _call_gemini(build_prompt(signals, framework))
+        text = await _call_model(build_prompt(signals, framework))
     except Exception as exc:
         log.warning("live summary: generation failed for %s (%s)", class_id, type(exc).__name__)
         return cached[2] if cached else None

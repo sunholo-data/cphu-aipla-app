@@ -1,6 +1,6 @@
 """Tests for reports.narrative — AI session-summary generation + cache (1.1.4).
 
-The LLM call (`_call_gemini`) and the session-index store are mocked.
+The LLM call (`_call_model`) and the session-index store are mocked.
 """
 
 from __future__ import annotations
@@ -54,7 +54,7 @@ async def test_resolve_generates_and_caches() -> None:
     s = _summary(turns=3)
     with (
         patch.object(narrative, "get_session_index", return_value=_FakeIndex(None, None)),
-        patch.object(narrative, "_call_gemini", new=AsyncMock(return_value="A narrative.")),
+        patch.object(narrative, "_call_model", new=AsyncMock(return_value="A narrative.")),
         patch.object(narrative, "update_session_fields") as mock_update,
     ):
         result = await narrative.resolve_narrative(s)
@@ -71,7 +71,7 @@ async def test_resolve_uses_cache_when_fresh() -> None:
     s = _summary(turns=3)
     with (
         patch.object(narrative, "get_session_index", return_value=_FakeIndex("cached", 3)),
-        patch.object(narrative, "_call_gemini", new=AsyncMock()) as mock_llm,
+        patch.object(narrative, "_call_model", new=AsyncMock()) as mock_llm,
     ):
         result = await narrative.resolve_narrative(s)
     assert result == "cached"
@@ -82,7 +82,7 @@ async def test_resolve_regenerates_when_turns_grew() -> None:
     s = _summary(turns=5)
     with (
         patch.object(narrative, "get_session_index", return_value=_FakeIndex("stale", 3)),
-        patch.object(narrative, "_call_gemini", new=AsyncMock(return_value="fresh")),
+        patch.object(narrative, "_call_model", new=AsyncMock(return_value="fresh")),
         patch.object(narrative, "update_session_fields"),
     ):
         result = await narrative.resolve_narrative(s)
@@ -96,7 +96,7 @@ async def test_resolve_debounced_serves_cache_when_grown_but_recent() -> None:
     recent = (datetime.now(UTC) - timedelta(minutes=1)).isoformat()
     with (
         patch.object(narrative, "get_session_index", return_value=_FakeIndex("stale", 3, generated_at=recent)),
-        patch.object(narrative, "_call_gemini", new=AsyncMock()) as mock_llm,
+        patch.object(narrative, "_call_model", new=AsyncMock()) as mock_llm,
     ):
         result = await narrative.resolve_narrative(s)
     assert result == "stale"
@@ -110,7 +110,7 @@ async def test_resolve_force_bypasses_debounce_and_regenerates() -> None:
     recent = (datetime.now(UTC) - timedelta(minutes=1)).isoformat()
     with (
         patch.object(narrative, "get_session_index", return_value=_FakeIndex("stale", 3, generated_at=recent)),
-        patch.object(narrative, "_call_gemini", new=AsyncMock(return_value="forced fresh")) as mock_llm,
+        patch.object(narrative, "_call_model", new=AsyncMock(return_value="forced fresh")) as mock_llm,
         patch.object(narrative, "update_session_fields"),
     ):
         result = await narrative.resolve_narrative(s, force=True)
@@ -124,7 +124,7 @@ async def test_resolve_regenerates_when_voice_grew() -> None:
     s.voice_transcript = "we discussed it aloud at length"
     with (
         patch.object(narrative, "get_session_index", return_value=_FakeIndex("stale", 3, voice_chars=0)),
-        patch.object(narrative, "_call_gemini", new=AsyncMock(return_value="fresh w/ voice")),
+        patch.object(narrative, "_call_model", new=AsyncMock(return_value="fresh w/ voice")),
         patch.object(narrative, "update_session_fields") as mock_update,
     ):
         result = await narrative.resolve_narrative(s)
@@ -136,7 +136,7 @@ async def test_resolve_swallows_llm_failure() -> None:
     s = _summary(turns=3)
     with (
         patch.object(narrative, "get_session_index", return_value=_FakeIndex(None, None)),
-        patch.object(narrative, "_call_gemini", new=AsyncMock(side_effect=RuntimeError("boom"))),
+        patch.object(narrative, "_call_model", new=AsyncMock(side_effect=RuntimeError("boom"))),
     ):
         result = await narrative.resolve_narrative(s)
     assert result is None  # report still renders without a narrative
@@ -144,7 +144,7 @@ async def test_resolve_swallows_llm_failure() -> None:
 
 async def test_resolve_skips_empty_conversation() -> None:
     s = _summary(turns=0)
-    with patch.object(narrative, "_call_gemini", new=AsyncMock()) as mock_llm:
+    with patch.object(narrative, "_call_model", new=AsyncMock()) as mock_llm:
         result = await narrative.resolve_narrative(s)
     assert result is None
     mock_llm.assert_not_called()
@@ -183,7 +183,7 @@ async def test_narrative_runs_on_the_analysis_model(monkeypatch) -> None:
 
     monkeypatch.setattr(genai, "Client", _Client)
 
-    assert await narrative._call_gemini("p") == "ok"
+    assert await narrative._call_model("p") == "ok"
     assert seen["model"] == analysis_model()
     assert seen["model"] != default_model()
 

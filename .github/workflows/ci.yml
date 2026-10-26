@@ -133,6 +133,13 @@ jobs:
         # scripts/student-identity-allowlist.txt — never a field added in good
         # faith. The fixture test plants each shape and asserts the check fails.
         run: python3 scripts/check-student-identity-fields.py && python3 -m unittest discover -s scripts/tests -p 'test_check_student_identity.py'
+      - name: No direct model-provider calls outside backend/llm/
+        # 2026-10-26: which provider runs each one-shot call (titles,
+        # summaries, extraction, analysis) is models.yaml `purposes`, read by
+        # llm.generate. A genai.Client built anywhere else is Gemini by
+        # construction and invisible to that table. The fixture test plants
+        # one and asserts the check fails.
+        run: python3 scripts/check-direct-model-calls.py && python3 -m unittest discover -s scripts/tests -p 'test_check_direct_model_calls.py'
       - name: Every app route is tracked by git
         # 1.1.109: an unanchored `logs/` in .gitignore matched the real route
         # frontend/src/app/teacher/research/logs/. `git add` refused it, `git

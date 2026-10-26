@@ -133,8 +133,7 @@ class TestRunExtraction:
         mock_client = MagicMock()
         mock_client.aio.models.generate_content = AsyncMock(return_value=mock_response)
 
-        with patch("tools.structured_extraction.genai") as mock_genai:
-            mock_genai.Client.return_value = mock_client
+        with patch("google.genai.Client", return_value=mock_client):
             result = await _run_extraction(blocks_json, schema)
 
         parsed = json.loads(result)
@@ -150,8 +149,7 @@ class TestRunExtraction:
         mock_client = MagicMock()
         mock_client.aio.models.generate_content = AsyncMock(return_value=mock_response)
 
-        with patch("tools.structured_extraction.genai") as mock_genai:
-            mock_genai.Client.return_value = mock_client
+        with patch("google.genai.Client", return_value=mock_client):
             with pytest.raises(ValueError, match="empty"):
                 await _run_extraction("[]", {"type": "object"})
 
@@ -165,7 +163,6 @@ class TestRunExtraction:
         mock_client = MagicMock()
         mock_client.aio.models.generate_content = AsyncMock(return_value=mock_response)
 
-        with patch("tools.structured_extraction.genai") as mock_genai:
-            mock_genai.Client.return_value = mock_client
+        with patch("google.genai.Client", return_value=mock_client):
             with pytest.raises(json.JSONDecodeError):
                 await _run_extraction("[]", {"type": "object"})

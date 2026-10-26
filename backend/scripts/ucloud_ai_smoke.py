@@ -4,7 +4,7 @@
     make ucloud-smoke MODEL=ucloud/glm-5.3    # one model
 
 Reads UCLOUD_AI_BASE_URL + UCLOUD_AI_API_KEY from the environment (or
-backend/.env). Three checks, each answering a question the next one depends on:
+backend/.env). Four checks, each answering a question the next one depends on:
 
   1. /models — is the base URL right, does the key work, and do the served
      names match models.yaml? A mismatch is the likeliest first failure: the
@@ -13,6 +13,9 @@ backend/.env). Three checks, each answering a question the next one depends on:
      with no ADK in the way.
   3. One ADK turn through ``adk.agent.resolve_model`` with a function tool —
      the path a tutor turn takes (LiteLlm, tool calling, SSE streaming).
+  4. Two one-shot calls through ``llm.generate`` — the path every other
+     purpose takes once models.yaml ``purposes`` points at UCloud: a capped
+     title-sized answer (does the reasoning allowance suffice?) and a JSON one.
 
 Costs a few thousand tokens per model. Exits non-zero on any failure. Never
 prints the key. Runbook: docs/ops/runbooks/ucloud-ai.md.
@@ -184,6 +187,41 @@ async def check_adk(api_name: str) -> bool:
     return True
 
 
+async def check_one_shot(api_name: str) -> bool:
+    import json
+
+    from llm import generate
+
+    print(f"[4] llm.generate one-shot calls on {api_name}")
+    start = time.monotonic()
+    try:
+        title = await generate(
+            "Give this conversation a title of at most 6 words, no quotes:\n"
+            "User: Hvorfor falder en fjer langsommere end en sten?",
+            model=api_name,
+            temperature=0.3,
+            max_output_tokens=32,
+        )
+        reply = await generate(
+            'Return JSON {"themes": [str]} naming two physics topics in: "friktion og tyngdekraft".',
+            model=api_name,
+            json=True,
+        )
+        themes = json.loads(reply.text).get("themes")
+    except Exception as exc:
+        _fail(f"{type(exc).__name__}: {exc}")
+        return False
+    if not title.text.strip():
+        _fail("the title call returned no text")
+        return False
+    if not isinstance(themes, list):
+        _fail(f"the JSON call did not return a themes list: {reply.text[:300]!r}")
+        return False
+    print(f"  ✓ title {title.text.strip()[:80]!r} ({title.output_tokens} tokens out), JSON themes {themes}")
+    print(f"    both in {time.monotonic() - start:.2f}s")
+    return True
+
+
 async def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--model", help="one ucloud/ api_name (default: every registered one)")
@@ -216,6 +254,7 @@ async def main() -> int:
         print()
         ok &= await check_raw(base, key, ucloud.served_name(api_name))
         ok &= await check_adk(api_name)
+        ok &= await check_one_shot(api_name)
     print()
     print("✓ UCloud AI is ready to pin to a skill." if ok else "✗ Not ready — see the failures above.")
     return 0 if ok else 1

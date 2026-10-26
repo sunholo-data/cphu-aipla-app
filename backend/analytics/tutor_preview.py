@@ -167,17 +167,11 @@ async def run_preview_turn(tutor_id: str, message: str, *, uid: str) -> dict[str
         }
 
     try:
-        from google import genai
-
         from config.models import default_model
+        from llm import generate
 
-        client = genai.Client(vertexai=True)
-        response = await client.aio.models.generate_content(
-            model=default_model(),
-            contents=message,
-            config={"system_instruction": composed["instruction"]},
-        )
-        text = (response.text or "").strip()
+        response = await generate(message, model=default_model(), system=composed["instruction"])
+        text = response.text.strip()
     except Exception as exc:
         log.warning("tutor preview failed for %s: %s", tutor_id, type(exc).__name__)
         return {"ok": False, "tutorId": tutor_id, "error": f"the tutor did not answer ({type(exc).__name__})"}
@@ -212,23 +206,14 @@ async def run_preview_dialogue_turn(
     """
     if not composed.get("ok") or not (composed.get("instruction") or "").strip():
         return {"ok": False, "tutorId": composed.get("tutorId"), "error": "nothing to run"}
-    contents: list[dict[str, Any]] = [
-        {"role": "model" if h["role"] == "tutor" else "user", "parts": [{"text": h["content"]}]} for h in history
-    ]
-    contents.append({"role": "user", "parts": [{"text": message}]})
-    try:
-        from google import genai
+    from llm import Turn, generate
 
-        client = genai.Client(vertexai=True)
-        response = await client.aio.models.generate_content(
-            model=model,
-            contents=contents,
-            config={"system_instruction": composed["instruction"]},
-        )
-        text = (response.text or "").strip()
-        usage = getattr(response, "usage_metadata", None)
-        token_in = getattr(usage, "prompt_token_count", None) or 0
-        token_out = getattr(usage, "candidates_token_count", None) or 0
+    turns = [Turn(role="model" if h["role"] == "tutor" else "user", text=h["content"]) for h in history]
+    try:
+        response = await generate(message, model=model, history=turns, system=composed["instruction"])
+        text = response.text.strip()
+        token_in = response.input_tokens
+        token_out = response.output_tokens
     except Exception as exc:
         from analytics.model_retry import describe_error, status_of
 

@@ -3,8 +3,8 @@
 Design: docs/design/aipla/v1.1.0-feedback/public-access-tiers-and-spend-control.md
 
 ``budget/callback.py`` guards the ADK agent loop. It does not — and cannot —
-guard the ten places that call ``genai.Client(...).aio.models.generate_content``
-directly, nor Vertex RAG, nor Cloud TTS/STT. Between them those are a large
+guard the one-shot calls that go through ``llm.generate`` (titles, summaries,
+extraction, analysis), nor Vertex RAG, nor Cloud TTS/STT. Between them those are a large
 fraction of the bill, and one of them (the compaction summariser) is
 student-triggered on the expensive ``smart_model()`` tier.
 

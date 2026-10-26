@@ -231,7 +231,7 @@ def lesson_world(monkeypatch):
 
 
 def test_lesson_detail_makes_no_model_call(lesson_world) -> None:
-    with patch("reports.narrative._call_gemini", new=AsyncMock(side_effect=AssertionError("model called"))):
+    with patch("reports.narrative._call_model", new=AsyncMock(side_effect=AssertionError("model called"))):
         d = lessons.lesson_detail("c1", "act-1", "2026-10-20")
     assert d["coverage"]["groups"] == 3
     assert d["coverage"]["summarised"] == 2
@@ -264,7 +264,7 @@ def _detail():
 
 async def test_synthesis_cached_only_never_calls_the_model(monkeypatch) -> None:
     monkeypatch.setattr("db.firestore.get_document", lambda c, d: None)
-    with patch("reports.narrative._call_gemini", new=AsyncMock(side_effect=AssertionError("model called"))):
+    with patch("reports.narrative._call_model", new=AsyncMock(side_effect=AssertionError("model called"))):
         assert await lessons.resolve_synthesis(_detail(), generate=False) is None
 
 
@@ -273,7 +273,7 @@ async def test_synthesis_generates_once_then_serves_the_cache(monkeypatch) -> No
     monkeypatch.setattr("db.firestore.get_document", lambda c, d: store.get(d))
     monkeypatch.setattr("db.firestore.set_document", lambda c, d, data: store.__setitem__(d, data))
     llm = AsyncMock(return_value='{"approach": "Mostly elicited first.", "nextTime": "Revisit frequency."}')
-    with patch("reports.narrative._call_gemini", new=llm):
+    with patch("reports.narrative._call_model", new=llm):
         first = await lessons.resolve_synthesis(_detail())
         second = await lessons.resolve_synthesis(_detail())
     assert first["nextTime"] == "Revisit frequency." and second["approach"] == "Mostly elicited first."
@@ -284,7 +284,7 @@ async def test_synthesis_skipped_with_nothing_to_synthesise() -> None:
     d = _detail()
     d["approach"]["groupSummaries"] = []
     d["nextTime"]["groups"] = []
-    with patch("reports.narrative._call_gemini", new=AsyncMock(side_effect=AssertionError("model called"))):
+    with patch("reports.narrative._call_model", new=AsyncMock(side_effect=AssertionError("model called"))):
         assert await lessons.resolve_synthesis(d) is None
 
 
@@ -299,7 +299,7 @@ async def test_concurrent_synthesis_shares_one_call(monkeypatch) -> None:
         await asyncio.sleep(0.05)
         return '{"approach": "a", "nextTime": "n"}'
 
-    with patch("reports.narrative._call_gemini", new=slow):
+    with patch("reports.narrative._call_model", new=slow):
         await asyncio.gather(*(lessons.resolve_synthesis(_detail()) for _ in range(4)))
     assert calls == 1
 

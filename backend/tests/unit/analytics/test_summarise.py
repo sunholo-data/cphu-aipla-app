@@ -68,7 +68,7 @@ class TestAuthRunsBeforeSample:
     async def test_missing_class_refuses_without_bq_or_llm(self) -> None:
         with (
             patch("analytics.summarise.run_query") as mock_q,
-            patch("analytics.summarise._call_gemini") as mock_gemini,
+            patch("analytics.summarise._call_model") as mock_gemini,
         ):
             with pytest.raises(PermissionError) as exc:
                 await summarise.summarise_chat_excerpts("does-not-exist", tool_context=_ctx("teacher-A"))
@@ -80,7 +80,7 @@ class TestAuthRunsBeforeSample:
         cls_b = _seed_class("teacher-B", group_codes=["b-1"])
         with (
             patch("analytics.summarise.run_query") as mock_q,
-            patch("analytics.summarise._call_gemini") as mock_gemini,
+            patch("analytics.summarise._call_model") as mock_gemini,
         ):
             with pytest.raises(PermissionError):
                 await summarise.summarise_chat_excerpts(cls_b.class_id, tool_context=_ctx("teacher-A"))
@@ -96,7 +96,7 @@ class TestSampleSizeCap:
         cls = _seed_class("teacher-A", group_codes=["a-1"])
         with (
             patch("analytics.summarise.run_query") as mock_q,
-            patch("analytics.summarise._call_gemini", _gemini_returning([])),
+            patch("analytics.summarise._call_model", _gemini_returning([])),
         ):
             mock_q.return_value = []
             await summarise.summarise_chat_excerpts(
@@ -111,7 +111,7 @@ class TestSampleSizeCap:
         cls = _seed_class("teacher-A", group_codes=["a-1"])
         with (
             patch("analytics.summarise.run_query") as mock_q,
-            patch("analytics.summarise._call_gemini", _gemini_returning([])),
+            patch("analytics.summarise._call_model", _gemini_returning([])),
         ):
             mock_q.return_value = []
             await summarise.summarise_chat_excerpts(cls.class_id, tool_context=_ctx("teacher-A"))
@@ -121,7 +121,7 @@ class TestSampleSizeCap:
 
 class TestGroupCodeRedaction:
     """Real group codes must never reach the LLM. The verifier here
-    intercepts ``_call_gemini`` and inspects the prompt arg."""
+    intercepts ``_call_model`` and inspects the prompt arg."""
 
     async def test_real_group_codes_not_in_llm_prompt(self) -> None:
         cls = _seed_class(
@@ -140,7 +140,7 @@ class TestGroupCodeRedaction:
 
         with (
             patch("analytics.summarise.run_query") as mock_q,
-            patch("analytics.summarise._call_gemini", side_effect=fake_gemini),
+            patch("analytics.summarise._call_model", side_effect=fake_gemini),
         ):
             mock_q.return_value = sample_rows
             await summarise.summarise_chat_excerpts(cls.class_id, tool_context=_ctx("teacher-A"))
@@ -182,7 +182,7 @@ class TestVerbatimDefense:
         with (
             patch("analytics.summarise.run_query") as mock_q,
             patch(
-                "analytics.summarise._call_gemini",
+                "analytics.summarise._call_model",
                 AsyncMock(return_value=json.dumps({"themes": themes_from_llm})),
             ),
         ):
@@ -209,7 +209,7 @@ class TestVerbatimDefense:
         with (
             patch("analytics.summarise.run_query") as mock_q,
             patch(
-                "analytics.summarise._call_gemini",
+                "analytics.summarise._call_model",
                 AsyncMock(return_value=json.dumps({"themes": themes_from_llm})),
             ),
         ):
@@ -227,7 +227,7 @@ class TestVerbatimDefense:
 class TestEmptySampleShortCircuits:
     async def test_no_class_group_codes_returns_empty_without_llm(self) -> None:
         cls = _seed_class("teacher-A")  # no group_codes
-        with patch("analytics.summarise._call_gemini") as mock_gemini:
+        with patch("analytics.summarise._call_model") as mock_gemini:
             result = await summarise.summarise_chat_excerpts(cls.class_id, tool_context=_ctx("teacher-A"))
             assert result == {"themes": [], "sampled": 0}
             mock_gemini.assert_not_called()
@@ -236,7 +236,7 @@ class TestEmptySampleShortCircuits:
         cls = _seed_class("teacher-A", group_codes=["a-1"])
         with (
             patch("analytics.summarise.run_query") as mock_q,
-            patch("analytics.summarise._call_gemini") as mock_gemini,
+            patch("analytics.summarise._call_model") as mock_gemini,
         ):
             mock_q.return_value = []
             result = await summarise.summarise_chat_excerpts(cls.class_id, tool_context=_ctx("teacher-A"))
@@ -250,7 +250,7 @@ class TestMalformedLLMResponse:
         with (
             patch("analytics.summarise.run_query") as mock_q,
             patch(
-                "analytics.summarise._call_gemini",
+                "analytics.summarise._call_model",
                 AsyncMock(return_value="Sure! Here are some themes... [not JSON]"),
             ),
         ):

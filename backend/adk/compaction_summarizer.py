@@ -236,9 +236,9 @@ def build_compaction_summarizer() -> LlmEventSummarizer | None:
     """
     try:
         from adk.agent import resolve_model
-        from config.models import smart_model
+        from config.models import model_for
 
-        llm = resolve_model(smart_model())
+        llm = resolve_model(model_for("compaction"))
     except Exception as exc:
         logger.warning(
             "compaction summarizer unavailable (%s); ADK will use its default, which drops tool results from summaries",

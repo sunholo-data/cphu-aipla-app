@@ -591,9 +591,9 @@ _SYNTH_INFLIGHT: dict[tuple[int, str], asyncio.Future] = {}
 
 
 async def _generate_synthesis(inputs: dict[str, Any]) -> dict[str, str]:
-    from reports.narrative import _call_gemini
+    from reports.narrative import _call_model
 
-    raw = await _call_gemini(build_synthesis_prompt(inputs), schema=_SYNTH_SCHEMA)
+    raw = await _call_model(build_synthesis_prompt(inputs), schema=_SYNTH_SCHEMA)
     try:
         data = json.loads(raw)
     except (ValueError, TypeError):

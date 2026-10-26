@@ -14,7 +14,7 @@ GPU we run ourselves.
 |---|---|
 | Login | ✅ works with a KU ID |
 | Credits | ⏳ being applied for, 2026-10-26. **No API key can be generated without them** |
-| Code | ✅ `ucloud/` route in `resolve_model`, registry entries, prices, hidden picker group, smoke test |
+| Code | ✅ `ucloud/` route in `resolve_model` (tutor turns) and `llm.generate` (every other call, by purpose); registry entries, prices, hidden picker group, smoke test |
 | Verified | ✅ the whole path (raw stream + one ADK turn with a tool call) against `glm-5.3-flash` served by a *different* OpenAI-compatible host (local Ollama). **Not yet against SDU itself** |
 | Deploys | ❌ no env has the secret mounted. Steps 4–5 below |
 
@@ -135,17 +135,53 @@ There is **no retry / fail-over** on this provider: `ResilientLlm` wraps Gemini
 only, and the tutor fail-over chain is Gemini-only by design. A UCloud outage or
 429 is a failed turn.
 
-## ⚠️ What still leaves Denmark
+## 7. Move the other calls (one line each)
 
-Pinning a skill to `ucloud/` sends **the tutor turn** to Denmark. These still go
-to Google:
+Everything the platform asks a model **outside** a tutor turn goes through
+`llm.generate(purpose=...)` (`backend/llm/`). Which model each purpose uses is
+`purposes:` in `backend/config/models.yaml`, and the provider comes from that
+model's registry entry. Moving a purpose to Denmark is a one-line edit there,
+or per deploy, an env var:
 
-- the **compaction summarizer** (`smart_model()`, Gemini) once a conversation is long
-- the **web / enterprise search** and **code-execution** sub-agents (Gemini)
-- **curriculum RAG** retrieval (Vertex RAG, europe-west1)
-- **voice** (STT / TTS)
+```bash
+CHAT_TITLE_MODEL=ucloud/glm-5.3-flash      # <PURPOSE>_MODEL, an id or api_name
+```
 
-Claim "every token computed in Denmark" only for a skill that uses none of them.
+| Purpose | What | Student text? | Notes for UCloud |
+|---|---|---|---|
+| `chat_title` | title of every new chat, from its first messages | **yes, every chat** | the first one to move |
+| `compaction` | summary replacing the start of a long chat | yes, long chats | feeds later answers. Check quality before moving |
+| `chat_summary` | themes across chat excerpts (analytics chat) | yes, after the lesson | |
+| `analysis` | rubric scoring, report narrative, fidelity, goal lint | yes, after the lesson | also `ANALYSIS_MODEL` |
+| `live_summary` | teacher's live class overview | no, group signals only | |
+| `document_extract` | text from an uploaded PDF or image | yes, student uploads | ⚠️ **must stay on a model that reads PDFs**. The OpenAI-compatible route takes images only and refuses a PDF |
+| `curriculum_summary` | summary stored with a curriculum document | no | |
+| `structured_extract` | JSON from parsed document blocks | depends on the document | |
+
+The tutor turn itself is chosen per skill (step 6), through `resolve_model`.
+`make check-model-calls` (CI) fails on a `genai.Client` call anywhere else,
+so the table above is the whole list.
+
+On the OpenAI-compatible route, `llm.generate` adds 4096 tokens to any
+`max_output_tokens` because GLM reasons first and the reasoning counts against
+the cap. A title's 32 tokens would otherwise be spent before the answer starts.
+
+## ⚠️ What still leaves Denmark, with every purpose moved
+
+- **Curriculum retrieval** (Vertex RAG, europe-west1). On Gemini it runs as a
+  built-in retrieval tool. On a UCloud tutor, ADK is expected to turn it into an
+  ordinary tool call that still queries Vertex (not verified yet). So the
+  student's question goes to Google and the retrieved chunks go to SDU. Moving
+  it needs our own embeddings and our own search index in Denmark. Ask SDU
+  whether they serve an embedding model.
+- **Diagram check** (`svg-illustrator`). The rendered picture is handed back to
+  the model inside a function response, which is a Gemini feature. On GLM
+  expect it to fail rather than leak. Untested.
+- **Scanned PDFs** in `document_extract` (see the table above).
+- **Voice** (speech to text, text to speech). Stays on Google by decision.
+
+The web/enterprise search and code-execution sub-agents are **not** in use: no
+skill on any environment enables them (checked 2026-10-26).
 
 ## Questions for SDU (ask when the credits come through)
 

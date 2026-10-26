@@ -100,7 +100,7 @@ async def test_one_call_with_schema_and_vocabulary_in_prompt() -> None:
         seen["prompt"], seen["schema"] = prompt, schema
         return json.dumps({"narrative": "N", "concepts": []})
 
-    with patch.object(narrative, "_call_gemini", new=fake):
+    with patch.object(narrative, "_call_model", new=fake):
         res = await narrative.generate_report(_summary(), VOCAB)
     assert res.text == "N"
     assert seen["schema"] is narrative.NARRATIVE_SCHEMA
@@ -122,7 +122,7 @@ async def test_resolve_writes_concepts_onto_the_summary_cache_doc() -> None:
     with (
         patch.object(narrative, "get_session_index", return_value=_Idx()),
         patch.object(narrative, "concept_vocabulary", return_value=VOCAB),
-        patch.object(narrative, "_call_gemini", new=AsyncMock(return_value=raw)),
+        patch.object(narrative, "_call_model", new=AsyncMock(return_value=raw)),
         patch.object(narrative, "update_session_fields") as mock_update,
     ):
         out = await narrative.resolve_narrative(_summary())
@@ -161,7 +161,7 @@ def test_vocabulary_reads_the_activity_not_the_skill(monkeypatch) -> None:
     assert vocab.demonstrated == {"n1"}
 
 
-async def test_call_gemini_passes_response_schema(monkeypatch) -> None:
+async def test_call_model_passes_response_schema(monkeypatch) -> None:
     from google import genai
 
     seen: dict = {}
@@ -176,5 +176,5 @@ async def test_call_gemini_passes_response_schema(monkeypatch) -> None:
             self.aio = types.SimpleNamespace(models=_Models())
 
     monkeypatch.setattr(genai, "Client", _Client)
-    await narrative._call_gemini("p", schema=narrative.NARRATIVE_SCHEMA)
+    await narrative._call_model("p", schema=narrative.NARRATIVE_SCHEMA)
     assert seen["config"].response_mime_type == "application/json"

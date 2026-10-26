@@ -1,6 +1,6 @@
 """Unit tests for the placeholder-framework live summary (1.1.31 M1).
 
-Mocks ``_call_gemini`` so the gate / cache / debounce / failure-degradation
+Mocks ``_call_model`` so the gate / cache / debounce / failure-degradation
 logic is tested without an LLM call.
 """
 
@@ -50,7 +50,7 @@ async def test_generates_when_enabled(monkeypatch):
         seen.append(prompt)
         return "Most groups working; g1 looks stuck."
 
-    monkeypatch.setattr(mod, "_call_gemini", fake)
+    monkeypatch.setattr(mod, "_call_model", fake)
     s = await resolve_live_summary("c1", [_sig(stuck=True)], now=T0)
     assert s is not None
     assert "working" in s.text
@@ -68,7 +68,7 @@ async def test_caches_within_debounce(monkeypatch):
         n["c"] += 1
         return f"summary {n['c']}"
 
-    monkeypatch.setattr(mod, "_call_gemini", fake)
+    monkeypatch.setattr(mod, "_call_model", fake)
     s1 = await resolve_live_summary("c1", [_sig()], now=T0)
     # 2 min later, even with changed signals → still within the 5-min window → cache.
     s2 = await resolve_live_summary("c1", [_sig(turns=9)], now=T0 + timedelta(minutes=2))
@@ -85,7 +85,7 @@ async def test_regenerates_after_debounce_when_changed(monkeypatch):
         n["c"] += 1
         return f"summary {n['c']}"
 
-    monkeypatch.setattr(mod, "_call_gemini", fake)
+    monkeypatch.setattr(mod, "_call_model", fake)
     await resolve_live_summary("c1", [_sig(turns=1)], now=T0)
     s2 = await resolve_live_summary("c1", [_sig(turns=9)], now=T0 + timedelta(minutes=6))
     assert n["c"] == 2
@@ -99,5 +99,5 @@ async def test_failure_degrades_to_none(monkeypatch):
     async def boom(prompt):
         raise RuntimeError("flash down")
 
-    monkeypatch.setattr(mod, "_call_gemini", boom)
+    monkeypatch.setattr(mod, "_call_model", boom)
     assert await resolve_live_summary("c1", [_sig()], now=T0) is None

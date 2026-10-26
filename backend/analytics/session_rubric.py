@@ -543,22 +543,15 @@ def build_generic_prompt(partition: EvidencePartition, pack: dict[str, Any], con
 
 
 async def _call_judge_model(prompt: str, model: str, images: list[Any] | None = None) -> str:
-    """One judged model call (the analytics/summarise genai precedent).
+    """One judged model call, on ``model``'s provider (``llm.generate``).
 
     Isolated as a seam so tests and the CLI's --dry-run can stub it. When
     ``images`` are given (RUBRIC-2 M2 — uploaded evidence), the call is
     multimodal: the prompt text plus each image Part."""
-    from google import genai
-    from google.genai.types import GenerateContentConfig
+    from llm import Attachment, generate
 
-    client = genai.Client(vertexai=True)
-    contents: Any = [prompt, *images] if images else prompt
-    response = await client.aio.models.generate_content(
-        model=model,
-        contents=contents,
-        config=GenerateContentConfig(temperature=0.0, response_mime_type="application/json"),
-    )
-    return response.text or ""
+    prompt_parts: Any = [prompt, *(Attachment.from_part(p) for p in images)] if images else prompt
+    return (await generate(prompt_parts, model=model, temperature=0.0, json=True)).text
 
 
 def _parse_profile(raw: str, expected_keys: list[str]) -> dict[str, Any]:
@@ -645,18 +638,17 @@ async def score_session_summary(summary: SessionSummary, lens_id: str) -> Rubric
     if not partition.student_initiated:
         return _abstain(summary, config, partition, "no student-initiated evidence in this session")
 
-    # The judge runs on Vertex/Gemini today (_call_judge_model). A curated
-    # non-google model is selectable (the registry is multi-provider) but not
-    # yet wired to run — abstain honestly rather than crash. Multi-provider
-    # judge execution is the flagged follow-up (RVIEW-1).
+    # The judge runs through llm.generate, which has routes for google, ucloud
+    # and openai. Anthropic is selectable in the registry but has no one-shot
+    # route — abstain honestly rather than crash.
     provider = provider_for_api_name(config.model)
-    if provider not in (None, "google"):
+    if provider == "anthropic":
         return _abstain(
             summary,
             config,
             partition,
-            f"model {config.model!r} is a {provider} model — judge execution is Gemini-only for now; "
-            "pick a Gemini model to run this lens",
+            f"model {config.model!r} is an anthropic model — the judge cannot run on it; "
+            "pick a Gemini, UCloud AI or OpenAI model to run this lens",
         )
 
     pack = pack or {"anchors": []}  # generic path tolerates an absent pack when not required

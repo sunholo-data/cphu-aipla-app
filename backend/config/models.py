@@ -16,6 +16,28 @@ from pydantic import BaseModel, model_validator
 
 _YAML_PATH = Path(__file__).parent / "models.yaml"
 
+#: Every one-shot model call the platform makes outside an agent turn, by what
+#: it is FOR. models.yaml ``purposes`` maps each to a model; ``model_for()``
+#: resolves it, and ``llm.generate(purpose=...)`` calls it on that model's
+#: provider. Moving a call off Google is a one-line edit there, not a code
+#: change. A new kind of call gets a key here first.
+PURPOSES: dict[str, str] = {
+    "chat_title": "the title of a new chat, from its first messages (every student chat)",
+    "compaction": "the summary that replaces the start of a long conversation",
+    "live_summary": "the teacher's live overview of a class, from group signals",
+    "chat_summary": "themes across student chat excerpts (analytics chat)",
+    "analysis": "after-the-fact analysis: rubric scoring, report narrative, fidelity, goal lint",
+    "document_extract": "text from an uploaded PDF or image (must read PDFs)",
+    "curriculum_summary": "the short summary stored with a curriculum document",
+    "structured_extract": "JSON extracted from parsed document blocks",
+}
+
+#: Env vars that predate the ``<PURPOSE>_MODEL`` convention and still work.
+_PURPOSE_ENV_ALIASES: dict[str, str] = {
+    "document_extract": "PDF_PARSE_MODEL",
+    "structured_extract": "EXTRACTION_MODEL",
+}
+
 
 class ModelEntry(BaseModel):
     id: str
@@ -39,6 +61,9 @@ class ModelsConfig(BaseModel):
     # 1.1.142 M2: ordered fail-over chain for the platform default. Optional so
     # an older YAML still loads; ``tutor_chain()`` then returns the default alone.
     tutor_chain: list[str] | None = None
+    # Which model each one-shot call uses (models.yaml ``purposes``). Keys must
+    # be in ``PURPOSES``; read through ``model_for()``.
+    purposes: dict[str, str] = {}
 
     @model_validator(mode="after")
     def validate_references(self) -> ModelsConfig:
@@ -66,6 +91,11 @@ class ModelsConfig(BaseModel):
         for provider, model_id in self.defaults.items():
             if model_id not in model_ids:
                 raise ValueError(f"defaults[{provider!r}] = {model_id!r} not found in models list")
+        for purpose, model_id in self.purposes.items():
+            if purpose not in PURPOSES:
+                raise ValueError(f"purposes[{purpose!r}] is not a known purpose ({', '.join(sorted(PURPOSES))})")
+            if model_id not in model_ids:
+                raise ValueError(f"purposes[{purpose!r}] = {model_id!r} not found in models list")
         return self
 
 
@@ -87,12 +117,20 @@ def load_models_config() -> ModelsConfig:
         ModelEntry(id=key, **{k: v for k, v in entry.items() if k != "id"}) for key, entry in raw["models"].items()
     ]
 
+    purposes = raw.get("purposes") or {}
+    analysis = raw.get("analysis_model")
+    if analysis and purposes.get("analysis") and analysis != purposes["analysis"]:
+        raise RuntimeError(
+            f"models.yaml names two analysis models: analysis_model={analysis!r}, "
+            f"purposes.analysis={purposes['analysis']!r}. Keep one."
+        )
     return ModelsConfig(
         models=models,
         defaults=raw["defaults"],
         platform_default=raw["platform_default"],
-        analysis_model=raw.get("analysis_model"),
+        analysis_model=analysis or purposes.get("analysis"),
         tutor_chain=raw.get("tutor_chain"),
+        purposes=purposes,
     )
 
 
@@ -143,37 +181,54 @@ def smart_model() -> str:
 
 
 def analysis_model() -> str:
-    """API name of the model for after-the-fact analysis (models.yaml ``analysis_model``).
+    """API name of the model for after-the-fact analysis (``model_for("analysis")``).
 
     THE RULE: work that runs after the lesson — the report narrative, the
     RUBRIC lens defaults, the approach-fidelity judge, the discrimination
     benchmark — uses this. Anything a student or teacher WAITS ON in a lesson
-    (the tutor turn, live-class summaries, chat titles, extraction) does not;
-    those stay on ``default_model()``.
+    (the tutor turn, live-class summaries, chat titles, extraction) does not.
 
-    Override per deploy with ``ANALYSIS_MODEL``. Unlike ``EXTRACTION_MODEL`` et
-    al., which pass their value straight through, this env var may hold EITHER
-    a registry id (``gemini-3-8-flash``) OR a registered api_name
-    (``gemini-3.8-flash``); both resolve to the api_name. An unregistered value
-    raises ``ValueError`` rather than silently pointing a batch job at a model
-    nobody priced — register it in models.yaml first.
+    Override per deploy with ``ANALYSIS_MODEL`` (a registry id or api_name).
+    Without a ``purposes.analysis`` entry it falls back to ``smart_model()``.
+    """
+    return model_for("analysis")
 
-    Not cached, so the env var is read at call time (tests and a redeploy both
-    see the current value).
+
+def _registered_api_name(value: str, *, source: str) -> str:
+    """``value`` as an api_name, given either a registry id or an api_name.
+
+    Raises ``ValueError`` naming ``source`` for anything unregistered, rather
+    than pointing a call at a model nobody priced or routed.
     """
     cfg = load_models_config()
-    override = (os.environ.get("ANALYSIS_MODEL") or "").strip()
-    if override:
-        by_id = next((m for m in cfg.models if m.id == override), None)
-        if by_id is not None:
-            return by_id.api_name
-        if any(m.api_name == override for m in cfg.models):
-            return override
-        raise ValueError(f"ANALYSIS_MODEL={override!r} is neither a model id nor an api_name in models.yaml")
-    if cfg.analysis_model is None:
-        return smart_model()
-    entry = next(m for m in cfg.models if m.id == cfg.analysis_model)
-    return entry.api_name
+    by_id = next((m for m in cfg.models if m.id == value), None)
+    if by_id is not None:
+        return by_id.api_name
+    if any(m.api_name == value for m in cfg.models):
+        return value
+    raise ValueError(f"{source}={value!r} is neither a model id nor an api_name in models.yaml")
+
+
+def model_for(purpose: str) -> str:
+    """API name of the model for one kind of one-shot call (see ``PURPOSES``).
+
+    In order: the env var ``<PURPOSE>_MODEL`` (or its legacy alias, e.g.
+    ``PDF_PARSE_MODEL``), then models.yaml ``purposes``, then a fallback —
+    ``smart_model()`` for analysis and compaction, ``default_model()`` for the
+    rest. Env values may be a registry id or an api_name; unregistered ones
+    raise. Not cached, so a test or a redeploy sees the current env.
+    """
+    if purpose not in PURPOSES:
+        raise ValueError(f"unknown model purpose {purpose!r} — add it to config.models.PURPOSES")
+    for var in (f"{purpose.upper()}_MODEL", _PURPOSE_ENV_ALIASES.get(purpose)):
+        value = (os.environ.get(var) or "").strip() if var else ""
+        if value:
+            return _registered_api_name(value, source=var)
+    cfg = load_models_config()
+    model_id = cfg.purposes.get(purpose) or (cfg.analysis_model if purpose == "analysis" else None)
+    if model_id:
+        return next(m.api_name for m in cfg.models if m.id == model_id)
+    return smart_model() if purpose in ("analysis", "compaction") else default_model()
 
 
 def tutor_chain() -> list[str]:

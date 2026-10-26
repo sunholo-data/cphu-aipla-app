@@ -96,7 +96,7 @@ def _client(*, uid=TEACHER, teacher=True, researcher=False) -> TestClient:
     return TestClient(app)
 
 
-NO_MODEL = patch("reports.narrative._call_gemini", new=AsyncMock(side_effect=AssertionError("model called")))
+NO_MODEL = patch("reports.narrative._call_model", new=AsyncMock(side_effect=AssertionError("model called")))
 
 
 def test_lessons_list(class_id) -> None:
@@ -151,7 +151,7 @@ def test_researcher_sees_bands(class_id) -> None:
 
 def test_default_read_synthesises_once(class_id) -> None:
     llm = AsyncMock(return_value='{"approach": "Mostly elicited.", "nextTime": "Revisit frequency."}')
-    with patch("reports.narrative._call_gemini", new=llm):
+    with patch("reports.narrative._call_model", new=llm):
         c = _client()
         a = c.get(f"/api/insights/classes/{class_id}/lessons/act-1?date=2026-10-20").json()
         b = c.get(f"/api/insights/classes/{class_id}/lessons/act-1?date=2026-10-20").json()

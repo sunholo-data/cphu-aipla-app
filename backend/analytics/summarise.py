@@ -40,7 +40,6 @@ from analytics.auth import (
     assert_caller_owns,
     resolve_caller_group_codes,
 )
-from config.models import fast_model
 from db.bigquery import CHAT_TURN_TABLE, run_query, table_ref
 from db.classes import get_class
 
@@ -60,11 +59,6 @@ VERBATIM_THRESHOLD = 40
 
 #: Default sample size when the caller omits one. Below the hard cap.
 DEFAULT_SAMPLE_SIZE = 50
-
-#: Model — same tier as the analytics-chat skill itself, kept in this
-#: file rather than imported from the SKILL.md to avoid a circular
-#: load. Update both if the skill model changes.
-_SUMMARISE_MODEL = fast_model()
 
 
 def _sample_turns_sql(*, has_topic: bool) -> str:
@@ -163,17 +157,11 @@ def _build_prompt(redacted_rows: list[dict[str, Any]], topic_keyword: str | None
     )
 
 
-async def _call_gemini(prompt: str) -> str:
-    """Run the prompt through Gemini Flash. Mocked in unit tests."""
-    from google import genai
+async def _call_model(prompt: str) -> str:
+    """Run the prompt on the ``chat_summary`` model, as JSON. Mocked in unit tests."""
+    from llm import generate
 
-    client = genai.Client(vertexai=True)
-    response = await client.aio.models.generate_content(
-        model=_SUMMARISE_MODEL,
-        contents=prompt,
-        config={"response_mime_type": "application/json"},
-    )
-    return response.text or ""
+    return (await generate(prompt, purpose="chat_summary", json=True)).text
 
 
 def _has_verbatim_overlap(text: str, sources: list[str]) -> bool:
@@ -288,7 +276,7 @@ async def summarise_chat_excerpts(
 
     redacted, _mapping = _redact_group_codes(sample)
     prompt = _build_prompt(redacted, topic_keyword)
-    raw_response = await _call_gemini(prompt)
+    raw_response = await _call_model(prompt)
     themes = _parse_themes(raw_response)
     safe_themes = _filter_verbatim_leaks(themes, [r["content"] for r in sample])
     return {"themes": safe_themes, "sampled": len(sample)}

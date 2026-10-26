@@ -16,17 +16,14 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 
-from google import genai
 from google.adk.agents.callback_context import CallbackContext
 from google.genai import types as genai_types
 
-from config.models import default_model
+from llm import generate
 
 log = logging.getLogger(__name__)
 
-_EXTRACTION_MODEL = os.environ.get("EXTRACTION_MODEL") or default_model()
 _LARGE_OUTPUT_THRESHOLD = 50_000
 
 
@@ -105,16 +102,11 @@ async def _run_extraction(blocks_json: str, schema: dict | str) -> str:
         f"Document blocks (JSON):\n{blocks_json}"
     )
 
-    client = genai.Client(vertexai=True)
-    response = await client.aio.models.generate_content(
-        model=_EXTRACTION_MODEL,
-        contents=prompt,
-        config={"response_mime_type": "application/json"},
-    )
+    response = await generate(prompt, purpose="structured_extract", json=True)
 
-    text = response.text or ""
+    text = response.text
     if not text:
-        raise ValueError("Gemini returned empty extraction response")
+        raise ValueError("the model returned an empty extraction response")
 
     json.loads(text)
     return text

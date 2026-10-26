@@ -222,7 +222,7 @@ def test_live_endpoint_populates_summary_when_enabled(monkeypatch):
     async def fake_gemini(prompt):
         return "Most groups are working steadily."
 
-    monkeypatch.setattr("analytics.live_class_summary._call_gemini", fake_gemini)
+    monkeypatch.setattr("analytics.live_class_summary._call_model", fake_gemini)
     monkeypatch.setattr("analytics.live_class_summary._cache", {})
 
     body = _teacher_client().get("/api/classes/cls-1/live").json()
