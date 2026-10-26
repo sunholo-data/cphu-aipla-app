@@ -44,6 +44,7 @@ import { SettingsSection } from "@/components/teacher/ui/SettingsSection";
 import { SettingsMap } from "@/components/teacher/SettingsMap";
 import { citedDocIds, FailedMaterialsWarning, useRagStatuses } from "@/components/teacher/FailedMaterialsWarning";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
+import { CompareGroupsLink } from "@/components/teacher/compare/CompareGroupsLink";
 
 import { handleExportSessions } from "./_exportHelpers";
 import { ClassAnalyticsCopilot } from "./_ClassAnalyticsCopilot";
@@ -378,6 +379,7 @@ export default function TeacherClassDetailPage() {
       }
       title={cls.name}
       subtitle={t("subtitle", { groups: liveCodes.length, activities: (cls.activityIds ?? []).length })}
+      actions={<CompareGroupsLink classId={cls.classId} />}
     >
       <ActingForOwnerBanner resource={cls} kind="class" />
       <SettingsMap highlight="class" classId={cls.classId} />

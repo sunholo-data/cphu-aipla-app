@@ -322,6 +322,7 @@ from protocols.analytics_routes import router as analytics_router  # noqa: E402
 from protocols.artefact_routes import public_router as public_sims_router  # noqa: E402
 from protocols.artefact_routes import router as artefact_router  # noqa: E402
 from protocols.checklist_progress_routes import router as checklist_progress_router  # noqa: E402
+from protocols.class_compare_routes import router as class_compare_router  # noqa: E402
 from protocols.classes_routes import router as classes_router  # noqa: E402
 from protocols.client_error_routes import router as client_error_router  # noqa: E402
 from protocols.concept_progress_routes import class_router as class_concept_router  # noqa: E402
@@ -391,6 +392,7 @@ app.include_router(activity_image_router)
 app.include_router(concept_progress_router)
 app.include_router(class_concept_router)
 app.include_router(checklist_progress_router)
+app.include_router(class_compare_router)
 app.include_router(table_progress_router)
 app.include_router(writing_progress_router)
 app.include_router(research_lens_router)
