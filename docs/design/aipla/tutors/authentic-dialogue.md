@@ -3,6 +3,7 @@
 # Tutor framework: Authentic Dialogue — dialogic teaching
 
 **Framework id:** `authentic-dialogue` · **Layer:** `tp_cycle` · **Status:** `ready_for_review` · **Setting:** `one_to_one`
+**Simulation control:** `restrict` — what a tutor with this approach may change in the student's simulation ([1.1.133](../v2.1.0-extension/tutor-controls-sims.md)).
 **Source of truth:** [`backend/frameworks/authentic-dialogue.yaml`](../../../../backend/frameworks/authentic-dialogue.yaml)
 **Public page:** [/project/tutors/authentic-dialogue](../../../../frontend/content/project/tutors/authentic-dialogue.md)
 

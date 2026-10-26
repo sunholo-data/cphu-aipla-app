@@ -28,6 +28,9 @@ id: accountable-talk-moves
 label: Accountable Talk — with the twelve moves
 layer: tp_cycle
 status: ready_for_review
+# 1.1.133 — M set every approach to the full level on 2026-10-26 ("no reason
+# for all of them not to control"): view + scaffold + lock/configure.
+simControl: restrict
 setting: group_talk
 summary: >
   Talk that does academic work is accountable to the learning community, to

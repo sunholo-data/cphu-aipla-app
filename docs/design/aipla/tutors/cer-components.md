@@ -3,6 +3,7 @@
 # Tutor framework: Claim-Evidence-Reasoning — three components
 
 **Framework id:** `cer-components` · **Layer:** `tp_cycle` · **Status:** `ready_for_review` · **Setting:** `one_to_one`
+**Simulation control:** `restrict` — what a tutor with this approach may change in the student's simulation ([1.1.133](../v2.1.0-extension/tutor-controls-sims.md)).
 **Source of truth:** [`backend/frameworks/cer-components.yaml`](../../../../backend/frameworks/cer-components.yaml)
 **Public page:** none — listed on the hub only, because it has no content to publish
 

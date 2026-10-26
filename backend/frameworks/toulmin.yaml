@@ -35,6 +35,9 @@ id: toulmin
 label: Toulmin Argumentation Model
 layer: tp_cycle
 status: ready_for_review
+# 1.1.133 — M set every approach to the full level on 2026-10-26 ("no reason
+# for all of them not to control"): view + scaffold + lock/configure.
+simControl: restrict
 summary: >
   An argument is an interconnected set: a claim, the data supporting it, a
   warrant linking data to claim, backing that establishes why the warrant can be

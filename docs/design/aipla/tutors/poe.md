@@ -3,6 +3,7 @@
 # Tutor framework: Predict-Observe-Explain (POE)
 
 **Framework id:** `poe` · **Layer:** `tp_cycle` · **Status:** `ready_for_review` · **Setting:** `one_to_one`
+**Simulation control:** `restrict` — what a tutor with this approach may change in the student's simulation ([1.1.133](../v2.1.0-extension/tutor-controls-sims.md)).
 **Source of truth:** [`backend/frameworks/poe.yaml`](../../../../backend/frameworks/poe.yaml)
 **Public page:** [/project/tutors/poe](../../../../frontend/content/project/tutors/poe.md)
 

@@ -3,6 +3,7 @@
 # Tutor framework: ESRU — informal formative assessment cycle
 
 **Framework id:** `esru` · **Layer:** `tp_cycle` · **Status:** `ready_for_review` · **Setting:** `one_to_one`
+**Simulation control:** `restrict` — what a tutor with this approach may change in the student's simulation ([1.1.133](../v2.1.0-extension/tutor-controls-sims.md)).
 **Source of truth:** [`backend/frameworks/esru.yaml`](../../../../backend/frameworks/esru.yaml)
 **Public page:** [/project/tutors/esru](../../../../frontend/content/project/tutors/esru.md)
 

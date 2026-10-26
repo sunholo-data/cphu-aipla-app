@@ -274,6 +274,16 @@ Not in scope; recorded so the in-app design does not paint over it.
 3. **Does `record_assessment` wait for M4**, or ship in the same sprint as M1?
    It does not depend on M1 at all, and it is the half that serves research.
    → **Decided: same sprint, if time.** It did fit; shipped as M3.
+4. **Which approaches get which level.** Left to AR/JB in the YAML on
+   2026-10-01. → **Decided by M, 2026-10-26: every approach is `restrict`**
+   (*"no reason for all of them not to control"*) — all seven base frameworks
+   and the three variants (`cer-components`, `accountable-talk-moves`,
+   `authentic-dialogue-three`) set `simControl: restrict`. The platform
+   default stays `view`, so a tutor with no framework, and a custom approach
+   that declares nothing, are unchanged. The generated `/project/tutors` pages
+   now name the level in plain words ("What the tutor may change in the
+   simulation"). Pinned by `test_every_published_framework_resolves_to_restrict`
+   and `test_a_framework_tutor_gets_restrict_commands_on_a_commanding_sim`.
 
 ## What shipped — 2026-10-01
 
@@ -340,7 +350,7 @@ tutor stamp). The new `assessment:` block is server-side, like `tutorBlock`.
 - **Acceptance 8** (`verify_sim.mjs --commands`): the rule is stated in the
   `mcp-app-artefact` skill and `sol-jord-maane` obeys it by construction; no
   harness checks it yet.
-- No published framework sets `sim_control`. A POE tutor that wants `restrict`
-  is a decision for AR/JB in the YAML. The generated framework doc names a
-  level only when one is declared.
-- The public `/project/tutors` pages do not show the level yet.
+- ~~No published framework sets `sim_control`.~~ Every one is `restrict`
+  since 2026-10-26 (decision 4).
+- ~~The public `/project/tutors` pages do not show the level yet.~~ They do
+  since 2026-10-26, when one is declared.

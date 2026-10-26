@@ -32,6 +32,9 @@ id: poe
 label: Predict-Observe-Explain (POE)
 layer: tp_cycle
 status: ready_for_review
+# 1.1.133 — M set every approach to the full level on 2026-10-26 ("no reason
+# for all of them not to control"): view + scaffold + lock/configure.
+simControl: restrict
 summary: >
   Before a demonstration or experiment, the student commits to a prediction AND
   the reasoning behind it; then observes and describes what actually happened,

@@ -179,6 +179,29 @@ _GROUP_TALK_DESIGN = (
 )
 
 
+# 1.1.133 M2 — the sim-control level in plain words for the public page. Shown
+# only when the approach declares one, so a framework that says nothing renders
+# exactly as before. Every change the tutor makes is also named to the student on
+# a card in the chat; the public copy says so because that is the safeguard.
+_SIM_CONTROL_PUBLIC = {
+    "none": "Nothing. The tutor can see the student's simulation but never changes it.",
+    "view": (
+        "What the simulation shows — for example jumping to a moment or changing the view. "
+        "Every change is named to the student on a card in the chat."
+    ),
+    "scaffold": (
+        "What the simulation shows, and short task or hint text on the student's screen. "
+        "Every change is named to the student on a card in the chat."
+    ),
+    "restrict": (
+        "What the simulation shows, task or hint text on the student's screen, and — where the "
+        "simulation offers it — locking or configuring a control, for instance holding time "
+        "still until the student has made a prediction. Every change is named to the student "
+        "on a card in the chat."
+    ),
+}
+
+
 def render_design_doc(fw: TeachingFramework) -> str:
     instruction = build_framework_instruction(fw)
     lines = [
@@ -331,6 +354,8 @@ def render_public_page(fw: TeachingFramework, order: int) -> str:
         "",
     ]
     lines += _constructs_block(fw)
+    if fw.sim_control:
+        lines += ["## What the tutor may change in the simulation", "", _SIM_CONTROL_PUBLIC[fw.sim_control], ""]
     lines += [
         "## How it is reviewed",
         "",

@@ -3,8 +3,8 @@ title: "Predict-Observe-Explain (POE)"
 description: "How AIPLA's tutor teaches when configured to use Predict-Observe-Explain (POE), and the research it is based on."
 eyebrow: "Teaching framework"
 owner: "AIPLA project team"
-reviewed: "2026-10-19"
-reviewBy: "2027-01-19"
+reviewed: "2026-10-26"
+reviewBy: "2027-01-26"
 status: "Provisional"
 order: "68"
 nav: "false"
@@ -98,6 +98,10 @@ Compare prediction against observation, name whether they agree, and account for
 - Referring to what other students predicted when the student is working alone.
 
 **How you would know it happened:** Did the student revise a stated reason, or only their answer? Changing the conclusion while keeping the original reasoning is the outcome that looks like learning and is not — and the paper's grade-12 cohort, who had been taught the topic and still reasoned pre-instructionally, is the case in point.
+
+## What the tutor may change in the simulation
+
+What the simulation shows, task or hint text on the student's screen, and — where the simulation offers it — locking or configuring a control, for instance holding time still until the student has made a prediction. Every change is named to the student on a card in the chat.
 
 ## How it is reviewed
 

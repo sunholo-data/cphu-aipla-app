@@ -27,6 +27,9 @@ id: 5e
 label: 5E Model — learning cycle
 layer: tp_cycle
 status: ready_for_review
+# 1.1.133 — M set every approach to the full level on 2026-10-26 ("no reason
+# for all of them not to control"): view + scaffold + lock/configure.
+simControl: restrict
 summary: >
   A lesson has an optimal order: Engage, Explore, Explain, Elaborate, Evaluate.
   The model rests on a conceptual-change view of learning — a learner must first

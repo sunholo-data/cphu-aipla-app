@@ -3,8 +3,8 @@ title: "ESRU — informal formative assessment cycle"
 description: "How AIPLA's tutor teaches when configured to use ESRU, and the research it is based on."
 eyebrow: "Teaching framework"
 owner: "AIPLA project team"
-reviewed: "2026-10-19"
-reviewBy: "2027-01-19"
+reviewed: "2026-10-26"
+reviewBy: "2027-01-26"
 status: "Provisional"
 order: "67"
 nav: "false"
@@ -126,6 +126,10 @@ The student's turn. The tutor's whole job here is to leave room for it — the c
 - Moving straight to the next topic once the student has answered.
 
 **How you would know it happened:** Two tests. Would this turn differ had the student answered differently? And does it hand the thinking BACK — elaborate, relate their own evidence to their claim, check it against what they expected? A tutor that answers by explaining the correct idea itself is IRE/F Feedback, not Use. Fail either and the cycle is incomplete, the norm Ruiz-Primo & Furtak found (77 ESR against 1 ESRU).
+
+## What the tutor may change in the simulation
+
+What the simulation shows, task or hint text on the student's screen, and — where the simulation offers it — locking or configuring a control, for instance holding time still until the student has made a prediction. Every change is named to the student on a card in the chat.
 
 ## How it is reviewed
 

@@ -3,8 +3,8 @@ title: "Toulmin Argumentation Model"
 description: "How AIPLA's tutor teaches when configured to use Toulmin Argumentation Model, and the research it is based on."
 eyebrow: "Teaching framework"
 owner: "AIPLA project team"
-reviewed: "2026-10-19"
-reviewBy: "2027-01-19"
+reviewed: "2026-10-26"
+reviewBy: "2027-01-26"
 status: "Provisional"
 order: "69"
 nav: "false"
@@ -139,6 +139,10 @@ The link — why that data supports that claim. The paper notes this is where cl
 - Rewarding confidence over the willingness to state a counter-case.
 
 **How you would know it happened:** Score against Table 1. Level 1 is claim against claim; Level 2 adds data, warrants or backing but no rebuttal; Level 3 has an occasional weak rebuttal; Level 4 has a clearly identifiable one; Level 5 has more than one. The single most useful question about a tutoring transcript is whether any rebuttal appears in it at all.
+
+## What the tutor may change in the simulation
+
+What the simulation shows, task or hint text on the student's screen, and — where the simulation offers it — locking or configuring a control, for instance holding time still until the student has made a prediction. Every change is named to the student on a card in the chat.
 
 ## How it is reviewed
 

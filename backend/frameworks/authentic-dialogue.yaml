@@ -22,6 +22,9 @@ id: authentic-dialogue
 label: Authentic Dialogue — dialogic teaching
 layer: tp_cycle
 status: ready_for_review
+# 1.1.133 — M set every approach to the full level on 2026-10-26 ("no reason
+# for all of them not to control"): view + scaffold + lock/configure.
+simControl: restrict
 summary: >
   Teaching as a real conversation rather than a recitation. The teacher asks
   questions that have no prespecified answer, builds the student's reply into

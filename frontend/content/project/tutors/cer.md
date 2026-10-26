@@ -3,8 +3,8 @@ title: "Claim-Evidence-Reasoning (CER)"
 description: "How AIPLA's tutor teaches when configured to use Claim-Evidence-Reasoning (CER), and the research it is based on."
 eyebrow: "Teaching framework"
 owner: "AIPLA project team"
-reviewed: "2026-10-19"
-reviewBy: "2027-01-19"
+reviewed: "2026-10-26"
+reviewBy: "2027-01-26"
 status: "Provisional"
 order: "66"
 nav: "false"
@@ -131,6 +131,10 @@ Feedback has to be specific enough to revise from. The chapter's base rubric sco
 - Praising a claim that has no evidence attached.
 
 **How you would know it happened:** Could the student act on this feedback without a follow-up question? A spoken claim counts: when the student states one, does the tutor name the missing or weak component — the evidence, or the principle linking it — and send them back to supply it? That is this move; a rubric score need not be said aloud. "Good" or "not quite" is the feedback the chapter calls useless.
+
+## What the tutor may change in the simulation
+
+What the simulation shows, task or hint text on the student's screen, and — where the simulation offers it — locking or configuring a control, for instance holding time still until the student has made a prediction. Every change is named to the student on a card in the chat.
 
 ## How it is reviewed
 

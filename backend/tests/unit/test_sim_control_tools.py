@@ -153,15 +153,57 @@ def test_the_level_comes_from_the_tutors_framework(monkeypatch) -> None:
     assert resolve_sim_control_level("fw-gone") == "view"
 
 
-def test_every_published_framework_parses_with_a_valid_level() -> None:
-    """The field is optional and today no published framework sets it — every
-    base tutor and every framework tutor is therefore at the default. A POE
-    tutor wanting `restrict` is a decision for the framework file, signed off by
-    the people who own the pedagogy, not a default slipped in here."""
+def _published_framework_ids() -> list[str]:
     from frameworks.loader import load_frameworks
 
-    for fw in load_frameworks():
-        assert fw.sim_control in (None, "none", "view", "scaffold", "restrict"), fw.id
+    return [fw.id for fw in load_frameworks()]
+
+
+def test_every_published_framework_declares_restrict() -> None:
+    """M, 2026-10-26: "no reason for all of them not to control". Every approach
+    in the library — base and variant — is set to the full level in its YAML.
+    The platform default stays `view`, so a tutor with NO framework is unchanged
+    (`test_the_default_level_is_view`)."""
+    from frameworks.loader import load_frameworks
+
+    frameworks = load_frameworks()
+    assert len(frameworks) >= 10
+    for fw in frameworks:
+        assert fw.sim_control == "restrict", fw.id
+
+
+@pytest.mark.parametrize("framework_id", _published_framework_ids())
+def test_every_published_framework_resolves_to_restrict(_activity_env, framework_id) -> None:
+    """Through the REAL resolver (the override store included), not the model."""
+    assert resolve_sim_control_level(framework_id) == "restrict"
+
+
+@pytest.mark.parametrize("framework_id", _published_framework_ids())
+def test_a_framework_tutor_gets_restrict_commands_on_a_commanding_sim(_activity_env, monkeypatch, framework_id) -> None:
+    """End to end with the real framework file: a class tutor teaching with any
+    published approach, on an activity hosting a commanding sim, is built with a
+    `control_sim` whose schema carries the `restrict` commands."""
+    import adk.agent as agent_mod
+    from adk.tutor_resolution import TeachingContext
+
+    monkeypatch.setattr(
+        agent_mod,
+        "resolve_teaching_context",
+        lambda *a, **k: TeachingContext(
+            tutor_id="t",
+            framework_id=framework_id,
+            persona_id=None,
+            class_id=None,
+            activity_id=None,
+            interaction_style=None,
+            source="tutor",
+        ),
+    )
+    control = [t for t in _agent_tools("sol-jord-maane") if getattr(t, "name", "") == "control_sim"]
+    assert len(control) == 1
+    declared = set(_declared_commands(control[0]))
+    assert {"lock", "configure"} <= declared
+    assert declared == {c.name for c in load_artefact("sol-jord-maane").commands}
 
 
 def test_the_framework_field_reads_from_yaml_and_refuses_nonsense() -> None:
