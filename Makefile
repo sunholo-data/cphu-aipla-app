@@ -637,6 +637,14 @@ check-routes-tracked: ## Verify every Next.js route is tracked by git (CI-gated)
 check-literature-isolation: ## Verify the literature RAG corpus is unreachable from student turns (CI-gated)
 	@bash scripts/check-literature-corpus-isolation.sh
 
+# 1.1.137 §Guard: ADR-001 keeps no server-side map from a group code to a
+# person. Fails if a backend model grows a student_name / names / roster /
+# pupil / elev field without a DPIA-citing entry in
+# scripts/student-identity-allowlist.txt. The fixture test proves it fails.
+check-student-identity: ## Fail if a backend model gains a student-identity field without a DPIA allowlist entry (CI-gated)
+	@python3 scripts/check-student-identity-fields.py
+	@python3 -m unittest discover -s scripts/tests -p 'test_check_student_identity.py'
+
 # Trust-card footgun gate (P1.4). Flags any workspace element that pushes state
 # to the tutor (useSimSnapshotPush) without dispatching the visible "shared with
 # the AI" card (useHumanToolEvents) — the calculator+table bug. Same script the

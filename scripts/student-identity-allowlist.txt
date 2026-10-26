@@ -1,0 +1,9 @@
+# Backend model fields allowed to carry a student's identity — see
+# scripts/check-student-identity-fields.py (1.1.137 §Guard, make check-student-identity).
+#
+# ADR-001: the server keeps no map from a group code to a person. An entry here
+# means that rule was revised on purpose. Format, one per line:
+#
+#   <file relative to repo>:<Class>.<field> | <reason citing the DPIA decision>
+#
+# A reason that does not mention the DPIA fails the check. Empty on purpose.

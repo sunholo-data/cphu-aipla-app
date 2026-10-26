@@ -126,6 +126,13 @@ jobs:
         # paper" stops being possible. The failure mode is quiet: an import added
         # in good faith and a tutor quoting Dysthe at a 16-year-old.
         run: bash scripts/check-literature-corpus-isolation.sh
+      - name: No student identity on a backend model (ADR-001)
+        # 1.1.137: names against codes live in the teacher's BROWSER only. A
+        # server-side names/roster field is the identity map ADR-001 removed, so
+        # it needs JB + a DPIA decision, recorded in
+        # scripts/student-identity-allowlist.txt — never a field added in good
+        # faith. The fixture test plants each shape and asserts the check fails.
+        run: python3 scripts/check-student-identity-fields.py && python3 -m unittest discover -s scripts/tests -p 'test_check_student_identity.py'
       - name: Every app route is tracked by git
         # 1.1.109: an unanchored `logs/` in .gitignore matched the real route
         # frontend/src/app/teacher/research/logs/. `git add` refused it, `git
