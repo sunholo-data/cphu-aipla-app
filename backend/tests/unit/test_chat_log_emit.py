@@ -59,6 +59,9 @@ CHAT_TURN_KEYS = {
     # 'tutor' (a Tutor object decided) vs 'fields' (the pre-tutor activity/class
     # fields did) — the difference between a deliberate choice and a default.
     "teaching_source",
+    # 1.1.152 M1a — which tools this tutor reply called; NULL = not recorded.
+    "tools_called",
+    "tool_call_count",
     # A/B arm key — which build produced the row (see _version_fields).
     "revision",
     "app_version",

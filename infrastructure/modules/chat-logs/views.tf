@@ -86,6 +86,13 @@ resource "google_bigquery_table" "chat_turns" {
         JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.activity_id") AS activity_id,
         JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.interaction_style") AS interaction_style,
         JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.teaching_source") AS teaching_source,
+        -- 1.1.152 M1a (2026-10-26): the tools the tutor called for this reply,
+        -- comma-joined in call order, and how many. Each call is credited to
+        -- exactly one tutor row, so SUM(tool_call_count) is a true total. On a
+        -- tutor row '' / 0 means recorded, and no tools were called. NULL means
+        -- not recorded: every earlier row, and every student row.
+        JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.tools_called") AS tools_called,
+        SAFE_CAST(SAFE_CAST(JSON_VALUE(TO_JSON_STRING(jsonPayload), "$.tool_call_count") AS FLOAT64) AS INT64) AS tool_call_count,
         -- Which build produced this turn. `revision` is Cloud Run's K_REVISION
         -- and is the A/B ARM KEY: traffic tags route to revisions, so when two
         -- versions serve side by side this is what separates the arms. Without

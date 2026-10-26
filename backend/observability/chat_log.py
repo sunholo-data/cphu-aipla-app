@@ -138,8 +138,17 @@ def emit_chat_turn(
     interaction_style: str | None = None,
     teaching_source: str | None = None,
     tutor_version: int | None = None,
+    tools_called: str | None = None,
+    tool_call_count: int | None = None,
 ) -> None:
     """Emit one chat turn (student or tutor). Never raises.
+
+    ``tools_called`` / ``tool_call_count`` (1.1.152 M1a, 2026-10-26) name the
+    tools the tutor called for THIS reply, comma-joined in call order. It is a
+    STRING, not an array, because the sink rejects arrays on a non-repeated field.
+    On a tutor row ``""`` / ``0`` means recorded, and no tools were called. NULL
+    means not recorded, which is every row before this shipped and every student
+    row.
 
     The teaching fields (TUTOR-5, 2026-09-11) answer "what was this conversation
     taught WITH" — the question the pipeline could not answer for its first four
@@ -183,6 +192,8 @@ def emit_chat_turn(
         "activity_id": activity_id,
         "interaction_style": interaction_style,
         "teaching_source": teaching_source,
+        "tools_called": tools_called,
+        "tool_call_count": tool_call_count,
         **_version_fields(),
     }
     try:

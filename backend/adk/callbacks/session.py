@@ -66,6 +66,41 @@ def _served_model(event: Any, configured: str | None) -> str | None:
     return served if isinstance(served, str) and served else configured
 
 
+def _tools_per_tutor_row(events: list[Any], invocation_id: str) -> dict[int, list[str]]:
+    """Attribute this invocation's tool calls to the tutor rows that get logged.
+
+    1.1.152 M1a. A ``function_call`` event has no text part, so the emit loop
+    skips it, and for the pipeline's first five months no chat-log row recorded
+    which tools a turn called. Each call is credited to the NEXT tutor text event.
+    Calls after the last one, such as a checkpoint recorded after the reply, go to
+    that last row. So each call is counted exactly once and
+    ``SUM(tool_call_count)`` is a true total. Calls in an invocation with no
+    tutor text at all have no row to land on and are not recorded here.
+    """
+    out: dict[int, list[str]] = {}
+    pending: list[str] = []
+    last_tutor: int | None = None
+    for idx, event in enumerate(events):
+        if getattr(event, "invocation_id", None) != invocation_id:
+            continue
+        content_obj = getattr(event, "content", None)
+        parts = (getattr(content_obj, "parts", None) if content_obj else None) or []
+        for p in parts:
+            fc = getattr(p, "function_call", None)
+            name = getattr(fc, "name", None) if fc is not None else None
+            if isinstance(name, str) and name:
+                pending.append(name)
+        if getattr(event, "author", None) == "user":
+            continue
+        if any(getattr(p, "text", None) and p.text.strip() for p in parts):
+            out[idx] = pending
+            pending = []
+            last_tutor = idx
+    if pending and last_tutor is not None:
+        out[last_tutor] = out[last_tutor] + pending
+    return out
+
+
 def _emit_new_turns(
     session: Any,
     session_id: str,
@@ -142,6 +177,8 @@ def _emit_new_turns(
         if not current_inv:
             return
 
+        tools_by_idx = _tools_per_tutor_row(events, current_inv)
+
         # latency_ms was accepted by the emitter and passed by nobody for four
         # months — 0 of 870 prod rows carried it (2026-09-11). ADK stamps every
         # event with a wall-clock `timestamp`, so a tutor turn's latency is its
@@ -180,6 +217,7 @@ def _emit_new_turns(
             # than the skill configures; `adk/resilient_llm.py` stamps that on
             # the response, and the row (and its price) must name it.
             answered_by = _served_model(event, turn_model) if role == "tutor" else None
+            row_tools = tools_by_idx.get(idx, []) if role == "tutor" else None
 
             emit_chat_turn(
                 group_id=group_code,
@@ -208,6 +246,8 @@ def _emit_new_turns(
                 token_in=token_in,
                 token_out=token_out,
                 latency_ms=latency_ms,
+                tools_called=",".join(row_tools) if row_tools is not None else None,
+                tool_call_count=len(row_tools) if row_tools is not None else None,
             )
 
             # 1.1.9 cost metrics. `record_llm_cost` has been implemented and
