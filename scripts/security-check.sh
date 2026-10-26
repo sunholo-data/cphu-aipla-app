@@ -73,7 +73,7 @@ audit_npm() {
   local label="$2"
   echo
   echo "${C_BOLD}[$label] npm audit ${NPM_SCOPE[*]} --audit-level=high${C_RESET}"
-  if (cd "$dir" && npm audit --package-lock-only "${NPM_SCOPE[@]}" --audit-level=high); then
+  if node scripts/audit-npm.mjs "$dir" "${NPM_SCOPE[@]}"; then
     echo "${C_GREEN}PASS${C_RESET} $label"
   else
     echo "${C_RED}FAIL${C_RESET} $label"
@@ -89,8 +89,21 @@ audit_python() {
   # --no-emit-project drops the local "-e ." line which pip-audit can't hash.
   # --ignore-vuln: starlette CVEs blocked by fastapi<1.0.0, and the litellm
   # proxy-only CVE blocked by aiplatform's cap — all documented above.
-  if (cd "$dir" && requirements="$(mktemp)" && trap 'rm -f "$requirements"' EXIT && \
-      uv export --frozen --no-dev --no-emit-project --output-file "$requirements" >/dev/null && \
+  if (
+      cd "$dir" || exit 1
+      requirements="$(mktemp)" || exit 1
+      trap 'rm -f "$requirements"' EXIT
+      uv export --frozen --no-dev --no-emit-project --output-file "$requirements" >/dev/null || exit 1
+      backport_flags=()
+      if [ "$dir" = "backend" ] && [ -f scripts/backport_otel_tracestate.py ] && \
+          rg -q '^opentelemetry-api==1[.]38[.]0([ ;\\]|$)' "$requirements"; then
+        # Resolve this one advisory only after a fresh isolated install proves
+        # the pinned-source patch, the real parser deadline and image wiring.
+        uv run --isolated --no-project --with 'opentelemetry-api==1.38.0' \
+          python scripts/backport_otel_tracestate.py --verify-build || exit 1
+        echo 'BACKPORTED CVE-2026-114603: verified ADK 1-compatible parser, bounds and image startup check'
+        backport_flags+=(--ignore-vuln CVE-2026-114603)
+      fi
       uvx pip-audit \
        --requirement "$requirements" \
        --no-deps --disable-pip \
@@ -101,7 +114,8 @@ audit_python() {
        --ignore-vuln CVE-2026-54282 \
        --ignore-vuln CVE-2026-54283 \
        --ignore-vuln PYSEC-2026-4066 \
-       --vulnerability-service osv); then
+       ${backport_flags[@]+"${backport_flags[@]}"} \
+       --vulnerability-service osv || exit "$?"); then
     echo "${C_GREEN}PASS${C_RESET} $label"
   else
     echo "${C_RED}FAIL${C_RESET} $label"

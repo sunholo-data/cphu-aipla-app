@@ -17,6 +17,7 @@ resolution-markers = [
 constraints = [
     { name = "aiohttp", specifier = ">=3.14.4" },
     { name = "certifi", specifier = ">=2026.10.19" },
+    { name = "filelock", specifier = ">=4.2.1" },
     { name = "fsspec", specifier = ">=2026.6.0" },
     { name = "mako", specifier = ">=1.4.2" },
     { name = "multidict", specifier = ">=6.9.1" },
