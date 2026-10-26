@@ -444,6 +444,39 @@ smart tier and comparing (O3), not by this tool.
 Promote, then re-run M0's Q1/Q2 and M5's prod SQL on the next class session, and
 record before/after in this doc.
 
+**Release checklist (whoever promotes).** The release pipelines do not apply
+`infrastructure/env/`, so the code reaching an environment is not enough:
+
+1. **`make tf-apply ENV=test GO=1` alongside the test tag, and `ENV=prod` alongside the
+   promote**, after reading the plan. It carries the sink filter's `tool_call` (without
+   it `aipla_tool_call` rows are never exported) and the `chat_turns` columns
+   `tools_called`, `tool_call_count` and `model_route`. Dev has no infra apply: its sink
+   is set by `scripts/bootstrap-aipla-dev.sh` and was updated by hand on 2026-10-26.
+2. **After the first calculating turn on that environment**, `bq ls chat_logs` shows
+   `aipla_tool_call`. Only then set `create_tool_calls_view = true` in
+   `infrastructure/env/modules.tf` and apply again; a view over a missing table fails
+   the whole apply. Until then, read the rows with `_tool_calls_cte`.
+3. **The skill seed** (automatic on deploy) carries `calculationResults: hold` for
+   `problem-set-hints`. Check on a Boldkast session that a calculation card shows
+   `= ? J`, not a value.
+
+**Verified on dev, 2026-10-26** (`20bfff4`, revision `aipla-v01-frontend-01027-nvt`):
+- *Show tutor* (`aipla-demo-1`, Elkedel): "I got E = 300 kJ, is that right?" → `calculate`
+  called, the reply confirmed it equation-first, and the `aipla_tool_call` row carries
+  args, result and `calc_id` `calc_5f20…`. Asked only for the calculation, the tutor gave the
+  equation and handed the arithmetic back without a tool call, which is in character.
+- *Hold tutor* (`problem-set-hints`, seeded `calculationResults: hold`): a wrong
+  "h = v0²/(2g) = 11.5 m" → `show_calculation` with `student_value`, result
+  `held: true`, `direction: too_large`, no `result` and no `latex` in the payload. The
+  reply named the missing $\sin\theta$ and asked the student to recompute.
+- **Seen, not fixed:** that turn made four tool calls (two refused: a dimensionless
+  `result_unit`, and an expression inside a quantity value), each a model round-trip
+  (O3). M5's counters will say whether that is typical.
+- The dev sink filter was updated by `gcloud` (it had also lacked `rubric_run|rubric_review`);
+  `aipla_tool_call` exists on dev. **Test:** `make tf-apply ENV=test` applied the sink
+  filter and the `chat_turns` columns (with `model_route`), 3 added (the UCloud AI secret
+  shell, from `3b829707`), 2 changed, 0 destroyed. **Prod: not applied.**
+
 ## Open questions
 
 - **O1 (M).** What did M0 find? Were the 2026-10-22 errors **arithmetic/units**, which the tool fixes,
