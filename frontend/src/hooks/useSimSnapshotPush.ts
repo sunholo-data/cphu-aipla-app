@@ -7,7 +7,7 @@ import { fetchWithAuth } from "@/lib/apiClient";
 import type { EncodedImage } from "@/lib/imageResize";
 import {
   fetchProactiveEventCheck,
-  mapArtefactKindToMeaningful,
+  mapArtefactKindForTutorTurn,
 } from "@/lib/proactiveEventCheck";
 
 /**
@@ -77,6 +77,9 @@ export interface UseSimSnapshotPushProactiveOpts {
 export interface SnapshotPushMeta {
   logLabel?: string | null;
   activityId?: string | null;
+  /** 1.1.155 M2 — the sim's catalogue `tutorTurnOn`: only these event kinds
+   *  (by suffix) may ask for a proactive tutor turn. Unset = any meaningful kind. */
+  tutorTurnOn?: readonly string[] | null;
 }
 
 export type SnapshotPushFn<TSnapshot> = (
@@ -158,7 +161,7 @@ export function useSimSnapshotPush<TSnapshot extends object>(
       const opts =
         explicitOptsRef.current ?? contextOptsRef?.current ?? null;
       if (opts && opts.skillId) {
-        const meaningful = mapArtefactKindToMeaningful(latestKind);
+        const meaningful = mapArtefactKindForTutorTurn(latestKind, meta?.tutorTurnOn);
         if (meaningful) {
           const onTrigger = opts.onProactiveTrigger;
           const skillId = opts.skillId;

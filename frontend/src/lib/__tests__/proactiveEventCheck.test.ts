@@ -15,6 +15,7 @@ import {
   MEANINGFUL_EVENT_KINDS,
   fetchProactiveEventCheck,
   isMeaningfulEventKind,
+  mapArtefactKindForTutorTurn,
   mapArtefactKindToMeaningful,
 } from "@/lib/proactiveEventCheck";
 
@@ -87,6 +88,30 @@ describe("mapArtefactKindToMeaningful — completion (1.1.140 M0)", () => {
     expect(mapArtefactKindToMeaningful("x.answered")).toBeNull();
     expect(mapArtefactKindToMeaningful("x.all")).toBeNull();
     expect(mapArtefactKindToMeaningful("x.mission-start")).toBeNull();
+  });
+});
+
+// 1.1.155 M2 — the kettle's Run (~9 s before Capture) used to take the 30 s
+// cooldown, so the Capture turn the catalogue asks for never fired.
+describe("mapArtefactKindForTutorTurn — the sim's tutorTurnOn rule", () => {
+  it("only the declared kinds may take the turn", () => {
+    expect(mapArtefactKindForTutorTurn("kettle-efficiency.run", ["reading"])).toBeNull();
+    expect(mapArtefactKindForTutorTurn("kettle-efficiency.reading", ["reading"])).toBe(
+      "measurement_commit",
+    );
+  });
+
+  it("a declared kind still has to be meaningful", () => {
+    expect(mapArtefactKindForTutorTurn("kettle-efficiency.state-change", ["state-change"])).toBeNull();
+  });
+
+  it("no rule keeps today's mapping exactly", () => {
+    for (const rule of [undefined, null, []]) {
+      expect(mapArtefactKindForTutorTurn("kettle-efficiency.run", rule)).toBe("sim_run");
+      expect(mapArtefactKindForTutorTurn("kettle-efficiency.reading", rule)).toBe(
+        "measurement_commit",
+      );
+    }
   });
 });
 

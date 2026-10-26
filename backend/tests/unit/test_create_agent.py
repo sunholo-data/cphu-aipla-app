@@ -308,11 +308,12 @@ def test_create_agent_wires_tools_from_skill_metadata():
     # ai_search/google_search are model-aware and handled by agent.py directly, so not here.
     agent = create_agent(_skill(tools=["list_documents", "get_document_content"]), _user())
     # Defaults from agent.py: load_artifacts_tool + retrieve_artifact (memory
-    # tools default OFF since 2026-06-17). Plus 2 registry tools and
-    # SendA2uiToClientToolset = 5 total.
-    assert len(agent.tools) == 5
+    # tools default OFF since 2026-06-17). Plus 2 registry tools,
+    # SendA2uiToClientToolset and `calculate` (1.1.152 M2, on every agent) = 6.
+    assert len(agent.tools) == 6
     tool_names = _tool_ids(agent)
     assert "load_artifacts" in tool_names
+    assert "calculate" in tool_names
     assert "load_memory" not in tool_names
     assert "preload_memory" not in tool_names
 

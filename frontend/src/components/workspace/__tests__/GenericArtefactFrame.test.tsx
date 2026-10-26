@@ -430,6 +430,51 @@ describe("GenericArtefactFrame", () => {
       Promise.resolve(new Response(null, { status: 204 })),
     );
   });
+
+  it("honours the catalogue's tutorTurnOn: the kettle's Run asks nothing, its Capture asks (1.1.155 M2)", async () => {
+    const onTrigger = vi.fn();
+    vi.mocked(fetchWithAuth).mockImplementation(() =>
+      Promise.resolve(new Response(null, { status: 204 })),
+    );
+    function Wire() {
+      const set = useSetProactiveSimWiring();
+      useEffect(
+        () => set({ skillId: "skill-kettle", onProactiveTrigger: onTrigger }),
+        [set],
+      );
+      return null;
+    }
+    const KETTLE: ActivityArtefact = {
+      id: "kettle-efficiency",
+      displayName: "Elkedel",
+      artefactPath: "kettle-efficiency/v1",
+      tutorTurnOn: ["reading"],
+    };
+    render(
+      <ProactiveSimProvider>
+        <Wire />
+        <GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={KETTLE} sessionId="s1" />
+      </ProactiveSimProvider>,
+    );
+    const checks = () =>
+      vi
+        .mocked(fetchWithAuth)
+        .mock.calls.filter(([u]) => String(u).includes("/proactive-event-check"));
+
+    onUpdate()({ kind: "kettle-efficiency.run", label: "Tændte kedlen: 2000 W, 1,4 L", state: {} });
+    await waitFor(() => expect(vi.mocked(fetchWithAuth)).toHaveBeenCalledTimes(1));
+    expect(checks()).toHaveLength(0);
+
+    onUpdate()({
+      kind: "kettle-efficiency.reading",
+      label: "Registrerede aflæsning: 67,3 °C efter 95,0 s",
+      state: {},
+    });
+    await waitFor(() => expect(checks()).toHaveLength(1));
+    expect(JSON.parse((checks()[0][1] as RequestInit).body as string)).toMatchObject({
+      eventKind: "measurement_commit",
+    });
+  });
 });
 
 // 1.1.133 M1 — tutor → sim. The chat card publishes a `control_sim` call on the

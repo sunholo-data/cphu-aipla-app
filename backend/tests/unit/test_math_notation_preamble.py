@@ -151,3 +151,92 @@ def test_preamble_forbids_maths_in_backticks_and_text_mode_degrees(preamble_text
     assert "Inside `\\text{…}` write words only; put `^\\circ` outside it." in flat
     assert "\\celsius" in flat
     assert "If a student says the maths looks wrong, rewrite it in plain words" in flat
+
+
+# --- 1.1.152 M3: when to calculate, equation first, the narrowed sim carve-out ---
+
+
+def test_preamble_says_when_the_equation_comes_first(preamble_text: str) -> None:
+    """F3: the preamble said how to write maths, never when."""
+    flat = " ".join(preamble_text.split())
+    assert "the equation comes first" in flat
+    # An equation must not lose out to a sentence limit it was never meant to hit.
+    assert "an equation counts as one sentence" in flat
+
+
+def test_preamble_requires_the_calculate_tool_for_derived_numbers(preamble_text: str) -> None:
+    flat = " ".join(preamble_text.split())
+    assert "Calculate with the `calculate` tool, never in your head." in flat
+    assert "before you tell a student their number is right or wrong" in flat
+    assert "Never state a calculated number the tool did not give you" in flat
+    # Rule 1 of the design: the check is not a way of handing over the answer.
+    assert "do not give them the correct value" in flat
+
+
+def test_the_sim_carve_out_is_narrowed_not_removed(preamble_text: str) -> None:
+    """A single reading stays plain text (the 09-29 fix); a relationship between readings is maths."""
+    flat = " ".join(preamble_text.split())
+    assert '"Effekt 2000 W"' in flat
+    assert "The moment two readings are related, that relationship is mathematics" in flat
+    assert "Typeset only when" not in flat  # the clause that steered sim activities to prose
+
+
+def test_the_tool_the_preamble_names_is_on_every_agent_it_reaches() -> None:
+    """The preamble is unconditional, so the tool it tells the agent to use must be too."""
+    source = _AGENT.read_text(encoding="utf-8")
+    call = next(line for line in source.splitlines() if "build_calc_tools(" in line and "import" not in line)
+    assert "if " not in call, f"calculate must be attached unconditionally: {call.strip()!r}"
+
+
+def test_a_tutor_and_no_tutor_get_the_same_notation_block(monkeypatch: pytest.MonkeyPatch) -> None:
+    """F7: house style changes every prompt equally, so the passthrough guarantee holds.
+
+    One activity with no framework, one with ESRU. The framework text must reach
+    only the second, and the notation block must reach both, once and unchanged.
+    """
+    import asyncio
+    from datetime import UTC, datetime
+    from unittest.mock import MagicMock
+
+    from adk.agent import create_agent
+    from auth.firebase_auth import User
+    from db import firestore as fs_module
+    from db.models import SkillConfig, SkillMetadata
+    from db.models.activity_config import ActivityConfig
+
+    monkeypatch.setenv("LOCAL_MODE", "1")
+    fs_module._reset_client_for_testing()
+    skill = SkillConfig(
+        name="concept-dialogue",
+        description="Test skill.",
+        instructions="Teach physics.",
+        skillId="concept-dialogue",
+        skillMetadata=SkillMetadata(model="gemini-2.5-flash"),
+    )
+    user = User(uid="t1", email="teacher@example.dk", domain="example.dk")
+
+    def resolved(framework_id: str | None) -> str:
+        cfg = ActivityConfig(
+            activityId="act-1",
+            classId="c-1",
+            teacherUid="t-1",
+            frameworkId=framework_id,
+            updatedAt=datetime.now(UTC),
+        )
+        monkeypatch.setattr("adk.teacher_focus.resolve_active_config", lambda *a, **k: cfg)
+        monkeypatch.setattr("adk.agent.resolve_active_config", lambda *a, **k: cfg)
+        agent = create_agent(skill, user, activity_id="act-1")
+        ctx = MagicMock()
+        ctx.state = {}
+        return asyncio.run(agent.instruction(ctx))
+
+    try:
+        plain, tutored = resolved(None), resolved("esru")
+    finally:
+        fs_module._reset_client_for_testing()
+    block = build_math_notation_block()
+    assert "Elicit" in tutored and "Elicit" not in plain  # the tutor path really ran
+    # The same bytes, once each. (The framework block is composed after it, so
+    # the prompts' tails differ by design; the house-style block itself does not.)
+    assert plain.count(block) == 1 and tutored.count(block) == 1
+    assert "Calculate with the `calculate` tool" in block

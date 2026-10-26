@@ -149,6 +149,26 @@ export function mapArtefactKindToMeaningful(
   return null;
 }
 
+/** 1.1.155 M2 — `mapArtefactKindToMeaningful`, narrowed by the sim's own
+ *  catalogue rule. A sim that declares `record.tutorTurnOn` (e.g. the kettle's
+ *  `reading`) names which of its events may take the proactive tutor turn; any
+ *  other kind returns null here, so it never spends the 30 s cooldown.
+ *
+ *  Why: Run and Capture both mapped to meaningful kinds, and on the kettle they
+ *  land ~9 s apart. Run took the cooldown slot and the Capture — "the moment to
+ *  ask what they intend to do with it" — was suppressed. Unset or empty keeps
+ *  today's behaviour exactly. */
+export function mapArtefactKindForTutorTurn(
+  kind: string | null | undefined,
+  tutorTurnOn?: readonly string[] | null,
+): MeaningfulEventKind | null {
+  if (tutorTurnOn && tutorTurnOn.length > 0) {
+    const suffix = kind?.split(".").slice(-1)[0] ?? "";
+    if (!tutorTurnOn.includes(suffix)) return null;
+  }
+  return mapArtefactKindToMeaningful(kind);
+}
+
 export interface ProactiveEventCheckResponse {
   shouldFire: boolean;
   reason?: string;

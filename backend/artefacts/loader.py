@@ -81,6 +81,13 @@ def load_artefact(artefact_id: str) -> ArtefactMeta | None:
     return next((m for m in _teacher_artefacts() if m.id == artefact_id), None)
 
 
+def builtin_artefact(artefact_id: str) -> ArtefactMeta | None:
+    """A BUILT-IN sim by id, with no Firestore read. For per-push and per-turn
+    paths (1.1.155): only built-in sims can declare a ``record:``, and a workbench
+    element's push must not cost a teacher-sim lookup."""
+    return next((a for a in builtin_artefacts() if a.id == artefact_id), None)
+
+
 def is_known_artefact(artefact_id: str) -> bool:
     """True when ``artefact_id`` is a catalogued artefact (used to validate the
     activity-config reference — a bounded enum, never free input)."""

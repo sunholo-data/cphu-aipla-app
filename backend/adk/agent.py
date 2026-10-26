@@ -45,6 +45,7 @@ from adk.a2ui import A2uiToolConfig, make_a2ui_toolset
 from adk.a2ui_surface_context import wrap_with_a2ui_surface_context
 from adk.artifact_tools import retrieve_artifact
 from adk.assessment_tools import build_assessment_tools
+from adk.calc_tools import build_calc_tools
 from adk.callbacks import (
     _handle_large_output,
     handle_unknown_tool,
@@ -550,6 +551,9 @@ def create_agent(
     # guarantees: group comes from the VERIFIED claim, never a model parameter.
     # No-op unless the activity has a checklist AND the caller is a student.
     tools.extend(build_checklist_tools(_active_cfg, user))
+    # 1.1.152 M2 — the verifiable calculator. Unconditional, like the notation
+    # preamble that tells every agent to use it (see adk/calc_tools.py).
+    tools.extend(build_calc_tools(_active_cfg, student_language=student_language))
     # MULTI-SURFACE-A2UI M1 — read the skill's `tool_configs.a2ui` block so
     # the toolset emits `surface_id`/`update_mode` siblings alongside
     # `validated_a2ui_json`. Defaults (no a2ui block) preserve pre-M1

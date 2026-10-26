@@ -14,7 +14,10 @@ InstructionProvider is a thin wrapper around it). We assert:
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 from adk.iframe_context import (
+    last_tutor_reply_at,
     render_instruction_with_iframe_context,
 )
 
@@ -130,3 +133,28 @@ def test_base_instruction_is_preserved_verbatim():
     state = {"mcp_app_context.x.y": {"structuredContent": {"a": 1}}}
     out = render_instruction_with_iframe_context(base_with_lines, state)
     assert out.startswith(base_with_lines)
+
+
+def test_host_bookkeeping_never_reaches_the_prompt():
+    """1.1.155 F3: the card text and an epoch float were printed into every turn."""
+    state = {"mcp_app_context.x.y": {"structuredContent": {"a": 1}, "_label": "card", "_pushedAt": 1.5}}
+    out = render_instruction_with_iframe_context(BASE, state)
+    assert '"a": 1' in out
+    assert "_label" not in out and "_pushedAt" not in out
+
+
+def _ev(author, text, ts):
+    parts = [SimpleNamespace(text=text)] if text is not None else [SimpleNamespace(text=None)]
+    return SimpleNamespace(author=author, content=SimpleNamespace(parts=parts), timestamp=ts)
+
+
+def test_last_tutor_reply_is_the_latest_tutor_text_not_a_tool_call():
+    session = SimpleNamespace(
+        events=[_ev("user", "hej", 1.0), _ev("tutor", "Hej!", 2.0), _ev("user", "ok", 3.0), _ev("tutor", None, 4.0)]
+    )
+    assert last_tutor_reply_at(session) == 2.0
+
+
+def test_no_tutor_reply_yet_is_none():
+    assert last_tutor_reply_at(SimpleNamespace(events=[_ev("user", "hej", 1.0)])) is None
+    assert last_tutor_reply_at(None) is None

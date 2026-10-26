@@ -304,3 +304,72 @@ def test_duplicate_command_names_are_refused() -> None:
     data["commands"].append(dict(data["commands"][0]))
     with pytest.raises(ValidationError):
         ArtefactMeta.model_validate(data)
+
+
+# --- 1.1.155 M2 — a sim declares what its experiment is made of --------------
+
+
+def test_the_kettle_declares_its_record() -> None:
+    """Heating time is declared as set by an ACTION (Stop), not a control. That
+    is the 2026-10-22 complaint: a report asked for 'parameters varied' never
+    found it, because no setting ever named it."""
+    a = load_artefact("kettle-efficiency")
+    assert a is not None and a.record is not None
+    assert [f.key for f in a.record.settings] == ["power_W", "volume_L"]
+    assert [(f.key, f.from_event) for f in a.record.controlled_by_action] == [("duration_s", "reading")]
+    assert a.record.measurements is not None and a.record.measurements.event == "reading"
+    assert "duration_s" in {f.key for f in a.record.measurements.fields}
+    assert a.record.run_event == "run"
+    assert a.record.tutor_turn_on == ["reading"]
+    assert a.record.settings[0].label_for("da") == "Effekt"
+    assert a.record.settings[0].label_for("en") == "Power"
+
+
+def test_the_record_stays_server_side_except_the_turn_rule() -> None:
+    pub = load_artefact("kettle-efficiency").public()  # type: ignore[union-attr]
+    assert "record" not in pub
+    assert pub["tutorTurnOn"] == ["reading"]
+    # A sim without a record keeps exactly today's public shape.
+    assert "tutorTurnOn" not in load_artefact("boldkast").public()  # type: ignore[union-attr]
+
+
+def test_every_declared_record_key_is_emitted_by_the_sim() -> None:
+    """Catalogue and HTML can drift. A declared key the sim never emits is a
+    setting the tutor is told about and never sees, so the declaration fails the
+    build, not the lesson. Each key must appear as an object key in the artefact
+    (`power_W: …`), and each named event must be emitted."""
+    checked = 0
+    for a in load_artefacts():
+        if a.record is None:
+            continue
+        html = (_SANDBOX_ARTEFACTS / a.id / a.version / "index.html").read_text(encoding="utf-8")
+        missing = sorted(k for k in a.record.declared_keys() if not re.search(rf"\b{re.escape(k)}\s*:", html))
+        assert not missing, f"{a.id}: record declares key(s) the sim never emits: {missing}"
+        silent = sorted(e for e in a.record.event_names() if not re.search(rf"emit\(\s*['\"]{re.escape(e)}['\"]", html))
+        assert not silent, f"{a.id}: record names event(s) the sim never emits: {silent}"
+        checked += 1
+    assert checked >= 1, "no artefact declares a record — kettle-efficiency should"
+
+
+def _record_meta(record: dict) -> dict:
+    return {"id": "x", "displayName": "x", "eventVocabulary": ["run", "reading"], "record": record}
+
+
+def test_a_misspelt_record_key_fails_the_load() -> None:
+    """ArtefactMeta drops unknown keys silently; the record must not."""
+    with pytest.raises(ValidationError):
+        ArtefactMeta.model_validate(_record_meta({"runEvnet": "run"}))
+
+
+def test_a_record_naming_an_unknown_event_fails_the_load() -> None:
+    with pytest.raises(ValidationError):
+        ArtefactMeta.model_validate(_record_meta({"tutorTurnOn": "capture"}))
+
+
+def test_bare_keys_are_shorthand_for_unlabelled_fields() -> None:
+    meta = ArtefactMeta.model_validate(
+        _record_meta({"measurements": {"event": "reading", "path": "reading", "fields": ["t_s", "x_m"]}})
+    )
+    assert meta.record is not None and meta.record.measurements is not None
+    assert [f.key for f in meta.record.measurements.fields] == ["t_s", "x_m"]
+    assert meta.record.measurements.fields[0].label_for("da") == "t_s"
