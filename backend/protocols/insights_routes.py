@@ -88,14 +88,27 @@ def _attach_owner_labels(rows: list[dict[str, Any]]) -> None:
             r["ownerLabel"] = label
 
 
+def _now() -> datetime:
+    return datetime.now(UTC)
+
+
 def _resolve_window(since: str, until: str | None) -> tuple[datetime, datetime]:
     """Translate the ``?since=7d|30d|all`` preset + optional ``?until``
     ISO timestamp into a concrete window. Rejects unknown presets so
-    callers don't silently get an empty result from a typo."""
+    callers don't silently get an empty result from a typo.
+
+    A defaulted ``until`` is "now" floored to the MINUTE. The window feeds the
+    cache key (``insights.cache.make_key``), and with "now" to the second
+    two requests a second apart got different keys. The 60 s cache then hit
+    only within one wall-clock second, so it almost never spared the
+    BigQuery work it exists to spare (1.1.131). That is how
+    ``test_cache_hit_avoids_second_compute`` failed on a slow CI runner
+    (2026-10-26). The window now ends up to 59 s early, inside the TTL anyway.
+    """
     preset = _SINCE_PRESETS.get(since)
     if preset is None:
         raise HTTPException(status_code=400, detail=f"invalid since preset {since!r}")
-    until_dt = _parse_iso(until) if until else datetime.now(UTC)
+    until_dt = _parse_iso(until) if until else _now().replace(second=0, microsecond=0)
     since_dt = until_dt - preset
     return since_dt, until_dt
 

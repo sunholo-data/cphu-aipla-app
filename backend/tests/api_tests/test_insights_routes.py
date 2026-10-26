@@ -16,6 +16,8 @@ Five routes under test. The shared properties:
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
@@ -250,9 +252,8 @@ class TestClassKpis:
         assert resp.status_code == 404
         assert resp.json()["detail"] == "class not accessible"
 
-    def test_cache_hit_avoids_second_compute(self, teacher_client, monkeypatch):
-        class_id = _make_class(TEACHER_UID)
-        # Wrap the aggregate function to count calls.
+    @staticmethod
+    def _count_kpi_computes(monkeypatch) -> dict[str, int]:
         from insights import aggregates
 
         call_counter: dict[str, int] = {"n": 0}
@@ -265,11 +266,40 @@ class TestClassKpis:
         monkeypatch.setattr("insights.aggregates.class_kpis", _counted)
         # The route imports the symbol; patch the route module's reference too.
         monkeypatch.setattr("protocols.insights_routes.aggregates.class_kpis", _counted)
+        return call_counter
+
+    @staticmethod
+    def _clock(monkeypatch, *times: datetime) -> None:
+        ticks = iter(times)
+        monkeypatch.setattr("protocols.insights_routes._now", lambda: next(ticks))
+
+    def test_cache_hit_avoids_second_compute(self, teacher_client, monkeypatch):
+        class_id = _make_class(TEACHER_UID)
+        call_counter = self._count_kpi_computes(monkeypatch)
+        # A pinned clock: the test used to read the wall clock, and failed
+        # whenever its two requests straddled a second (slow CI, 2026-10-26).
+        t = datetime(2026, 10, 26, 9, 0, 10, tzinfo=UTC)
+        self._clock(monkeypatch, t, t)
 
         r1 = teacher_client.get(f"/api/insights/classes/{class_id}/kpis")
         r2 = teacher_client.get(f"/api/insights/classes/{class_id}/kpis")
         assert r1.status_code == r2.status_code == 200
         # Same response body, but the aggregate ran only once.
+        assert call_counter["n"] == 1
+
+    def test_cache_hits_across_seconds_within_the_minute(self, teacher_client, monkeypatch):
+        """The bug itself: a defaulted window ended at "now" to the second, so two
+        requests one second apart missed the 60 s cache. Fails before the fix."""
+        class_id = _make_class(TEACHER_UID)
+        call_counter = self._count_kpi_computes(monkeypatch)
+        self._clock(
+            monkeypatch,
+            datetime(2026, 10, 26, 9, 0, 10, tzinfo=UTC),
+            datetime(2026, 10, 26, 9, 0, 41, tzinfo=UTC),
+        )
+
+        teacher_client.get(f"/api/insights/classes/{class_id}/kpis")
+        teacher_client.get(f"/api/insights/classes/{class_id}/kpis")
         assert call_counter["n"] == 1
 
 
