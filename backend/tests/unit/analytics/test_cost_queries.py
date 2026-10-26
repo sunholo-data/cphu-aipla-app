@@ -445,3 +445,91 @@ def test_class_spend_by_day_reads_one_lesson_off_directly() -> None:
     assert titled["activity_id"] == "act-1" and titled["title"] == "Kast"
     untitled = next(a for a in result["by_activity"] if a["activity_id"] is None)
     assert untitled["skill_id"] == "s" and untitled["title"] is None
+
+
+# --- smart-tier share (1.1.142 M4) ---------------------------------------------
+
+
+def test_smart_tier_share_splits_by_route() -> None:
+    rows = [
+        {"model": "gemini-3.5-flash-lite", "model_route": None, "turns": 60},
+        {"model": "gemini-3.8-flash", "model_route": "failover", "turns": 5},
+        {"model": "gemini-3.8-flash", "model_route": "escalation", "turns": 20},
+        {"model": "gemini-3.8-flash", "model_route": "opt_in", "turns": 10},
+        {"model": "gemini-3.8-flash", "model_route": None, "turns": 5},  # pinned / pre-stamp row
+    ]
+    out = cost_queries.fold_smart_tier(rows, threshold=0.25)
+    assert out["turns"] == 100
+    assert out["smart_turns"] == 40
+    assert out["share"] == pytest.approx(0.4)
+    assert out["by_route"] == {"failover": 5, "escalation": 20, "opt_in": 10, "unattributed": 5}
+    assert out["over_threshold"] is True
+
+
+def test_smart_tier_share_under_threshold_and_empty() -> None:
+    rows = [
+        {"model": "gemini-3.5-flash-lite", "model_route": None, "turns": 90},
+        {"model": "gemini-3.8-flash", "model_route": "escalation", "turns": 10},
+    ]
+    assert cost_queries.fold_smart_tier(rows, threshold=0.25)["over_threshold"] is False
+    empty = cost_queries.fold_smart_tier([], threshold=0.0)
+    assert empty["share"] == 0.0
+    assert empty["over_threshold"] is False  # no turns is not drift
+
+
+def test_smart_tier_threshold_is_configurable(monkeypatch) -> None:
+    monkeypatch.delenv(cost_queries.SMART_TIER_SHARE_WARN_ENV, raising=False)
+    assert cost_queries.smart_tier_share_threshold() == cost_queries.SMART_TIER_SHARE_WARN_DEFAULT
+    monkeypatch.setenv(cost_queries.SMART_TIER_SHARE_WARN_ENV, "0.1")
+    assert cost_queries.smart_tier_share_threshold() == pytest.approx(0.1)
+    monkeypatch.setenv(cost_queries.SMART_TIER_SHARE_WARN_ENV, "7")
+    assert cost_queries.smart_tier_share_threshold() == 1.0
+    monkeypatch.setenv(cost_queries.SMART_TIER_SHARE_WARN_ENV, "lots")
+    assert cost_queries.smart_tier_share_threshold() == cost_queries.SMART_TIER_SHARE_WARN_DEFAULT
+
+
+def test_tutor_turn_rows_tolerates_a_missing_route_column() -> None:
+    """Before the chat log stamps `model_route`, the column does not exist —
+    every smart-tier turn must read as unattributed, not 400 the query."""
+    with (
+        patch.object(cost_queries, "jsonpayload_columns", return_value={"model", "role", "group_id"}),
+        patch.object(cost_queries, "run_query", return_value=[]) as rq,
+    ):
+        cost_queries.tutor_turn_rows(["a-b-1"], datetime(2026, 6, 1, tzinfo=UTC), NOW)
+    sql = rq.call_args.args[0]
+    assert "CAST(NULL AS STRING) AS model_route" in sql
+    assert "jsonPayload.role = 'tutor'" in sql
+    assert "a-b-1" not in sql  # bound, never interpolated
+
+
+def test_tutor_turn_rows_reads_the_route_when_it_exists() -> None:
+    with (
+        patch.object(cost_queries, "jsonpayload_columns", return_value={"model", "role", "model_route"}),
+        patch.object(cost_queries, "run_query", return_value=[{"model": "m", "model_route": "opt_in", "turns": 3}]),
+    ):
+        rows = cost_queries.tutor_turn_rows(["a-b-1"], datetime(2026, 6, 1, tzinfo=UTC), NOW)
+    assert rows == [{"model": "m", "model_route": "opt_in", "turns": 3}]
+
+
+def test_cohort_spend_carries_the_smart_tier_line() -> None:
+    _seed_class("t-A", name="DK class", group_codes=["dk-1"], cohort="dk")
+    with (
+        patch.object(cost_queries, "spend_rows", return_value=[]),
+        patch.object(
+            cost_queries,
+            "tutor_turn_rows",
+            return_value=[{"model": "gemini-3.8-flash", "model_route": "escalation", "turns": 2}],
+        ),
+    ):
+        result = cost_queries.cohort_spend("this_month", now=NOW)
+    assert result["smart_tier"]["smart_turns"] == 2
+    assert result["smart_tier"]["by_route"]["escalation"] == 2
+
+
+def test_cohort_spend_survives_a_failing_turn_query() -> None:
+    with (
+        patch.object(cost_queries, "spend_rows", return_value=[]),
+        patch.object(cost_queries, "tutor_turn_rows", side_effect=RuntimeError("BQ down")),
+    ):
+        result = cost_queries.cohort_spend("this_month", now=NOW)
+    assert result["smart_tier"]["turns"] == 0

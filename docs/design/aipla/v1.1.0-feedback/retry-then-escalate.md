@@ -1,6 +1,6 @@
 # Retry, then escalate — a failed or struggling turn gets a second chance on a stronger model
 
-**Status:** **M0–M2 SHIPPED 2026-10-01** (classifier, retry 429/5xx/stall, fail-over to the smart tier) · M3 (escalate hard turns) and M4 (cost + telemetry) OPEN — **1.1.142**
+**Status:** **M0–M2 SHIPPED 2026-10-01** (classifier, retry 429/5xx/stall, fail-over to the smart tier) · **M3 + M4 SHIPPED 2026-10-26** (image / opt-in escalation, smart-tier share on the cost view, raw-error scrub) · one open wire: the chat-log `model_route` column (see "What shipped — 2026-10-26") — **1.1.142**
 **Priority:** **P2** — a failed turn is currently a dead turn (Gemini 5xx is not retried), and "Flash struggles with some harder tasks" has no remedy short of moving every student to a slower model
 **Estimated:** ~1.5–2d (M0 port the error classifier ~0.25d · M1 retry transient 5xx ~0.25d · M2 fail-over to the smart tier ~0.5d · M3 escalate on hard turns ~0.5d · M4 cost + telemetry ~0.25d)
 **Scope:** Backend: adapt upstream `backend/adk/model_errors.py` + `resilient_llm.py` (from `sunholo-data/platform-source`) into `backend/adk/`; replace/absorb `adk/quota_retry.py`; the model wiring in `adk/agent.py` (one seam); `config/models.yaml` (the chain as data); chat-log stamp. Frontend: none required (optionally a "still thinking — using a stronger model" line on the 1.1.131 M2 stall indicator)
@@ -128,6 +128,69 @@ AIPLA provenance paragraph; `resilient_llm.py` is adapted.
 - **No frontend notice** for `MODEL_FALLBACK` (the optional "using a stronger
   model" line on the 1.1.131 M2 stall indicator).
 - **Cooldown is per instance**, as upstream.
+
+## What shipped — 2026-10-26 (M3, M4, follow-ups)
+
+- **M3 — `backend/adk/model_routing.py`** (the rules + route vocabulary) and
+  `ResilientLlm.route_for` (`adk/resilient_llm.py`). Two deterministic
+  pre-routing rules, no LLM router:
+  - **escalation** — the student's *current* message carries an image.
+    `latest_student_message_has_image` walks back past the turn's tool
+    round-trips to the nearest non-tool user content. It deliberately ignores
+    the teacher's reference images (`callbacks/activity_images.py` re-injects
+    them before the message on every turn — `_request_has_image_part` would have
+    put whole activities on the smart tier), images earlier in the history, and
+    a drawing agent's own previews inside function responses.
+  - **opt_in** — `modelTier: smart` on the activity (`Activity.model_tier`,
+    carried onto `ActivityConfig`, read in `create_agent` by the one-line
+    `_apply_activity_model_tier(model, _active_cfg)`).
+  - An escalated turn's order is `[smart, *rest of chain]`, so a smart-tier
+    failure before visible output still gets the default's answer. Its
+    first-token deadline is the budget less `ESCALATION_FALLBACK_RESERVE_S`
+    (7 s → 18 s), not the tutor's 10 s that its ~20 s p90 would trip, and it gets
+    no stall retry. A `MODEL_ESCALATION` reliability event + OTel counter.
+  - Platform default only (`_escalation_index_for` in `adk/agent.py`): the
+    smart tier must already be a `tutor_chain` member; a pinned model never
+    escalates — the same rule as fail-over.
+- **Open question 1 answered: researcher-only, for now.**
+  `POST /api/activities/{id}/model-tier` 403s for any teacher (the owner
+  included). The builder's full-payload PATCH preserves the value it does not
+  send; duplicate/adopt resets it to `default`. UI:
+  `components/teacher/ModelTierControl.tsx` on the activity editor, rendered
+  only for researchers, saving through its own route. Revisit once the share
+  below has been watched for a term.
+- **The stamp.** Every response answered by a model other than the chain head
+  carries `custom_metadata = {served_model, model_route}` with `model_route` ∈
+  `failover | escalation | opt_in`. `served_model` already reaches the chat-log
+  `model` column, so escalated turns already **price** correctly.
+- **M4 — the cost view.** `analytics.cost_queries.tutor_turn_rows` (tutor-turn
+  counts by `model` × `model_route`, schema-tolerant) + `fold_smart_tier`, in
+  `cohort_spend` as `smart_tier` — inside the route's existing
+  `asyncio.to_thread`, so off the event loop. `/teacher/insights/cost` shows the
+  share, the split (fail-over / escalation / opt-in / not recorded) and, above
+  the threshold, a visible warning line. Threshold: `AIPLA_SMART_TIER_SHARE_WARN`
+  (default **0.25**: a smart turn costs ~2.5x, so 25% is ~1.4x the all-default
+  LLM spend — drift, long before it threatens the 100,000 DKK envelope). No
+  alerting infrastructure, by design.
+- **Raw provider errors.** `skills/skill_processor._scrub_background_error`
+  rewrites ag_ui_adk's own `RUN_ERROR{BACKGROUND_EXECUTION_ERROR, str(exc)}` on
+  the wire: a `ModelTurnError` text becomes the Danish "Vejlederen svarer ikke
+  lige nu" line with the classifier's code; anything else a neutral line. The
+  raw text stays in the server log. The frontend was already safe —
+  `classifyRunError` renders by code (`error_agentError`) and never shows the
+  message; a `useSkillAgent` test now pins that. **No student-visible "using a
+  stronger model" notice** (not wanted).
+
+**Open (one wire, deliberately not done here):** the **split** needs the chat
+log to carry `model_route`. `adk/callbacks/session.py` and
+`observability/chat_log.py` had another session's uncommitted edits, so this
+change stopped short of them. Until it lands, every smart-tier turn reads as
+**"not recorded"** — the share is right, the split is empty. The change is
+~4 lines: read `custom_metadata["model_route"]` beside `_served_model`, pass it
+as `model_route=` to `emit_chat_turn`, add it to the payload. The aggregate
+already reads the column the moment it exists (`tutor_turn_rows` probes the
+schema). Also stale: `models.yaml`'s `gemini-3-8-flash` description still says
+nothing student-facing uses the tier — true before M2, false since.
 
 ## Out of scope
 

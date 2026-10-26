@@ -11,14 +11,16 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { AlertTriangle, ArrowLeft } from "lucide-react";
 
 import { InsightsTabs } from "@/components/teacher/insights/InsightsTabs";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
 import {
   type CostInsightsPayload,
+  type SmartTierLine,
   type SpendPeriod,
+  SMART_TIER_ROUTES,
   fetchCostInsights,
   formatEur,
   usedVoice,
@@ -104,6 +106,8 @@ export default function TeacherCostInsightsPage() {
             <span className="text-sm text-muted-foreground">{t("totalFor", { period: t(`period_${payload.period}`) })}</span>
           </div>
 
+          {payload.smart_tier ? <SmartTierSection line={payload.smart_tier} /> : null}
+
           <SpendTable
             id="cohort"
             title={t("byCohort")}
@@ -136,6 +140,52 @@ export default function TeacherCostInsightsPage() {
         </div>
       ) : null}
     </TeacherPage>
+  );
+}
+
+/** 1.1.142 M4 — the share of tutor turns the smart tier answered, by WHY it
+ *  did (fail-over / image escalation / activity opt-in), and a warning line
+ *  when the share crosses the configured threshold. A line, not an alarm. */
+function SmartTierSection({ line }: { line: SmartTierLine }) {
+  const t = useT("TeacherCostInsightsPage");
+  const pct = (x: number) => `${Math.round(x * 1000) / 10}%`;
+  return (
+    <section aria-labelledby="cost-smart-tier" className="flex flex-col gap-2">
+      <h2 id="cost-smart-tier" className="text-sm font-semibold">
+        {t("smartTierTitle")}
+      </h2>
+      {line.turns === 0 ? (
+        <p className="text-sm text-muted-foreground">{t("smartTierNoTurns")}</p>
+      ) : (
+        <>
+          <p className="text-sm">
+            {t("smartTierShare", { share: pct(line.share), smart: line.smart_turns, turns: line.turns })}
+          </p>
+          <table className="w-full max-w-md text-sm">
+            <thead>
+              <tr className="border-b border-border text-left text-xs text-muted-foreground">
+                <th className="py-1 font-medium">{t("smartTierRoute")}</th>
+                <th className="py-1 text-right font-medium">{t("smartTierTurns")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {SMART_TIER_ROUTES.map((route) => (
+                <tr key={route} className="border-b border-border/50">
+                  <td className="py-1">{t(`smartTierRoute_${route}`)}</td>
+                  <td className="py-1 text-right tabular-nums">{line.by_route[route] ?? 0}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+      {line.over_threshold ? (
+        <p role="status" className="flex items-center gap-1.5 text-sm text-amber-700 dark:text-amber-400">
+          <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+          {t("smartTierOverThreshold", { share: pct(line.share), threshold: pct(line.threshold) })}
+        </p>
+      ) : null}
+    </section>
   );
 }
 

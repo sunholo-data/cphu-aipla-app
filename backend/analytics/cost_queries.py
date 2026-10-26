@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import calendar
 import logging
+import os
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
@@ -196,6 +197,116 @@ def _safe_voice_spend(group_codes: list[str], since: datetime, until: datetime) 
     except Exception as exc:
         log.warning("cost_queries: voice spend query failed, returning empty (%s)", type(exc).__name__)
         return []
+
+
+# --- Smart-tier share (1.1.142 M4) -------------------------------------------
+
+#: Env override for the smart-tier share that raises the warning line (0-1).
+SMART_TIER_SHARE_WARN_ENV = "AIPLA_SMART_TIER_SHARE_WARN"
+
+#: Default warning threshold: a quarter of tutor turns on the smart tier.
+#: A smart-tier turn costs ~2.5x a flash-lite one (rate card: $0.75/$3.75 vs
+#: $0.30/$2.50 per 1M), so at 25% LLM spend runs ~1.4x the all-default
+#: baseline. The 1.1.106 envelope (100,000 DKK ≈ €13,400 against ~€450-1,050
+#: of Flash-tier spend per fifteen-week term) has room for that many times
+#: over — the line flags DRIFT (an opt-in left on, an escalation rule firing
+#: on every turn, a degraded primary failing over all day) long before it is
+#: a budget problem. Warning only: no alerting infra, by design.
+SMART_TIER_SHARE_WARN_DEFAULT = 0.25
+
+#: Why a turn was answered by the smart tier, as stamped by adk/resilient_llm.py.
+SMART_TIER_ROUTES = ("failover", "escalation", "opt_in")
+
+
+def smart_tier_share_threshold() -> float:
+    """The configured warning threshold (``AIPLA_SMART_TIER_SHARE_WARN``),
+    clamped to [0, 1]; unset/unparseable → the default."""
+    raw = (os.environ.get(SMART_TIER_SHARE_WARN_ENV) or "").strip()
+    if not raw:
+        return SMART_TIER_SHARE_WARN_DEFAULT
+    try:
+        return min(1.0, max(0.0, float(raw)))
+    except ValueError:
+        log.warning("%s=%r is not a number — using %.2f", SMART_TIER_SHARE_WARN_ENV, raw, SMART_TIER_SHARE_WARN_DEFAULT)
+        return SMART_TIER_SHARE_WARN_DEFAULT
+
+
+def _smart_tier_api_names() -> set[str]:
+    from config.models import load_models_config
+
+    return {m.api_name for m in load_models_config().models if m.tier == "smart"}
+
+
+def tutor_turn_rows(group_codes: list[str], since: datetime, until: datetime) -> list[dict[str, Any]]:
+    """Tutor-turn COUNTS grouped by (model, model_route) for the given codes +
+    window — the input to the smart-tier share line.
+
+    Schema-tolerant like ``spend_rows``: ``model_route`` exists as a column only
+    once a row has logged it (the chat-log stamp of WHY a turn left the default),
+    so until then every smart-tier turn reads as unattributed rather than the
+    query 400ing."""
+    if not group_codes:
+        return []
+    cols = jsonpayload_columns(CHAT_TURN_TABLE)
+    if "model" not in cols or "role" not in cols:
+        return []
+    route_sel = "jsonPayload.model_route" if "model_route" in cols else "CAST(NULL AS STRING)"
+    group_by = "jsonPayload.model" + (", jsonPayload.model_route" if "model_route" in cols else "")
+    sql = f"""
+        SELECT
+          jsonPayload.model AS model,
+          {route_sel} AS model_route,
+          COUNT(*) AS turns
+        FROM {table_ref(CHAT_TURN_TABLE)}
+        WHERE jsonPayload.group_id IN UNNEST(@group_codes)
+          AND jsonPayload.role = 'tutor'
+          AND timestamp BETWEEN @since AND @until
+        GROUP BY {group_by}
+    """.strip()
+    rows = run_query(sql, params={"group_codes": list(group_codes), "since": since, "until": until})
+    return [{"model": r["model"], "model_route": r["model_route"], "turns": int(r["turns"] or 0)} for r in rows]
+
+
+def _safe_tutor_turn_rows(group_codes: list[str], since: datetime, until: datetime) -> list[dict[str, Any]]:
+    """``tutor_turn_rows`` that degrades to ``[]`` — the share line is context,
+    and its absence must never 500 the cost view."""
+    try:
+        return tutor_turn_rows(group_codes, since, until)
+    except Exception as exc:
+        log.warning("cost_queries: tutor-turn query failed, returning empty (%s)", type(exc).__name__)
+        return []
+
+
+def fold_smart_tier(rows: list[dict[str, Any]], *, threshold: float | None = None) -> dict[str, Any]:
+    """Share of tutor turns answered by the smart tier, split by route.
+
+    ``unattributed`` is a smart-tier turn with no route stamp: a skill that
+    PINS the smart model (not routed — it asked for it), or a row written
+    before the chat log carried the route. Kept as its own bucket so the
+    three named routes are never inflated by a guess.
+    """
+    threshold = smart_tier_share_threshold() if threshold is None else threshold
+    smart = _smart_tier_api_names()
+    by_route: dict[str, int] = dict.fromkeys((*SMART_TIER_ROUTES, "unattributed"), 0)
+    total = 0
+    smart_turns = 0
+    for r in rows:
+        turns = int(r.get("turns") or 0)
+        total += turns
+        if r.get("model") not in smart:
+            continue
+        smart_turns += turns
+        route = r.get("model_route")
+        by_route[route if route in SMART_TIER_ROUTES else "unattributed"] += turns
+    share = (smart_turns / total) if total else 0.0
+    return {
+        "turns": total,
+        "smart_turns": smart_turns,
+        "share": round(share, 4),
+        "by_route": by_route,
+        "threshold": threshold,
+        "over_threshold": bool(total) and share > threshold,
+    }
 
 
 def _fold_voice(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -458,6 +569,8 @@ def cohort_spend(period: Period, *, now: datetime | None = None) -> dict[str, An
         "per_class": [
             {**v, "eur": round(v["eur"], 4)} for v in sorted(per_class.values(), key=lambda x: x["eur"], reverse=True)
         ],
+        # 1.1.142 M4 — the share of tutor turns on the smart tier, by route.
+        "smart_tier": fold_smart_tier(_safe_tutor_turn_rows(codes, since, until)),
     }
 
 
@@ -466,8 +579,11 @@ __all__ = [
     "class_spend",
     "classes_spend",
     "cohort_spend",
+    "fold_smart_tier",
     "period_bounds",
     "project_month_eur",
+    "smart_tier_share_threshold",
     "spend_rows",
+    "tutor_turn_rows",
     "voice_spend",
 ]

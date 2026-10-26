@@ -78,7 +78,27 @@ export interface PerClassSpend extends SpendBucket {
   cohort: string;
 }
 
+/** 1.1.142 M4 — why a tutor turn was answered by the smart tier. */
+export type SmartTierRoute = "failover" | "escalation" | "opt_in" | "unattributed";
+
+/** 1.1.142 M4 — share of tutor turns on the smart tier, split by route, with
+ *  the configured warning threshold (`AIPLA_SMART_TIER_SHARE_WARN`). */
+export interface SmartTierLine {
+  turns: number;
+  smart_turns: number;
+  /** 0–1. */
+  share: number;
+  by_route: Record<SmartTierRoute, number>;
+  /** 0–1. */
+  threshold: number;
+  over_threshold: boolean;
+}
+
+export const SMART_TIER_ROUTES: SmartTierRoute[] = ["failover", "escalation", "opt_in", "unattributed"];
+
 export interface CostInsightsPayload {
+  /** Absent on a backend older than 1.1.142 M4. */
+  smart_tier?: SmartTierLine;
   currency: string;
   period: SpendPeriod;
   total_eur: number;

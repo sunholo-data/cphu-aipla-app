@@ -447,7 +447,17 @@
     "kind": "Kind",
     "byClass": "By class",
     "class": "Class",
-    "none": "No spend recorded for this period."
+    "none": "No spend recorded for this period.",
+    "smartTierTitle": "Tutor turns on the smart model",
+    "smartTierNoTurns": "No tutor turns recorded for this period.",
+    "smartTierShare": "{share} of tutor turns ({smart} of {turns}) were answered by the smart model.",
+    "smartTierRoute": "Why",
+    "smartTierTurns": "Turns",
+    "smartTierRoute_failover": "Fail-over (the default model failed)",
+    "smartTierRoute_escalation": "Escalation (the student sent an image)",
+    "smartTierRoute_opt_in": "Opt-in (the activity is set to the smart model)",
+    "smartTierRoute_unattributed": "Not recorded (a skill pinned to it, or logged before the reason was)",
+    "smartTierOverThreshold": "The smart-model share ({share}) is above the {threshold} warning threshold agreed against the cloud-cost envelope. Check for an opt-in left on or a default model failing over."
   },
   "ResearchLogsPage": {
     "title": "Conversations by teaching approach",
