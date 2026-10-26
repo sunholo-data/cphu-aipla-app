@@ -266,6 +266,25 @@
     "stepPlaceholder": "e.g. Identify the system",
     "removeStep": "Remove step {n}"
   },
+  "TeachingGoalLint": {
+    "aria": "Lines that tell the tutor how to teach",
+    "intro": "These lines tell the tutor how to teach, not what to learn.",
+    "precedence": "{tutor} teaches with {approach}, which will take precedence:",
+    "noApproach": "Your class's tutor has no teaching approach, so these lines will shape how it teaches:",
+    "theTutor": "The tutor",
+    "kind_tone": "Tone",
+    "kind_hint_policy": "How much to hint or explain",
+    "kind_character": "A character or role",
+    "kind_answer_policy": "Whether to give answers",
+    "conflicts": "competes with {constructs}",
+    "move": "Move to tutor notes",
+    "keep": "Keep",
+    "moved": "{count, plural, one {# line that told the tutor how to teach was} other {# lines that told the tutor how to teach were}} moved into tutor notes below.",
+    "undo": "Undo",
+    "notesLabel": "Tutor notes",
+    "notesHelp": "How you want the tutor to teach this activity. The tutor reads these only when your class's tutor has no teaching approach — with an approach, the approach decides how to teach.",
+    "moveBack": "Move back to the teaching goal"
+  },
   "ActivityPreview": {
     "title": "Preview — what students see",
     "expand": "Open full-size view",

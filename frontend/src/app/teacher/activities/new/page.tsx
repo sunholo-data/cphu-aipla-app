@@ -20,6 +20,7 @@ import { useT } from "@/i18n";
 import { conceptMapDefault, languageSeed, useTeacherPrefs } from "@/hooks/useTeacherPrefs";
 import { AuthoringCopilot } from "../[id]/_AuthoringCopilot";
 import { applyCopilotProposal } from "../applyCopilotProposal";
+import { runGoalLint } from "@/lib/teachingGoalLint";
 
 // TAA-1 M0: a from-scratch activity runs the `concept-dialogue` base
 // skill (chat-only Socratic tutor). The teacher's title + lesson prompt
@@ -235,6 +236,7 @@ function NewActivityForm() {
               </label>
             }
             tutorSlot={<InheritedTutor classId={classId} />}
+            lintContext={{ classId }}
             error={
               saveError ? (
                 <p role="alert" className="text-sm text-red-600">
@@ -261,7 +263,18 @@ function NewActivityForm() {
           (renders null when NEXT_PUBLIC_AUTHORING_COPILOT !== "1"). No activity_id
           yet — it proposes into the draft (the Save is owner-scoped). */}
       {classesState.status === "ready" ? (
-        <AuthoringCopilot activityId="" draft={builder.toSavePayload()} onApplyProposal={(p) => applyCopilotProposal(p, builder)} />
+        <AuthoringCopilot
+          activityId=""
+          draft={builder.toSavePayload()}
+          onApplyProposal={(p) => {
+            applyCopilotProposal(p, builder);
+            // 1.1.141 M3 — the co-pilot's drafted goal: how-to-teach lines move
+            // into tutor notes, visibly and with Undo.
+            if (p.kind === "set_lesson_prompt") {
+              void runGoalLint(builder.setGoalLint, p.value, { classId }, "move");
+            }
+          }}
+        />
       ) : null}
     </div>
   );

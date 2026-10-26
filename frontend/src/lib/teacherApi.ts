@@ -46,6 +46,9 @@ export interface ActivityConfigPayload {
   teacherUid: string;
   title?: string;
   teachingGoal: string;
+  /** 1.1.141 M3 — how-to-teach lines moved out of the goal. Reaches the tutor
+   *  only when the class's tutor has no teaching approach. */
+  tutorNotes?: string;
   studentOpening?: string;
   starterPrompts?: string[];
   openingByTeacher?: boolean;
@@ -608,6 +611,8 @@ export interface ActivityUpsertBody {
   classId?: string;
   title?: string;
   teachingGoal: string;
+  /** 1.1.141 M3 — carried so the full-overwrite save cannot wipe it. */
+  tutorNotes?: string;
   studentOpening?: string;
   starterPrompts?: string[];
   openingByTeacher?: boolean;
@@ -676,6 +681,47 @@ export async function createActivity(body: ActivityUpsertBody): Promise<Activity
     body: JSON.stringify(body),
   });
   return readJson<ActivityPayload>(resp, "create activity");
+}
+
+/** 1.1.141 M2 — one line of a teaching goal that tells the tutor HOW to teach. */
+export interface PedagogySpan {
+  /** Verbatim from the goal (the backend drops anything it cannot find). */
+  text: string;
+  kind: "tone" | "hint_policy" | "character" | "answer_policy";
+  /** Construct keys of the class tutor's approach this line competes with. */
+  conflictsWith: string[];
+  why: string;
+}
+
+export interface GoalLintResult {
+  spans: PedagogySpan[];
+  frameworkId: string | null;
+  frameworkLabel: string | null;
+  tutorName: string | null;
+  constructNames: Record<string, string>;
+  textHash: string;
+  degraded: boolean;
+}
+
+/** 1.1.141 M2 — which lines of a teaching goal tell the tutor how to teach?
+ *  Advisory: one cached analysis-model call per distinct text, never per turn;
+ *  any failure comes back as no spans. `classId` picks the tutor whose
+ *  approach the lines are checked against. */
+export async function lintTeachingGoal(body: {
+  text: string;
+  classId?: string;
+  activityId?: string;
+}): Promise<GoalLintResult> {
+  const resp = await fetchWithAuth(`/api/proxy/api/activities/lint-teaching-goal`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      text: body.text,
+      classId: body.classId || undefined,
+      activityId: body.activityId?.startsWith("act-") ? body.activityId : undefined,
+    }),
+  });
+  return readJson<GoalLintResult>(resp, "lint teaching goal");
 }
 
 /** Load one activity for editing (owner-only). */

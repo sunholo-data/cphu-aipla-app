@@ -2,7 +2,14 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 
-import type { ActivityConfigPayload, Language, MaterialRef, StxLevel, WorkbenchType } from "@/lib/teacherApi";
+import type {
+  ActivityConfigPayload,
+  GoalLintResult,
+  Language,
+  MaterialRef,
+  StxLevel,
+  WorkbenchType,
+} from "@/lib/teacherApi";
 import { builderToElementDefs } from "@/lib/activityPreview";
 import type { TableEditorValue } from "@/components/teacher/TableEditor";
 import type { ChartEditorValue } from "@/components/teacher/ChartEditor";
@@ -22,6 +29,19 @@ import type { ActivityTemplate } from "@/lib/activityTemplates";
 // materials}; because POST is a full overwrite, that silently wiped every
 // element + the attached sim. There is now ONE place that assembles the element
 // slice, used by both pages.
+
+/** 1.1.141 M2/M3 — the latest teaching-goal lint the editor holds.
+ *  `mode: "move"` (a co-pilot draft) asks the builder body to move the detected
+ *  lines into tutor notes once, while the goal still equals `text`. */
+export interface GoalLintState {
+  text: string;
+  result: GoalLintResult;
+  mode: "warn" | "move";
+  /** Lines the teacher chose to Keep — no longer warned about. */
+  kept: string[];
+  /** Lines moved into tutor notes by the last automatic move, for Undo. */
+  moved: string[];
+}
 
 export interface ChecklistRow {
   key: number;
@@ -53,6 +73,8 @@ export interface SavePayload extends ElementPayload {
   starterPrompts: string[];
   openingByTeacher: boolean;
   teachingGoal: string;
+  /** 1.1.141 M3 — carried so the full-overwrite save cannot wipe it. */
+  tutorNotes: string;
   language: Language;
   workbenchType: WorkbenchType;
   materials: MaterialRef[];
@@ -79,6 +101,13 @@ export interface ActivityBuilder {
   openingByTeacher: boolean;
   teachingGoal: string;
   setTeachingGoal: (v: string) => void;
+  /** 1.1.141 M3 — how-to-teach lines moved out of the goal (shown to the
+   *  tutor only when the class's tutor has no teaching approach). */
+  tutorNotes: string;
+  setTutorNotes: (v: string) => void;
+  /** 1.1.141 M2 — the latest lint of the teaching goal, or null. */
+  goalLint: GoalLintState | null;
+  setGoalLint: (v: GoalLintState | null) => void;
   setStudentOpening: (v: string) => void;
   setStarterPrompts: (v: string[]) => void;
   setOpeningByTeacher: (v: boolean) => void;
@@ -151,6 +180,8 @@ export interface ActivityBuilder {
 export function useActivityBuilder(): ActivityBuilder {
   const [title, setTitle] = useState("");
   const [teachingGoal, setTeachingGoal] = useState("");
+  const [tutorNotes, setTutorNotes] = useState("");
+  const [goalLint, setGoalLint] = useState<GoalLintState | null>(null);
   const [studentOpening, setStudentOpening] = useState("");
   const [starterPrompts, setStarterPrompts] = useState<string[]>([]);
   const [openingByTeacher, setOpeningByTeacher] = useState(false);
@@ -241,6 +272,8 @@ export function useActivityBuilder(): ActivityBuilder {
   function applyTemplate(t: ActivityTemplate) {
     setTitle(t.title);
     setTeachingGoal(t.teachingGoal);
+    setTutorNotes("");
+    setGoalLint(null);
     setStudentOpening("");
     setStarterPrompts([]);
     setOpeningByTeacher(false);
@@ -324,6 +357,8 @@ export function useActivityBuilder(): ActivityBuilder {
   function hydrate(cfg: ActivityConfigPayload) {
     setTitle(cfg.title ?? "");
     setTeachingGoal(cfg.teachingGoal ?? "");
+    setTutorNotes(cfg.tutorNotes ?? "");
+    setGoalLint(null);
     setStudentOpening(cfg.studentOpening ?? "");
     setStarterPrompts(cfg.starterPrompts ?? []);
     setOpeningByTeacher(cfg.openingByTeacher ?? false);
@@ -447,6 +482,7 @@ export function useActivityBuilder(): ActivityBuilder {
     return {
       title: title.trim(),
       teachingGoal: teachingGoal.trim(),
+      tutorNotes: tutorNotes.trim(),
       studentOpening,
       starterPrompts: starterPrompts.map((p) => p.trim()).filter(Boolean),
       openingByTeacher,
@@ -492,6 +528,10 @@ export function useActivityBuilder(): ActivityBuilder {
       setTitle,
       teachingGoal,
       setTeachingGoal,
+      tutorNotes,
+      setTutorNotes,
+      goalLint,
+      setGoalLint,
       studentOpening,
       setStudentOpening,
       starterPrompts,
@@ -550,6 +590,8 @@ export function useActivityBuilder(): ActivityBuilder {
     [
       title,
       teachingGoal,
+      tutorNotes,
+      goalLint,
       studentOpening,
       starterPrompts,
       openingByTeacher,

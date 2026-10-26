@@ -266,6 +266,25 @@
     "stepPlaceholder": "fx Identificér systemet",
     "removeStep": "Fjern trin {n}"
   },
+  "TeachingGoalLint": {
+    "aria": "Linjer der fortæller tutoren, hvordan den skal undervise",
+    "intro": "Disse linjer fortæller tutoren, hvordan den skal undervise, ikke hvad eleverne skal lære.",
+    "precedence": "{tutor} underviser med {approach}, som vil have forrang:",
+    "noApproach": "Klassens tutor har ingen undervisningstilgang, så disse linjer vil forme, hvordan den underviser:",
+    "theTutor": "Tutoren",
+    "kind_tone": "Tone",
+    "kind_hint_policy": "Hvor meget der skal hintes eller forklares",
+    "kind_character": "En karakter eller rolle",
+    "kind_answer_policy": "Om svaret må gives",
+    "conflicts": "konkurrerer med {constructs}",
+    "move": "Flyt til tutornoter",
+    "keep": "Behold",
+    "moved": "{count, plural, one {# linje, der fortalte tutoren, hvordan den skal undervise, blev} other {# linjer, der fortalte tutoren, hvordan den skal undervise, blev}} flyttet til tutornoterne nedenfor.",
+    "undo": "Fortryd",
+    "notesLabel": "Tutornoter",
+    "notesHelp": "Hvordan du vil have tutoren til at undervise i denne aktivitet. Tutoren læser dem kun, når klassens tutor ikke har en undervisningstilgang — med en tilgang er det tilgangen, der bestemmer, hvordan der undervises.",
+    "moveBack": "Flyt tilbage til undervisningsmålet"
+  },
   "ActivityPreview": {
     "title": "Forhåndsvisning — det eleverne ser",
     "expand": "Åbn i fuld størrelse",
