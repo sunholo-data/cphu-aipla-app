@@ -26,7 +26,7 @@ export function DocumentHeader({ doc }: DocumentHeaderProps) {
       </span>
       {doc.sourceFormat && (
         <span
-          className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase ${fmtColor}`}
+          className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium uppercase ${fmtColor}`}
         >
           {doc.sourceFormat}
         </span>

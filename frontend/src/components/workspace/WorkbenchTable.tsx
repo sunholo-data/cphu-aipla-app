@@ -407,7 +407,7 @@ export function WorkbenchTable({ skillId, tables, sessionId, activityId }: Workb
               {t("notANumber")}
             </p>
           ) : null}
-          <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">
+          <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
             {t("footer")}
           </p>
         </section>

@@ -266,7 +266,7 @@ export default function TeacherActivityConfigPage() {
               <span>{t(`tab_${tab.id}`)}</span>
               {tab.status !== "active" ? (
                 <span
-                  className="ml-1 rounded border border-dashed border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
+                  className="ml-1 rounded border border-dashed border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
                 >
                   {tab.status}
                 </span>
@@ -413,7 +413,7 @@ function CodeTabPreview() {
             <Code2 className="h-4 w-4" aria-hidden="true" />
             {t("codeTitle")}
           </h2>
-          <span className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[10px]">
+          <span className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[11px]">
             artefacts/boldkast/v1/index.html · 12.4 KB / 200 KB cap
           </span>
         </header>

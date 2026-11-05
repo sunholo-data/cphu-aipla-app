@@ -37,7 +37,7 @@ export function DocListView({ uid, onDocClick }: DocListViewProps) {
       <div className="flex items-center justify-between border-b px-3 py-2">
         <span className="text-xs font-semibold text-foreground">My Documents</span>
         {folders.length > 0 && (
-          <span className="text-[10px] text-muted-foreground">
+          <span className="text-[11px] text-muted-foreground">
             {folders.length} folder{folders.length !== 1 ? "s" : ""}
           </span>
         )}

@@ -1,6 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
+import { ConfirmProvider } from "@/components/ui/confirm";
+import { Toaster } from "@/components/ui/toast";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { UserLocaleProvider } from "@/i18n/userLocale";
 
@@ -10,7 +12,10 @@ import { UserLocaleProvider } from "@/i18n/userLocale";
 export function AppProviders({ children }: { children: ReactNode }) {
   return (
     <UserLocaleProvider>
-      <AuthProvider>{children}</AuthProvider>
+      <ConfirmProvider>
+        <AuthProvider>{children}</AuthProvider>
+        <Toaster />
+      </ConfirmProvider>
     </UserLocaleProvider>
   );
 }

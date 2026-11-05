@@ -261,7 +261,7 @@ export function ProgressChecklist({
                   </span>
                   {byAi && (
                     <span
-                      className="ml-1.5 inline-flex items-center gap-0.5 align-middle text-[10px] text-muted-foreground"
+                      className="ml-1.5 inline-flex items-center gap-0.5 align-middle text-[11px] text-muted-foreground"
                       data-testid={`ai-marked-${item.id}`}
                     >
                       <Sparkles className="h-2.5 w-2.5" aria-hidden="true" />
@@ -269,7 +269,7 @@ export function ProgressChecklist({
                     </span>
                   )}
                   {evidence && (
-                    <span className="mt-0.5 block text-[10px] leading-snug text-muted-foreground">
+                    <span className="mt-0.5 block text-[11px] leading-snug text-muted-foreground">
                       {evidence}
                     </span>
                   )}
@@ -279,7 +279,7 @@ export function ProgressChecklist({
           );
         })}
       </ul>
-      <p className="mt-3 text-[10px] leading-relaxed text-muted-foreground">
+      <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
         {serverBacked ? t("footerShared") : t("footerLocal")}
       </p>
     </section>

@@ -57,7 +57,7 @@ export function LangToggle({ defaultLang, className }: LangToggleProps) {
       <span
         className={
           className ??
-          "inline-flex items-center gap-1 rounded-full border bg-background px-2 py-0.5 text-[10px] text-muted-foreground"
+          "inline-flex items-center gap-1 rounded-full border bg-background px-2 py-0.5 text-[11px] text-muted-foreground"
         }
         title={t("lockedTitle", { language: FULL[defaultLang] })}
       >
@@ -72,7 +72,7 @@ export function LangToggle({ defaultLang, className }: LangToggleProps) {
     <div
       className={
         className ??
-        "inline-flex items-center gap-0.5 rounded-full border bg-background p-0.5 text-[10px] text-muted-foreground"
+        "inline-flex items-center gap-0.5 rounded-full border bg-background p-0.5 text-[11px] text-muted-foreground"
       }
       role="group"
       aria-label={t("groupLabel")}

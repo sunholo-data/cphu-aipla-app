@@ -61,6 +61,31 @@ const config = {
           DEFAULT: 'hsl(var(--destructive))',
           foreground: 'hsl(var(--destructive-foreground))',
         },
+        success: {
+          DEFAULT: 'hsl(var(--success))',
+          foreground: 'hsl(var(--success-foreground))',
+        },
+        warning: {
+          DEFAULT: 'hsl(var(--warning))',
+          foreground: 'hsl(var(--warning-foreground))',
+        },
+        info: {
+          DEFAULT: 'hsl(var(--info))',
+          foreground: 'hsl(var(--info-foreground))',
+        },
+        // Floating surfaces (menus, popovers, dialogs, toasts) and cards. Until
+        // 2026-11-05 these were undefined here, so `bg-card` / `bg-popover`
+        // compiled to NOTHING: every workbench card was transparent, and so was
+        // ChatRevealTab, which floats over content. Ported from platform-source
+        // (b374e6b9, 2026-10-02). Falls back to the page colours.
+        popover: {
+          DEFAULT: 'hsl(var(--popover, var(--background)))',
+          foreground: 'hsl(var(--popover-foreground, var(--foreground)))',
+        },
+        card: {
+          DEFAULT: 'hsl(var(--card, var(--background)))',
+          foreground: 'hsl(var(--card-foreground, var(--foreground)))',
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',

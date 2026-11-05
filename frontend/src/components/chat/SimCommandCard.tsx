@@ -74,7 +74,7 @@ export function SimCommandCard({ toolCallId, result }: { toolCallId: string; res
         <p className="font-medium text-sky-900">{t("changed")}</p>
         {result.effect ? <p className="text-xs text-slate-700">{result.effect}</p> : null}
         {result.power === "view" ? (
-          <p className="mt-0.5 text-[10px] text-slate-500">{t("canChangeBack")}</p>
+          <p className="mt-0.5 text-[11px] text-slate-500">{t("canChangeBack")}</p>
         ) : null}
       </div>
     </div>

@@ -193,7 +193,7 @@ function TutorCard({
           <span className="flex items-center gap-1.5">
             <span className="truncate font-medium text-foreground">{tutor.displayName}</span>
             {tutor.isVariant ? (
-              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+              <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
                 {t("variant")}
               </span>
             ) : null}
@@ -201,7 +201,7 @@ function TutorCard({
           </span>
           <span className="mt-0.5 text-xs text-muted-foreground">{teaches}</span>
           {tutor.requiresGroupTalk ? (
-            <span className="mt-1 inline-flex w-fit items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-800">
+            <span className="mt-1 inline-flex w-fit items-center gap-1 rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-800">
               <Radio className="h-3 w-3" aria-hidden />
               {t("needsRecording")}
             </span>

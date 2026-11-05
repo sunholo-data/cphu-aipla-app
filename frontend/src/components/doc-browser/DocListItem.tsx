@@ -107,7 +107,7 @@ export function DocListItem({ doc, onClick }: DocListItemProps) {
         </span>
         {doc.sourceFormat && (
           <span
-            className={`shrink-0 rounded px-1 py-0.5 text-[10px] font-medium uppercase ${fmtColor}`}
+            className={`shrink-0 rounded px-1 py-0.5 text-[11px] font-medium uppercase ${fmtColor}`}
           >
             {doc.sourceFormat}
           </span>
@@ -140,12 +140,12 @@ export function DocListItem({ doc, onClick }: DocListItemProps) {
       {(errorMsg || needsReparse) && (
         <div className="flex items-center gap-2 px-2 pb-1">
           {errorMsg && (
-            <p className="flex-1 text-[10px] text-destructive leading-tight">
+            <p className="flex-1 text-[11px] text-destructive leading-tight">
               {errorMsg}
             </p>
           )}
           {!errorMsg && needsReparse && (
-            <p className="flex-1 text-[10px] text-muted-foreground leading-tight">
+            <p className="flex-1 text-[11px] text-muted-foreground leading-tight">
               No content — re-parse to load
             </p>
           )}
@@ -154,7 +154,7 @@ export function DocListItem({ doc, onClick }: DocListItemProps) {
               type="button"
               onClick={handleReparse}
               disabled={reparsing}
-              className="shrink-0 rounded border border-destructive/40 px-1.5 py-0.5 text-[10px] text-destructive hover:bg-destructive/10 disabled:opacity-50"
+              className="shrink-0 rounded border border-destructive/40 px-1.5 py-0.5 text-[11px] text-destructive hover:bg-destructive/10 disabled:opacity-50"
             >
               {reparsing ? "…" : "Retry"}
             </button>
@@ -162,7 +162,7 @@ export function DocListItem({ doc, onClick }: DocListItemProps) {
         </div>
       )}
       {reparseError && (
-        <p className="px-2 pb-1 text-[10px] text-destructive leading-tight">
+        <p className="px-2 pb-1 text-[11px] text-destructive leading-tight">
           {reparseError}
         </p>
       )}

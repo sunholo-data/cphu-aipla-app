@@ -76,7 +76,7 @@ export function DocTab({ tab, isActive, onSelect, onClose, onToggleInclude }: Do
         )}
       </button>
       {tab.format && (
-        <span className={`shrink-0 rounded px-1 py-0.5 text-[10px] font-medium uppercase ${fmtColor}`}>
+        <span className={`shrink-0 rounded px-1 py-0.5 text-[11px] font-medium uppercase ${fmtColor}`}>
           {tab.format}
         </span>
       )}

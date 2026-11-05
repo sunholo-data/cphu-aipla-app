@@ -134,7 +134,7 @@ export function UploadDropZone({ folderId = "", skillId = "", onUploadComplete }
         <p className="text-xs font-medium text-foreground">
           {isDragging ? "Drop to upload" : "Drop files here or click to browse"}
         </p>
-        <p className="mt-0.5 text-[10px] text-muted-foreground">
+        <p className="mt-0.5 text-[11px] text-muted-foreground">
           PDF, DOCX, PPTX, XLSX, CSV, TXT, MD…
         </p>
         <input
@@ -150,7 +150,7 @@ export function UploadDropZone({ folderId = "", skillId = "", onUploadComplete }
       {/* Active uploads */}
       {active.map((p) => (
         <div key={p.filename} className="space-y-0.5">
-          <div className="flex justify-between text-[10px] text-muted-foreground">
+          <div className="flex justify-between text-[11px] text-muted-foreground">
             <span className="truncate">{p.filename}</span>
             <span>{p.pct}%</span>
           </div>
@@ -165,14 +165,14 @@ export function UploadDropZone({ folderId = "", skillId = "", onUploadComplete }
 
       {/* Errors */}
       {errors.map((p) => (
-        <p key={p.filename} className="text-[10px] text-destructive">
+        <p key={p.filename} className="text-[11px] text-destructive">
           {p.filename}: {p.error}
         </p>
       ))}
 
       {/* Summary */}
       {done > 0 && active.length === 0 && errors.length === 0 && (
-        <p className="text-center text-[10px] text-muted-foreground">
+        <p className="text-center text-[11px] text-muted-foreground">
           {done} file{done !== 1 ? "s" : ""} uploaded
         </p>
       )}

@@ -32,7 +32,7 @@ export function AutoReadToggle({ className }: { className?: string }) {
       title={label}
       className={
         className ??
-        "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+        "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
       }
     >
       <Icon className="h-3 w-3" aria-hidden="true" />

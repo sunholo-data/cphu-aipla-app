@@ -188,7 +188,7 @@ export function BuilderSectionNav({ counts }: { counts?: Partial<Record<string, 
             {typeof count === "number" && count > 0 ? (
               <span
                 className={cn(
-                  "ml-0.5 rounded-full px-1.5 text-[10px] font-semibold leading-tight tabular-nums",
+                  "ml-0.5 rounded-full px-1.5 text-[11px] font-semibold leading-tight tabular-nums",
                   on ? a.count : "bg-slate-200 text-slate-600",
                 )}
               >

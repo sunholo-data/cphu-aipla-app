@@ -45,5 +45,13 @@
     "ownTitle": "Lav din egen",
     "ownBody": "Lærere bygger simulationer sammen med assistenten i AIPLA's Sim-værksted. Når en forsker har gennemgået en, kommer den i biblioteket for alle lærere.",
     "ownLink": "Sådan bygger du en simulation →"
+  },
+  "UiKit": {
+    "cancel": "Annuller",
+    "confirm": "Bekræft",
+    "confirmAria": "Bekræft handlingen.",
+    "loading": "Indlæser",
+    "dismiss": "Luk",
+    "genericError": "Noget gik galt. Prøv igen."
   }
 }

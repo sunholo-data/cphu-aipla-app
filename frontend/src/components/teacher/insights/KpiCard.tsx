@@ -71,7 +71,7 @@ export function KpiCard({ label, value, unit, definition, queries }: KpiCardProp
               <div key={`${q.name}-${i}`}>
                 <p className="font-mono">{q.name}</p>
                 {q.sql ? (
-                  <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded bg-muted/60 p-1.5 text-[10px]">
+                  <pre className="overflow-x-auto whitespace-pre-wrap break-words rounded bg-muted/60 p-1.5 text-[11px]">
                     {q.sql}
                   </pre>
                 ) : null}

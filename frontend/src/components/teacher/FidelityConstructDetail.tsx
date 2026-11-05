@@ -219,11 +219,11 @@ function ConstructRow({
       </td>
       <td className="py-1 pr-3">
         <div className="flex flex-col items-start gap-1">
-          <span className="text-[10px] uppercase text-muted-foreground">{t("aiRead")}</span>
+          <span className="text-[11px] uppercase text-muted-foreground">{t("aiRead")}</span>
           <BandChip band={c.band} />
           {eff?.source === "review" ? (
             <>
-              <span className="text-[10px] uppercase text-muted-foreground">{t("correction")}</span>
+              <span className="text-[11px] uppercase text-muted-foreground">{t("correction")}</span>
               <BandChip band={eff.band ?? "absent"} />
             </>
           ) : null}

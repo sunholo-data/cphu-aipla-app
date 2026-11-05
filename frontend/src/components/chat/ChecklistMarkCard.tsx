@@ -68,7 +68,7 @@ export function ChecklistMarkCard({ result }: { result: ChecklistMarkResult }) {
         </p>
         {result.evidence ? <p className="text-xs text-slate-600">{result.evidence}</p> : null}
         {/* The override is the point — say so where the student is looking. */}
-        <p className="mt-0.5 text-[10px] text-slate-500">{t("canChange")}</p>
+        <p className="mt-0.5 text-[11px] text-slate-500">{t("canChange")}</p>
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { act, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { LocaleProvider } from "@/i18n";
 import { TypingIndicator } from "../TypingIndicator";
 import { BRANDING } from "@/lib/branding";
 
@@ -58,6 +59,48 @@ describe("TypingIndicator", () => {
     it("falls back to dots when both stageLabel and activeToolName are absent", () => {
       const { container } = render(<TypingIndicator stageLabel={null} />);
       expect(container.querySelectorAll(".animate-bounce")).toHaveLength(3);
+    });
+  });
+
+  // Ported from platform-source's UI audit (2026-11-03): a slow start must
+  // never read as a hang. Copy lives in messages/{da,en}/chat.json.
+  describe("a long wait says so in words", () => {
+    afterEach(() => vi.useRealTimers());
+
+    it("says nothing for the first few seconds, then 'working', then 'still working'", () => {
+      vi.useFakeTimers();
+      render(
+        <LocaleProvider locale="en">
+          <TypingIndicator />
+        </LocaleProvider>,
+      );
+      expect(screen.queryByText("Working on it…")).toBeNull();
+      act(() => vi.advanceTimersByTime(5_000));
+      expect(screen.getByText("Working on it…")).toBeInTheDocument();
+      act(() => vi.advanceTimersByTime(15_000));
+      expect(screen.getByText("Still working…")).toBeInTheDocument();
+      expect(screen.queryByText("Working on it…")).toBeNull();
+    });
+
+    it("speaks the activity's language (Danish by default)", () => {
+      vi.useFakeTimers();
+      render(<TypingIndicator />);
+      act(() => vi.advanceTimersByTime(5_000));
+      expect(screen.getByText("Arbejder på det…")).toBeInTheDocument();
+    });
+
+    it("announces itself politely to screen readers", () => {
+      render(<TypingIndicator />);
+      expect(screen.getByRole("status").getAttribute("aria-live")).toBe("polite");
+    });
+
+    it("its own dots use the brand colour, not the inherited orange", () => {
+      // Scoped to the indicator's dots: BrandAvatar still carries the template's
+      // orange gradient (noted in docs/notes-2026-11-05.md, upstream review).
+      const { container } = render(<TypingIndicator />);
+      const dots = container.querySelectorAll(".animate-bounce");
+      dots.forEach((d) => expect(d.className).toContain("bg-primary"));
+      dots.forEach((d) => expect(d.className).not.toMatch(/orange-/));
     });
   });
 });

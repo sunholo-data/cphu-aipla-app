@@ -270,11 +270,11 @@ function TemplateCard({
             </span>
           )}
           <span className="flex min-w-0 flex-1 flex-col">
-            <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{t(`family_${fam.id}`)}</span>
+            <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{t(`family_${fam.id}`)}</span>
             <span className="line-clamp-2 text-sm font-medium leading-snug text-slate-800">{tpl.name}</span>
           </span>
           {applied ? (
-            <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-indigo-600 px-1.5 py-0.5 text-[10px] font-medium text-white">
+            <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-indigo-600 px-1.5 py-0.5 text-[11px] font-medium text-white">
               <Check className="h-3 w-3" aria-hidden="true" /> {t("applied")}
             </span>
           ) : null}
@@ -286,7 +286,7 @@ function TemplateCard({
             return (
               <span
                 key={feat.key}
-                className="inline-flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600"
+                className="inline-flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-600"
               >
                 <Icon className="h-3 w-3" aria-hidden="true" />
                 {t(`feature_${feat.key}`)}
@@ -322,11 +322,11 @@ function BlankCard({ applied, onPick }: { applied: boolean; onPick: () => void }
             <FilePlus2 className="h-4 w-4" />
           </span>
           <span className="flex min-w-0 flex-1 flex-col">
-            <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400">{t("blankFamily")}</span>
+            <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{t("blankFamily")}</span>
             <span className="truncate text-sm font-medium text-slate-800">{t("blankName")}</span>
           </span>
           {applied ? (
-            <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-indigo-600 px-1.5 py-0.5 text-[10px] font-medium text-white">
+            <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-indigo-600 px-1.5 py-0.5 text-[11px] font-medium text-white">
               <Check className="h-3 w-3" aria-hidden="true" /> {t("applied")}
             </span>
           ) : null}

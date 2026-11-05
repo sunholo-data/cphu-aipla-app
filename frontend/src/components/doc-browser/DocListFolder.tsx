@@ -53,7 +53,7 @@ export function DocListFolder({
         <span className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">
           {folder.name}
         </span>
-        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
+        <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground">
           {folder.docCount}
         </span>
       </button>

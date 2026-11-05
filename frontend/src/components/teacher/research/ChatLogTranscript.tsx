@@ -262,7 +262,7 @@ function WorkCard({ burst }: { burst: WorkBurst }) {
         <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
         <span className="font-medium text-foreground">{workLabel(last, t)}</span>
         {burst.events.length > 1 ? (
-          <span className="rounded bg-muted px-1 text-[10px] text-muted-foreground">{t("times", { n: burst.events.length })}</span>
+          <span className="rounded bg-muted px-1 text-[11px] text-muted-foreground">{t("times", { n: burst.events.length })}</span>
         ) : null}
         {time ? <span className="text-muted-foreground opacity-70">{time}</span> : null}
         {hasState ? (

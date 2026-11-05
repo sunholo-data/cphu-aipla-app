@@ -86,7 +86,7 @@ export function WorkbenchChart({ skillId, activityId, charts, tables }: Workbenc
             </h3>
           )}
           {binding?.note && (
-            <p className="mb-2 rounded border border-amber-200 bg-amber-50/60 px-2 py-1 text-[10px] text-amber-900">
+            <p className="mb-2 rounded border border-amber-200 bg-amber-50/60 px-2 py-1 text-[11px] text-amber-900">
               {t(`note_${binding.note}`)}
             </p>
           )}

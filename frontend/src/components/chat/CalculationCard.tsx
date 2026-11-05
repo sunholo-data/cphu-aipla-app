@@ -162,8 +162,8 @@ export function CalculationCard({ result }: { result: CalculationResult }) {
           <span>{feedback}</span>
         </p>
       ) : null}
-      {constants ? <p className="mt-0.5 text-[10px] text-muted-foreground">{t("constants", { constants })}</p> : null}
-      <p className="mt-0.5 text-[10px] text-muted-foreground">{t("computed")}</p>
+      {constants ? <p className="mt-0.5 text-[11px] text-muted-foreground">{t("constants", { constants })}</p> : null}
+      <p className="mt-0.5 text-[11px] text-muted-foreground">{t("computed")}</p>
     </div>
   );
 }
