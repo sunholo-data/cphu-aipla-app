@@ -1514,6 +1514,22 @@ saved upstream and every sibling fork the same incidents:
 > via `PATHS=<list> scripts/port-up.sh '' GO=1`. The upstream backend suite
 > passed with them applied and no AIPLA content present (3364 passed, 42
 > skipped). The four marked ⚠️ remain open.
+>
+> **⚠️ Found 2026-11-05: #6 shipped unwired.** The six files reached upstream,
+> but nothing called them: not `scripts/ci/check.sh`, not the Makefile, not a
+> workflow. A guard that runs nowhere is the "control unmounted" footgun applied
+> to guards. Wired in
+> [platform-source#170](https://github.com/sunholo-data/platform-source/pull/170):
+> `check-auth-dispatcher.sh`, `audit-trust-cards.sh` and
+> `check-cloudbuild-substitutions.py` now run in `check.sh safety`.
+> `check-skill-catalogue.sh` was left out because it passes upstream only by
+> finding 0 skills, so it would check nothing. `audit-residuals.sh` flags the
+> private tier's own references, and `check-doc-links.py` duplicates upstream's
+> link-check ratchet. The same PR adds `check-app-routes-tracked.sh`,
+> `check-client-api-mounted.sh` (clients now discovered, and "NOTHING CHECKED"
+> when there are none) and the 11px `min-text-size.test.ts`, which found two
+> upstream landing headings still at 10px. **Lesson for every future port: a
+> port is not done until the upstream CI calls it.**
 
 **Upstream fix:** take the six portable ones directly. For the four marked ⚠️ the
 *mechanism* is generic and only the literals are local, so the template should

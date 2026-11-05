@@ -31,27 +31,23 @@ cd "$(dirname "$0")/.."
 SRC="frontend/src"
 ALLOWLIST="scripts/client-api-unmounted-allowlist.txt"
 
-# Clients in scope. teacherApi.ts is where the bug class has actually bitten;
-# the rest are listed so a new client joins the guard by being added here rather
-# than by someone remembering it exists.
-CLIENTS="
-frontend/src/lib/teacherApi.ts
-frontend/src/lib/activityImageApi.ts
-frontend/src/lib/curriculumApi.ts
-frontend/src/lib/documentApi.ts
-frontend/src/lib/insightsApi.ts
-frontend/src/lib/programmeApi.ts
-frontend/src/lib/signalApi.ts
-frontend/src/lib/tableApi.ts
-frontend/src/lib/transcriptApi.ts
-frontend/src/lib/writingApi.ts
-frontend/src/lib/costApi.ts
-frontend/src/lib/groupSessionApi.ts
-frontend/src/lib/classCompareApi.ts
-frontend/src/lib/lessonOverviewApi.ts
-"
-
+# Clients in scope: every `frontend/src/lib/*Api.ts`, DISCOVERED, not listed.
+# Until 2026-11-05 this was a hand-kept list, and four clients written after it
+# (privacyNoticeApi, simDraftsApi, teacherFeaturesApi, teacherSimsApi) were never
+# added, so the guard had never looked at them. Worse, a listed file that was
+# renamed was skipped with `continue`, so the guard could pass having read
+# nothing (the "a checker answers when it could not read" footgun). A new client
+# now joins by existing, and finding no clients at all is reported, not passed.
+# `apiClient.ts` is the fetch wrapper, not an endpoint client.
 [ -d "$SRC" ] || { echo "SKIP: $SRC not found"; exit 0; }
+
+CLIENTS="$(find "$SRC/lib" -maxdepth 1 -name '*Api.ts' ! -name 'apiClient.ts' 2>/dev/null | sort)"
+if [ -z "$CLIENTS" ]; then
+  echo "NOTHING CHECKED: no $SRC/lib/*Api.ts client modules found."
+  echo "  This is not a pass. If API clients live elsewhere in this tree, point the"
+  echo "  discovery at them; if there are genuinely none, this guard has no subject."
+  exit 0
+fi
 
 allowed() {
   [ -f "$ALLOWLIST" ] || return 1
@@ -65,7 +61,6 @@ checked=0
 unmounted=""
 
 for client in $CLIENTS; do
-  [ -f "$client" ] || continue
   base="$(basename "$client")"
 
   # `export function f`, `export async function f`, `export const f = (` / `= async (`
