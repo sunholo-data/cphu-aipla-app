@@ -1519,7 +1519,7 @@ saved upstream and every sibling fork the same incidents:
 > but nothing called them: not `scripts/ci/check.sh`, not the Makefile, not a
 > workflow. A guard that runs nowhere is the "control unmounted" footgun applied
 > to guards. Wired in
-> [platform-source#170](https://github.com/sunholo-data/platform-source/pull/170):
+> [platform-source#170](https://github.com/sunholo-data/platform-source/pull/170) (merged 2026-11-05, `e9a580d4`):
 > `check-auth-dispatcher.sh`, `audit-trust-cards.sh` and
 > `check-cloudbuild-substitutions.py` now run in `check.sh safety`.
 > `check-skill-catalogue.sh` was left out because it passes upstream only by
