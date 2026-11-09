@@ -43,7 +43,9 @@ if ! [[ "$DAYS" =~ ^[0-9]+$ ]] || [ "$DAYS" -lt 1 ]; then
 fi
 
 PROJECT="aipla-${ENV_NAME}-2026"
-FILTER='logName:"aipla_client_upload"'
+# kind=upload drops the logging library's one-off diagnostic entry, which shares
+# the log name and would otherwise count as an empty "picked file".
+FILTER='logName:"aipla_client_upload" AND jsonPayload.kind="upload"'
 GCLOUD_SDK_BIN="/Users/voightkampff/dev/google-cloud-sdk/bin"
 if ! command -v gcloud >/dev/null 2>&1 && [ -x "${GCLOUD_SDK_BIN}/gcloud" ]; then
   export PATH="${GCLOUD_SDK_BIN}:${PATH}"

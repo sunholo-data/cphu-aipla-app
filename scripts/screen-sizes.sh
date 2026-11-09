@@ -44,7 +44,8 @@ if ! [[ "$DAYS" =~ ^[0-9]+$ ]] || [ "$DAYS" -lt 1 ]; then
 fi
 
 PROJECT="aipla-${ENV_NAME}-2026"
-FILTER='logName:"aipla_client_env"'
+# kind=env drops the logging library's one-off diagnostic entry (same log name).
+FILTER='logName:"aipla_client_env" AND jsonPayload.kind="env"'
 GCLOUD_SDK_BIN="/Users/voightkampff/dev/google-cloud-sdk/bin"
 if ! command -v gcloud >/dev/null 2>&1 && [ -x "${GCLOUD_SDK_BIN}/gcloud" ]; then
   export PATH="${GCLOUD_SDK_BIN}:${PATH}"
