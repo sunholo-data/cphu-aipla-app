@@ -20,9 +20,15 @@ vi.mock("@/lib/personGuardrail", () => ({
   })),
 }));
 
+vi.mock("@/lib/uploadOutcomeBeacon", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/uploadOutcomeBeacon")>()),
+  reportUploadOutcome: vi.fn(),
+}));
+
 import { resizeImageFile } from "@/lib/imageResize";
 import { screenImageForPerson } from "@/lib/personGuardrail";
-import { MAX_IMAGES, useImageAttachments } from "@/hooks/useImageAttachments";
+import { reportUploadOutcome } from "@/lib/uploadOutcomeBeacon";
+import { asImageFile, MAX_IMAGES, useImageAttachments } from "@/hooks/useImageAttachments";
 
 const img = (name: string) => new File(["x"], name, { type: "image/png" });
 
@@ -176,5 +182,71 @@ describe("handlePaste — 1.1.85 M2", () => {
     act(() => result.current.handlePaste(e));
     await waitFor(() => expect(result.current.count).toBe(MAX_IMAGES));
     expect(result.current.notice).toBe("tooMany");
+  });
+});
+
+// 2026-11-09: after the 3 Nov Bohr workshop ("the photo didn't upload from the
+// phone"), every outcome decided in the browser is reported, because none of
+// them is an exception and the server sees only what arrives.
+describe("upload outcomes are reported", () => {
+  const outcomes = () => vi.mocked(reportUploadOutcome).mock.calls.map(([x]) => x.outcome);
+
+  it("a staged image reports staged, with where, screen and encoded size", async () => {
+    const { result } = renderHook(() => useImageAttachments({ where: "solution" }));
+    await act(async () => {
+      await result.current.addFiles([img("a.png")]);
+    });
+    expect(reportUploadOutcome).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: "staged", where: "solution", screen: "clean", encodedKb: 0 }),
+    );
+  });
+
+  it("a person-blocked photo reports blocked_person and is not staged", async () => {
+    vi.mocked(screenImageForPerson).mockResolvedValueOnce({
+      blocked: true,
+      degraded: false,
+      faceCount: 2,
+      message: "retake",
+      notice: "retake",
+    });
+    const { result } = renderHook(() => useImageAttachments());
+    await act(async () => {
+      await result.current.addFiles([img("group.jpg")]);
+    });
+    expect(result.current.count).toBe(0);
+    expect(outcomes()).toEqual(["blocked_person"]);
+  });
+
+  it("files over the cap each report too_many", async () => {
+    const { result } = renderHook(() => useImageAttachments());
+    const files = Array.from({ length: MAX_IMAGES + 2 }, (_, i) => img(`f${i}.png`));
+    await act(async () => {
+      await result.current.addFiles(files);
+    });
+    expect(outcomes().filter((o) => o === "too_many")).toHaveLength(2);
+  });
+
+  it("a non-image is refused with a notice, not silently", async () => {
+    const { result } = renderHook(() => useImageAttachments());
+    await act(async () => {
+      await result.current.addFiles([new File(["x"], "doc.pdf", { type: "application/pdf" })]);
+    });
+    expect(result.current.notice).toBe("notImage");
+    expect(outcomes()).toEqual(["not_image"]);
+  });
+
+  it("a photo with an EMPTY type but a .jpg name is staged, re-typed (some Android apps)", async () => {
+    const { result } = renderHook(() => useImageAttachments());
+    await act(async () => {
+      await result.current.addFiles([new File(["x"], "IMG_0042.JPG", { type: "" })]);
+    });
+    expect(result.current.count).toBe(1);
+    expect(vi.mocked(resizeImageFile).mock.calls[0][0].type).toBe("image/jpeg");
+    expect(outcomes()).toEqual(["staged"]);
+  });
+
+  it("asImageFile refuses an empty type with no image extension", () => {
+    expect(asImageFile(new File(["x"], "notes", { type: "" }))).toBeNull();
+    expect(asImageFile(new File(["x"], "a.heic", { type: "" }))?.type).toBe("image/heic");
   });
 });

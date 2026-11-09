@@ -49,8 +49,10 @@ from observability.client_error import (
     MAX_STACK_CHARS,
     MAX_URL_CHARS,
     ROLES,
+    UPLOAD_KIND,
     emit_client_env,
     emit_client_error,
+    emit_client_upload,
 )
 
 logger = logging.getLogger(__name__)
@@ -110,6 +112,15 @@ class ClientErrorRequest(BaseModel):
     dpr: float | None = None
     pointer: str | None = Field(default=None, max_length=16)
     surface: str | None = Field(default=None, max_length=16)
+    # kind == "upload" only (2026-11-09). Closed enums, checked in
+    # ``emit_client_upload``; ``pointer`` and ``buildId`` are shared with env.
+    outcome: str | None = Field(default=None, max_length=32)
+    where: str | None = Field(default=None, max_length=16)
+    mime: str | None = Field(default=None, max_length=16)
+    sizeKb: float | None = None
+    encodedKb: float | None = None
+    encoding: str | None = Field(default=None, max_length=32)
+    screen: str | None = Field(default=None, max_length=16)
 
     model_config = {"extra": "ignore"}
 
@@ -123,8 +134,11 @@ async def post_client_error(body: ClientErrorRequest, request: Request) -> None:
     stop reporting for this page load.
     """
     is_env = body.kind == ENV_KIND
+    is_upload = body.kind == UPLOAD_KIND
     try:
-        (_env_limiter if is_env else _limiter).check(_client_ip(request))
+        # Upload outcomes share the env bucket: they are per-action beacons from
+        # a classroom behind one NAT address, not crash reports.
+        (_env_limiter if (is_env or is_upload) else _limiter).check(_client_ip(request))
     except RateLimitExceeded as exc:
         raise HTTPException(
             status_code=429,
@@ -144,6 +158,22 @@ async def post_client_error(body: ClientErrorRequest, request: Request) -> None:
             dpr=body.dpr,
             pointer=body.pointer,
             surface=body.surface,
+            build_id=body.buildId,
+        )
+        return None
+
+    if is_upload:
+        # What happened to a picked photo, decided in the browser. No user agent,
+        # path, role or file name: emit_client_upload has no parameter for them.
+        emit_client_upload(
+            outcome=body.outcome,
+            where=body.where,
+            mime=body.mime,
+            size_kb=body.sizeKb,
+            encoded_kb=body.encodedKb,
+            encoding=body.encoding,
+            screen=body.screen,
+            pointer=body.pointer,
             build_id=body.buildId,
         )
         return None

@@ -29,7 +29,7 @@ export type SolutionElementDef = SolutionElement;
 export function SolutionElementMount({ solution }: { solution: SolutionElementDef[] }) {
   const t = useT("SolutionElementMount");
   const def = solution[0];
-  const photo = useImageAttachments();
+  const photo = useImageAttachments({ where: "solution" });
   const proactiveRef = useOptionalProactiveSimOptsRef();
   const [submitting, setSubmitting] = useState(false);
   const [sent, setSent] = useState(false);

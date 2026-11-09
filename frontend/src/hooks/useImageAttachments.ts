@@ -5,9 +5,47 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { imageFilesFromClipboard } from "@/lib/clipboardImages";
 import { resizeImageFile, type EncodedImage } from "@/lib/imageResize";
 import { screenImageForPerson } from "@/lib/personGuardrail";
+import {
+  base64Kb,
+  reportUploadOutcome,
+  type UploadEncoding,
+  type UploadScreen,
+  type UploadWhere,
+} from "@/lib/uploadOutcomeBeacon";
 
 /** Why the staging row shows a notice — translated by `ImageStagingRow`. */
-export type ImageNotice = "tooMany" | "processFailed" | "retake" | "degraded";
+export type ImageNotice = "tooMany" | "processFailed" | "retake" | "degraded" | "notImage";
+
+const IMAGE_EXTENSIONS: Record<string, string> = {
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  heic: "image/heic",
+  heif: "image/heif",
+};
+
+/**
+ * The file as an image with a usable type, or null if it isn't one.
+ *
+ * Some Android camera and gallery apps hand the browser a photo with an EMPTY
+ * `type`. Until 2026-11-09 such a file was filtered out with no notice and no
+ * log, so the student saw nothing happen. A known image extension now supplies
+ * the type, and the file is re-typed so the downscale (which keys off `type`)
+ * still runs.
+ */
+export function asImageFile(file: File): File | null {
+  if (file.type.startsWith("image/")) return file;
+  if (file.type) return null;
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  const inferred = IMAGE_EXTENSIONS[ext];
+  if (!inferred) return null;
+  try {
+    return new File([file], file.name, { type: inferred, lastModified: file.lastModified });
+  } catch {
+    return null;
+  }
+}
 
 /** A picked image staged for the next turn: preview URL + wire-ready base64. */
 export interface StagedImage {
@@ -48,38 +86,71 @@ export interface UseImageAttachments {
  * A ref mirrors the staged list as the authoritative source across the async
  * add loop (state updates are async; the cap must be enforced synchronously).
  */
-export function useImageAttachments(): UseImageAttachments {
+export function useImageAttachments(
+  { where = "chat" }: { where?: UploadWhere } = {},
+): UseImageAttachments {
   const [staged, setStaged] = useState<StagedImage[]>([]);
   const [notice, setNotice] = useState<ImageNotice | null>(null);
   const stagedRef = useRef<StagedImage[]>([]);
 
   const addFiles = useCallback(async (files: FileList | File[] | null) => {
     if (!files) return;
-    const images = Array.from(files).filter((f) => f.type.startsWith("image/"));
-    if (images.length === 0) return;
+    const picked = Array.from(files);
+    if (picked.length === 0) return;
     setNotice(null);
 
-    for (const file of images) {
+    const images: File[] = [];
+    for (const f of picked) {
+      const img = asImageFile(f);
+      if (img) {
+        images.push(img);
+      } else {
+        reportUploadOutcome({ outcome: "not_image", where, file: f });
+      }
+    }
+    if (images.length === 0) {
+      setNotice("notImage");
+      return;
+    }
+
+    for (const [i, file] of images.entries()) {
       if (stagedRef.current.length >= MAX_IMAGES) {
         setNotice("tooMany");
+        for (const left of images.slice(i)) {
+          reportUploadOutcome({ outcome: "too_many", where, file: left });
+        }
         break;
       }
       // On-device privacy screen — blocked images never get staged or sent.
       const screen = await screenImageForPerson(file);
+      const screenVerdict: UploadScreen = screen.blocked ? "blocked" : screen.degraded ? "degraded" : "clean";
       if (screen.blocked) {
         setNotice(screen.notice);
+        reportUploadOutcome({ outcome: "blocked_person", where, file, screen: screenVerdict });
         continue;
       }
       if (screen.degraded && screen.notice) {
         setNotice(screen.notice);
       }
       let encoded: EncodedImage;
+      let encoding: UploadEncoding | null = null;
       try {
-        encoded = await resizeImageFile(file);
+        encoded = await resizeImageFile(file, undefined, (how) => {
+          encoding = how;
+        });
       } catch {
         setNotice("processFailed");
+        reportUploadOutcome({ outcome: "process_failed", where, file, screen: screenVerdict });
         continue;
       }
+      reportUploadOutcome({
+        outcome: "staged",
+        where,
+        file,
+        screen: screenVerdict,
+        encoding,
+        encodedKb: base64Kb(encoded.data),
+      });
       const item: StagedImage = {
         id: crypto.randomUUID(),
         previewUrl: URL.createObjectURL(file),
@@ -89,7 +160,7 @@ export function useImageAttachments(): UseImageAttachments {
       stagedRef.current = [...stagedRef.current, item];
       setStaged(stagedRef.current);
     }
-  }, []);
+  }, [where]);
 
   const remove = useCallback((id: string) => {
     const hit = stagedRef.current.find((s) => s.id === id);

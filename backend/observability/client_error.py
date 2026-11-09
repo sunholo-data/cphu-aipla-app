@@ -324,6 +324,87 @@ def emit_client_env(
         logger.warning("client_env: emit failed (suppressed): %s", exc)
 
 
+# --------------------------------------------------------------------------
+# Upload outcomes (2026-11-09)
+#
+# What happened to each photo a student picked, decided in the browser before
+# any request: staged, blocked by the on-device person screen, over the cap, not
+# an image, or unreadable. Added after the 3 Nov Bohr workshop, where "the photo
+# didn't upload from the phone" could not be answered: the server sees only what
+# arrives, and none of these outcomes is an exception.
+#
+# Privacy (ADR-001), the same rule as the env row: closed enums and coarse
+# numbers only. No file name (it can be a person's name), no user agent, path,
+# role or id. The emitter has no parameter for any of them.
+LOG_ID_CLIENT_UPLOAD = "aipla_client_upload"
+
+UPLOAD_KIND = "upload"
+
+#: Kept in lockstep with ``frontend/src/lib/uploadOutcomeBeacon.ts``.
+UPLOAD_OUTCOMES = ("staged", "blocked_person", "too_many", "not_image", "process_failed")
+UPLOAD_ENCODINGS = ("resized", "original_type", "original_error")
+UPLOAD_SCREENS = ("clean", "degraded", "blocked")
+UPLOAD_WHERE = ("chat", "solution")
+UPLOAD_MIMES = ("jpeg", "png", "webp", "heic", "heif", "gif", "other", "empty")
+
+#: 1 GB in KB. A phone photo is a few MB; anything past this is a lying client.
+MAX_UPLOAD_KB = 1024 * 1024
+
+
+def clamp_kb(raw: Any) -> int | None:
+    """A size in KB as an int in ``[0, MAX_UPLOAD_KB]``, or ``None``."""
+    if not _is_number(raw):
+        return None
+    return int(max(0, min(MAX_UPLOAD_KB, round(raw))))
+
+
+def _one_of(raw: Any, allowed: tuple[str, ...], default: str | None = None) -> str | None:
+    return raw if isinstance(raw, str) and raw in allowed else default
+
+
+def emit_client_upload(
+    *,
+    outcome: Any = None,
+    where: Any = None,
+    mime: Any = None,
+    size_kb: Any = None,
+    encoded_kb: Any = None,
+    encoding: Any = None,
+    screen: Any = None,
+    pointer: Any = None,
+    build_id: str | None = None,
+) -> None:
+    """Emit one upload-outcome row. Clamps everything; **never raises**.
+
+    An unknown ``outcome`` is dropped rather than coerced: a row that claims
+    "staged" for something the client never named would be worse than no row.
+    """
+    try:
+        oc = _one_of(outcome, UPLOAD_OUTCOMES)
+        if oc is None:
+            return
+        payload: dict[str, Any] = {
+            "kind": UPLOAD_KIND,
+            "outcome": oc,
+            "where": _one_of(where, UPLOAD_WHERE, "chat"),
+            "mime": _one_of(mime, UPLOAD_MIMES, "other"),
+            "size_kb": clamp_kb(size_kb),
+            "encoded_kb": clamp_kb(encoded_kb),
+            "encoding": _one_of(encoding, UPLOAD_ENCODINGS),
+            "screen": _one_of(screen, UPLOAD_SCREENS),
+            "pointer": _one_of(pointer, ENV_POINTERS),
+            "client_build_id": clean_build_id(build_id),
+            **_version_fields(),
+        }
+        logger.debug("client_upload: %s", payload)
+        gl = _get_logger(LOG_ID_CLIENT_UPLOAD)
+        if gl is None:
+            return
+        gl.log_struct(payload)
+    except Exception as exc:  # telemetry must never break the request
+        logger.warning("client_upload: emit failed (suppressed): %s", exc)
+
+
 __all__ = [
     "ENV_KIND",
     "ENV_POINTERS",
@@ -331,11 +412,14 @@ __all__ = [
     "KINDS",
     "LOG_ID_CLIENT_ENV",
     "LOG_ID_CLIENT_ERROR",
+    "LOG_ID_CLIENT_UPLOAD",
     "MAX_DIMENSION_PX",
     "MAX_MESSAGE_CHARS",
     "MAX_STACK_CHARS",
     "MAX_URL_CHARS",
     "ROLES",
+    "UPLOAD_KIND",
+    "UPLOAD_OUTCOMES",
     "VIEWPORT_BUCKETS",
     "clamp_dimension",
     "clamp_dpr",
@@ -343,6 +427,7 @@ __all__ = [
     "clean_url",
     "emit_client_env",
     "emit_client_error",
+    "emit_client_upload",
     "redact",
     "surface_of",
     "viewport_bucket",

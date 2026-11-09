@@ -84,6 +84,10 @@ export function fileToBase64(file: Blob): Promise<string> {
 export async function resizeImageFile(
   file: File,
   maxEdge: number = MAX_EDGE,
+  /** Told how the image was encoded: downscaled, or the original sent because
+   *  the type can't be drawn on a canvas, or because decoding failed. Only the
+   *  upload-outcome beacon listens; the result is the same either way. */
+  onEncoding?: (how: "resized" | "original_type" | "original_error") => void,
 ): Promise<EncodedImage> {
   const passthrough = async (): Promise<EncodedImage> => ({
     mimeType: file.type || "application/octet-stream",
@@ -92,6 +96,7 @@ export async function resizeImageFile(
   });
 
   if (!CANVAS_DECODABLE.has(file.type)) {
+    onEncoding?.("original_type");
     return passthrough();
   }
 
@@ -105,15 +110,20 @@ export async function resizeImageFile(
     canvas.width = target.width;
     canvas.height = target.height;
     const ctx = canvas.getContext("2d");
-    if (!ctx) return passthrough();
+    if (!ctx) {
+      onEncoding?.("original_error");
+      return passthrough();
+    }
     // Flatten transparency to white so PNG screenshots don't read as black.
     ctx.fillStyle = "#ffffff";
     ctx.fillRect(0, 0, target.width, target.height);
     ctx.drawImage(img, 0, 0, target.width, target.height);
 
     const dataUrl = canvas.toDataURL("image/jpeg", JPEG_QUALITY);
+    onEncoding?.("resized");
     return { mimeType: "image/jpeg", data: stripDataUrlPrefix(dataUrl), name: file.name };
   } catch {
+    onEncoding?.("original_error");
     return passthrough();
   } finally {
     if (url) URL.revokeObjectURL(url);

@@ -555,6 +555,14 @@ DAYS ?= 30
 screen-sizes:
 	@./scripts/screen-sizes.sh $(if $(filter 1,$(DRY_RUN)),--dry-run) $(ENV) $(DAYS)
 
+# What happened to the photos students picked? Read-only summary of the
+# `aipla_client_upload` beacons: staged, or refused in the browser (person
+# screen, cap, not an image, unreadable), by device type, MIME and version.
+#   make upload-outcomes ENV=prod [DAYS=14] [DRY_RUN=1]
+.PHONY: upload-outcomes
+upload-outcomes:
+	@./scripts/upload-outcomes.sh $(if $(filter 1,$(DRY_RUN)),--dry-run) $(ENV) $(DAYS)
+
 # Teacher-readable release notes from conventional-commit subjects, grouped by
 # audience, one section per tag in the range. Markdown for Teams. No AI.
 #   make release-notes FROM=v0.1.69 TO=v0.1.74
