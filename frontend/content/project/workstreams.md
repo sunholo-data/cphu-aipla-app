@@ -3,8 +3,8 @@ title: "Workstreams"
 description: "The connected platform, activity-creation, and scoping work that supports the research."
 eyebrow: "How the project is organised"
 owner: "AIPLA project team"
-reviewed: "2026-10-05"
-reviewBy: "2026-11-05"
+reviewed: "2026-11-09"
+reviewBy: "2026-12-09"
 status: "Current"
 order: "30"
 nav: "true"
@@ -29,7 +29,7 @@ Each tutor carries a named teaching approach as structured, reviewable content �
 
 ### Teacher preparation
 
-Teachers can create classes and activities, choose curriculum material, define a teaching goal, select an activity structure and language, and try the activity as a student before sharing it.
+Teachers can create classes and activities, choose curriculum material, define a teaching goal, write what students see first, select an activity structure and language, and try the activity as a student before sharing it.
 
 Authoring is intended to support teacher judgement rather than automate it away. Where an AI co-pilot proposes content or configuration, the teacher reviews and applies the proposal.
 
@@ -39,7 +39,7 @@ Students join a teacher-prepared activity using a group code. Within the activit
 
 ### Teacher and research review
 
-Teacher-facing views help educators review how groups used an activity, including each group's final work. Research views support analysis across approved studies and roles, including comparison of tutors and teaching approaches. Access to those views is distinct from student access.
+Teacher-facing views help educators review how groups used an activity, including each group's final work, a summary of each lesson across the class's groups, and one workbench element compared across every group. Research views support analysis across approved studies and roles, including comparison of tutors and teaching approaches. Access to those views is distinct from student access.
 
 ### Safeguards and boundaries
 
@@ -60,13 +60,13 @@ Interactive physics artefacts can support prediction, parameter exploration, pro
 
 The aim is not to replace physical experiments. Virtual and computational tools are useful when their role in relation to real equipment, measurement, and uncertainty is made explicit.
 
-New simulations are proposed by physics staff and drafted in an AI chat, without writing code — see [Build a simulation with an AI chat](/project/build-a-simulation).
+New simulations are built without writing code: drafted in an AI chat and sent to the project team, or built by teachers who have been given access in the application's Sim workshop and published to their own classes. A teacher-built simulation joins the shared library after a researcher has signed off its physics — see [Build a simulation with an AI chat](/project/build-a-simulation).
 
 ### Student-as-creator
 
 A further direction asks whether students can use AI assistance to build, test, and critique their own simulations or games. This changes the learning task from operating a representation to constructing one.
 
-Student-created artefacts require stronger review, provenance, and safety controls. The work therefore builds on the same versioning and reviewed-artefact approach used for teacher-prepared activities.
+Student-created artefacts require stronger review, provenance, and safety controls. The work therefore builds on the same versioning and reviewed-artefact approach used for teacher-prepared activities. Teachers can now build simulations in the application; students cannot.
 
 ## Strand C: investigation and scoping
 

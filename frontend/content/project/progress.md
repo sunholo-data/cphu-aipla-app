@@ -3,8 +3,8 @@ title: "Build timeline"
 description: "A dated public record of how AIPLA progressed from its first connected physics activity to a teacher-authoring, classroom, and research platform."
 eyebrow: "Follow the build"
 owner: "AIPLA project team"
-reviewed: "2026-10-05"
-reviewBy: "2026-11-05"
+reviewed: "2026-11-09"
+reviewBy: "2026-12-09"
 status: "Current"
 order: "80"
 nav: "true"
@@ -83,9 +83,15 @@ Alongside this: concept maps became on by default, with a class view that shows 
 
 ## October 2026 — tutors that can act on a simulation
 
-**Shipped:** on a simulation that declares which actions a tutor may take — so far the Sun–Earth–Moon simulation — the tutor can change what the student sees, for example jumping to the next eclipse or changing the viewpoint. The student sees a card each time naming what the tutor changed. How much a tutor may change comes from its teaching approach, and by default it can change only the view, which the student can change straight back. On simulations with a defined assessment scale, the tutor's judgement of a student's understanding is recorded for researchers as structured evidence and is never shown to the student.
+**Shipped:** on a simulation that declares which actions a tutor may take — so far the Sun–Earth–Moon simulation — the tutor can change what the student sees, for example jumping to the next eclipse or changing the viewpoint. The student sees a card each time naming what the tutor changed. How much a tutor may change comes from its teaching approach. At first every approach allowed only changes to the view, which the student can change straight back; since late October each published approach also lets the tutor put a task or hint on screen and lock or configure a control, for instance holding time still until the student has made a prediction. On simulations with a defined assessment scale, the tutor's judgement of a student's understanding is recorded for researchers as structured evidence and is never shown to the student.
 
 Teacher reports gained a panel showing each group's final work. Tables, charts and the calculator accept a Danish decimal comma. Model requests now run on Google's EU endpoint rather than a global one, and a failed model request is retried, or handed to a second model, before the student has seen any answer. The project pages link to the University of Copenhagen's official AIPLA pages in Danish and English.
+
+Teachers who have been given access can build simulations in the application's Sim workshop with an AI assistant that checks every version automatically. A teacher publishes a version to their own classes, and a researcher's sign-off on its physics puts it in the shared library; the first simulation from the workshop is there now. Two more built-in simulations arrived, a four-stroke engine and orbits around a black hole, and the library is shown on the AIPLA homepage and offered to other AI chats through AIPLA's connector.
+
+The tutor now works out numbers with a calculator built into the platform and shows its working on a card, holding back the final value when the tutor's students are meant to work it out themselves. Its diagrams are checked before a student sees them. Teachers can write what students see first in an activity, and the builder points out lines in a teaching goal that tell the tutor how to teach when its teaching approach already decides that. A class page now leads with its latest lesson, with a lesson view across groups and a short after-lesson review, and a teacher can compare one workbench element across every group. Four more base tutors joined; every device in a group sees the shared conversation; a revoked join code no longer takes its group's work out of review; and the class spend panel shows what each lesson day cost. Danish screens were revised after a language review. Application logs and read-aloud speech moved to EU endpoints, students are told in the chat not to share names, and teachers acknowledge a privacy notice before first use.
+
+Everything in this section had reached the production environment by 5 November.
 
 **What changed:** the connection between tutor and workbench now works in both directions, which is the property that most separates a paired activity from a general-purpose chatbot.
 
@@ -97,10 +103,11 @@ As of this page's review date, the active platform line includes:
 - teacher-created classes, materials, activities, templates, and preview;
 - tutors that each carry a published or teacher-written teaching approach, persona and voice, grounded in selected teaching material;
 - simulations, documents, images, concept maps, and structured workbench elements, with tutor actions on simulations that support them;
+- simulations built by teachers in the Sim workshop, published to their own classes or, after a researcher's sign-off, to the shared library;
 - Danish and English student and teacher screens;
 - teacher co-pilots using explicit propose-and-apply actions;
 - activity sharing, adoption, duplication, and branching with provenance;
-- live-class and session-review views;
+- live-class, lesson-review, and session-review views;
 - approved cross-class research and evaluation views; and
 - separate development, test, and production release paths.
 

@@ -3,8 +3,8 @@ title: "Teacher questions"
 description: "Short answers to the questions teachers have asked about AIPLA so far: building activities, documents, group codes, language, tutors, data and rights."
 eyebrow: "For teachers"
 owner: "AIPLA project team"
-reviewed: "2026-10-08"
-reviewBy: "2026-11-08"
+reviewed: "2026-11-09"
+reviewBy: "2026-12-09"
 status: "Provisional"
 order: "90"
 nav: "true"
@@ -21,7 +21,9 @@ A Danish version of this page is at [Spørgsmål fra lærere](/project/teacher-f
 
 ### How easy is it to add activities?
 
-Easy, and no code is needed. The guide puts a first activity at about five minutes. You give it a name and a teaching goal (the instruction the tutor follows), pick the students' language, and can add a workspace: a simulation, checklist, table, chart, calculator or writing area. **Try as student** opens the real student view.
+Easy, and no code is needed. The guide puts a first activity at about five minutes. You give it a name and a teaching goal (the instruction the tutor follows), pick the students' language, and can add a workspace: a simulation, checklist, table, chart, calculator or writing area. Under **What students see first** you can write the introduction and starter questions students get. **Try as student** opens the real student view.
+
+The teaching goal says what the students should learn. If your class's tutor has a teaching approach, the approach decides how it teaches, and the builder points out lines in the goal that tell the tutor how to teach. It offers to move them to **Tutor notes**, which the tutor follows only when it has no teaching approach.
 
 To go faster, start from a template, adopt a colleague's shared activity from the library (you get your own editable copy), or describe the activity in words and let the AI co-pilot draft it. You review the co-pilot's proposal and apply it yourself.
 
@@ -50,7 +52,10 @@ You will see it. Each document says **Ready — the tutor can read it**, **Proce
 
 ### Can we create our own simulations?
 
-Yes, without writing code, but not inside the activity builder. You draft the simulation in any AI chat (Claude, ChatGPT, Gemini, Copilot) using AIPLA's authoring prompt, try it in a browser, and send the two files it produces to the project team. The team connects it to the tutor and runs the security, size and phone-width checks, and a physics reviewer signs off the physics. After that it is in the library, and any teacher can add it to an activity.
+Yes, without writing code. There are two ways:
+
+- **In the Sim workshop**, which is in the teacher menu. You describe the experiment to the workshop's assistant, and it builds the simulation. Every version is checked automatically for size, security, phone width and whether the tutor receives the student's readings. The checks do not tell you whether the physics is right; that is yours to check. You try it, ask for changes, and publish the version you approve to your own classes. To offer it to every teacher, you request the shared library, and a researcher signs off the physics. The workshop is switched on per teacher by the research team: ask from the workshop page.
+- **In any AI chat** (Claude, ChatGPT, Gemini, Copilot), using AIPLA's authoring prompt. You try it in a browser and send the two files it produces to the project team, or import them into the Sim workshop if you have access. The team connects it to the tutor and runs the same checks, and a physics reviewer signs off the physics. After that it is in the library, and any teacher can add it to an activity.
 
 The question that matters most when you propose one: *what does the student measure, and what do they work out from it?*
 
@@ -58,15 +63,15 @@ More: [Build a simulation with an AI chat](/project/build-a-simulation).
 
 ### What simulations are there?
 
-Nine: Boldkast, LED Planck, KineBot, Elkedel, Faseovergange, Bølgefart, Interferens, Sol, Jord og Måne, and Hældningslab. Each opens beside the tutor. The student changes something, reads the instruments and records readings, and the tutor sees those readings and can ask about them. A simulation never shows the value the student is meant to work out.
+Eleven are built in: Boldkast, LED Planck, KineBot, Elkedel, Faseovergange, Bølgefart, Interferens, Sol, Jord og Måne, Hældningslab, Firetaktsmotoren (a four-stroke engine) and Kredsløb om et sort hul (orbits around a black hole). Simulations from the Sim workshop join the library once a researcher has signed them off; the first, Billardbord, on friction and conservation of momentum, is there now. Each opens beside the tutor. The student changes something, reads the instruments and records readings, and the tutor sees those readings and can ask about them. A simulation never shows the value the student is meant to work out.
 
-In Sol, Jord og Måne the tutor can also change what the student sees, and a card in the chat names every change. A simulation reopens at its defaults on another day, so readings that must be kept belong in a table in the activity.
+In Sol, Jord og Måne the tutor can also act on the simulation: change what the student sees, put a task on the screen, or lock a control, for instance holding time still until the student has made a prediction. How much it may do depends on its teaching approach, and a card in the chat names every change. A simulation reopens at its defaults on another day, so readings that must be kept belong in a table in the activity.
 
 More: [Activities and examples](/project/activities).
 
 ### Does the tutor send students to the simulation and the workspace?
 
-It is told to. The tutor is given a list of what is in the activity's workspace and an instruction to point students to it when it would help. If several replies go by without it doing so, it is reminded. Its opening message names the simulation first, if there is one. This was changed after the October seminar, where the tutor stayed in conversation. Whether it now refers students often enough is being measured.
+It is told to. The tutor is given a list of what is in the activity's workspace and an instruction to point students to it when it would help. If several replies go by without it doing so, it is reminded. Its opening message names the simulation first, if there is one, unless you have chosen to introduce the activity in class yourself under **What students see first**. This was changed after the October seminar, where the tutor stayed in conversation. Whether it now refers students often enough is being measured.
 
 ## Group codes and students
 
@@ -136,7 +141,7 @@ More: [Teaching frameworks](/project/tutors) describes the approaches the judge 
 
 ### Could local models help with copyright?
 
-Local models are not in use today. The tutor uses Google's Gemini models through Vertex AI in Google's EU region, and Google may not use the data to train its models. The October 2026 evaluation found two open models that would fit on a single GPU and reach the accuracy threshold, but they have not yet been measured on hardware the project would run them on. Moving the model alone would not move everything: document conversion and curriculum search are separate services. On copyright itself, see the next question.
+Local models are not in use today. The tutor uses Google's Gemini models through Vertex AI in Google's EU region, and Google may not use the data to train its models. A connection to UCloud AI, model inference on the Danish national research platform run by the University of Southern Denmark, has been built but is not in use. The October 2026 evaluation found two open models that would fit on a single GPU and reach the accuracy threshold, but they have not yet been measured on hardware the project would run them on. Moving the model alone would not move everything: document conversion and curriculum search are separate services. On copyright itself, see the next question.
 
 More: [Data, privacy, and hosting](/project/data-and-hosting), [Capability floor](/project/evaluation/capability-floor).
 
@@ -162,6 +167,7 @@ No published AIPLA document sets out ownership or licence terms for teachers' ma
 - Activities, tutors, approaches and uploads are **private to you** until you share them. The research team can see private tutors and approaches.
 - When you share an activity, other teachers can adopt it. They get their own editable copy, and AIPLA records which activity it came from.
 - A simulation you send to the project team is reworked by the team and then offered to every teacher.
+- A simulation you build in the Sim workshop is visible only to you until you publish it to your own classes. It reaches other teachers only if you request the shared library and a researcher signs it off.
 - Classes, activities and student work are kept until you delete them or the project ends.
 
 The university's formal assessment is in progress; contact the project if in doubt.

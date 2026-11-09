@@ -3,8 +3,8 @@ title: "Platform"
 description: "A public explanation of AIPLA's activity model, connected surfaces, roles, and technical principles."
 eyebrow: "How the application works"
 owner: "AIPLA technical team"
-reviewed: "2026-10-05"
-reviewBy: "2026-11-05"
+reviewed: "2026-11-09"
+reviewBy: "2026-12-09"
 status: "Current"
 order: "60"
 nav: "true"
@@ -36,7 +36,7 @@ AIPLA separates different kinds of interaction without separating them into unre
 
 ### Conversation
 
-The chat surface holds the guided exchange between a student group and the tutor. It can render physics notation and refer to approved activity context.
+The chat surface holds the guided exchange between a student group and the tutor. It can render physics notation and refer to approved activity context. Diagrams the tutor draws are rendered and checked before they are shown, with the geometry of mechanics diagrams computed from the physics, and a calculation the tutor shows is worked out by the platform rather than by the model.
 
 ### Workbench
 
@@ -52,11 +52,13 @@ An interactive artefact should not be a silent iframe beside a chatbot. When edu
 
 Students are shown visible indications of what has been shared. The tutor should use only the information it has actually received.
 
-The connection also works in the other direction. A tutor can ask the student to return to a particular representation, make a prediction, or test a change. On a simulation that declares which actions a tutor may take, the tutor can also make a bounded change itself — for example jumping to an event or changing the view — and the student sees a card naming each change. How much a tutor may change is set by its teaching approach; by default it can change only what is shown, which the student can change straight back.
+The connection also works in the other direction. A tutor can ask the student to return to a particular representation, make a prediction, or test a change. On a simulation that declares which actions a tutor may take, the tutor can also make a bounded change itself — for example jumping to an event or changing the view — and the student sees a card naming each change. How much a tutor may change is set by its teaching approach. Each published approach lets it change what is shown, put a task or hint on the student's screen and, where the simulation offers it, lock or configure a control — for instance holding time still until the student has made a prediction. A tutor without an approach can change only what is shown, which the student can change straight back.
 
 ## Reviewed interactive artefacts
 
 Simulations and other interactive HTML artefacts run through a dedicated, isolated delivery path. Artefacts are versioned and reviewed before being made available as maintained activities.
+
+Teachers who have been given access can also build simulations in the application's Sim workshop, with an AI assistant. Every version is checked automatically and a teacher-built simulation runs with no network access. A teacher can publish a version they have approved to their own classes; it reaches the shared library only after a researcher has signed off its physics.
 
 The separation limits what an artefact can access and provides a common bridge for supported interaction with the AIPLA host. A generated or externally supplied artefact is not automatically trusted because it renders successfully.
 
@@ -65,11 +67,12 @@ The separation limits what an artefact can access and provides a common bridge f
 Teachers can prepare activities from templates or their own material. Configurable parts can include:
 
 - title and learning goal;
+- what students see first: an introduction and starter questions;
 - the class's tutor: a published or teacher-written teaching approach, with a persona, face, and voice;
 - the activity's language (Danish or English);
 - curriculum and uploaded source material;
 - checklists, tables, calculators, notes, charts, or solution fields;
-- an approved simulation or other workbench; and
+- an approved simulation, including one the teacher has built and published to their classes, or another workbench; and
 - preview, including trying the activity as a student, and sharing settings.
 
 AI assistance may propose an activity or edit, but the teacher reviews and applies the change.
@@ -80,20 +83,20 @@ The platform distinguishes student group access, teacher access, approved resear
 
 - **Student groups** enter only the activity associated with their code.
 - **Teachers** manage their classes, activities, materials, and relevant session views.
-- **Researchers** use a separately authorised role for approved cross-class analysis and for maintaining the published teaching approaches.
+- **Researchers** use a separately authorised role for approved cross-class analysis, for maintaining the published teaching approaches, and for signing off teacher-built simulations for the shared library.
 - **Administrators** operate the service rather than teach with it: granting the roles above and setting programme-level usage limits. The role is held by named project staff.
 
 The existence of a technical role does not itself authorise a research use. Study approval, participant information, and data-governance requirements still apply.
 
 ## Model and provider independence
 
-The application currently uses Google's Gemini models through Vertex AI, served from Google's EU endpoint. If a model request fails before the student has seen an answer, it is retried or handed to a second model. The activity layer is designed so that model choice can vary by environment and task. The application should not require teaching material or interfaces to be rebuilt whenever a provider or model changes.
+The application currently uses Google's Gemini models through Vertex AI, served from Google's EU endpoint. If a model request fails before the student has seen an answer, it is retried or handed to a second model, and a turn on which a student sends a photo is answered by a more capable model. The activity layer is designed so that model choice can vary by environment and task: the provider for each kind of task is set in configuration. A connection to UCloud AI, model inference on the Danish national research platform run by the University of Southern Denmark, has been built but is not in use. The application should not require teaching material or interfaces to be rebuilt whenever a provider or model changes.
 
 Routing decisions can consider task capability, modality, operational constraints, data requirements, latency, and cost. The [evaluation framework](/project/evaluation) provides evidence for those decisions.
 
 ## Observability and reproducibility
 
-Operational logs and version identifiers help the team determine which application revision and configuration produced an interaction. Research records can also be associated with a build version where approved, and each tutor turn records which tutor and teaching approach produced it.
+Operational logs and version identifiers help the team determine which application revision and configuration produced an interaction. Research records can also be associated with a build version where approved, and each tutor turn records which tutor and teaching approach produced it, which tools it called, and why it ran on a more capable model when it did.
 
 This matters because an AI-supported activity is not defined by the visible prompt alone. Application code, model configuration, source material, tutor instructions, and interactive artefact version can all affect the experience.
 

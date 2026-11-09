@@ -3,8 +3,8 @@ title: "Project decisions"
 description: "A public record of the product and research-infrastructure choices that shape AIPLA, with their rationale and practical consequences."
 eyebrow: "Why the platform works this way"
 owner: "AIPLA project team"
-reviewed: "2026-10-05"
-reviewBy: "2026-11-05"
+reviewed: "2026-11-09"
+reviewBy: "2026-12-09"
 status: "Current"
 order: "75"
 nav: "true"
@@ -110,6 +110,22 @@ This page records the decisions that materially affect the public experience. It
 **Why:** the global endpoint may serve a request from any region, and the University of Copenhagen's data-protection review requires inference within the EU. No single EU region currently serves the models the tutor uses; the EU multi-region endpoint does.
 
 **Consequence:** the change applies to all three environments. It also moved the platform's spending ceiling from a cloud-provider quota to the programme's own daily limit, described above. The current position is maintained on [Data, privacy, and hosting](/project/data-and-hosting).
+
+## October 2026: teachers can publish their own simulations
+
+**Decision:** a teacher who has been given access can build a simulation in the application with an AI assistant and publish a checked version to their own classes, as its reviewer for those classes. A teacher-built simulation reaches the shared library only after a researcher has signed off its physics.
+
+**Why:** a teacher can judge whether a simulation suits their own class, but a simulation offered to every teacher needs its physics checked by someone other than its author. Rendering successfully, or passing automated checks, says nothing about whether the physics is right.
+
+**Consequence:** every version is checked automatically for size, security, phone width, and whether it passes the student's readings to the tutor, and a teacher-built simulation runs with no network access. The teacher records their approval of the exact version students will get. Access is switched on per teacher by the research team. The earlier route, drafting a simulation in an outside AI chat and sending it to the project team, remains open.
+
+## October 2026: the activity says what to learn, the tutor's approach says how to teach
+
+**Decision:** when a class's tutor has a teaching approach, that approach decides how the tutor teaches; the activity's teaching goal says what the students should learn.
+
+**Why:** nothing previously told the tutor which of the two governed how to teach, so a teaching goal that also gave teaching instructions was blended with the approach. That makes it harder to check a tutor against the approach it claims to follow, and it is a likely reason different tutors could read alike in real lessons.
+
+**Consequence:** the tutor is told which instruction decides how to teach. When a teaching goal contains lines about tone, hints, a character, or whether to give answers, the activity builder points them out and offers to move them to separate tutor notes, which the tutor follows only when it has no teaching approach.
 
 ## Hosting direction
 

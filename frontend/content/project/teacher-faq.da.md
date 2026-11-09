@@ -3,8 +3,8 @@ title: "Spørgsmål fra lærere"
 description: "Korte svar på de spørgsmål, lærerne har stillet om AIPLA indtil nu: aktiviteter, dokumenter, gruppekoder, sprog, tutorer, data og rettigheder."
 eyebrow: "Til lærere"
 owner: "AIPLA project team"
-reviewed: "2026-10-08"
-reviewBy: "2026-11-08"
+reviewed: "2026-11-09"
+reviewBy: "2026-12-09"
 status: "Provisional"
 order: "91"
 nav: "false"
@@ -21,7 +21,9 @@ Vejledningerne under */guides* findes på dansk. Projektsiderne under */project*
 
 ### Hvor nemt er det at lave en aktivitet?
 
-Det er nemt, og du skal ikke skrive kode. Ifølge vejledningen tager den første aktivitet omkring fem minutter. Du giver den et navn og et undervisningsmål (den instruks, tutoren arbejder efter), vælger elevernes sprog og kan tilføje et arbejdsområde: en simulering, en tjekliste, en tabel, en graf, en lommeregner eller et skrivefelt. **Prøv som elev** viser dig præcis det, eleverne ser.
+Det er nemt, og du skal ikke skrive kode. Ifølge vejledningen tager den første aktivitet omkring fem minutter. Du giver den et navn og et undervisningsmål (den instruks, tutoren arbejder efter), vælger elevernes sprog og kan tilføje et arbejdsområde: en simulering, en tjekliste, en tabel, en graf, en lommeregner eller et skrivefelt. Under **Det første eleverne ser** kan du skrive den introduktion og de startspørgsmål, eleverne får. **Prøv som elev** viser dig præcis det, eleverne ser.
+
+Undervisningsmålet siger, hvad eleverne skal lære. Har klassens tutor en undervisningstilgang, er det tilgangen, der bestemmer, hvordan tutoren underviser, og byggeren gør dig opmærksom på linjer i målet, der fortæller tutoren, hvordan den skal undervise. Den tilbyder at flytte dem til **Tutornoter**, som tutoren kun følger, når den ikke har en undervisningstilgang.
 
 Det går hurtigere, hvis du starter fra en skabelon. Du kan også hente en kollegas delte aktivitet i biblioteket og få din egen kopi, som du kan rette i. Eller du kan beskrive aktiviteten med dine egne ord og lade AI-medbyggeren lave et udkast. Du ser forslaget igennem, før du selv vælger at bruge det.
 
@@ -50,7 +52,10 @@ Det kan du se. Ved hvert dokument står der **Klar — tutoren kan læse den**, 
 
 ### Kan vi lave vores egne simuleringer?
 
-Ja, uden at skrive kode, men ikke i aktivitetsbyggeren. Du laver et udkast til simuleringen i en AI-chat (Claude, ChatGPT, Gemini eller Copilot) med AIPLA's forfatterprompt, prøver den af i en browser og sender de to filer, du får, til projektgruppen. Gruppen kobler simuleringen til tutoren og tjekker sikkerhed, størrelse og visning på mobil. En fysikfaglig bedømmer godkender fysikken. Derefter ligger den i biblioteket, og alle lærere kan bruge den i deres aktiviteter.
+Ja, uden at skrive kode. Det kan gøres på to måder:
+
+- **I simuleringsværkstedet**, som du finder under **Simuleringer** i lærermenuen. Du beskriver forsøget for værkstedets assistent, og den bygger simuleringen. Hver version bliver tjekket automatisk for størrelse, sikkerhed, visning på mobil, og om tutoren får elevens målinger. Tjekkene siger ikke noget om, hvorvidt fysikken er rigtig; det skal du selv vurdere. Du prøver den af, beder om ændringer og udgiver den version, du godkender, til dine egne klasser. Skal den være tilgængelig for alle lærere, beder du om at få den i det fælles bibliotek, og en forsker godkender fysikken. Værkstedet bliver slået til for den enkelte lærer af forskergruppen: spørg via værkstedets side.
+- **I en AI-chat** (Claude, ChatGPT, Gemini eller Copilot) med AIPLA's forfatterprompt. Du prøver simuleringen af i en browser og sender de to filer, du får, til projektgruppen, eller importerer dem i simuleringsværkstedet, hvis du har adgang. Gruppen kobler simuleringen til tutoren og laver de samme tjek, og en fysikfaglig bedømmer godkender fysikken. Derefter ligger den i biblioteket, og alle lærere kan bruge den i deres aktiviteter.
 
 Det vigtigste spørgsmål, når du foreslår en simulering, er: *hvad måler eleven, og hvad skal de regne ud på baggrund af det?*
 
@@ -58,15 +63,15 @@ Læs mere: [Build a simulation with an AI chat](/project/build-a-simulation) (p�
 
 ### Hvilke simuleringer findes der?
 
-Der er ni: Boldkast, LED Planck, KineBot, Elkedel, Faseovergange, Bølgefart, Interferens, Sol, Jord og Måne samt Hældningslab. De åbner alle ved siden af tutoren. Eleven ændrer på noget, aflæser instrumenterne og noterer målinger, og tutoren ser målingerne og kan spørge ind til dem. En simulering viser aldrig den værdi, eleven skal regne sig frem til.
+Der er elleve indbyggede: Boldkast, LED Planck, KineBot, Elkedel, Faseovergange, Bølgefart, Interferens, Sol, Jord og Måne, Hældningslab, Firetaktsmotoren og Kredsløb om et sort hul. Simuleringer fra simuleringsværkstedet kommer i biblioteket, når en forsker har godkendt dem. Den første, Billardbord om friktion og impulsbevarelse, ligger der nu. De åbner alle ved siden af tutoren. Eleven ændrer på noget, aflæser instrumenterne og noterer målinger, og tutoren ser målingerne og kan spørge ind til dem. En simulering viser aldrig den værdi, eleven skal regne sig frem til.
 
-I Sol, Jord og Måne kan tutoren også ændre det, eleven ser, og hver ændring står på et kort i chatten. En simulering starter forfra med standardindstillingerne en anden dag. Målinger, der skal gemmes, skal derfor stå i en tabel i aktiviteten.
+I Sol, Jord og Måne kan tutoren også gøre noget i simuleringen: ændre det, eleven ser, vise en opgave på skærmen eller låse en knap, fx holde tiden stille, indtil eleven har givet en forudsigelse. Hvor meget den må, afhænger af dens undervisningstilgang, og hver ændring står på et kort i chatten. En simulering starter forfra med standardindstillingerne en anden dag. Målinger, der skal gemmes, skal derfor stå i en tabel i aktiviteten.
 
 Læs mere: [Activities and examples](/project/activities) (på engelsk).
 
 ### Sender tutoren eleverne over til simuleringen og arbejdsområdet?
 
-Det er den blevet bedt om. Tutoren får en oversigt over, hvad der er i aktivitetens arbejdsområde, og besked om at henvise eleverne dertil, når det kan hjælpe dem. Går der nogle svar, uden at den gør det, bliver den mindet om det. Er der en simulering, nævner den simuleringen først i sin første besked. Det blev ændret efter seminaret i oktober, hvor tutoren blev hængende i samtalen. Vi måler nu, om den henviser ofte nok.
+Det er den blevet bedt om. Tutoren får en oversigt over, hvad der er i aktivitetens arbejdsområde, og besked om at henvise eleverne dertil, når det kan hjælpe dem. Går der nogle svar, uden at den gør det, bliver den mindet om det. Er der en simulering, nævner den simuleringen først i sin første besked, medmindre du under **Det første eleverne ser** har valgt selv at introducere aktiviteten i klassen. Det blev ændret efter seminaret i oktober, hvor tutoren blev hængende i samtalen. Vi måler nu, om den henviser ofte nok.
 
 ## Gruppekoder og elever
 
@@ -136,7 +141,7 @@ Læs mere: [Teaching frameworks](/project/tutors) (på engelsk) beskriver de til
 
 ### Kan lokale modeller løse problemet med ophavsret?
 
-Der bruges ikke lokale modeller i dag. Tutoren bruger Googles Gemini-modeller gennem Vertex AI i Googles EU-region, og Google må ikke bruge data til at træne sine modeller. Evalueringen fra oktober 2026 fandt to åbne modeller, der kan køre på én GPU og er præcise nok. De er dog endnu ikke målt på den hardware, projektet ville køre dem på. Det flytter heller ikke det hele at flytte modellen, for dokumentkonvertering og søgning i undervisningsmateriale er separate tjenester. Om selve ophavsretten: se næste spørgsmål.
+Der bruges ikke lokale modeller i dag. Tutoren bruger Googles Gemini-modeller gennem Vertex AI i Googles EU-region, og Google må ikke bruge data til at træne sine modeller. Der er bygget en forbindelse til UCloud AI, som kører modeller på den danske nationale forskningsplatform UCloud, drevet af Syddansk Universitet, men den er ikke i brug. Evalueringen fra oktober 2026 fandt to åbne modeller, der kan køre på én GPU og er præcise nok. De er dog endnu ikke målt på den hardware, projektet ville køre dem på. Det flytter heller ikke det hele at flytte modellen, for dokumentkonvertering og søgning i undervisningsmateriale er separate tjenester. Om selve ophavsretten: se næste spørgsmål.
 
 Læs mere: [Data, privacy, and hosting](/project/data-and-hosting), [Capability floor](/project/evaluation/capability-floor) (begge på engelsk).
 
@@ -162,6 +167,7 @@ Der er endnu ikke offentliggjort noget dokument fra AIPLA om ejerskab eller lice
 - Aktiviteter, tutorer, tilgange og uploads er **private for dig**, indtil du deler dem. Forskergruppen kan se private tutorer og tilgange.
 - Deler du en aktivitet, kan andre lærere hente den. De får deres egen kopi, som de kan rette i, og AIPLA registrerer, hvilken aktivitet kopien stammer fra.
 - En simulering, du sender til projektgruppen, bliver bearbejdet af gruppen og derefter gjort tilgængelig for alle lærere.
+- En simulering, du bygger i simuleringsværkstedet, kan kun ses af dig, indtil du udgiver den til dine egne klasser. Andre lærere får den kun, hvis du beder om at få den i det fælles bibliotek, og en forsker godkender den.
 - Klasser, aktiviteter og elevarbejde bliver gemt, indtil du sletter dem, eller projektet slutter.
 
 Universitetets formelle vurdering er under udarbejdelse; kontakt projektet ved tvivl.
