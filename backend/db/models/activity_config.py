@@ -40,6 +40,18 @@ InteractionStyle = Literal["socratic", "concise", "rigorous", "warm"]
 # 1.1.106 cost envelope — the teacher's save never writes it.
 ModelTier = Literal["default", "smart"]
 
+# Student view (2026-11-09) — how the student's screen is laid out for this
+# activity. Same content in every view; only the arrangement changes.
+#   ``chat``      — today's layout: the tutor conversation leads, the workbench
+#                   sits beside it. The default, so an activity saved before the
+#                   field existed renders exactly as it did.
+#   ``workbench`` — the work leads: workbench on the left and wider, the tutor in
+#                   a narrower column on the right.
+#   ``photo``     — for work done off-screen (paper, the floor, a model): a large
+#                   "take a photo" button and a large preview before sending.
+# Teacher-chosen in the activity editor; read by the student page via /active.
+StudentView = Literal["chat", "workbench", "photo"]
+
 
 class MaterialRef(BaseModel):
     """A resource cited for this activity.
@@ -580,6 +592,7 @@ class ActivityConfig(BaseModel):
     tutor_id: str | None = Field(default=None, alias="tutorId", max_length=64)
     # 1.1.142 M3 — read by ``adk.agent._apply_activity_model_tier``.
     model_tier: ModelTier = Field(default="default", alias="modelTier")
+    student_view: StudentView = Field(default="chat", alias="studentView")
     paired_workbench: str | None = Field(default=None, alias="pairedWorkbench")
     workbench_type: WorkbenchType = Field(default="none", alias="workbenchType")
     source_activity_id: str | None = Field(default=None, alias="sourceActivityId")

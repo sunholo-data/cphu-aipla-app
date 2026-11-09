@@ -328,6 +328,7 @@ async def get_active_activity_config(
             # the tutor's language directive, so the buttons and the replies
             # cannot disagree about which language the activity is in.
             "language": DEFAULT_ACTIVITY_LANGUAGE,
+            "studentView": "chat",
             **_element_block(None),
             "artefact": None,
             "workbenchType": "none",
@@ -359,6 +360,8 @@ async def get_active_activity_config(
         "title": cfg.title,
         "opening": build_activity_opening(cfg),
         "language": cfg.language,
+        # How the student's screen is arranged (teacher-chosen; "chat" = today's).
+        "studentView": cfg.student_view,
         **_element_block(cfg),
         # The resolved artefact (public view — never the tutorBlock) so the
         # student workspace has the render path; None if unset or de-catalogued

@@ -146,6 +146,7 @@ def _activity_to_config(activity: Activity, *, class_id: str) -> ActivityConfig:
         interactionStyle=activity.interaction_style or "socratic",
         persona=activity.persona,
         modelTier=activity.model_tier,
+        studentView=activity.student_view,
         workbenchType=activity.workbench_type,
         artefactId=activity.artefact_id,
         checklist=activity.checklist,

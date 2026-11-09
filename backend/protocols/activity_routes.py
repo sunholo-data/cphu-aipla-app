@@ -60,6 +60,7 @@ from db.models.activity_config import (
     ModelTier,
     NoteElement,
     SolutionElement,
+    StudentView,
     TableElement,
     WorkbenchType,
     WritingElement,
@@ -98,6 +99,9 @@ class ActivityUpsert(BaseModel):
     opening_by_teacher: bool = Field(default=False, alias="openingByTeacher")
     language: Language = "da"
     difficulty: Difficulty = "standard"
+    # Optional with the old layout as default, so a client that predates the
+    # field saves exactly what it always did. The builder always sends it.
+    student_view: StudentView = Field(default="chat", alias="studentView")
     interaction_style: InteractionStyle | None = Field(default=None, alias="interactionStyle")
     persona: str | None = Field(default=None, max_length=64)
     workbench_type: WorkbenchType = Field(default="none", alias="workbenchType")
@@ -215,6 +219,7 @@ def _activity_from_body(body: ActivityUpsert, *, owner_uid: str, activity_id: st
         openingByTeacher=body.opening_by_teacher,
         language=body.language,
         difficulty=body.difficulty,
+        studentView=body.student_view,
         interactionStyle=body.interaction_style,
         persona=body.persona,
         workbenchType=body.workbench_type,

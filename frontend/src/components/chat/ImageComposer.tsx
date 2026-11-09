@@ -3,6 +3,7 @@
 import { useRef } from "react";
 import { Camera, Paperclip, X } from "lucide-react";
 
+import { ZoomableImage } from "@/components/chat/media/ZoomableImage";
 import { toLocale, useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { MAX_IMAGES, type ImageNotice, type StagedImage } from "@/hooks/useImageAttachments";
@@ -14,6 +15,13 @@ interface StagingRowProps {
   staged: StagedImage[];
   notice: ImageNotice | null;
   onRemove: (id: string) => void;
+  /** The photo student view (2026-11-09): show each staged photo LARGE and
+   *  tap-to-enlarge, so a group can check what they are about to send. On 3 Nov
+   *  students asked to see their photo bigger before sending; a 56px thumbnail
+   *  cannot show whether the drawing is legible. */
+  large?: boolean;
+  /** The activity's language; without it the surrounding LocaleProvider decides. */
+  lang?: string | null;
 }
 
 /**
@@ -21,8 +29,8 @@ interface StagingRowProps {
  * images staged for the next turn with a per-thumb remove button. Empty render
  * (null) when there's nothing staged and no notice, so it costs no layout.
  */
-export function ImageStagingRow({ staged, notice, onRemove }: StagingRowProps) {
-  const t = useT("ImageComposer");
+export function ImageStagingRow({ staged, notice, onRemove, large = false, lang }: StagingRowProps) {
+  const t = useT("ImageComposer", lang ? toLocale(lang) : undefined);
   if (staged.length === 0 && !notice) return null;
   return (
     <div className="mb-2 space-y-2">
@@ -31,7 +39,34 @@ export function ImageStagingRow({ staged, notice, onRemove }: StagingRowProps) {
           {t(`notice_${notice}`, { max: MAX_IMAGES })}
         </p>
       )}
-      {staged.length > 0 && (
+      {staged.length > 0 && large && (
+        <ul className="flex flex-col gap-2">
+          {staged.map((img) => (
+            <li key={img.id} className="relative overflow-hidden rounded-lg border bg-muted/30">
+              <ZoomableImage
+                src={img.previewUrl}
+                alt={img.name || t("attachmentAlt")}
+                triggerClassName="mx-auto block max-h-64 w-full object-contain"
+              />
+              <span
+                aria-hidden
+                className="pointer-events-none absolute bottom-2 left-2 rounded-full bg-foreground/75 px-2.5 py-1 text-xs text-background"
+              >
+                {t("tapToEnlarge")}
+              </span>
+              <button
+                type="button"
+                onClick={() => onRemove(img.id)}
+                aria-label={t("remove", { name: img.name || t("imageFallback") })}
+                className="absolute right-2 top-2 flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full bg-foreground/75 text-background hover:bg-foreground sm:min-h-8 sm:min-w-8"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {staged.length > 0 && !large && (
         <ul className="flex flex-wrap gap-2">
           {staged.map((img) => (
             <li key={img.id} className="relative">
@@ -149,6 +184,58 @@ export function ImageUploadButtons({ onFiles, disabled, full, lang }: UploadButt
         className={btn}
       >
         <Camera className="h-4 w-4" />
+      </button>
+    </>
+  );
+}
+
+interface PhotoButtonProps {
+  onFiles: (files: FileList | null) => void;
+  disabled?: boolean;
+  /** true once the per-turn cap is reached — the button goes inert. */
+  full?: boolean;
+  /** The activity's language ("da" default). */
+  lang?: string | null;
+}
+
+/**
+ * The photo student view's one big button (2026-11-09), full width above the
+ * composer. Deliberately WITHOUT `capture`: on a phone that makes the OS offer
+ * camera, photo library and files from one tap, where `capture` would force the
+ * camera and hide a photo taken a minute earlier. On 3 Nov a group asked the
+ * tutor where to attach files — the icon buttons were not findable enough.
+ */
+export function PhotoCaptureButton({ onFiles, disabled, full, lang }: PhotoButtonProps) {
+  const t = useT("ImageComposer", lang ? toLocale(lang) : undefined);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const inert = disabled || full;
+  return (
+    <>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={IMAGE_ACCEPT}
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          onFiles(e.target.files);
+          e.target.value = "";
+        }}
+      />
+      <button
+        type="button"
+        onClick={() => {
+          if (!inert) inputRef.current?.click();
+        }}
+        disabled={inert}
+        className={cn(
+          "mb-2 flex min-h-[52px] w-full items-center justify-center gap-2 rounded-lg bg-primary px-4 text-base font-semibold text-primary-foreground",
+          "hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+          inert && "cursor-not-allowed opacity-50 hover:bg-primary",
+        )}
+      >
+        <Camera className="h-5 w-5" aria-hidden />
+        {full ? t("full") : t("photoBig")}
       </button>
     </>
   );

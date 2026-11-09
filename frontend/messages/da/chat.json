@@ -106,7 +106,9 @@
     "notice_processFailed": "Billedet kunne ikke behandles. Prøv et andet.",
     "notice_retake": "Der ser ud til at være en person på billedet. Tag det om uden personer i billedet, før du sender det.",
     "notice_degraded": "Bemærk: denne enhed kan ikke selv tjekke billeder for personer. Sørg for, at der ikke er klassekammerater med på billedet, før du sender det.",
-    "notice_notImage": "Filen er ikke et billede. Vælg et JPEG-, PNG- eller HEIC-billede."
+    "notice_notImage": "Filen er ikke et billede. Vælg et JPEG-, PNG- eller HEIC-billede.",
+    "photoBig": "Tag eller vælg et billede",
+    "tapToEnlarge": "Tryk for at forstørre"
   },
   "ChatMessageList": {
     "olderHidden": "Tidligere interaktioner er skjult",

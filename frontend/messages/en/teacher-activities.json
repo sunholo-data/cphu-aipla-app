@@ -571,5 +571,15 @@
     "remove": "Remove",
     "addPrompt": "Add starter prompt",
     "preview": "Student introduction preview"
+  },
+  "StudentViewPicker": {
+    "legend": "Student view",
+    "help": "How the students' screen is arranged for this activity. The content is the same in every view.",
+    "chat_title": "Conversation first",
+    "chat_desc": "As today: the conversation with the tutor on the left, the workspace on the right.",
+    "workbench_title": "Work first",
+    "workbench_desc": "The workspace on the left and widest, the tutor in a narrower column on the right. On a phone the work opens first.",
+    "photo_title": "Photo and tutor",
+    "photo_desc": "One large button to take or choose a photo, and a large preview before sending. For work on paper or in the room."
   }
 }

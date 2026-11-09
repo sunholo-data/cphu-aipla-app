@@ -22,9 +22,12 @@ import { readJson as sharedReadJson } from "@/lib/apiResponse";
 // The activity library reuses the curriculum facet shapes verbatim rather than
 // declaring twins — one vocabulary, one wire format (1.1.61).
 import type { CurriculumFacets, LevelFilter } from "@/lib/curriculumApi";
+import type { StudentView } from "@/lib/studentView";
 
 export type Language = "da" | "en";
 export type Difficulty = "standard" | "guided";
+/** How the student's screen is arranged for an activity — see lib/studentView. */
+export type { StudentView } from "@/lib/studentView";
 /** Workbench type system (1.J). ``none`` = chat-only concept activity.
  *  ``document`` (1.1.45 M3b) = a document-feedback activity: the student uploads
  *  their own work into the workbench and the tutor critiques the active file. */
@@ -60,6 +63,8 @@ export interface ActivityConfigPayload {
   tutorId?: string | null;
   pairedWorkbench: string | null;
   workbenchType?: WorkbenchType;
+  /** Teacher-chosen layout; absent = `chat` (today's). */
+  studentView?: StudentView;
   /** The vetted sim artefact this activity hosts (1.1.41). The GET serialises
    *  the full model, so the editor can hydrate + round-trip it. */
   artefactId?: string | null;
@@ -621,6 +626,8 @@ export interface ActivityUpsertBody {
   openingByTeacher?: boolean;
   language: Language;
   workbenchType?: WorkbenchType;
+  /** Teacher-chosen layout; absent = `chat` (today's). */
+  studentView?: StudentView;
   artefactId?: string | null;
   checklist?: ChecklistItem[];
   table?: TableElement[];

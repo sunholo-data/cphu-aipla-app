@@ -219,8 +219,8 @@ vi.mock("next/navigation", () => ({
 // sandbox iframes, sim launchers, etc.). We keep the WorkspaceShell wrapper's
 // aria-label contract by rendering an aside with the same accessible name.
 vi.mock("@/components/workspace/WorkspaceShell", () => ({
-  WorkspaceShell: ({ children }: { children: React.ReactNode }) => (
-    <aside aria-label="Workspace" data-testid="workspace-shell-stub">
+  WorkspaceShell: ({ children, side }: { children: React.ReactNode; side?: string }) => (
+    <aside aria-label="Workspace" data-testid="workspace-shell-stub" data-side={side ?? "right"}>
       {children}
     </aside>
   ),
@@ -506,6 +506,68 @@ describe("workspace mounting — gated on anon-group mode + non-empty activity c
 // workspace an act--scoped id or none, and its own progress fetches must be
 // gated the same way. activity-configs is exempt by design — it dual-reads
 // legacy skill ids so a bare-skill chat still gets its teacher's config.
+// 2026-11-09 — the teacher's student view reaches the page from the SAME
+// /active fetch as the elements. Two halves a component test cannot see: the
+// page must pass the side down, and the photo view must show its camera even
+// for a tutor whose skill does not opt into images (the concept tutor, which
+// every 3 Nov activity used — its photos came only through the solution box).
+describe("student view — the teacher's layout choice", () => {
+  const configWith = (studentView: string) => (url: string) =>
+    url.includes("/activity-configs/active/")
+      ? {
+          studentView,
+          checklist: [{ id: "c1", label: "Step 1", done: false }],
+          table: [],
+          chart: [],
+          calculator: [],
+          note: [],
+          solution: [],
+          document: [],
+          artefact: null,
+          persona: null,
+          materials: [],
+        }
+      : {};
+
+  it("work first: the workspace takes the left side", async () => {
+    vi.stubEnv("NEXT_PUBLIC_AUTH_MODE", "anonymous_group_id");
+    fetchMock.responder = configWith("workbench");
+    await renderChatPage();
+    await waitFor(() => {
+      expect(screen.getByTestId("workspace-shell-stub").getAttribute("data-side")).toBe("left");
+    });
+  });
+
+  it("today's layout (and an unknown value) keeps the workspace on the right", async () => {
+    vi.stubEnv("NEXT_PUBLIC_AUTH_MODE", "anonymous_group_id");
+    fetchMock.responder = configWith("drawer");
+    await renderChatPage();
+    await waitFor(() => {
+      expect(screen.getByTestId("workspace-shell-stub").getAttribute("data-side")).toBe("right");
+    });
+  });
+
+  it("photo: the big photo button shows although the skill takes no images", async () => {
+    vi.stubEnv("NEXT_PUBLIC_AUTH_MODE", "anonymous_group_id");
+    fetchMock.responder = configWith("photo");
+    await renderChatPage();
+    await waitFor(() => {
+      expect(screen.getByRole("button", { name: /Tag eller vælg et billede/ })).toBeTruthy();
+    });
+  });
+
+  it("other views: no big photo button and no camera for a skill that takes no images", async () => {
+    vi.stubEnv("NEXT_PUBLIC_AUTH_MODE", "anonymous_group_id");
+    fetchMock.responder = configWith("workbench");
+    await renderChatPage();
+    await waitFor(() => {
+      expect(screen.getByTestId("workspace-shell-stub")).toBeTruthy();
+    });
+    expect(screen.queryByRole("button", { name: /Tag eller vælg et billede/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Tag et billede" })).toBeNull();
+  });
+});
+
 describe("progress calls never target a skill id (1.1.120)", () => {
   // A config with one of every progress-carrying element: each non-empty array
   // is what makes the page fetch that progress store.

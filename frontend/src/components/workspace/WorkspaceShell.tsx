@@ -29,6 +29,12 @@ interface WorkspaceShellProps {
   ratio?: number;
   /** Commit a new ratio. Required if `ratio` is set. */
   onRatioChange?: (next: number) => void;
+  /** Which side of the row the workspace takes on md+ (2026-11-09 student
+   *  view). "right" (default) is the layout every activity had before; "left"
+   *  is the "work first" view — the workspace leads and the chat follows. The
+   *  DOM order is unchanged (chat first), so the order is a CSS `order` and the
+   *  phone layout, which shows one panel at a time, is unaffected. */
+  side?: "left" | "right";
 }
 
 /**
@@ -61,7 +67,9 @@ export function WorkspaceShell({
   hideOnMobile = false,
   ratio,
   onRatioChange,
+  side = "right",
 }: WorkspaceShellProps) {
+  const leads = side === "left";
   const t = useT("WorkspaceShell");
   const [collapsed, setCollapsed] = useState(false);
   const resizable = typeof ratio === "number" && typeof onRatioChange === "function";
@@ -96,7 +104,7 @@ export function WorkspaceShell({
   if (collapsed) {
     return (
       <aside
-        className="hidden md:flex w-8 shrink-0 flex-col items-center border-l bg-muted/30"
+        className={`hidden md:flex w-8 shrink-0 flex-col items-center bg-muted/30 ${leads ? "md:order-first border-r" : "border-l"}`}
         aria-label={t("collapsedLabel")}
       >
         <button
@@ -106,9 +114,9 @@ export function WorkspaceShell({
           aria-label={t("expand")}
           title={t("expand")}
         >
-          {/* chevron-left */}
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="10 12 6 8 10 4" />
+          {/* chevron pointing into the row (left for a right-hand pane) */}
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <polyline points={leads ? "6 4 10 8 6 12" : "10 12 6 8 10 4"} />
           </svg>
         </button>
       </aside>
@@ -147,16 +155,18 @@ export function WorkspaceShell({
       // first few elements and the rest disappears off-screen.
       // md:flex-none + style.flexBasis controls the desktop width
       // (legacy md:w-1/2 OR the resize-hook ratio).
-      className={`relative w-full flex-1 flex-col overflow-hidden border-t bg-muted/40 md:flex md:flex-none md:border-t-0 md:border-l ${mdWidthClass} ${
+      className={`relative w-full flex-1 flex-col overflow-hidden border-t bg-muted/40 md:flex md:flex-none md:border-t-0 ${
+        leads ? "md:order-first md:border-r" : "md:border-l"
+      } ${mdWidthClass} ${
         hideOnMobile ? "hidden" : "flex"
       }`}
       aria-label={t("label")}
     >
       {resizable && !fullscreen ? (
-        <WorkspaceDivider ratio={ratio} onChange={onRatioChange} />
+        <WorkspaceDivider ratio={ratio} onChange={onRatioChange} side={side} />
       ) : null}
       {resizable && fullscreen ? (
-        <ChatRevealTab onReveal={() => onRatioChange(RATIO_DEFAULT)} />
+        <ChatRevealTab side={side} onReveal={() => onRatioChange(RATIO_DEFAULT)} />
       ) : null}
       <header className="flex shrink-0 items-center justify-between border-b border-border/60 px-3 py-2 bg-muted/60">
         <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
@@ -169,9 +179,9 @@ export function WorkspaceShell({
           aria-label={t("collapse")}
           title={t("collapse")}
         >
-          {/* chevron-right */}
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="6 4 10 8 6 12" />
+          {/* chevron pointing out of the row (right for a right-hand pane) */}
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <polyline points={leads ? "10 12 6 8 10 4" : "6 4 10 8 6 12"} />
           </svg>
         </button>
       </header>

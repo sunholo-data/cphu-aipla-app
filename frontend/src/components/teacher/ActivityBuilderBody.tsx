@@ -17,6 +17,7 @@ import { NoteEditor } from "@/components/teacher/NoteEditor";
 import { WritingEditor } from "@/components/teacher/WritingEditor";
 import { SimPicker } from "@/components/teacher/SimPicker";
 import { SolutionEditor } from "@/components/teacher/SolutionEditor";
+import { StudentViewPicker } from "@/components/teacher/StudentViewPicker";
 import { TableEditor } from "@/components/teacher/TableEditor";
 import { useCopilotEntry } from "@/components/teacher/copilot";
 import type { ActivityBuilder } from "@/hooks/useActivityBuilder";
@@ -139,6 +140,9 @@ export function ActivityBuilderBody({
               settings, inherited by every activity. Shown read-only here so the
               teacher knows which tutor teaches this + where to change it. */}
           {tutorSlot}
+
+          {/* 2026-11-09 — how the students' screen is arranged (lib/studentView). */}
+          <StudentViewPicker value={b.studentView} onChange={b.setStudentView} />
         </BuilderSection>
 
         <BuilderSection section={SECTION.lesson}>

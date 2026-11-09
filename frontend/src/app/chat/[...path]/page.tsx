@@ -8,7 +8,7 @@ import { ChatMessageList } from "@/components/chat/ChatMessageList";
 import type { PersonaSummary } from "@/components/chat/MessageBubble";
 import { ResumeWelcomeBanner } from "@/components/chat/ResumeWelcomeBanner";
 import { CallTeacherButton } from "@/components/chat/CallTeacherButton";
-import { ImageStagingRow, ImageUploadButtons } from "@/components/chat/ImageComposer";
+import { ImageStagingRow, ImageUploadButtons, PhotoCaptureButton } from "@/components/chat/ImageComposer";
 import { useImageAttachments, MAX_IMAGES } from "@/hooks/useImageAttachments";
 import { VoiceComposerControls } from "@/components/chat/VoiceComposerControls";
 import { SymbolStrip, SymbolStripToggle, useSymbolStrip } from "@/components/chat/SymbolStrip";
@@ -92,7 +92,15 @@ import {
 } from "@/components/workspace/tutorNotes";
 import { reportDocumentEvent } from "@/lib/documentApi";
 import { workspaceContentKind } from "./workspaceContent";
-import { useResizableWorkspaceRatio } from "@/hooks/useResizableWorkspaceRatio";
+import { RATIO_WORKBENCH_FIRST, useResizableWorkspaceRatio } from "@/hooks/useResizableWorkspaceRatio";
+import {
+  markMobileTabChosen,
+  parseStudentView,
+  recallStudentView,
+  rememberStudentView,
+  studentChoseMobileTab,
+  type StudentView,
+} from "@/lib/studentView";
 import {
   LocaleProvider,
   recallActivityLanguage,
@@ -512,6 +520,9 @@ function ChatShell({
   // Seeded from what the lesson picker already knew, so an English activity
   // does not paint Danish while its config is in flight.
   const [activeLanguage, setActiveLanguage] = useState<Locale | null>(() => recallActivityLanguage(activityId));
+  // 2026-11-09 — the teacher-chosen layout for this activity (lib/studentView).
+  // Painted from this tab's memory first so a reload does not jump layouts.
+  const [studentView, setStudentView] = useState<StudentView>(() => recallStudentView(activityId));
   // 1.1.45 M4 — the rich-text solution editor element (JB-2 "din løsning").
   const [activeSolution, setActiveSolution] = useState<SolutionElementDef[]>([]);
   // 1.1.41 M1 — the vetted sim artefact this activity hosts (resolved from the
@@ -587,12 +598,14 @@ function ChatShell({
       setActivePersona(null);
       setActiveMaterials([]);
       setActiveLanguage(recallActivityLanguage(activityId));
+      setStudentView("chat");
       return;
     }
     let alive = true;
     // Switching activity: paint in the new one's remembered language, not the
     // previous activity's, while its config is in flight.
     setActiveLanguage(recallActivityLanguage(activityId));
+    setStudentView(recallStudentView(activityId));
     // ALS-1 M0: resolve the workbench config (checklist/tables/persona/materials)
     // by ACTIVITY id, not skill id — so two concept activities in one class show
     // their own elements. The /active endpoint is dual-read (act- → new store,
@@ -618,6 +631,9 @@ function ChatShell({
         setActiveArtefact((data.artefact as ActivityArtefact | null) ?? null);
         setActivePersona((data.persona as PersonaSummary | null) ?? null);
         setActiveMaterials(Array.isArray(data.materials) ? (data.materials as ActivityMaterial[]) : []);
+        const view = parseStudentView(data.studentView);
+        setStudentView(view);
+        rememberStudentView(activityId, view);
       })
       .catch(() => {
         /* checklist + persona are optional — stay chat-only on failure */
@@ -717,8 +733,17 @@ function ChatShell({
   // resize-workspace sprint — chat <-> workspace split ratio.
   // Keyed by skillSlug so KineBot remembers a different width than
   // LED Planck (per-skill defaults in the hook).
-  const { ratio: workspaceRatio, setRatio: setWorkspaceRatio } =
-    useResizableWorkspaceRatio(skillSlug ?? "");
+  // The work-first view keeps its own remembered split (a split dragged in
+  // today's layout means the opposite thing with the panes swapped).
+  const workFirst = studentView === "workbench";
+  const photoView = studentView === "photo";
+  const { ratio: workspaceRatio, setRatio: setWorkspaceRatio } = useResizableWorkspaceRatio(
+    workFirst ? `${skillSlug ?? ""}:workbench` : (skillSlug ?? ""),
+    workFirst ? RATIO_WORKBENCH_FIRST : undefined,
+  );
+  // The photo view switches the camera on for any tutor (the backend gives the
+  // tutor the image guidance to match — adk.multimodal.activity_takes_photos).
+  const imagesAllowed = skillMultimodalInput || photoView;
   const workspaceFullscreen = workspaceRatio === 1;
   // Mobile-only tab state. On md+ both chat and workspace render
   // side-by-side and this state is ignored. Below md ("one shared
@@ -738,6 +763,18 @@ function ChatShell({
     if (typeof window === "undefined") return;
     window.sessionStorage.setItem(`aipla.mobileTab:${skillId}`, mobileTab);
   }, [skillId, mobileTab]);
+  // Work-first view: on a phone the work tab opens first — unless the student
+  // has picked a tab themselves in this tab session.
+  useEffect(() => {
+    if (workFirst && !studentChoseMobileTab(skillId)) setMobileTab("workspace");
+  }, [workFirst, skillId]);
+  const chooseMobileTab = useCallback(
+    (tab: "chat" | "workspace") => {
+      markMobileTabChosen(skillId);
+      setMobileTab(tab);
+    },
+    [skillId],
+  );
   // 1.1.147 M3b — a document the tutor names in the chat opens in the
   // workspace's reader (and brings the workspace tab forward on a phone).
   const [docRequests] = useState(createDocumentRequestStore);
@@ -1304,7 +1341,7 @@ function ChatShell({
             type="button"
             role="tab"
             aria-selected={mobileTab === "chat"}
-            onClick={() => setMobileTab("chat")}
+            onClick={() => chooseMobileTab("chat")}
             className={`flex-1 px-4 py-2 text-sm font-medium ${
               mobileTab === "chat"
                 ? "border-b-2 border-primary text-foreground"
@@ -1317,7 +1354,7 @@ function ChatShell({
             type="button"
             role="tab"
             aria-selected={mobileTab === "workspace"}
-            onClick={() => setMobileTab("workspace")}
+            onClick={() => chooseMobileTab("workspace")}
             className={`flex-1 px-4 py-2 text-sm font-medium ${
               mobileTab === "workspace"
                 ? "border-b-2 border-primary text-foreground"
@@ -1488,11 +1525,13 @@ function ChatShell({
           </SaveNotesProvider>
 
           <footer className="border-t p-3">
-            {skillMultimodalInput && (
+            {imagesAllowed && (
               <ImageStagingRow
                 staged={images.staged}
                 notice={images.notice}
                 onRemove={images.remove}
+                large={photoView}
+                lang={composerVoice.tts.language}
               />
             )}
             {composerVoice.capabilities.recording && (
@@ -1570,6 +1609,14 @@ function ChatShell({
                 </p>
               )
             )}
+            {photoView && (
+              <PhotoCaptureButton
+                onFiles={(files) => void images.addFiles(files)}
+                disabled={inputDisabled}
+                full={images.count >= MAX_IMAGES}
+                lang={composerVoice.tts.language ?? "da"}
+              />
+            )}
             <SymbolStrip
               id="composer-symbol-strip"
               open={symbolStrip.open}
@@ -1584,7 +1631,9 @@ function ChatShell({
                 void handleSend();
               }}
             >
-              {skillMultimodalInput && (
+              {/* The photo view has its own big button above; two ways to the
+                  same picker on one row is the clutter it exists to remove. */}
+              {imagesAllowed && !photoView && (
                 <ImageUploadButtons
                   onFiles={(files) => void images.addFiles(files)}
                   disabled={inputDisabled}
@@ -1625,7 +1674,7 @@ function ChatShell({
                 // element and the table, both of which are on this page.
                 // Gated on the same flag as the upload buttons, so a skill
                 // that cannot take images does not silently swallow a paste.
-                onPaste={skillMultimodalInput && !inputDisabled ? images.handlePaste : undefined}
+                onPaste={imagesAllowed && !inputDisabled ? images.handlePaste : undefined}
                 placeholder={t("placeholder")}
                 className="min-w-0 flex-1 rounded-md border px-3 py-2 text-base sm:text-sm"
                 disabled={inputDisabled}
@@ -1670,6 +1719,7 @@ function ChatShell({
             hideOnMobile={mobileTab !== "workspace"}
             ratio={workspaceRatio}
             onRatioChange={setWorkspaceRatio}
+            side={workFirst ? "left" : "right"}
           >
             <DocumentRequestProvider value={docRequests}>
             <TutorNotesBridgeProvider value={notesBridge}>

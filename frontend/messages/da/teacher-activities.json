@@ -571,5 +571,15 @@
     "remove": "Fjern",
     "addPrompt": "Tilføj startspørgsmål",
     "preview": "Forhåndsvisning af elevintroduktion"
+  },
+  "StudentViewPicker": {
+    "legend": "Elevvisning",
+    "help": "Hvordan elevernes skærm er stillet op i denne aktivitet. Indholdet er det samme i alle visninger.",
+    "chat_title": "Samtalen først",
+    "chat_desc": "Som i dag: samtalen med tutoren til venstre og arbejdsområdet til højre.",
+    "workbench_title": "Arbejdet først",
+    "workbench_desc": "Arbejdsområdet til venstre og bredest, tutoren i en smallere kolonne til højre. På en telefon åbner arbejdet først.",
+    "photo_title": "Billede og tutor",
+    "photo_desc": "En stor knap til at tage eller vælge et billede og en stor forhåndsvisning før afsendelse. Til arbejde på papir eller i rummet."
   }
 }

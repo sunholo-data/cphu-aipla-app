@@ -18,6 +18,10 @@ export const DEFAULT_RATIOS: Record<string, number> = {
 
 export const RATIO_DEFAULT = 0.5;
 
+/** The "work first" student view (2026-11-09): the workspace leads, so it
+ *  starts at roughly two thirds of the row and the tutor gets the rest. */
+export const RATIO_WORKBENCH_FIRST = 0.65;
+
 const STORAGE_PREFIX = "aipla.workspaceRatio:";
 
 function storageKey(skillId: string): string {
@@ -56,8 +60,8 @@ function writeStoredRatio(skillId: string, ratio: number): void {
   }
 }
 
-function defaultRatioFor(skillId: string): number {
-  return DEFAULT_RATIOS[skillId] ?? RATIO_DEFAULT;
+function defaultRatioFor(skillId: string, override?: number): number {
+  return override ?? DEFAULT_RATIOS[skillId] ?? RATIO_DEFAULT;
 }
 
 export interface UseResizableWorkspaceRatio {
@@ -77,15 +81,19 @@ export interface UseResizableWorkspaceRatio {
  *  cost than it's worth. */
 export function useResizableWorkspaceRatio(
   skillId: string,
+  /** A layout's own starting split (the student view), used when this key has
+   *  nothing stored. Callers that change it should change `skillId` too, so a
+   *  split the student dragged in one layout is not applied to another. */
+  defaultRatio?: number,
 ): UseResizableWorkspaceRatio {
   const [ratio, setRatioInternal] = useState<number>(
-    () => defaultRatioFor(skillId),
+    () => defaultRatioFor(skillId, defaultRatio),
   );
 
   useEffect(() => {
     const stored = readStoredRatio(skillId);
-    setRatioInternal(stored ?? defaultRatioFor(skillId));
-  }, [skillId]);
+    setRatioInternal(stored ?? defaultRatioFor(skillId, defaultRatio));
+  }, [skillId, defaultRatio]);
 
   const setRatio = useCallback(
     (next: number) => {

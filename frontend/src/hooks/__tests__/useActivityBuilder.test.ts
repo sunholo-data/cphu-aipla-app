@@ -677,6 +677,8 @@ describe("useActivityBuilder — toSavePayload + isFormValid (F5)", () => {
         "starterPrompts",
         "openingByTeacher",
         "language",
+        // 2026-11-09 — the student view rides the full-overwrite save.
+        "studentView",
         "workbenchType",
         "materials",
         // 1.1.61 facets — see the anti-wipe test below for why these belong here
@@ -971,3 +973,31 @@ describe("useActivityBuilder — several tables (1.1.71)", () => {
   });
 });
 
+
+// Student view (2026-11-09) — the save is a FULL OVERWRITE, so a view the
+// builder loads but does not send back is reset to today's layout on the next
+// save of any other field. Pinned the way 1.1.61's facets are.
+describe("useActivityBuilder — student view", () => {
+  const base: ActivityConfigPayload = { activityId: "act-view", classId: "c", teacherUid: "t", teachingGoal: "G",
+    language: "da", difficulty: "standard", pairedWorkbench: null, updatedAt: "" };
+
+  it("defaults to today's layout", () => {
+    const { result } = renderHook(() => useActivityBuilder());
+    expect(result.current.studentView).toBe("chat");
+    expect(result.current.toSavePayload().studentView).toBe("chat");
+  });
+
+  it("survives a load and an unrelated edit, and resets on an empty load", () => {
+    const { result } = renderHook(() => useActivityBuilder());
+    act(() => result.current.hydrate({ ...base, studentView: "workbench" }));
+    act(() => result.current.setTitle("Bohr"));
+    expect(result.current.toSavePayload().studentView).toBe("workbench");
+
+    act(() => result.current.setStudentView("photo"));
+    expect(result.current.studentView).toBe("photo");
+    expect(result.current.toSavePayload().studentView).toBe("photo");
+
+    act(() => result.current.hydrate(base));
+    expect(result.current.studentView).toBe("chat");
+  });
+});

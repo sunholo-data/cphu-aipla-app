@@ -6,6 +6,7 @@ import type {
   ActivityConfigPayload,
   GoalLintResult,
   Language,
+  StudentView,
   MaterialRef,
   StxLevel,
   WorkbenchType,
@@ -76,6 +77,8 @@ export interface SavePayload extends ElementPayload {
   /** 1.1.141 M3 — carried so the full-overwrite save cannot wipe it. */
   tutorNotes: string;
   language: Language;
+  /** How the student's screen is arranged — carried so a save cannot reset it. */
+  studentView: StudentView;
   workbenchType: WorkbenchType;
   materials: MaterialRef[];
   /** 1.1.61 — the activity's OWN facets. Carried through the builder purely so
@@ -113,6 +116,9 @@ export interface ActivityBuilder {
   setOpeningByTeacher: (v: boolean) => void;
   language: Language;
   setLanguage: (v: Language) => void;
+  /** The student view (layout) the teacher picked; `chat` is today's layout. */
+  studentView: StudentView;
+  setStudentView: (v: StudentView) => void;
   /** Runtime workbench surface (1.1.48): "app" = a sim iframe, "none" = the
    *  standard element workspace. No longer teacher-chosen (document-feedback is
    *  now the `document` element); kept for round-trip + the sim backfill. */
@@ -186,6 +192,7 @@ export function useActivityBuilder(): ActivityBuilder {
   const [starterPrompts, setStarterPrompts] = useState<string[]>([]);
   const [openingByTeacher, setOpeningByTeacher] = useState(false);
   const [language, setLanguage] = useState<Language>("da");
+  const [studentView, setStudentView] = useState<StudentView>("chat");
   const [workbenchType, setWorkbenchType] = useState<WorkbenchType>("none");
   // `key` is a stable client id for React; the persisted id is positional.
   const [checklist, setChecklist] = useState<ChecklistRow[]>([]);
@@ -278,6 +285,7 @@ export function useActivityBuilder(): ActivityBuilder {
     setStarterPrompts([]);
     setOpeningByTeacher(false);
     setLanguage(t.language);
+    setStudentView("chat");
     setChecklist(t.checklist.map((label) => ({ key: nextKeyRef.current++, label })));
     setTable(
       t.table
@@ -365,6 +373,7 @@ export function useActivityBuilder(): ActivityBuilder {
     // Default like every other field — an empty hydrate ("Create another")
     // must reset language to the default, not leave it undefined.
     setLanguage(cfg.language ?? "da");
+    setStudentView(cfg.studentView ?? "chat");
     setWorkbenchType(cfg.workbenchType ?? "none");
     setArtefactId(cfg.artefactId ?? null);
     setMaterials(cfg.materials ?? []);
@@ -487,6 +496,7 @@ export function useActivityBuilder(): ActivityBuilder {
       starterPrompts: starterPrompts.map((p) => p.trim()).filter(Boolean),
       openingByTeacher,
       language,
+      studentView,
       workbenchType,
       ...elementPayload(),
       materials,
@@ -540,6 +550,8 @@ export function useActivityBuilder(): ActivityBuilder {
       setOpeningByTeacher,
       language,
       setLanguage,
+      studentView,
+      setStudentView,
       workbenchType,
       setWorkbenchType,
       checklist,
@@ -596,6 +608,7 @@ export function useActivityBuilder(): ActivityBuilder {
       starterPrompts,
       openingByTeacher,
       language,
+      studentView,
       workbenchType,
       checklist,
       table,

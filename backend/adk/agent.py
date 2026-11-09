@@ -82,7 +82,7 @@ from adk.mcp_observability import (
     make_mcp_before_tool_callback,
 )
 from adk.model_routing import activity_opts_into_smart
-from adk.multimodal import inject_image_input_preamble
+from adk.multimodal import activity_takes_photos, inject_image_input_preamble
 from adk.praise_style import build_praise_block
 from adk.proactive_greet import inject_opening_guidance, wrap_opening_guidance_per_turn
 from adk.proactive_reactive import inject_reactive_guidance
@@ -1086,7 +1086,9 @@ def create_agent(
                                 # 1.1.151 F5 — breaks, leaving, deadlines and
                                 # grades are the teacher's; students only.
                                 + (build_classroom_authority_block() if _talks_to_student else ""),
-                                skill_config.multimodal_input,
+                                # The photo student view switches the camera on
+                                # for any skill, so it gets the guidance too.
+                                skill_config.multimodal_input or activity_takes_photos(_active_cfg),
                             ),
                             _activity_id,
                             group_tags=user.group_tags,

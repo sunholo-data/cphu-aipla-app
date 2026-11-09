@@ -58,4 +58,16 @@ def inject_image_input_preamble(instructions: str, multimodal_input: bool) -> st
     return f"{instructions}\n\n{preamble}"
 
 
-__all__ = ["inject_image_input_preamble"]
+def activity_takes_photos(active_cfg: object) -> bool:
+    """True when the teacher chose the photo student view for this activity.
+
+    The photo view (2026-11-09) puts a large take-a-photo button in front of the
+    student, so the tutor must get the same image guidance (units loop, no
+    solving, no faces) a multimodal skill gets — even when the skill itself
+    (concept-dialogue) does not opt in. ``None`` / any other view → False, so
+    every existing activity composes byte-identically.
+    """
+    return getattr(active_cfg, "student_view", None) == "photo"
+
+
+__all__ = ["activity_takes_photos", "inject_image_input_preamble"]

@@ -26,6 +26,11 @@ interface WorkspaceDividerProps {
   /** Optional class for positioning overrides; default is
    *  absolute-on-left-edge inside the workspace aside. */
   className?: string;
+  /** Which side of the row the workspace sits on (2026-11-09 student view).
+   *  "right" (default): the divider is the workspace's LEFT edge. "left": the
+   *  workspace leads, so the divider is its RIGHT edge and the ratio is
+   *  measured from the row's left. */
+  side?: "left" | "right";
 }
 
 /**
@@ -44,6 +49,7 @@ export function WorkspaceDivider({
   ratio,
   onChange,
   className,
+  side = "right",
 }: WorkspaceDividerProps) {
   const t = useT("WorkspaceDivider");
   const dividerRef = useRef<HTMLDivElement | null>(null);
@@ -64,9 +70,9 @@ export function WorkspaceDivider({
     // left edge is at row.right - workspace.width. Cursor at clientX:
     //   workspace_width = row.right - clientX
     //   ratio = (row.right - clientX) / row.width
-    const raw = (rect.right - clientX) / rect.width;
+    const raw = side === "left" ? (clientX - rect.left) / rect.width : (rect.right - clientX) / rect.width;
     return Math.min(RATIO_MAX, Math.max(RATIO_MIN, raw));
-  }, [ratio]);
+  }, [ratio, side]);
 
   const applyRatio = useCallback(
     (raw: number) => {
@@ -178,7 +184,9 @@ export function WorkspaceDivider({
       onKeyDown={onKeyDown}
       className={
         className ??
-        "group absolute left-0 top-0 z-10 h-full w-3 -translate-x-1/2 cursor-col-resize select-none focus-visible:outline-none"
+        (side === "left"
+          ? "group absolute right-0 top-0 z-10 h-full w-3 translate-x-1/2 cursor-col-resize select-none focus-visible:outline-none"
+          : "group absolute left-0 top-0 z-10 h-full w-3 -translate-x-1/2 cursor-col-resize select-none focus-visible:outline-none")
       }
     >
       <div

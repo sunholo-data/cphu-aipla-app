@@ -15,6 +15,7 @@ function savePayload(over: Partial<SavePayload> = {}): SavePayload {
     starterPrompts: [],
     openingByTeacher: false,
     language: "da",
+    studentView: "chat",
     workbenchType: "none",
     artefactId: null,
     checklist: [],

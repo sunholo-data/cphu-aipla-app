@@ -39,6 +39,7 @@ from db.models.activity_config import (
     ModelTier,
     NoteElement,
     SolutionElement,
+    StudentView,
     TableElement,
     WorkbenchType,
     WritingElement,
@@ -122,6 +123,9 @@ class Activity(BaseModel):
     # duplicate/adopt copy resets it (the opt-in was a researcher's decision
     # about THIS activity, not a property of its content).
     model_tier: ModelTier = Field(default="default", alias="modelTier")
+    # How the student's screen is arranged (see ``StudentView``). Teacher-set in
+    # the builder and carried by the full-payload save.
+    student_view: StudentView = Field(default="chat", alias="studentView")
     workbench_type: WorkbenchType = Field(default="none", alias="workbenchType")
     # The vetted sim artefact this activity hosts (1.1.41). Resolved to its skill at
     # student-instantiation time (M0.3); sets workbench_type=app via the validator.
