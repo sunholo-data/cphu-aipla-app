@@ -878,6 +878,14 @@ sim-build:
 smoke-sim:
 	@scripts/smoke-sim-catalogue.sh $(ENV) $(ID)
 
+# Does the teacher's student view (2026-11-09) reach a student on a deployed
+# env? Test teacher creates an activity per view, a joined group reads it back
+# from /active. No model call; deletes what it creates.
+#   make smoke-student-view ENV=dev
+.PHONY: smoke-student-view
+smoke-student-view:
+	@scripts/smoke-student-view.sh $(or $(ENV),dev)
+
 sim-build-check:
 	@node scripts/build-artefact-bridge.mjs --check
 	@node scripts/build-anatomy-kit-vendor.mjs --check
