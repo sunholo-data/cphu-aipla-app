@@ -142,4 +142,32 @@ describe("tutor preview (1.1.91 M3)", () => {
     expect(await screen.findByText(/Type something to ask/i)).toBeInTheDocument();
     expect(spy).not.toHaveBeenCalled();
   });
+
+  it("says why a third pick did nothing", async () => {
+    // It used to be ignored silently: a click with no effect and no reason.
+    const user = userEvent.setup();
+    render(<TutorPreviewPanel />);
+    await user.click(await screen.findByRole("button", { name: /Jonas/ }));
+    expect(screen.getByRole("status")).toHaveTextContent("You can pick up to two");
+    // Unpicking one clears it, and the third can then be chosen.
+    await user.click(screen.getByRole("button", { name: /Sofie/ }));
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Jonas/ }));
+    expect(screen.getByRole("button", { name: /Jonas/ })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("says the tutors could not be read, with a retry, instead of an empty picker", async () => {
+    // Was `.catch(() => undefined)`: no tutors, no message.
+    const user = userEvent.setup();
+    const cat = vi
+      .spyOn(teacherApi, "fetchTutorCatalogue")
+      .mockRejectedValueOnce(new Error("500"))
+      .mockResolvedValueOnce({ tutors: [tutor("mikkel", "Mikkel", "ESRU")], skillBoundTutors: [], frameworks: [] } as never);
+    render(<TutorPreviewPanel />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("The tutors could not be loaded");
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("button", { name: /Mikkel/ })).toHaveAttribute("aria-pressed", "true");
+    expect(cat).toHaveBeenCalledTimes(2);
+  });
 });

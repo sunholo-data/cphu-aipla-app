@@ -1,4 +1,4 @@
-// RUBRIC-1 M3 — the researcher judge-lens panel in /teacher/settings.
+// RUBRIC-1 M3 — the researcher judge-lens panel (on the tutors page's Research tools tab since 2026-11-11; was /teacher/settings).
 // Headline: researcher-only (renders NOTHING for a plain teacher) and
 // abstains render as designed states.
 
@@ -28,7 +28,7 @@ vi.mock("@/components/skill/ModelSelector", () => ({
   ),
 }));
 
-import { LensConfigPanel } from "../_LensConfigPanel";
+import { LensConfigPanel } from "@/components/teacher/research/LensConfigPanel";
 
 // 1.1.108 M2 — these tests assert the English copy; a teacher's default
 // language is Danish, so render inside an English locale.
@@ -184,5 +184,26 @@ describe("LensConfigPanel — the experiment box", () => {
     expect(result).toHaveTextContent("physics_approach");
     expect(result).toHaveTextContent("NA_solver");
     expect(result).toHaveTextContent("maps-r2");
+  });
+});
+
+describe("LensConfigPanel — a failed read", () => {
+  it("says the lenses could not be read, and retries", async () => {
+    mockIsResearcher.mockReturnValue(true);
+    mockFetch.mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) } as Response);
+    mockFetch.mockResolvedValueOnce(ok(LENSES));
+    render(<LensConfigPanel />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("The judge lenses could not be loaded");
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByTestId("lens-card-maps")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("no longer puts a sprint number in the intro", async () => {
+    mockIsResearcher.mockReturnValue(true);
+    mockFetch.mockResolvedValue(ok(LENSES));
+    render(<LensConfigPanel />);
+    await screen.findByTestId("lens-card-maps");
+    expect(screen.getByTestId("lens-config-panel")).not.toHaveTextContent("1.1.57");
   });
 });

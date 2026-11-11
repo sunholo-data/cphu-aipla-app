@@ -23,6 +23,9 @@ import { GitBranch, Plus, Share2, Trash2 } from "lucide-react";
 import { TutorVariantDialog } from "@/components/teacher/TutorVariantDialog";
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
 import { AuthorLine } from "@/components/teacher/research/AuthorLine";
+import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm";
+import { LoadError } from "@/components/ui/load-error";
 import {
   ConflictError,
   createTutor,
@@ -42,7 +45,9 @@ export function MyTutorsPanel() {
   const t = useT("MyTutorsPanel");
   const tConsent = useT("ResearchConsent");
   const [catalogue, setCatalogue] = useState<TutorCatalogue | null>(null);
+  const confirm = useConfirm();
   const [failed, setFailed] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [variantParent, setVariantParent] = useState<TutorPayload | null>(null);
@@ -54,8 +59,12 @@ export function MyTutorsPanel() {
 
   const load = useCallback(() => {
     fetchTutorCatalogue()
-      .then(setCatalogue)
-      .catch(() => setFailed(true));
+      .then((next) => {
+        setCatalogue(next);
+        setFailed(false);
+      })
+      .catch(() => setFailed(true))
+      .finally(() => setRetrying(false));
   }, []);
 
   useEffect(load, [load]);
@@ -83,8 +92,14 @@ export function MyTutorsPanel() {
   };
 
   const remove = async (tutor: TutorPayload) => {
-    if (!window.confirm(t("confirmRemove", { name: tutor.displayName }))) return;
+    const ok = await confirm({
+      title: t("confirmRemove", { name: tutor.displayName }),
+      confirmLabel: t("remove"),
+      destructive: true,
+    });
+    if (!ok) return;
     setBusy(true);
+    setError(null);
     try {
       await deleteTutor(tutor.id);
       load();
@@ -129,7 +144,18 @@ export function MyTutorsPanel() {
     }
   };
 
-  if (failed) return <p className="text-sm text-muted-foreground">{t("failed")}</p>;
+  if (failed && catalogue === null) {
+    return (
+      <LoadError
+        what={t("loadWhat")}
+        retrying={retrying}
+        onRetry={() => {
+          setRetrying(true);
+          load();
+        }}
+      />
+    );
+  }
   if (catalogue === null) return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
 
   // 1.1.150 — grouped on `isOwn` (did I make it), NOT `canEdit` (may I change
@@ -282,17 +308,19 @@ export function MyTutorsPanel() {
             ))}
           </select>
 
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={busy || !draft.displayName.trim()}
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={!draft.displayName.trim()}
+              pending={busy}
+              pendingLabel={t("saving")}
               onClick={() => void create()}
-              className="rounded border bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
             >
               {t("save")}
-            </button>
+            </Button>
             <button
               type="button"
               onClick={() => {
@@ -321,7 +349,7 @@ export function MyTutorsPanel() {
         </div>
       ) : null}
 
-      {error && !draft ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
+      {error && !draft ? <p role="alert" className="mt-3 text-sm text-destructive">{error}</p> : null}
 
       {mine.length > 0 ? (
         <div className="mt-4">

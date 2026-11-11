@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { MessagesSquare, Play } from "lucide-react";
 
 import {
@@ -11,6 +11,8 @@ import {
 } from "@/lib/teacherApi";
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
 import { TutorFace } from "@/components/teacher/research/TutorFace";
+import { Button } from "@/components/ui/button";
+import { LoadError } from "@/components/ui/load-error";
 import { useT } from "@/i18n";
 
 /** UI copy, lifted out of JSX (1.1.108 M4) so a translator can reach it. */
@@ -39,32 +41,54 @@ const MAX_TUTORS = 2;
  */
 export function TutorPreviewPanel() {
   const t = useT("TutorPreviewPanel");
-  const [tutors, setTutors] = useState<TutorPayload[]>([]);
+  /** null while the catalogue is being read. */
+  const [tutors, setTutors] = useState<TutorPayload[] | null>(null);
+  /** The catalogue could not be read. Was `.catch(() => undefined)`: the picker
+   *  showed no tutors and no message, which reads as "there are none". */
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const [picked, setPicked] = useState<string[]>([]);
+  /** A third pick was refused. Said inline rather than ignored silently. */
+  const [atMax, setAtMax] = useState(false);
   const [message, setMessage] = useState("");
   const [replies, setReplies] = useState<TutorPreviewReply[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     let cancelled = false;
     fetchTutorCatalogue()
       .then((cat) => {
         if (cancelled) return;
         setTutors(cat.tutors);
+        setLoadFailed(false);
         // Default to the first two, so the comparison is one click from here.
         setPicked(cat.tutors.slice(0, MAX_TUTORS).map((tu) => tu.id));
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (!cancelled) setLoadFailed(true);
+      })
+      .finally(() => {
+        if (!cancelled) setRetrying(false);
+      });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const toggle = (id: string) =>
-    setPicked((cur) =>
-      cur.includes(id) ? cur.filter((x) => x !== id) : cur.length >= MAX_TUTORS ? cur : [...cur, id],
-    );
+  useEffect(() => load(), [load]);
+
+  const toggle = (id: string) => {
+    if (picked.includes(id)) {
+      setAtMax(false);
+      setPicked(picked.filter((x) => x !== id));
+    } else if (picked.length >= MAX_TUTORS) {
+      setAtMax(true);
+    } else {
+      setAtMax(false);
+      setPicked([...picked, id]);
+    }
+  };
 
   const run = async () => {
     if (picked.length === 0) return setError(t("needTutor"));
@@ -89,8 +113,23 @@ export function TutorPreviewPanel() {
       <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{t("blurb")}</p>
 
       <p className="mt-3 text-xs font-medium">{t("pickPrompt")}</p>
+      {loadFailed ? (
+        <LoadError
+          className="mt-1.5"
+          what={t("loadWhat")}
+          retrying={retrying}
+          onRetry={() => {
+            setRetrying(true);
+            load();
+          }}
+        />
+      ) : tutors === null ? (
+        <p className="mt-1.5 text-xs text-muted-foreground">{t("loading")}</p>
+      ) : tutors.length === 0 ? (
+        <p className="mt-1.5 text-xs text-muted-foreground">{t("noTutors")}</p>
+      ) : null}
       <div className="mt-1.5 flex flex-wrap gap-1.5">
-        {tutors.map((tu) => {
+        {(tutors ?? []).map((tu) => {
           const on = picked.includes(tu.id);
           return (
             <button
@@ -111,6 +150,11 @@ export function TutorPreviewPanel() {
           );
         })}
       </div>
+      {atMax ? (
+        <p role="status" className="mt-1.5 text-xs text-muted-foreground">
+          {t("maxPicked")}
+        </p>
+      ) : null}
 
       <label htmlFor="preview-message" className="mt-4 block text-xs font-medium">
         {t("messageLabel")}
@@ -124,17 +168,23 @@ export function TutorPreviewPanel() {
         className="mt-1 w-full rounded border bg-background p-2 text-sm"
       />
 
-      {error ? <p className="mt-2 text-sm text-destructive">{error}</p> : null}
+      {error ? (
+        <p role="alert" className="mt-2 text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
 
-      <button
-        type="button"
-        disabled={busy}
+      <Button
+        variant="primary"
+        size="sm"
+        className="mt-2"
+        pending={busy}
+        pendingLabel={t("running")}
         onClick={() => void run()}
-        className="mt-2 flex items-center gap-1.5 rounded bg-brand px-3 py-1.5 text-sm text-white disabled:opacity-50"
       >
         <Play className="h-3.5 w-3.5" aria-hidden />
-        {busy ? t("running") : picked.length > 1 ? t("run") : t("runOne")}
-      </button>
+        {picked.length > 1 ? t("run") : t("runOne")}
+      </Button>
 
       {replies ? (
         <div className="mt-4 space-y-2">
@@ -146,7 +196,7 @@ export function TutorPreviewPanel() {
                     picker does, so the same face heads the column. */}
                 <div className="flex items-center gap-2">
                   <TutorFace
-                    avatar={tutors.find((tu) => tu.id === r.tutorId)?.persona?.avatar}
+                    avatar={(tutors ?? []).find((tu) => tu.id === r.tutorId)?.persona?.avatar}
                     name={r.displayName ?? r.tutorId}
                   />
                   <div className="min-w-0">

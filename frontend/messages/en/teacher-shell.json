@@ -16,7 +16,9 @@
     "title": "Settings",
     "elsewhereTitle": "Everything else lives where it applies",
     "elsewhereBody": "Per-class settings (the tutor, voice and read-aloud language) are on each class page; per-activity settings (language, elements, materials) are in the activity builder. The defaults above are only a starting point for those — they never override them.",
-    "goToClasses": "Go to classes"
+    "goToClasses": "Go to classes",
+    "lensesMoved": "The judge lenses have moved to Tutors › Research tools.",
+    "lensesMovedLink": "Go to the research tools"
   },
   "TeacherClientShell": {
     "loading": "Loading…",
@@ -166,8 +168,8 @@
   },
   "LensConfigPanel": {
     "loadFailed": "Couldn't load lens configs.",
-    "title": "Research · judge lenses",
-    "intro": "Competency-rubric judges (1.1.57) — researcher-only; nothing here is shown to teachers or students. Prompt edits bump the version, and every score is stamped with the version that produced it.",
+    "title": "Judge lenses",
+    "intro": "Competency-rubric judges — researcher-only; nothing here is shown to teachers or students. Prompt edits bump the version, and every score is stamped with the version that produced it.",
     "loading": "Loading lenses…",
     "saveFailed": "Save failed.",
     "lensOn": "Lens enabled.",
@@ -197,7 +199,8 @@
     "resultMeta": "{lens} · {version} · {model} — evidence: student-initiated {student}, tutor-prompted {tutor} (excluded)",
     "abstained": "<b>Abstained</b> — {reason}. This is the designed outcome for an uncalibrated or evidence-less session, not an error.",
     "defaultPrompt": "Default prompt — click to view",
-    "defaultPromptInUse": "Default prompt (currently in use) — click to view"
+    "defaultPromptInUse": "Default prompt (currently in use) — click to view",
+    "loadWhat": "The judge lenses"
   },
   "TeacherSignInPage": {
     "googleFailed": "Could not sign in with Google. If your school does not use Google accounts, use “Sign in with email” below instead — you may need a password set up first. ({detail})",

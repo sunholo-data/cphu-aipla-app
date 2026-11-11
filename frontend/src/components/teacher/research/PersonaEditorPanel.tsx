@@ -19,6 +19,9 @@ import { Plus, Share2, Trash2 } from "lucide-react";
 
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
 import { AuthorLine } from "@/components/teacher/research/AuthorLine";
+import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm";
+import { LoadError } from "@/components/ui/load-error";
 import { AVATAR_CHOICES } from "@/lib/avatarManifest";
 import {
   createCustomPersona,
@@ -59,11 +62,17 @@ export function PersonaEditorPanel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const confirm = useConfirm();
 
   const load = useCallback(() => {
     listCustomPersonas()
-      .then((b) => setRows(b.personas))
-      .catch(() => setFailed(true));
+      .then((b) => {
+        setRows(b.personas);
+        setFailed(false);
+      })
+      .catch(() => setFailed(true))
+      .finally(() => setRetrying(false));
   }, []);
 
   useEffect(() => {
@@ -102,6 +111,7 @@ export function PersonaEditorPanel() {
 
   const toggleShare = async (p: CustomPersona) => {
     setBusy(true);
+    setError(null);
     try {
       await setCustomPersonaVisibility(p.id, visibilityOf(p) === "shared" ? "private" : "shared");
       load();
@@ -113,8 +123,14 @@ export function PersonaEditorPanel() {
   };
 
   const remove = async (p: CustomPersona) => {
-    if (!window.confirm(t("confirmRemove", { name: p.name }))) return;
+    const ok = await confirm({
+      title: t("confirmRemove", { name: p.name }),
+      confirmLabel: t("remove"),
+      destructive: true,
+    });
+    if (!ok) return;
     setBusy(true);
+    setError(null);
     try {
       await deleteCustomPersona(p.id);
       load();
@@ -125,7 +141,18 @@ export function PersonaEditorPanel() {
     }
   };
 
-  if (failed) return <p className="text-sm text-muted-foreground">{t("failed")}</p>;
+  if (failed && rows === null) {
+    return (
+      <LoadError
+        what={t("loadWhat")}
+        retrying={retrying}
+        onRetry={() => {
+          setRetrying(true);
+          load();
+        }}
+      />
+    );
+  }
   if (rows === null) return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
 
   const promptIgnored = Boolean(draft?.ttsVoice) && !PROMPTABLE.test(draft?.ttsVoice ?? "");
@@ -231,17 +258,19 @@ export function PersonaEditorPanel() {
             </p>
           ) : null}
 
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={busy || !draft.name.trim()}
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={!draft.name.trim()}
+              pending={busy}
+              pendingLabel={t("saving")}
               onClick={() => void save()}
-              className="rounded border bg-primary px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
             >
               {t("save")}
-            </button>
+            </Button>
             <button
               type="button"
               onClick={() => {
@@ -257,6 +286,13 @@ export function PersonaEditorPanel() {
       ) : null}
 
       <div className="mt-4 flex flex-col gap-2">
+        {/* A failed share or delete used to set an error shown only inside the
+            open form — with no form open, it said nothing. */}
+        {error && !draft ? (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
         {rows.length === 0 ? <p className="text-sm text-muted-foreground">{t("none")}</p> : null}
         {rows.map((p) => (
           <div key={p.id} className="flex items-start justify-between gap-3 rounded border px-3 py-2">

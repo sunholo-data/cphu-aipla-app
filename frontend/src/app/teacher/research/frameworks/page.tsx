@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { BookOpen, RotateCcw, ShieldAlert } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { BookOpen } from "lucide-react";
 
 import {
   type FrameworkStructure,
@@ -10,7 +10,7 @@ import {
   revertFrameworkInstruction,
   saveFrameworkStructure,
 } from "@/lib/teacherApi";
-import { EmptyState } from "@/components/teacher/ui/EmptyState";
+import { LoadError } from "@/components/ui/load-error";
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
 import { TeacherTabs } from "@/components/teacher/ui/TeacherTabs";
@@ -23,10 +23,12 @@ import { PublishedApproachList } from "@/components/teacher/research/PublishedAp
 import { TutorPreviewPanel } from "@/components/teacher/research/TutorPreviewPanel";
 import { TutorCrossviewPanel } from "@/components/teacher/research/TutorCrossviewPanel";
 import { CalibrationSetPanel } from "@/components/teacher/research/CalibrationSetPanel";
+import { LensConfigPanel } from "@/components/teacher/research/LensConfigPanel";
 import { TutorCopilot } from "./_TutorCopilot";
 import type { TutorProposal } from "./tutorCopilotProposal";
 import { TutorApproachPanel } from "@/components/teacher/research/TutorApproachPanel";
 import { useT } from "@/i18n";
+import { useUrlTab } from "@/hooks/useUrlTab";
 
 /** UI copy, lifted out of JSX (1.1.108 M4) so a translator can reach it.
  *
@@ -39,6 +41,15 @@ import { useT } from "@/i18n";
 // Copy lives in messages/*/teacher-research.json — 1.1.108.
 
 type Status = "loading" | "ok" | "forbidden" | "error";
+
+/** The researcher tier's four jobs (UI sweep 2026-11-11, was seven tabs):
+ *  read and edit the approaches · make tutors and say what each teaches with ·
+ *  try them · the research instruments (usage, calibration, judge lenses). */
+const RESEARCHER_TABS = ["approaches", "tutors", "try", "research"] as const;
+/** The teacher tier's three (was five): try them first, then read and write
+ *  approaches, then make tutors and their faces. */
+const TEACHER_TABS = ["try", "approaches", "tutors"] as const;
+type Tab = (typeof RESEARCHER_TABS)[number];
 
 /** There is one editor (1.1.110).
  *
@@ -84,17 +95,32 @@ export default function ResearchFrameworksPage() {
    *  researcher-gated PUT .../structure stays the only path to a saved change,
    *  so the live preview a researcher signs off is what gets stored. */
   const [copilotNote, setCopilotNote] = useState<string | null>(null);
-  /** Which tab is open. The page grew five panels and seven framework cards in
-   *  one sprint and became a single scroll nobody could navigate; tabs give
-   *  each job a place. Panels stay MOUNTED behind `hidden`, so a half-written
-   *  approach survives a glance at another tab. */
-  const [tab, setTab] = useState("approaches");
-  /** Which of the published approaches the Approaches tab is showing. They used
-   *  to be seven full cards stacked in one pane, so "which one am I editing?"
-   *  took a scroll to answer; they are a rail and a detail pane now. */
-  const [approachId, setApproachId] = useState<string | null>(null);
+  /** Which tab is open, kept in `?tab=` so a refresh, Back or a link in a
+   *  guide lands where the reader was. The tier is only known once the list
+   *  has answered (a 403 IS the teacher branch), so the allowed set and the
+   *  default follow the status; an unknown value falls back rather than
+   *  failing. Panels stay MOUNTED behind `hidden`, so a half-written approach
+   *  survives a glance at another tab. */
+  const teacherTier = status === "forbidden";
+  const [tab, setTab] = useUrlTab<Tab>(
+    "tab",
+    teacherTier ? TEACHER_TABS : RESEARCHER_TABS,
+    teacherTier ? "try" : "approaches",
+  );
+  /** Which of the published approaches the Approaches tab is showing, kept in
+   *  `?approach=` (the same id space the conversations page deep-links by).
+   *  They used to be seven full cards stacked in one pane, so "which one am I
+   *  editing?" took a scroll to answer; they are a rail and a detail pane now.
+   *  The id is validated against what actually loaded rather than trusted: a
+   *  framework can leave the list, and an old link must still open the page. */
+  const [activeApproach, setApproachId] = useUrlTab<string>(
+    "approach",
+    frameworks.map((f) => f.id),
+    frameworks[0]?.id ?? "",
+  );
 
-  useEffect(() => {
+  const [retrying, setRetrying] = useState(false);
+  const loadFrameworks = useCallback(() => {
     let cancelled = false;
     listTeachingFrameworks()
       .then((rows) => {
@@ -106,11 +132,16 @@ export default function ResearchFrameworksPage() {
         if (cancelled) return;
         const forbidden = err instanceof Error && err.message.includes(" 403");
         setStatus(forbidden ? "forbidden" : "error");
+      })
+      .finally(() => {
+        if (!cancelled) setRetrying(false);
       });
     return () => {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => loadFrameworks(), [loadFrameworks]);
 
   const replace = (updated: TeachingFrameworkPayload) =>
     setFrameworks((rows) => rows.map((r) => (r.id === updated.id ? updated : r)));
@@ -157,12 +188,6 @@ export default function ResearchFrameworksPage() {
       setCopilotNote(t("copilotBehaviourNote", { name: proposal.constructName }));
     }
   };
-
-  /** The rail's selection, but never a dangling one: a saved edit replaces the
-   *  row, and a framework can leave the list entirely, so the id is validated
-   *  against what actually loaded rather than trusted. */
-  const activeApproach =
-    frameworks.find((f) => f.id === approachId)?.id ?? frameworks[0]?.id ?? "";
 
   const approachCard = (fw: TeachingFrameworkPayload) => {
     const isOpen = openId === fw.id;
@@ -276,7 +301,7 @@ export default function ResearchFrameworksPage() {
     >
       {status === "loading" ? (
         <p className="text-sm text-muted-foreground">{t("loading")}</p>
-            ) : status === "forbidden" ? (
+      ) : status === "forbidden" ? (
         /* Not a wall for a TEACHER (1.1.110). The published frameworks are
            researcher-maintained, so listing them 403s — but a teacher's own
            approaches are the one thing on this screen they DO own, and showing
@@ -285,40 +310,54 @@ export default function ResearchFrameworksPage() {
           <p className="text-sm text-muted-foreground">{t("teacherTierNote")}</p>
           <TeacherTabs
             ariaLabel={t("title")}
-            active={tab === "approaches" ? "try" : tab}
-            onChange={setTab}
+            active={tab}
+            onChange={(id) => setTab(id as Tab)}
             tabs={[
               // "Try them" leads for a teacher: the 09-09 ask was the tutor
               // library as teaching training, and that is the thing they came
               // for. Authoring is the second question, not the first.
               { id: "try", label: t("tabTry"), content: <TutorPreviewPanel /> },
               // TUTOR-2 M1 — READING the seven, which a teacher could not do at
-              // all before. 1.1.135 requires a teacher building a tutor to pick
-              // an approach somebody can read; an invisible one cannot be read.
-              // It sits between trying and writing because that is the order of
-              // the questions: what do these do, what are they made of, can I
-              // write my own.
-              { id: "published", label: t("tabApproaches"), content: <PublishedApproachList /> },
-              { id: "yours", label: t("tabYours"), content: <CustomApproachPanel /> },
-              // TUTOR-2 M2 — where a tutor is MADE. The home
-              // TutorVariantDialog's own docstring asked for on 2026-09-11
-              // when it was dropped from the class settings page: "a class is
-              // where you CHOOSE a tutor; authoring a research instrument is a
-              // different job done at a different moment".
-              { id: "tutors", label: t("tabTutors"), content: <MyTutorsPanel /> },
-              // TUTOR-2 M3/M4/M5 — the face and the voice. Beside the tutors
-              // because they are the two halves of one answer to "make your
-              // own tutor": the approach says how it teaches, the persona says
-              // who is teaching.
-              { id: "faces", label: t("tabFaces"), content: <PersonaEditorPanel /> },
+              // all before, then writing their own below them: the order of
+              // the questions (what are these made of, can I write my own), and
+              // the order the researcher tier already uses. Two tabs until the
+              // UI sweep (2026-11-11).
+              {
+                id: "approaches",
+                label: t("tabApproaches"),
+                content: (
+                  <>
+                    <PublishedApproachList />
+                    <CustomApproachPanel />
+                  </>
+                ),
+              },
+              // TUTOR-2 M2–M5 — where a tutor is MADE, then its face and voice:
+              // two halves of one answer to "make your own tutor" (the approach
+              // says how it teaches, the persona who is teaching).
+              {
+                id: "tutors",
+                label: t("tabTutors"),
+                content: (
+                  <>
+                    <MyTutorsPanel />
+                    <PersonaEditorPanel />
+                  </>
+                ),
+              },
             ]}
           />
         </div>
       ) : status === "error" ? (
-        <EmptyState
-          icon={ShieldAlert}
-          title={t("errorTitle")}
-          description={t("errorBody")}
+        /* A failed read is not an empty catalogue. Say what failed and offer
+           the retry here, rather than "reload the page". */
+        <LoadError
+          what={t("loadWhat")}
+          retrying={retrying}
+          onRetry={() => {
+            setRetrying(true);
+            loadFrameworks();
+          }}
         />
       ) : (
         <div className="flex flex-col gap-4">
@@ -353,7 +392,7 @@ export default function ResearchFrameworksPage() {
           <TeacherTabs
             ariaLabel={t("title")}
             active={tab}
-            onChange={setTab}
+            onChange={(id) => setTab(id as Tab)}
             tabs={[
               {
                 id: "approaches",
@@ -361,35 +400,53 @@ export default function ResearchFrameworksPage() {
                 count: frameworks.length,
                 content: approachesPanel,
               },
-              {
-                id: "assign",
-                label: t("tabAssign"),
-                content: (
-                  <TutorApproachPanel
-                    frameworks={frameworks.map((f) => ({
-                      id: f.id,
-                      // The teacher-facing plain name lives on /api/tutors; here
-                      // the label is what we have, and a researcher knows the
-                      // theory names.
-                      name: f.label,
-                      isPlaceholder: f.status === "placeholder",
-                    }))}
-                  />
-                ),
-              },
-              { id: "try", label: t("tabTry"), content: <TutorPreviewPanel /> },
+              // Everything about a TUTOR in one tab (UI sweep 2026-11-11; was
+              // three): make one, say what each teaches with, give it a face.
               // TUTOR-2 M2 — the SAME authoring panel the teacher tier gets.
               // One surface, graded by role: `canEdit` is computed per row on
               // the server, so a researcher simply sees more rows as theirs to
               // act on rather than meeting a different component.
-              { id: "tutors", label: t("tabTutors"), content: <MyTutorsPanel /> },
-              { id: "faces", label: t("tabFaces"), content: <PersonaEditorPanel /> },
-              // Researcher-only: a cross-tenancy read of every teacher's work
-              // (1.1.91 M4). The teacher tier never renders it.
-              { id: "usage", label: t("tabUsage"), content: <TutorCrossviewPanel /> },
-              // Researcher-only: every researcher's corrections of the fidelity
-              // judge as a calibration set + agreement (1.1.148, M 2026-10-08).
-              { id: "calibration", label: t("tabCalibration"), content: <CalibrationSetPanel /> },
+              {
+                id: "tutors",
+                label: t("tabTutors"),
+                content: (
+                  <>
+                    <MyTutorsPanel />
+                    <TutorApproachPanel
+                      frameworks={frameworks.map((f) => ({
+                        id: f.id,
+                        // The teacher-facing plain name lives on /api/tutors; here
+                        // the label is what we have, and a researcher knows the
+                        // theory names.
+                        name: f.label,
+                        isPlaceholder: f.status === "placeholder",
+                      }))}
+                    />
+                    <PersonaEditorPanel />
+                  </>
+                ),
+              },
+              { id: "try", label: t("tabTry"), content: <TutorPreviewPanel /> },
+              // The research instruments together (UI sweep 2026-11-11). The
+              // judge lenses used to live on /teacher/settings while their
+              // calibration lived here: one job on two unrelated pages.
+              {
+                id: "research",
+                label: t("tabResearch"),
+                content: (
+                  <>
+                    {/* A cross-tenancy read of every teacher's work (1.1.91 M4),
+                        with links to each approach's conversations. */}
+                    <TutorCrossviewPanel />
+                    {/* Every researcher's corrections of the fidelity judge as a
+                        calibration set + agreement (1.1.148, M 2026-10-08). */}
+                    <CalibrationSetPanel />
+                    {/* RUBRIC-1 M3 — the judges themselves, moved from Settings.
+                        Self-gated on the researcher claim as well. */}
+                    <LensConfigPanel />
+                  </>
+                ),
+              },
             ]}
           />
           {/* The fourth co-pilot mount (1.1.91 M2), on the surface it edits.

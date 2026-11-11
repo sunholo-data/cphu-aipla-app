@@ -143,4 +143,11 @@ describe("who made a face (1.1.150)", () => {
     expect(line).toHaveTextContent("pilot.teacher@example.dk");
     expect(line).not.toHaveTextContent("Made by you");
   });
+
+  it("says the faces could not be read, with a retry", async () => {
+    vi.spyOn(teacherApi, "listCustomPersonas").mockRejectedValue(new Error("500"));
+    render(<PersonaEditorPanel />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("The faces and voices could not be loaded");
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
+  });
 });

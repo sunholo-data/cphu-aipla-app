@@ -231,4 +231,17 @@ describe("whose tutor it is (1.1.150)", () => {
     render(<MyTutorsPanel />);
     expect(await screen.findByText("Its approach draws on: Brousseau (1997); Artigue (2009)")).toBeInTheDocument();
   });
+
+  it("says the tutors could not be read, with a retry that reads them again", async () => {
+    const user = userEvent.setup();
+    const read = vi
+      .spyOn(teacherApi, "fetchTutorCatalogue")
+      .mockRejectedValueOnce(new Error("500"))
+      .mockResolvedValueOnce(catalogue([tutor()]));
+    render(<MyTutorsPanel />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("The tutors could not be loaded");
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(read).toHaveBeenCalledTimes(2);
+  });
 });

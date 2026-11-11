@@ -16,7 +16,9 @@
     "title": "Indstillinger",
     "elsewhereTitle": "Alt andet ligger dér, hvor det bruges",
     "elsewhereBody": "Indstillinger for den enkelte klasse (tutoren, stemmen og oplæsningssproget) ligger på hver klasses side; indstillinger for den enkelte aktivitet (sprog, elementer, materialer) ligger i aktivitetsbyggeren. Standardværdierne ovenfor er kun et udgangspunkt — de overskriver dem aldrig.",
-    "goToClasses": "Gå til klasser"
+    "goToClasses": "Gå til klasser",
+    "lensesMoved": "Bedømmelseslinserne er flyttet til Tutorer › Forskningsværktøjer.",
+    "lensesMovedLink": "Gå til forskningsværktøjerne"
   },
   "TeacherClientShell": {
     "loading": "Indlæser…",
@@ -166,8 +168,8 @@
   },
   "LensConfigPanel": {
     "loadFailed": "Kunne ikke hente bedømmelseslinserne.",
-    "title": "Forskning · bedømmelseslinser",
-    "intro": "Kompetencerubrik-bedømmere (1.1.57) — kun for forskere; intet her vises for lærere eller elever. Når du ændrer en prompt, får den et nyt versionsnummer, og hver score stemples med den version, der gav den.",
+    "title": "Bedømmelseslinser",
+    "intro": "Kompetencerubrik-bedømmere — kun for forskere; intet her vises for lærere eller elever. Når du ændrer en prompt, får den et nyt versionsnummer, og hver score stemples med den version, der gav den.",
     "loading": "Henter linser…",
     "saveFailed": "Kunne ikke gemme.",
     "lensOn": "Linsen er slået til.",
@@ -197,7 +199,8 @@
     "resultMeta": "{lens} · {version} · {model} — belæg: elev-initieret {student}, tutor-foranlediget {tutor} (udeladt)",
     "abstained": "<b>Afstod</b> — {reason}. Det er det tilsigtede udfald for en session uden kalibrering eller uden belæg, ikke en fejl.",
     "defaultPrompt": "Standardprompt — klik for at se den",
-    "defaultPromptInUse": "Standardprompt (bruges nu) — klik for at se den"
+    "defaultPromptInUse": "Standardprompt (bruges nu) — klik for at se den",
+    "loadWhat": "Bedømmelseslinserne"
   },
   "TeacherSignInPage": {
     "googleFailed": "Du kunne ikke logge ind med Google. Hvis din skole ikke bruger Google-konti, så brug “Log ind med e-mail” nedenfor i stedet — du skal måske først have oprettet en adgangskode. ({detail})",

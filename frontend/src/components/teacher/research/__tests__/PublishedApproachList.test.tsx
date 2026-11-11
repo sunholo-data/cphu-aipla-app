@@ -84,5 +84,7 @@ describe("PublishedApproachList", () => {
     vi.spyOn(teacherApi, "fetchApproachCatalogue").mockRejectedValue(new Error("read approach catalogue: 403"));
     render(<PublishedApproachList />);
     await waitFor(() => expect(screen.getByText(/could not be loaded/i)).toBeInTheDocument());
+    // …and offers to read it again rather than leaving a dead end.
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
   });
 });
