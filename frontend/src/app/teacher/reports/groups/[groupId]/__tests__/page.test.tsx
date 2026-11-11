@@ -339,4 +339,13 @@ describe("/teacher/reports/groups/[groupId] — breadcrumb back to its lesson (1
     await waitFor(() => expect(screen.queryByText(/loading report/i)).not.toBeInTheDocument());
     expect(screen.queryByTestId("lesson-breadcrumb")).toBeNull();
   });
+
+  // UI sweep 2026-11-11 — the crumb named a page that does not exist
+  // ("Dashboard"); the nav calls the class list "Classes".
+  it("names the class list 'Classes', as the nav does", async () => {
+    fetchReport.mockResolvedValueOnce(LIVE_REPORT);
+    render(<TeacherGroupReportPage />);
+    expect(await screen.findByRole("link", { name: "Classes" })).toHaveAttribute("href", "/teacher/classes");
+    expect(screen.queryByText("Dashboard")).not.toBeInTheDocument();
+  });
 });

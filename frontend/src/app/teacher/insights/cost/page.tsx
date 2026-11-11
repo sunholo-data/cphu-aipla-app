@@ -3,8 +3,12 @@
  *
  * Researcher-only: the backend `/api/insights/cost` 403s without the
  * researcher claim, and the page renders an access notice for
- * non-researchers rather than firing the call. Totals + per-cohort +
- * per-model + per-class spend across every class.
+ * non-researchers rather than firing the call. Totals + smart-tier share +
+ * per-cohort + per-model (+ voice) spend across every class.
+ *
+ * Per-CLASS spend left this page in the UI sweep (2026-11-11): it is the spend
+ * column of Insights → All classes, sortable beside engagement, which a
+ * researcher sees for every teacher's classes. A line here points to it.
  */
 
 "use client";
@@ -15,6 +19,8 @@ import { AlertTriangle, ArrowLeft } from "lucide-react";
 
 import { InsightsTabs } from "@/components/teacher/insights/InsightsTabs";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
+import { LoadError } from "@/components/ui/load-error";
+import { PageSkeleton } from "@/components/ui/skeleton";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
 import {
   type CostInsightsPayload,
@@ -36,6 +42,7 @@ export default function TeacherCostInsightsPage() {
   const [payload, setPayload] = useState<CostInsightsPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reload, setReload] = useState(0);
 
   useEffect(() => {
     if (!isResearcher) {
@@ -58,14 +65,14 @@ export default function TeacherCostInsightsPage() {
     return () => {
       cancelled = true;
     };
-  }, [isResearcher, period]);
+  }, [isResearcher, period, reload]);
 
   return (
     <TeacherPage
       breadcrumb={
         <Link href="/teacher/classes" className="flex w-fit items-center gap-1 hover:text-foreground">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          {t("dashboard")}
+          {t("classesCrumb")}
         </Link>
       }
       title={t("title")}
@@ -94,11 +101,9 @@ export default function TeacherCostInsightsPage() {
           {t("researchersOnly")}
         </div>
       ) : error ? (
-        <div role="alert" className="rounded border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
-          {error}
-        </div>
+        <LoadError what={t("whatCost")} onRetry={() => setReload((n) => n + 1)} retrying={loading} />
       ) : loading && !payload ? (
-        <div className="text-sm text-muted-foreground">{t("loading")}</div>
+        <PageSkeleton rows={3} label={t("loading")} />
       ) : payload ? (
         <div className="flex flex-col gap-6">
           <div className="flex items-baseline gap-3">
@@ -128,15 +133,12 @@ export default function TeacherCostInsightsPage() {
               rows={payload.by_voice_kind.map((v) => ({ label: v.kind.toUpperCase(), eur: v.eur }))}
             />
           ) : null}
-          <SpendTable
-            id="class"
-            title={t("byClass")}
-            headLabel={t("class")}
-            rows={payload.per_class.map((c) => ({
-              label: `${c.name} (${c.cohort})`,
-              eur: c.eur,
-            }))}
-          />
+          <p className="text-sm text-muted-foreground" data-testid="by-class-moved">
+            {t("byClassMoved")}{" "}
+            <Link href={`/teacher/insights/classes?scope=all&spend=${period}`} className="font-medium text-primary hover:underline">
+              {t("byClassLink")}
+            </Link>
+          </p>
         </div>
       ) : null}
     </TeacherPage>

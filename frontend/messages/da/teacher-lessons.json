@@ -61,17 +61,18 @@
   "TeacherLessonsPage": {
     "title": "Lektioner",
     "subtitle": "Efter en lektion: hvad hele klassen lavede, før den enkelte gruppe.",
-    "dashboard": "Oversigt",
+    "classesCrumb": "Klasser",
     "classLabel": "Klasse",
     "noClasses": "Du har endnu ingen klasser.",
     "noLessons": "Ingen lektioner endnu. En lektion vises, når grupper har talt med tutoren i en aktivitet.",
     "groups": "{n, plural, one {# gruppe} other {# grupper}}",
-    "open": "Åbn",
     "loading": "Henter lektioner…",
-    "failed": "Lektionerne kunne ikke hentes lige nu."
+    "whatClasses": "Klasserne",
+    "whatLessons": "Lektionerne"
   },
   "TeacherLessonPage": {
     "lessons": "Lektioner",
+    "whatLesson": "Lektionen",
     "subtitle": "{date} · {n, plural, one {# gruppe} other {# grupper}}",
     "missingDate": "Linket mangler lektionens dato."
   },

@@ -25,17 +25,25 @@ const ownClass = { classId: "c-1", name: "Fysik", demo: false, groupCodes: ["bri
 // tolerates its absence, so the test supplies a plain in-memory one rather
 // than relying on the runner's.
 const store = new Map<string, string>();
+const session = new Map<string, string>();
+function memoryStorage(m: Map<string, string>) {
+  return {
+    getItem: (k: string) => m.get(k) ?? null,
+    setItem: (k: string, v: string) => void m.set(k, v),
+    removeItem: (k: string) => void m.delete(k),
+  };
+}
 beforeEach(() => {
   store.clear();
-  Object.defineProperty(window, "localStorage", {
-    configurable: true,
-    value: {
-      getItem: (k: string) => store.get(k) ?? null,
-      setItem: (k: string, v: string) => void store.set(k, v),
-      removeItem: (k: string) => void store.delete(k),
-    },
-  });
+  session.clear();
+  Object.defineProperty(window, "localStorage", { configurable: true, value: memoryStorage(store) });
+  Object.defineProperty(window, "sessionStorage", { configurable: true, value: memoryStorage(session) });
 });
+
+/** The card opens as one line; "Continue" expands the checklist. */
+async function expand() {
+  fireEvent.click(await screen.findByRole("button", { name: /continue/i }));
+}
 afterEach(() => vi.restoreAllMocks());
 
 /**
@@ -49,6 +57,8 @@ describe("GettingStartedCard", () => {
     render(<GettingStartedCard onCreateClass={onCreate} />);
     const card = await screen.findByTestId("getting-started-card");
     expect(card).toHaveTextContent("0 of 6");
+    expect(screen.getByTestId("getting-started-next")).toHaveTextContent("Next step: Create a class");
+    await expand();
     fireEvent.click(screen.getByRole("button", { name: "New class" }));
     expect(onCreate).toHaveBeenCalled();
   });
@@ -59,6 +69,7 @@ describe("GettingStartedCard", () => {
     );
     render(<GettingStartedCard onCreateClass={() => {}} />);
     await screen.findByTestId("getting-started-card");
+    await expand();
     expect(screen.getByTestId("step-createClass")).toHaveAttribute("data-done", "true");
     expect(screen.getByTestId("step-mintCode")).toHaveAttribute("data-done", "true");
     expect(screen.getByTestId("step-addActivity")).toHaveAttribute("data-done", "false");
@@ -77,6 +88,7 @@ describe("GettingStartedCard", () => {
     vi.spyOn(teacherApi, "fetchTeacherStage").mockResolvedValue(stage({ stage: "waiting", classes: [ownClass] }));
     render(<GettingStartedCard onCreateClass={() => {}} />);
     await screen.findByTestId("getting-started-card");
+    await expand();
     fireEvent.click(screen.getByRole("button", { name: /copy link/i }));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(`${window.location.origin}/group?code=bright-fox-12`));
   });
@@ -92,6 +104,39 @@ describe("GettingStartedCard", () => {
     render(<GettingStartedCard onCreateClass={() => {}} />);
     await waitFor(() => expect(teacherApi.fetchTeacherStage).toHaveBeenCalledTimes(2));
     expect(screen.queryByTestId("getting-started-card")).not.toBeInTheDocument();
+  });
+
+  // UI sweep 2026-11-11 — one line until the teacher asks for the list.
+  it("opens compact: the step list is hidden until Continue, and every step keeps its action", async () => {
+    vi.spyOn(teacherApi, "fetchTeacherStage").mockResolvedValue(stage({ stage: "no_code", classes: [ownClass] }));
+    render(<GettingStartedCard onCreateClass={() => {}} />);
+    await screen.findByTestId("getting-started-card");
+    const toggle = screen.getByRole("button", { name: /continue/i });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("link", { name: "Open the class" })).not.toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(screen.getByRole("button", { name: /show less/i })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("link", { name: "Open the class" })).toHaveAttribute("href", "/teacher/classes/c-1");
+    expect(screen.getByRole("link", { name: "Set up a class" })).toHaveAttribute("href", "/guides/t1-set-up-a-class");
+  });
+
+  it("before live, Hide lasts for this browser session only — the checklist comes back later", async () => {
+    vi.spyOn(teacherApi, "fetchTeacherStage").mockResolvedValue(stage({ stage: "waiting", classes: [ownClass] }));
+    const { unmount } = render(<GettingStartedCard onCreateClass={() => {}} />);
+    await screen.findByTestId("getting-started-card");
+    fireEvent.click(screen.getByRole("button", { name: /hide/i }));
+    expect(screen.queryByTestId("getting-started-card")).not.toBeInTheDocument();
+    expect(store.size).toBe(0);
+    unmount();
+    // Same session: still hidden.
+    const second = render(<GettingStartedCard onCreateClass={() => {}} />);
+    await waitFor(() => expect(teacherApi.fetchTeacherStage).toHaveBeenCalledTimes(2));
+    expect(screen.queryByTestId("getting-started-card")).not.toBeInTheDocument();
+    second.unmount();
+    // A new session: back.
+    session.clear();
+    render(<GettingStartedCard onCreateClass={() => {}} />);
+    expect(await screen.findByTestId("getting-started-card")).toBeInTheDocument();
   });
 
   it("renders nothing when the stage cannot be read — no card beats a wrong card", async () => {

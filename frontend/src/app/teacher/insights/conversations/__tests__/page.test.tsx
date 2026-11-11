@@ -8,6 +8,10 @@ import * as teacherApi from "@/lib/teacherApi";
 import type { ChatLogSession, ChatLogTab, ChatLogTurn } from "@/lib/teacherApi";
 import ResearchLogsPage from "@/app/teacher/insights/conversations/page";
 
+// The active approach lives in `?approach=` (UI sweep 2026-11-11).
+vi.mock("next/navigation", async () => (await import("@/test/nextNavigationMock")).navigationModule);
+import { nav } from "@/test/nextNavigationMock";
+
 // 1.1.108 — teacher screens follow the person's language, Danish by default.
 // These tests assert the English copy, so they render inside an English
 // context; the Danish default has its own assertion in teacherResearchLocale.test.tsx.
@@ -80,6 +84,7 @@ function turn(overrides: Partial<ChatLogTurn> = {}): ChatLogTurn {
 }
 
 beforeEach(() => {
+  nav.reset("/teacher/insights/conversations");
   vi.spyOn(teacherApi, "listTeachingFrameworks").mockResolvedValue([]);
   // 1.1.136 M2 — the final-work panel reads the activity; by default there is
   // none, so the panel renders nothing and the transcript tests are unchanged.
@@ -151,8 +156,38 @@ describe("researcher chat-log lens", () => {
 
     render(<ResearchLogsPage />);
 
-    expect(await screen.findByText(/could not read the conversation store/i)).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent(/conversation archive could not be loaded/i);
+    expect(screen.getByText(/failed read, not an empty result/i)).toBeInTheDocument();
     expect(screen.queryByRole("tab")).not.toBeInTheDocument();
+  });
+
+  it("retries the archive read from the failed state", async () => {
+    const tabsSpy = vi
+      .spyOn(teacherApi, "listChatLogTabs")
+      .mockRejectedValueOnce(new Error("chat-log store unreadable: 503 failed read"))
+      .mockResolvedValueOnce({ tabs: [tab()], unassignedKey: UNASSIGNED });
+    vi.spyOn(teacherApi, "listChatLogSessions").mockResolvedValue([session()]);
+
+    render(<ResearchLogsPage />);
+    await userEvent.click(await screen.findByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("tab", { name: /authentic-dialogue/ })).toBeInTheDocument();
+    expect(tabsSpy).toHaveBeenCalledTimes(2);
+  });
+
+  it("a failed read of one tab's conversations shows Retry, not 'no conversations'", async () => {
+    vi.spyOn(teacherApi, "listChatLogTabs").mockResolvedValue({ tabs: [tab()], unassignedKey: UNASSIGNED });
+    const list = vi
+      .spyOn(teacherApi, "listChatLogSessions")
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValueOnce([session()]);
+
+    render(<ResearchLogsPage />);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(/conversations for this approach could not be loaded/i);
+    expect(screen.queryByText(/No conversations under this approach yet/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("henrik")).toBeInTheDocument();
+    expect(list).toHaveBeenCalledTimes(2);
   });
 
   it("shows the access-required state for a non-researcher", async () => {
@@ -318,6 +353,40 @@ describe("researcher chat-log lens", () => {
     await waitFor(() =>
       expect(list).toHaveBeenLastCalledWith({ framework: "esru" }, 100),
     );
+    // …and the choice is in the URL, so Back and a shared link keep it.
+    expect(nav.search.get("approach")).toBe("esru");
+  });
+
+  it("opens on the approach a link names (?approach=), and falls back to the first for an unknown one", async () => {
+    vi.spyOn(teacherApi, "listChatLogTabs").mockResolvedValue({
+      tabs: [tab(), tab({ framework_id: "esru", sessions: 2, turns: 9 })],
+      unassignedKey: UNASSIGNED,
+    });
+    const list = vi.spyOn(teacherApi, "listChatLogSessions").mockResolvedValue([session()]);
+
+    nav.reset("/teacher/insights/conversations", "approach=esru");
+    const first = render(<ResearchLogsPage />);
+    expect(await screen.findByRole("tab", { name: /esru/i })).toHaveAttribute("aria-selected", "true");
+    await waitFor(() => expect(list).toHaveBeenLastCalledWith({ framework: "esru" }, 100));
+    first.unmount();
+
+    nav.reset("/teacher/insights/conversations", "approach=gone");
+    render(<ResearchLogsPage />);
+    expect(await screen.findByRole("tab", { name: /authentic-dialogue/ })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("moves focus to the transcript when Read is pressed", async () => {
+    vi.spyOn(teacherApi, "listChatLogTabs").mockResolvedValue({ tabs: [tab()], unassignedKey: UNASSIGNED });
+    vi.spyOn(teacherApi, "listChatLogSessions").mockResolvedValue([session()]);
+    vi.spyOn(teacherApi, "getChatLogTimeline").mockResolvedValue({
+      sessionId: session().session_id ?? "",
+      workStatus: "ok",
+      items: [],
+    });
+
+    render(<ResearchLogsPage />);
+    await userEvent.click(await screen.findByRole("button", { name: /read/i }));
+    await waitFor(() => expect(screen.getByRole("heading", { name: /Transcript · 9f2927f6/ })).toHaveFocus());
   });
 
   it("shows a framework with no conversations at zero rather than hiding it", async () => {
@@ -349,10 +418,30 @@ describe("researcher chat-log lens", () => {
     URL.revokeObjectURL = vi.fn();
 
     render(<ResearchLogsPage />);
-    await userEvent.click(await screen.findByRole("button", { name: /export csv/i }));
+    // CSV and JSONL sit behind one "Export" menu now.
+    await userEvent.click(await screen.findByRole("button", { name: /^export/i }));
+    const items = screen.getAllByRole("menuitem");
+    expect(items.map((i) => i.textContent)).toEqual([
+      expect.stringContaining("CSV"),
+      expect.stringContaining("JSONL"),
+    ]);
+    await userEvent.click(items[0]);
 
     await waitFor(() =>
       expect(exporter).toHaveBeenCalledWith({ framework: "authentic-dialogue" }, "csv"),
     );
+  });
+
+  it("exports JSONL from the same menu, and announces a failed export", async () => {
+    vi.spyOn(teacherApi, "listChatLogTabs").mockResolvedValue({ tabs: [tab()], unassignedKey: UNASSIGNED });
+    vi.spyOn(teacherApi, "listChatLogSessions").mockResolvedValue([session()]);
+    const exporter = vi.spyOn(teacherApi, "fetchChatLogExport").mockRejectedValue(new Error("nope"));
+
+    render(<ResearchLogsPage />);
+    await userEvent.click(await screen.findByRole("button", { name: /^export/i }));
+    await userEvent.click(screen.getByRole("menuitem", { name: /JSONL/ }));
+
+    await waitFor(() => expect(exporter).toHaveBeenCalledWith({ framework: "authentic-dialogue" }, "jsonl"));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Export failed");
   });
 });

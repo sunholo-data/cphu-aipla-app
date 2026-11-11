@@ -6,7 +6,8 @@
  * configurable warning threshold. The page shows the line and, only above the
  * threshold, a visible warning — no alerting infrastructure.
  */
-import { render as rtlRender, screen, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -84,7 +85,9 @@ describe("cost page — smart-tier share", () => {
     );
     render(<TeacherCostInsightsPage />);
 
-    const warning = await screen.findByRole("status");
+    // Wait for the data first: the loading skeleton is also a role="status".
+    await screen.findByText("Tutor turns on the smart model");
+    const warning = screen.getByRole("status");
     expect(warning).toHaveTextContent("40%");
     expect(warning).toHaveTextContent("25%");
   });
@@ -95,5 +98,35 @@ describe("cost page — smart-tier share", () => {
 
     await waitFor(() => expect(screen.getByText("By cohort")).toBeInTheDocument());
     expect(screen.queryByText("Tutor turns on the smart model")).not.toBeInTheDocument();
+  });
+});
+
+// UI sweep 2026-11-11 — per-class spend is the spend column on All classes.
+describe("cost page — layout after the sweep", () => {
+  it("has no 'By class' table and points to All classes instead", async () => {
+    mockFetch.mockResolvedValue({ ...payload(undefined), per_class: [{ class_id: "a", name: "9A", cohort: "x", eur: 1 }] });
+    render(<TeacherCostInsightsPage />);
+    await waitFor(() => expect(screen.getByText("By cohort")).toBeInTheDocument());
+    expect(screen.queryByText("By class")).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open All classes" })).toHaveAttribute(
+      "href",
+      "/teacher/insights/classes?scope=all&spend=this_month",
+    );
+  });
+
+  it("a failed read shows Retry, and Retry reads again", async () => {
+    mockFetch.mockRejectedValueOnce(new Error("boom")).mockResolvedValue(payload(undefined));
+    render(<TeacherCostInsightsPage />);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("The cost overview could not be loaded");
+    await userEvent.click(within(alert).getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(screen.getByText("By cohort")).toBeInTheDocument());
+    expect(mockFetch).toHaveBeenCalledTimes(2);
+  });
+
+  it("breadcrumbs to Classes", async () => {
+    mockFetch.mockResolvedValue(payload(undefined));
+    render(<TeacherCostInsightsPage />);
+    expect(await screen.findByRole("link", { name: "Classes" })).toHaveAttribute("href", "/teacher/classes");
   });
 });

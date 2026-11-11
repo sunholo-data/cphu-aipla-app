@@ -21,22 +21,24 @@
     "lensesMovedLink": "Go to the research tools"
   },
   "TeacherClientShell": {
-    "loading": "Loading…",
+    "skipToMain": "Skip to main content",
     "teacherFallback": "Teacher",
     "homeLabel": "{app} Teacher — home",
     "brand": "{app} Teacher",
-    "localMode": "Local mode banner",
-    "researcherActive": "Researcher role active",
-    "researcherTitle": "Researcher role — cross-class read access across every teacher",
-    "researcher": "Researcher"
+    "localMode": "Local mode banner"
   },
   "AccountMenu": {
     "open": "Account menu",
     "settings": "Settings",
-    "approaches": "Approaches",
+    "tutors": "Tutors",
     "signOut": "Sign out",
     "language": "Language",
-    "signedInAs": "Signed in as {label}"
+    "signedInAs": "Signed in as {label}",
+    "role": "Role: {role}",
+    "roleResearcher": "researcher",
+    "roleProgrammeAdmin": "programme admin",
+    "roleBoth": "researcher and programme admin",
+    "roleHint": "Researcher role: read access across every teacher's classes"
   },
   "AdvancedDisclosure": {
     "advanced": "Advanced"
@@ -52,7 +54,6 @@
     "activities": "Activities",
     "materials": "Materials",
     "insights": "Insights",
-    "guides": "Guides",
     "programme": "Programme",
     "sections": "Teacher sections",
     "expand": "Expand navigation",
@@ -112,10 +113,13 @@
     "dayDetail": "{replies, plural, one {# reply} other {# replies}} · {groups, plural, one {# group} other {# groups}}"
   },
   "AskAiplaButton": {
-    "button": "Ask AIPLA",
-    "menu": "Ask AIPLA",
-    "help": "AIPLA Help — how do I…",
-    "helpOnly": "Help"
+    "button": "Help",
+    "menu": "Help",
+    "guides": "Guides",
+    "guidesHint": "Step by step, with pictures and PDFs",
+    "help": "Ask AIPLA Help",
+    "helpHint": "Ask a question about how to use AIPLA",
+    "copilotHint": "Help with what you are working on here"
   },
   "FloatingCopilot": {
     "minimize": "Minimize",

@@ -67,6 +67,17 @@ describe("/teacher/insights/lessons/[classId]/[activityId]", () => {
     await waitFor(() => expect(screen.queryByTestId("lesson-pending")).toBeNull());
   });
 
+  it("a failed read shows Retry (not 'no lesson'), and Retry reads again", async () => {
+    const user = userEvent.setup();
+    lessonSpy.mockRejectedValueOnce(new Error("fetch lesson: 503")).mockResolvedValueOnce(makeLesson());
+    wrap(<LessonPage />);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("The lesson could not be loaded");
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("heading", { name: "Waves" })).toBeInTheDocument();
+    expect(lessonSpy).toHaveBeenCalledTimes(2);
+  });
+
   it("says when no lesson exists for the day", async () => {
     lessonSpy.mockRejectedValue(new Error("fetch lesson: 404 lesson not found"));
     wrap(<LessonPage />);
@@ -94,10 +105,48 @@ describe("/teacher/insights/lessons", () => {
       },
     ]);
     wrap(<LessonsPage />);
-    const link = await screen.findByRole("link", { name: "Open" });
+    // UI sweep 2026-11-11 — the whole row is the link, and the day reads by weekday.
+    const link = await screen.findByRole("link", { name: /Waves/ });
     expect(lessonsSpy).toHaveBeenCalledWith("c2");
     expect(link).toHaveAttribute("href", "/teacher/insights/lessons/c2/act-1?date=2026-10-20");
-    expect(screen.getByText("Waves")).toBeInTheDocument();
+    expect(link).toHaveTextContent("Tuesday 20 Oct");
+    expect(link).toHaveTextContent("3 groups");
+    expect(screen.queryByRole("link", { name: "Open" })).not.toBeInTheDocument();
+  });
+
+  it("writes the day in Danish with its weekday by default", async () => {
+    search = new URLSearchParams();
+    classesSpy.mockResolvedValue([{ classId: "c1", name: "1.g" } as ClassPayload]);
+    lessonsSpy.mockResolvedValue([
+      { activityId: "a", activityTitle: "Bohr", date: "2026-11-11", groups: 6, sessions: 6, turns: 1, startedAt: null, lastAt: null },
+    ]);
+    render(<LessonsPage />);
+    expect(await screen.findByRole("link", { name: /Bohr/ })).toHaveTextContent("onsdag 11. nov.");
+    expect(screen.getByRole("link", { name: "Klasser" })).toHaveAttribute("href", "/teacher/classes");
+  });
+
+  it("a failed lessons read shows Retry rather than 'no lessons'", async () => {
+    const user = userEvent.setup();
+    search = new URLSearchParams();
+    classesSpy.mockResolvedValue([{ classId: "c1", name: "1.g" } as ClassPayload]);
+    lessonsSpy.mockRejectedValueOnce(new Error("boom")).mockResolvedValueOnce([]);
+    wrap(<LessonsPage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("The lessons could not be loaded");
+    expect(screen.queryByText(/No lessons yet/)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText(/No lessons yet/)).toBeInTheDocument();
+  });
+
+  it("a failed class-list read shows its own Retry", async () => {
+    const user = userEvent.setup();
+    search = new URLSearchParams();
+    classesSpy.mockRejectedValueOnce(new Error("boom")).mockResolvedValueOnce([{ classId: "c1", name: "1.g" } as ClassPayload]);
+    lessonsSpy.mockResolvedValue([]);
+    wrap(<LessonsPage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Your classes could not be loaded");
+    expect(screen.queryByText(/no classes yet/i)).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText(/No lessons yet/)).toBeInTheDocument();
   });
 
   it("says so for a class with no lessons yet", async () => {

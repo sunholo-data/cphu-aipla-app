@@ -1,4 +1,5 @@
-import { fireEvent, render as rtlRender, screen } from "@testing-library/react";
+import { render as rtlRender, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { LocaleProvider } from "@/i18n";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -20,6 +21,11 @@ vi.mock("@/lib/firebase", () => ({
   subscribeToAuthState: () => () => {},
 }));
 vi.mock("@/lib/localMode", () => ({ isLocalMode: () => false }));
+// The help co-pilot flag. Off by default here: the Help menu must still render.
+const flags = vi.hoisted(() => ({ aiplaHelp: false }));
+vi.mock("@/hooks/useTeacherFeature", () => ({
+  useTeacherFeature: (name: string) => (name === "aiplaHelp" ? flags.aiplaHelp : false),
+}));
 vi.mock("@/components/site/SiteFooter", () => ({ SiteFooter: () => <footer>footer</footer> }));
 
 import { TeacherClientShell } from "@/app/teacher/_TeacherClientShell";
@@ -36,6 +42,7 @@ function render(ui: ReactElement, options?: Parameters<typeof rtlRender>[1]) {
 beforeEach(() => {
   // Default: a plain teacher. Individual tests override for the researcher case.
   vi.spyOn(researcherHook, "useIsResearcher").mockReturnValue(false);
+  flags.aiplaHelp = false;
   authState.user = { displayName: "Ms Hansen", email: "hansen@ku.dk", photoURL: null };
 });
 
@@ -44,7 +51,7 @@ afterEach(() => {
 });
 
 describe("TeacherClientShell", () => {
-  it("renders the nav, page content, and footer for an authed teacher", () => {
+  it("renders the nav, page content, and footer for an authed teacher", async () => {
     render(
       <TeacherClientShell>
         <p>page content</p>
@@ -60,23 +67,65 @@ describe("TeacherClientShell", () => {
     expect(screen.getAllByRole("link", { name: /Insights/ }).length).toBeGreaterThanOrEqual(1);
 
     // account control preserved — behind the account menu since 1.1.125 M0
-    fireEvent.click(screen.getByRole("button", { name: /account menu/i }));
+    await userEvent.click(screen.getByRole("button", { name: /account menu/i }));
     expect(screen.getByRole("menuitem", { name: /Sign out/ })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /Settings/ })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Tutors/ })).toBeInTheDocument();
   });
 
-  it("hides the researcher badge for a plain teacher", () => {
+  // UI sweep 2026-11-11 — Guides left the nav; the header Help menu carries
+  // them on every page, including when the help co-pilot flag is off.
+  it("reaches the guides from the header Help menu with the help flag off", async () => {
+    render(
+      <TeacherClientShell>
+        <p>page content</p>
+      </TeacherClientShell>,
+    );
+    expect(screen.queryByRole("link", { name: /^Guides$/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Help/ }));
+    expect(screen.getByRole("menuitem", { name: /Guides/ })).toHaveAttribute("href", "/guides");
+    expect(screen.queryByRole("menuitem", { name: /Ask AIPLA Help/ })).not.toBeInTheDocument();
+  });
+
+  it("offers the help co-pilot in the same menu when the flag is on", async () => {
+    flags.aiplaHelp = true;
+    render(
+      <TeacherClientShell>
+        <p>page content</p>
+      </TeacherClientShell>,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /Help/ }));
+    expect(screen.getByRole("menuitem", { name: /Guides/ })).toBeInTheDocument();
+    expect(screen.getByRole("menuitem", { name: /Ask AIPLA Help/ })).toBeInTheDocument();
+  });
+
+  it("puts a skip link to the main content first", () => {
+    render(
+      <TeacherClientShell>
+        <p>page content</p>
+      </TeacherClientShell>,
+    );
+    const skip = screen.getByRole("link", { name: "Skip to main content" });
+    expect(skip).toHaveAttribute("href", "#teacher-main");
+    expect(document.querySelectorAll("a, button")[0]).toBe(skip);
+    expect(screen.getByRole("main")).toHaveAttribute("id", "teacher-main");
+  });
+
+  it("shows no researcher role for a plain teacher", async () => {
     render(
       <TeacherClientShell>
         <p>page content</p>
       </TeacherClientShell>,
     );
 
-    expect(screen.queryByText("Researcher")).not.toBeInTheDocument();
-    expect(screen.queryByRole("status", { name: /Researcher role active/ })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("account-role-marker")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /account menu/i }));
+    expect(screen.queryByText(/Role:/)).not.toBeInTheDocument();
   });
 
-  it("shows the researcher badge when the caller holds the researcher claim", () => {
+  // The header "Forsker" pill became a role line in the account menu, with a
+  // marker on its trigger so the role stays visible on every page.
+  it("shows the researcher role in the account menu, not as a header pill", async () => {
     vi.spyOn(researcherHook, "useIsResearcher").mockReturnValue(true);
 
     render(
@@ -85,8 +134,10 @@ describe("TeacherClientShell", () => {
       </TeacherClientShell>,
     );
 
-    expect(screen.getByRole("status", { name: /Researcher role active/ })).toBeInTheDocument();
-    expect(screen.getByText("Researcher")).toBeInTheDocument();
+    expect(screen.queryByRole("status", { name: /Researcher role active/ })).not.toBeInTheDocument();
+    expect(screen.getByTestId("account-role-marker")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /account menu/i }));
+    expect(screen.getByTestId("account-role")).toHaveTextContent("Role: researcher");
   });
 
   // Two accounts for one person share a display name and its initials, so an

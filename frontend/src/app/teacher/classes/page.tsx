@@ -1,18 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import {
   BarChart3,
   BookOpen,
+  ChevronRight,
   ClipboardList,
   FileText,
-  Loader2,
   MessageSquare,
   Plus,
   Search,
-  Settings,
-  Trash2,
   Users,
 } from "lucide-react";
 
@@ -25,7 +24,6 @@ import {
   type SessionRow,
   type SkillSummary,
   createClass,
-  deleteClass,
   fetchPersonaCatalogue,
   fetchTutorCatalogue,
   listAccessibleSkills,
@@ -36,36 +34,58 @@ import {
   setClassPersona,
 } from "@/lib/teacherApi";
 import { fetchWithTeacherAuth } from "@/lib/apiClient";
-import {
-  type InsightsSince,
-  fetchInsightsCompare,
-  fetchInsightsSummary,
-  type InsightsClassSummary,
-  type InsightsComparePayload,
-} from "@/lib/insightsApi";
-import {
-  type TeacherSpendPayload,
-  fetchTeacherSpend,
-  formatEur,
-} from "@/lib/costApi";
-import { CrossClassTable } from "@/components/teacher/insights/CrossClassTable";
+import type { InsightsScope } from "@/lib/insightsApi";
+import { ScopeToggle } from "@/components/teacher/insights/ScopeToggle";
+import { Button } from "@/components/ui/button";
+import { LoadError } from "@/components/ui/load-error";
+import { RowMenu } from "@/components/ui/row-menu";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
+import { useUrlTab } from "@/hooks/useUrlTab";
 import { ManageClassCopilot } from "./_ManageClassCopilot";
 import { GettingStartedCard } from "./_GettingStartedCard";
 import { SetUpForTeacherDialog } from "./_SetUpForTeacherDialog";
 import { StageChip } from "@/components/teacher/StageChip";
 import { classStage } from "@/lib/onboardingStage";
 import { activeGroupCodes } from "@/lib/classCodes";
-// 1.1.108: teacher surfaces are English until M2 extracts them; pinned so the
-// relative time does not turn Danish inside an English sentence.
 import { formatRelativeTime } from "@/lib/relativeTime";
 import { TutorFace } from "@/components/teacher/research/TutorFace";
-import { useLocaleMode, useT, type MessageKey } from "@/i18n";
+import { useLocaleMode, useT } from "@/i18n";
 
+/**
+ * /teacher/classes — the page a teacher lands on (UI sweep 2026-11-11, from the
+ * approved "ShellNew" mockup). What changed and where each thing went:
+ *
+ *  - The class name (and the whole row) opens the class; the "Administrér"
+ *    button that went to the same URL is gone.
+ *  - "Slet" left the row: deleting a class is "Slet klasse…" at the bottom of
+ *    the class page's Opsætning view, still behind a confirm. A destructive
+ *    button no longer sits on every row of the page teachers land on.
+ *  - The opt-in "Vis indsigt og forbrug" panel (a second copy of the
+ *    cross-class table, plus spend and four totals) is one link line to
+ *    Indsigt → Alle klasser, which now carries the spend column and totals.
+ *  - "Seneste aktivitet" shows 3 sessions; "Vis alle (n)" shows the rest.
+ *  - The getting-started checklist opens as one line; "Fortsæt" expands it.
+ *  - A researcher's scope switch is "Dine klasser | Alle læreres klasser" (the
+ *    same words as on Indsigt), kept in the URL as `?scope=all`.
+ *  - A failed read of the sessions says so, with Retry — it used to render as
+ *    "Ingen elevsessioner endnu", which a teacher believes.
+ */
 
 type ActivityFilter = "all" | "active7d" | "quiet";
+const FILTERS: readonly ActivityFilter[] = ["all", "active7d", "quiet"];
+const SCOPES: readonly InsightsScope[] = ["own", "all"];
 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+/** Recent sessions shown before "Vis alle". */
+const RECENT_COLLAPSED = 3;
+/** Recent sessions fetched across classes. */
+const RECENT_MAX = 10;
+
+type RecentState =
+  | { kind: "loading" }
+  /** `failed` = classes whose session read failed; their sessions are missing from `rows`. */
+  | { kind: "ok"; rows: SessionRow[]; failed: number };
 
 /** Latest activity first; classes nobody has spoken in sink to the bottom and
  *  keep their existing (newest-created-first) order among themselves. */
@@ -83,43 +103,40 @@ function byLatestActivity(
 }
 
 export default function TeacherClassesPage() {
+  // useUrlTab reads the search params, which Next requires to sit under Suspense.
+  return (
+    <Suspense fallback={null}>
+      <ClassesPageInner />
+    </Suspense>
+  );
+}
+
+function ClassesPageInner() {
   const t = useT("ClassesPage");
   const tSetUp = useT("SetUpForTeacherDialog");
   const localeMode = useLocaleMode();
   const timeLocale = localeMode === "bilingual" ? "da" : localeMode;
-  const windowLabel = (w: InsightsSince) => t(`window_${w}` as MessageKey<"ClassesPage">);
-  const windowOption = (w: InsightsSince) => t(`windowOption_${w}` as MessageKey<"ClassesPage">);
   const [classes, setClasses] = useState<ClassPayload[] | null>(null);
-  const [recentSessions, setRecentSessions] = useState<SessionRow[]>([]);
+  const [recent, setRecent] = useState<RecentState>({ kind: "loading" });
+  const [showAllRecent, setShowAllRecent] = useState(false);
   const [catalogue, setCatalogue] = useState<SkillSummary[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
   const [showNewClassForm, setShowNewClassForm] = useState(false);
   // 1.1.124 M2 — the researcher's "set up a class for a teacher" dialog.
   const [showSetUpForTeacher, setShowSetUpForTeacher] = useState(false);
-  const [insightsSummary, setInsightsSummary] = useState<Map<string, InsightsClassSummary>>(new Map());
-  const [insightsCompare, setInsightsCompare] = useState<InsightsComparePayload | null>(null);
-  // BigQuery-backed insights (per-card KPIs + cross-class compare) are
-  // deferred — loaded on demand so the class list opens fast (Firestore-only).
-  const [showInsights, setShowInsights] = useState(false);
-  // True only while the insights round-trip is in flight — lets the KPI strip
-  // distinguish "loading" from "no activity yet" (and the cards suppress the
-  // strip entirely until insights are requested, so they don't show a
-  // misleading perpetual "Loading engagement…").
-  const [insightsLoading, setInsightsLoading] = useState(false);
   // Research view (sprint 1.1.5): researchers can switch to a cross-class
   // list of every teacher's classes. Toggle is hidden for non-researchers;
-  // the backend independently rejects scope=all without the claim.
+  // the backend independently rejects scope=all without the claim. In the URL
+  // since the UI sweep, so a researcher can link to it and Back keeps it.
   const isResearcher = useIsResearcher();
-  const [researchView, setResearchView] = useState(false);
+  const [scope, setScope] = useUrlTab<InsightsScope>("scope", SCOPES, "own");
+  const researchView = isResearcher && scope === "all";
   // At-a-glance activity per class (2026-09-11) — fetched beside the list,
   // never blocking it. Empty map until it lands; the column reads "—" then.
   const [activity, setActivity] = useState<Record<string, ClassActivity>>({});
   const [search, setSearch] = useState("");
-  // Window for the insights strip (2026-09-11). It was pinned to 7 days,
-  // which for a researcher opening the page on a quiet week read as "no
-  // data" — the same blank-means-what ambiguity as the class report.
-  const [insightsSince, setInsightsSince] = useState<InsightsSince>("30d");
-  const [activityFilter, setActivityFilter] = useState<ActivityFilter>("all");
+  const [activityFilter, setActivityFilter] = useUrlTab<ActivityFilter>("filter", FILTERS, "all");
 
   // Tutor catalogue (1.1.32) — resolve each class's tutor id to a
   // display name in the table. defaultId is the global fallback a class
@@ -136,15 +153,6 @@ export default function TeacherClassesPage() {
   // class-detail view. (The old path read `lessons` + activity_configs, which
   // are empty on new-model activities, so the column wrongly showed "None yet".)
   const [activityById, setActivityById] = useState<Map<string, ActivityPayload>>(new Map());
-  // Delete-class flow: the class pending confirmation, the in-flight id, and a
-  // surfaced error (never a silent failure).
-  const [confirmDelete, setConfirmDelete] = useState<ClassPayload | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-  // Teacher-level + per-class spend (1.1.9 follow-up). Loaded on demand with
-  // the rest of the insights; non-fatal.
-  const [teacherSpend, setTeacherSpend] = useState<TeacherSpendPayload | null>(null);
-  const [spendLoading, setSpendLoading] = useState(false);
 
   // Skill displayName lookup so we can fall back to the lesson name when a
   // session hasn't generated a title yet (titles are auto-generated after
@@ -157,10 +165,10 @@ export default function TeacherClassesPage() {
   }, [catalogue]);
 
   const refresh = useCallback(async () => {
-    setLoadError(null);
     try {
       const list = await listClasses(researchView ? "all" : "own");
       setClasses(list);
+      setLoadError(null);
       // Fire-and-forget: the table must never wait on the activity read, and a
       // failure leaves the previous values rather than blanking the column.
       void fetchClassesActivity(researchView ? "all" : "own")
@@ -170,37 +178,45 @@ export default function TeacherClassesPage() {
       // every teacher's class, so skip it there (the per-class drill-down
       // remains the way to inspect another teacher's sessions).
       if (researchView) {
-        setRecentSessions([]);
+        setRecent({ kind: "ok", rows: [], failed: 0 });
         return;
       }
       // Fetch recent student sessions across all classes (per-class endpoint
       // queries by groupCode, so only student sessions appear here).
       // allSettled, not all: one class's fetch failing shouldn't blank the
       // whole strip or take down the (already-loaded) classes table — the
-      // strip degrades to the classes that did load.
-      const batches = await Promise.allSettled(
-        list.map((c) => listClassRecentSessions(c.classId)),
-      );
-      const merged = batches
+      // strip shows what did load, and SAYS how many classes it could not read
+      // (a failure used to fall through to "no sessions yet").
+      const batches = await Promise.allSettled(list.map((c) => listClassRecentSessions(c.classId)));
+      const rows = batches
         .flatMap((b) => (b.status === "fulfilled" ? b.value : []))
-        .sort(
-          (a, b) =>
-            new Date(b.lastMessageAt).getTime() -
-            new Date(a.lastMessageAt).getTime(),
-        )
-        .slice(0, 10);
-      setRecentSessions(merged);
+        .sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime())
+        .slice(0, RECENT_MAX);
+      setRecent({ kind: "ok", rows, failed: batches.filter((b) => b.status === "rejected").length });
     } catch (err) {
-      setLoadError(
-        err instanceof Error ? err.message : t("loadFailedGeneric"),
-      );
+      setLoadError(err instanceof Error ? err.message : t("loadFailedGeneric"));
     }
   }, [researchView, t]);
 
   useEffect(() => {
+    setRecent({ kind: "loading" });
     void refresh();
-    const id = setInterval(() => void refresh(), 30_000);
+    // 30-second refresh, paused while the tab is hidden: it fans out one
+    // request per class, and nobody is looking.
+    const id = setInterval(() => {
+      if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+      void refresh();
+    }, 30_000);
     return () => clearInterval(id);
+  }, [refresh]);
+
+  const retry = useCallback(async () => {
+    setRetrying(true);
+    try {
+      await refresh();
+    } finally {
+      setRetrying(false);
+    }
   }, [refresh]);
 
   // Fetch the lesson catalogue once for the title-fallback lookup.
@@ -222,11 +238,7 @@ export default function TeacherClassesPage() {
       });
     void fetchTutorCatalogue()
       .then((cat) => {
-        setTutorById(
-          new Map(
-            [...cat.tutors, ...(cat.skillBoundTutors ?? [])].map((tu) => [tu.id, tu]),
-          ),
-        );
+        setTutorById(new Map([...cat.tutors, ...(cat.skillBoundTutors ?? [])].map((tu) => [tu.id, tu])));
       })
       .catch(() => {
         /* falls back to the legacy persona field */
@@ -245,77 +257,6 @@ export default function TeacherClassesPage() {
       .then((page) => setActivityById(new Map(page.activities.map((a) => [a.activityId, a]))))
       .catch(() => setActivityById(new Map()));
   }, [researchView]);
-
-  // One round-trip for the per-card KPI strips (M9). Failure is
-  // silent: the cards still render without the strip. Deferred behind
-  // showInsights so it doesn't fire BigQuery on every class-list open.
-  useEffect(() => {
-    if (!showInsights) return;
-    let cancelled = false;
-    setInsightsLoading(true);
-    // Scope follows the view (2026-09-11). This fetched `own` even in
-    // research view, so a researcher with no classes of their own saw an
-    // empty strip under a full table.
-    void fetchInsightsSummary(insightsSince, undefined, researchView ? "all" : "own")
-      .then((p) => {
-        if (cancelled) return;
-        setInsightsSummary(new Map(p.classes.map((c) => [c.classId, c])));
-      })
-      .catch(() => {
-        if (!cancelled) setInsightsSummary(new Map());
-      })
-      .finally(() => {
-        if (!cancelled) setInsightsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [classes, showInsights, insightsSince, researchView]);
-
-  // Cross-class compare payload — only fetched when the teacher owns
-  // 2+ classes AND has opted into insights. The single-class case has no
-  // useful comparison and would just push the existing surfaces down.
-  useEffect(() => {
-    if (!showInsights || !classes || classes.length < 1) {
-      setInsightsCompare(null);
-      return;
-    }
-    let cancelled = false;
-    void fetchInsightsCompare(insightsSince, undefined, researchView ? "all" : "own")
-      .then((p) => {
-        if (!cancelled) setInsightsCompare(p);
-      })
-      .catch(() => {
-        if (!cancelled) setInsightsCompare(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [classes, showInsights, insightsSince, researchView]);
-
-  // Teacher-level + per-class spend — loaded with the insights panel. Scoped
-  // to the caller's own classes, so skipped in research view. Non-fatal.
-  useEffect(() => {
-    if (!showInsights || researchView) {
-      setTeacherSpend(null);
-      return;
-    }
-    let cancelled = false;
-    setSpendLoading(true);
-    void fetchTeacherSpend()
-      .then((p) => {
-        if (!cancelled) setTeacherSpend(p);
-      })
-      .catch(() => {
-        if (!cancelled) setTeacherSpend(null);
-      })
-      .finally(() => {
-        if (!cancelled) setSpendLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [showInsights, researchView]);
 
   // Resolve a class's assigned activities to {id, title} from the new model
   // (`activityIds` → the activity library), matching the class-detail view. The
@@ -357,47 +298,6 @@ export default function TeacherClassesPage() {
     [tutorById, personaById, defaultPersonaId, t],
   );
 
-  // Teacher-level engagement totals — summed across the per-class summaries
-  // (no extra fetch). Shown at the top of the insights panel so a teacher sees
-  // their whole cohort at a glance, not just per-class.
-  const insightsTotals = useMemo(() => {
-    const vals = [...insightsSummary.values()];
-    return {
-      activeGroups: vals.reduce((s, v) => s + (v.activeGroups || 0), 0),
-      totalMessages: vals.reduce((s, v) => s + (v.totalMessages || 0), 0),
-      lastActivity: vals.reduce<string | null>(
-        (acc, v) =>
-          v.lastActivity && (!acc || v.lastActivity > acc) ? v.lastActivity : acc,
-        null,
-      ),
-    };
-  }, [insightsSummary]);
-
-  // classId -> EUR spend, for the per-class Spend column.
-  const spendByClassId = useMemo<Map<string, number>>(
-    () => new Map((teacherSpend?.per_class ?? []).map((r) => [r.class_id, r.eur])),
-    [teacherSpend],
-  );
-
-  const handleDelete = useCallback(
-    async (cls: ClassPayload) => {
-      setActionError(null);
-      setDeletingId(cls.classId);
-      try {
-        await deleteClass(cls.classId);
-        setConfirmDelete(null);
-        await refresh();
-      } catch (err) {
-        setActionError(
-          err instanceof Error ? err.message : t("deleteFailed", { name: cls.name }),
-        );
-      } finally {
-        setDeletingId(null);
-      }
-    },
-    [refresh, t],
-  );
-
   // Sorted by latest activity, then narrowed by the search box and the
   // activity filter. Search matches class name, owner label (research view)
   // and assigned activity titles, case-insensitively.
@@ -413,74 +313,47 @@ export default function TeacherClassesPage() {
         if (!(now - at <= SEVEN_DAYS_MS)) return false;
       }
       if (!q) return true;
-      const hay = [
-        cls.name,
-        cls.ownerLabel ?? "",
-        ...activitiesForClass(cls).map((a) => a.title),
-      ]
+      const hay = [cls.name, cls.ownerLabel ?? "", ...activitiesForClass(cls).map((a) => a.title)]
         .join(" ")
         .toLowerCase();
       return hay.includes(q);
     });
   }, [classes, activity, search, activityFilter, activitiesForClass]);
 
+  // Indsigt → Alle klasser, in the scope this page is showing. A researcher's
+  // default there is every teacher's classes, so "Dine klasser" must be explicit.
+  const insightsHref = researchView
+    ? "/teacher/insights/classes?scope=all"
+    : isResearcher
+      ? "/teacher/insights/classes?scope=own"
+      : "/teacher/insights/classes";
+
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6">
       {/* Floating class co-pilot — the teacher creates classes / mints codes by
           talking, beside the list; proposals Apply into the list below. */}
       {researchView ? null : <ManageClassCopilot onChanged={refresh} />}
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-semibold sm:text-2xl">
-            {researchView ? t("researchView") : t("myClasses")}
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {researchView ? t("researchIntro") : t("ownIntro")}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+      <header className="flex flex-wrap items-center gap-3">
+        <h1 className="text-xl font-semibold sm:text-2xl">{t("title")}</h1>
+        {isResearcher ? <ScopeToggle value={scope} onChange={setScope} size="md" /> : null}
+        <div className="ml-auto flex items-center gap-2">
           {isResearcher ? (
-            <div
-              role="group"
-              aria-label={t("scopeLabel")}
-              className="flex items-center rounded border border-border text-sm font-medium"
-            >
-              <button
-                type="button"
-                aria-pressed={!researchView}
-                onClick={() => setResearchView(false)}
-                className={`rounded-l px-3 py-1.5 ${!researchView ? "bg-accent" : "hover:bg-accent"}`}
-              >
-                {t("myClasses")}
-              </button>
-              <button
-                type="button"
-                aria-pressed={researchView}
-                onClick={() => setResearchView(true)}
-                className={`rounded-r px-3 py-1.5 ${researchView ? "bg-accent" : "hover:bg-accent"}`}
-              >
-                {t("researchView")}
-              </button>
-            </div>
+            <RowMenu
+              label={t("moreActions")}
+              items={[
+                {
+                  id: "set-up-for-teacher",
+                  label: tSetUp("button"),
+                  onSelect: () => setShowSetUpForTeacher(true),
+                },
+              ]}
+            />
           ) : null}
-          {researchView ? (
-            <button
-              type="button"
-              onClick={() => setShowSetUpForTeacher(true)}
-              className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent"
-            >
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              {tSetUp("button")}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setShowNewClassForm((v) => !v)}
-              className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent"
-            >
+          {researchView ? null : (
+            <Button variant="primary" onClick={() => setShowNewClassForm((v) => !v)}>
               <Plus className="h-4 w-4" aria-hidden="true" />
               {t("newClass")}
-            </button>
+            </Button>
           )}
         </div>
       </header>
@@ -491,10 +364,7 @@ export default function TeacherClassesPage() {
       {researchView ? null : <GettingStartedCard onCreateClass={() => setShowNewClassForm(true)} />}
 
       {showSetUpForTeacher ? (
-        <SetUpForTeacherDialog
-          onCreated={() => void refresh()}
-          onCancel={() => setShowSetUpForTeacher(false)}
-        />
+        <SetUpForTeacherDialog onCreated={() => void refresh()} onCancel={() => setShowSetUpForTeacher(false)} />
       ) : null}
 
       {showNewClassForm ? (
@@ -508,21 +378,10 @@ export default function TeacherClassesPage() {
       ) : null}
 
       {loadError ? (
-        <p
-          role="alert"
-          className="rounded border border-destructive bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
-          {t("loadFailed", { error: loadError })}
-        </p>
-      ) : null}
-
-      {actionError ? (
-        <p
-          role="alert"
-          className="rounded border border-destructive bg-destructive/10 px-3 py-2 text-sm text-destructive"
-        >
-          {actionError}
-        </p>
+        <div className="flex flex-col gap-1">
+          <LoadError what={t("whatClasses")} onRetry={() => void retry()} retrying={retrying} />
+          <p className="text-xs text-muted-foreground">{t("loadFailedDetail", { error: loadError })}</p>
+        </div>
       ) : null}
 
       <section aria-labelledby="classes-table-label">
@@ -530,13 +389,19 @@ export default function TeacherClassesPage() {
           {t("classesHeading")}
         </h2>
         {classes === null || visibleClasses === null ? (
-          <p className="text-sm text-muted-foreground">{t("loading")}</p>
+          loadError ? null : (
+            <div role="status" aria-label={t("loading")} className="flex flex-col gap-2">
+              <Skeleton className="h-9 w-full" />
+              <Skeleton className="h-14 w-full" />
+              <Skeleton className="h-14 w-full" />
+            </div>
+          )
         ) : classes.length === 0 ? (
           <EmptyState onCreateClick={() => setShowNewClassForm(true)} />
         ) : (
           <div className="flex flex-col gap-3">
             <div className="flex flex-wrap items-center gap-2">
-              <label className="relative flex-1 min-w-[12rem]">
+              <label className="relative min-w-[12rem] flex-1">
                 <span className="sr-only">{t("searchLabel")}</span>
                 <Search
                   className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
@@ -544,6 +409,8 @@ export default function TeacherClassesPage() {
                 />
                 <input
                   type="search"
+                  name="class-search"
+                  autoComplete="off"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder={t("searchPlaceholder")}
@@ -565,223 +432,169 @@ export default function TeacherClassesPage() {
             {visibleClasses.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t("noMatch")}</p>
             ) : (
-          <div className="overflow-x-auto rounded-lg border border-border">
-            <table className="w-full min-w-[760px] text-sm">
-              <thead>
-                <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
-                  <th className="px-3 py-2 font-medium">{t("colClass")}</th>
-                  <th className="px-3 py-2 font-medium">{t("colActivity")}</th>
-                  <th className="px-3 py-2 font-medium">{t("colGroups")}</th>
-                  <th className="px-3 py-2 font-medium">{t("colActivities")}</th>
-                  <th className="px-3 py-2 font-medium">{t("colTutor")}</th>
-                  <th className="px-3 py-2 text-right font-medium">{t("colActions")}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {visibleClasses.map((cls) => (
-                  <ClassRow
-                    key={cls.classId}
-                    cls={cls}
-                    activity={activity[cls.classId]}
-                    activities={activitiesForClass(cls)}
-                    tutor={tutorLabelForClass(cls)}
-                    showOwner={researchView}
-                    canDelete={!researchView}
-                    deleting={deletingId === cls.classId}
-                    onDelete={() => setConfirmDelete(cls)}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
-            )}
-          </div>
-        )}
-      </section>
-
-      {confirmDelete ? (
-        <DeleteClassDialog
-          cls={confirmDelete}
-          busy={deletingId === confirmDelete.classId}
-          onCancel={() => {
-            setConfirmDelete(null);
-            setActionError(null);
-          }}
-          onConfirm={() => void handleDelete(confirmDelete)}
-        />
-      ) : null}
-
-      <section aria-labelledby="insights-label" className="flex flex-col gap-3">
-        <h2 id="insights-label" className="sr-only">
-          {t("insightsHeading")}
-        </h2>
-        {!showInsights ? (
-          <button
-            type="button"
-            onClick={() => setShowInsights(true)}
-            className="flex items-center gap-2 self-start rounded border border-dashed border-border px-4 py-3 text-sm font-medium text-muted-foreground hover:bg-muted/50"
-          >
-            <BarChart3 className="h-4 w-4" aria-hidden="true" />
-            {t("showInsights")}
-            <span className="text-xs font-normal text-muted-foreground/70">
-              {t("showInsightsHint")}
-            </span>
-          </button>
-        ) : insightsLoading && !insightsCompare ? (
-          <p
-            data-testid="insights-loading"
-            className="flex items-center gap-2 self-start rounded border border-border px-4 py-3 text-sm text-muted-foreground"
-          >
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            {t("loadingInsights")}
-          </p>
-        ) : (
-          <div
-            data-testid="insights-panel"
-            className="flex flex-col gap-4 rounded-lg border border-border p-4"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-base font-semibold">{t("insightsTitle")}</h3>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>{researchView ? t("acrossAll") : t("acrossOwn")}</span>
-                <select
-                  value={insightsSince}
-                  onChange={(e) => setInsightsSince(e.target.value as InsightsSince)}
-                  aria-label={t("windowLabel")}
-                  className="rounded border border-border bg-background px-2 py-1 text-xs"
-                >
-                  {(["7d", "30d", "all"] as InsightsSince[]).map((w) => (
-                    <option key={w} value={w}>
-                      {windowOption(w)}
-                    </option>
-                  ))}
-                </select>
+              <div className="overflow-x-auto rounded-lg border border-border">
+                <table className="w-full min-w-[720px] text-sm">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/40 text-left text-xs uppercase tracking-wide text-muted-foreground">
+                      <th className="px-3 py-2 font-medium">{t("colClass")}</th>
+                      <th className="px-3 py-2 font-medium">{t("colLastUsed")}</th>
+                      <th className="px-3 py-2 font-medium">{t("colGroups")}</th>
+                      <th className="px-3 py-2 font-medium">{t("colActivities")}</th>
+                      <th className="px-3 py-2 font-medium">{t("colTutor")}</th>
+                      <th className="w-8 px-3 py-2">
+                        <span className="sr-only">{t("colOpen")}</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {visibleClasses.map((cls) => (
+                      <ClassRow
+                        key={cls.classId}
+                        cls={cls}
+                        activity={activity[cls.classId]}
+                        activities={activitiesForClass(cls)}
+                        tutor={tutorLabelForClass(cls)}
+                        showOwner={researchView}
+                      />
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            </div>
-            <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <SummaryStat
-                label={t("activeGroups")}
-                value={String(insightsTotals.activeGroups)}
-              />
-              <SummaryStat
-                label={t("messagesIn", { window: windowOption(insightsSince).toLowerCase() })}
-                value={String(insightsTotals.totalMessages)}
-              />
-              <SummaryStat
-                label={t("spendThisMonth")}
-                value={
-                  spendLoading
-                    ? "…"
-                    : teacherSpend
-                      ? formatEur(teacherSpend.total_eur)
-                      : "—"
-                }
-              />
-              <SummaryStat
-                label={t("lastActivity")}
-                value={
-                  insightsTotals.lastActivity
-                    ? formatRelativeTime(insightsTotals.lastActivity, Date.now(), timeLocale)
-                    : t("none")
-                }
-              />
-            </dl>
-            {insightsCompare && insightsCompare.rows.length > 0 ? (
-              <details open data-testid="cross-class-compare-section">
-                <summary className="cursor-pointer text-sm font-medium text-foreground">
-                  {t("perClass")}
-                  <span className="ml-2 text-xs font-normal text-muted-foreground">
-                    {t("perClassHint", { window: windowLabel(insightsSince) })}
-                  </span>
-                </summary>
-                <div className="mt-3">
-                  <CrossClassTable
-                    rows={insightsCompare.rows}
-                    spendByClassId={spendByClassId}
-                  />
-                </div>
-              </details>
-            ) : (
-              <p className="text-sm text-muted-foreground">
-                {t("noEngagement", { window: windowLabel(insightsSince) })}
-              </p>
             )}
           </div>
         )}
       </section>
 
-      <section aria-labelledby="recent-activity-label" className="flex flex-col gap-3">
-        <header>
-          <h2 id="recent-activity-label" className="text-lg font-semibold">
-            {t("recentActivity")}
-          </h2>
-        </header>
+      {/* The "insights & spend" panel's new home is Indsigt → Alle klasser. */}
+      <p>
+        <Link
+          href={insightsHref}
+          data-testid="insights-link"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+        >
+          <BarChart3 className="h-4 w-4" aria-hidden="true" />
+          {researchView ? t("insightsLinkAll") : t("insightsLink")}
+        </Link>
+      </p>
 
-        {recentSessions.length === 0 ? (
-          <p className="rounded border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
-            {t("noSessions")}
-          </p>
-        ) : (
-          <ul className="divide-y divide-border rounded border border-border">
-            {recentSessions.map((row) => {
-              const label =
-                row.title ?? skillNameById.get(row.skillId) ?? row.skillId;
-              return row.groupCode ? (
-                <li key={row.sessionId}>
-                  <Link
-                    href={`/teacher/reports/groups/${row.groupCode}?session_id=${encodeURIComponent(row.sessionId)}`}
-                    className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-accent"
-                  >
-                    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
-                      <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs font-medium">
-                        {row.groupCode}
-                      </code>
-                      <span className="flex items-center gap-1 text-foreground">
-                        <BookOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
-                        {label}
-                      </span>
-                      <span className="text-xs text-muted-foreground">
-                        {t("turns", { n: row.turnCount })} · {formatRelativeTime(row.lastMessageAt, Date.now(), timeLocale)}
-                      </span>
-                    </div>
-                    <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground">
-                      <FileText className="h-3.5 w-3.5" aria-hidden="true" />
-                      {t("view")}
-                    </span>
-                  </Link>
-                </li>
-              ) : (
-                <li
-                  key={row.sessionId}
-                  className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"
-                >
-                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
-                    <span className="flex items-center gap-1 text-muted-foreground">
-                      <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
-                      {label}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {t("turns", { n: row.turnCount })} · {formatRelativeTime(row.lastMessageAt, Date.now(), timeLocale)}
-                    </span>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
+      {researchView ? null : (
+        <RecentActivity
+          state={recent}
+          showAll={showAllRecent}
+          onToggle={() => setShowAllRecent((v) => !v)}
+          onRetry={() => void retry()}
+          retrying={retrying}
+          skillNameById={skillNameById}
+          timeLocale={timeLocale}
+        />
+      )}
     </div>
   );
 }
 
-function SummaryStat({ label, value }: { label: string; value: string }) {
+function RecentActivity({
+  state,
+  showAll,
+  onToggle,
+  onRetry,
+  retrying,
+  skillNameById,
+  timeLocale,
+}: {
+  state: RecentState;
+  showAll: boolean;
+  onToggle: () => void;
+  onRetry: () => void;
+  retrying: boolean;
+  skillNameById: Map<string, string>;
+  timeLocale: "da" | "en";
+}) {
+  const t = useT("ClassesPage");
+  const rows = state.kind === "ok" ? state.rows : [];
+  const shown = showAll ? rows : rows.slice(0, RECENT_COLLAPSED);
   return (
-    <div className="rounded-md border border-border bg-muted/30 px-3 py-2">
-      <dt className="text-xs uppercase tracking-wide text-muted-foreground">
-        {label}
-      </dt>
-      <dd className="mt-0.5 text-lg font-semibold tabular-nums">{value}</dd>
-    </div>
+    <section aria-labelledby="recent-activity-label" className="flex flex-col gap-2">
+      <header className="flex items-center justify-between gap-2">
+        <h2 id="recent-activity-label" className="text-base font-semibold">
+          {t("recentActivity")}
+        </h2>
+        {rows.length > RECENT_COLLAPSED ? (
+          <button
+            type="button"
+            aria-expanded={showAll}
+            aria-controls="recent-activity-list"
+            onClick={onToggle}
+            className="rounded px-1 text-sm font-medium text-primary hover:underline"
+          >
+            {showAll ? t("showFewer") : t("showAll", { n: rows.length })}
+          </button>
+        ) : null}
+      </header>
+
+      {state.kind === "loading" ? (
+        <div role="status" aria-label={t("loadingSessions")} className="flex flex-col gap-1">
+          <Skeleton className="h-9 w-full" />
+          <Skeleton className="h-9 w-full" />
+        </div>
+      ) : null}
+
+      {/* A failed read must never read as "no sessions": say which part failed. */}
+      {state.kind === "ok" && state.failed > 0 ? (
+        <LoadError
+          what={rows.length > 0 ? t("whatSomeSessions", { n: state.failed }) : t("whatSessions")}
+          onRetry={onRetry}
+          retrying={retrying}
+        />
+      ) : null}
+
+      {state.kind === "ok" && rows.length === 0 && state.failed === 0 ? (
+        <p className="rounded border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">
+          {t("noSessions")}
+        </p>
+      ) : null}
+
+      {shown.length > 0 ? (
+        <ul id="recent-activity-list" className="divide-y divide-border rounded border border-border">
+          {shown.map((row) => {
+            const label = row.title ?? skillNameById.get(row.skillId) ?? row.skillId;
+            const meta = `${t("turns", { n: row.turnCount })} · ${formatRelativeTime(row.lastMessageAt, Date.now(), timeLocale)}`;
+            return row.groupCode ? (
+              <li key={row.sessionId}>
+                <Link
+                  href={`/teacher/reports/groups/${row.groupCode}?session_id=${encodeURIComponent(row.sessionId)}`}
+                  className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm hover:bg-accent"
+                >
+                  <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+                    <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs font-medium">
+                      {row.groupCode}
+                    </code>
+                    <span className="flex items-center gap-1 text-foreground">
+                      <BookOpen className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden="true" />
+                      {label}
+                    </span>
+                    <span className="text-xs text-muted-foreground">{meta}</span>
+                  </div>
+                  <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-muted-foreground">
+                    <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+                    {t("view")}
+                  </span>
+                </Link>
+              </li>
+            ) : (
+              <li key={row.sessionId} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm">
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+                  <span className="flex items-center gap-1 text-muted-foreground">
+                    <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
+                    {label}
+                  </span>
+                  <span className="text-xs text-muted-foreground">{meta}</span>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
+    </section>
   );
 }
 
@@ -791,29 +604,33 @@ function ClassRow({
   activities,
   tutor,
   showOwner = false,
-  canDelete = true,
-  deleting = false,
-  onDelete,
 }: {
   cls: ClassPayload;
   activity?: ClassActivity;
   activities: { activityId: string; title: string }[];
   tutor: { name: string; inherited: boolean; avatar: string };
   showOwner?: boolean;
-  canDelete?: boolean;
-  deleting?: boolean;
-  onDelete: () => void;
 }) {
   const t = useT("ClassesPage");
+  const router = useRouter();
   const localeMode = useLocaleMode();
   const timeLocale = localeMode === "bilingual" ? "da" : localeMode;
+  const href = `/teacher/classes/${cls.classId}`;
   return (
-    <tr className="align-top hover:bg-muted/30">
+    <tr
+      data-testid="class-row"
+      // The whole row opens the class (mouse). The class name stays a real
+      // link, so keyboard and screen-reader users reach the same place, and
+      // the activity links inside the row keep their own targets.
+      onClick={(e) => {
+        if ((e.target as HTMLElement).closest("a, button, input, select, textarea")) return;
+        if (typeof window !== "undefined" && window.getSelection()?.toString()) return;
+        router.push(href);
+      }}
+      className="cursor-pointer align-top hover:bg-muted/30"
+    >
       <td className="px-3 py-3">
-        <Link
-          href={`/teacher/classes/${cls.classId}`}
-          className="font-medium text-foreground hover:underline"
-        >
+        <Link href={href} className="font-medium text-foreground hover:underline">
           {cls.name}
         </Link>
         {/* 1.1.146 M4 — a class its teacher deleted stays in the research
@@ -845,7 +662,7 @@ function ClassRow({
           </div>
         ) : null}
       </td>
-      {/* Activity at a glance. "No messages yet" is said in words — a blank
+      {/* Last used, at a glance. "No messages yet" is said in words — a blank
           cell reads the same as "not permitted", and a researcher cannot tell
           them apart (see the class-report confusion of 2026-09-11). */}
       <td className="px-3 py-3 text-muted-foreground" data-testid="class-activity">
@@ -883,9 +700,11 @@ function ClassRow({
                 <ClipboardList className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 {/* Click a title to edit that activity — in the research view
                     too (1.1.123): a researcher may edit any teacher's activity,
-                    and the editor says whose it is. */}
+                    and the editor says whose it is. `classId` rides along so
+                    the editor shows THIS class's tutor as the inherited one,
+                    not the default (UI sweep 2026-11-11, finding 1). */}
                 <Link
-                  href={`/teacher/activities/${encodeURIComponent(a.activityId)}?title=${encodeURIComponent(a.title)}`}
+                  href={`/teacher/activities/${encodeURIComponent(a.activityId)}?title=${encodeURIComponent(a.title)}&classId=${encodeURIComponent(cls.classId)}`}
                   className="truncate hover:text-foreground hover:underline"
                   title={t("editActivity", { title: a.title })}
                 >
@@ -905,108 +724,13 @@ function ClassRow({
         <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
           <TutorFace name={tutor.name} avatar={tutor.avatar} size="sm" />
           {tutor.name}
-          {tutor.inherited ? (
-            <span className="text-muted-foreground/60">· {t("tutorInherited")}</span>
-          ) : null}
+          {tutor.inherited ? <span className="text-muted-foreground/60">· {t("tutorInherited")}</span> : null}
         </span>
       </td>
-      <td className="px-3 py-3">
-        <div className="flex items-center justify-end gap-1.5">
-          <Link
-            href={`/teacher/classes/${cls.classId}`}
-            className="flex items-center gap-1 rounded bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:opacity-90"
-          >
-            <Settings className="h-3.5 w-3.5" aria-hidden="true" />
-            {t("manage")}
-          </Link>
-          {/* No class-level "Report" button: a class has many groups and reports are
-              per-group. The arbitrary-first-group link was misleading (1.1.36 feedback).
-              Reports are reached via Manage -> class detail (per-group) + recent sessions. */}
-          {canDelete ? (
-            <button
-              type="button"
-              onClick={onDelete}
-              disabled={deleting}
-              aria-label={t("deleteAria", { name: cls.name })}
-              className="flex items-center gap-1 rounded border border-border px-2 py-1 text-xs font-medium text-muted-foreground hover:bg-destructive/10 hover:text-destructive disabled:opacity-50"
-            >
-              {deleting ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
-              ) : (
-                <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-              )}
-              {t("delete")}
-            </button>
-          ) : null}
-        </div>
+      <td className="px-3 py-3 text-right text-muted-foreground">
+        <ChevronRight className="inline h-4 w-4" aria-hidden="true" />
       </td>
     </tr>
-  );
-}
-
-function DeleteClassDialog({
-  cls,
-  busy,
-  onCancel,
-  onConfirm,
-}: {
-  cls: ClassPayload;
-  busy: boolean;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  const t = useT("ClassesPage");
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !busy) onCancel();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onCancel, busy]);
-
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
-      onClick={() => !busy && onCancel()}
-    >
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="delete-class-title"
-        onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-md rounded-lg border border-border bg-background p-5 shadow-xl"
-      >
-        <h2 id="delete-class-title" className="text-lg font-semibold">
-          {t("deleteTitle", { name: cls.name })}
-        </h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          {t("deleteBody", { n: activeGroupCodes(cls).length })}
-        </p>
-        <div className="mt-5 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={busy}
-            className="rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent disabled:opacity-50"
-          >
-            {t("cancel")}
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            disabled={busy}
-            className="flex items-center gap-1.5 rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-60"
-          >
-            {busy ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <Trash2 className="h-4 w-4" aria-hidden="true" />
-            )}
-            {t("deleteClass")}
-          </button>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -1015,28 +739,16 @@ function EmptyState({ onCreateClick }: { onCreateClick: () => void }) {
   return (
     <div className="col-span-full flex flex-col items-start gap-2 rounded border border-dashed border-border p-6">
       <p className="text-sm font-medium">{t("emptyTitle")}</p>
-      <p className="text-sm text-muted-foreground">
-        {t("emptyBody")}
-      </p>
-      <button
-        type="button"
-        onClick={onCreateClick}
-        className="mt-2 flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90"
-      >
+      <p className="text-sm text-muted-foreground">{t("emptyBody")}</p>
+      <Button variant="primary" size="sm" className="mt-2" onClick={onCreateClick}>
         <Plus className="h-4 w-4" aria-hidden="true" />
         {t("createClass")}
-      </button>
+      </Button>
     </div>
   );
 }
 
-function NewClassForm({
-  onCreated,
-  onCancel,
-}: {
-  onCreated: () => void;
-  onCancel: () => void;
-}) {
+function NewClassForm({ onCreated, onCancel }: { onCreated: () => void; onCancel: () => void }) {
   const t = useT("ClassesPage");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -1056,9 +768,9 @@ function NewClassForm({
       // the class tutor picker stays the per-class override). Best-effort: a
       // failure here must never fail the create.
       try {
-        const prefs = (await (
-          await fetchWithTeacherAuth("/api/proxy/api/teacher/prefs")
-        ).json()) as { defaultPersonaId?: string | null };
+        const prefs = (await (await fetchWithTeacherAuth("/api/proxy/api/teacher/prefs")).json()) as {
+          defaultPersonaId?: string | null;
+        };
         if (prefs?.defaultPersonaId) {
           await setClassPersona(created.classId, prefs.defaultPersonaId);
         }
@@ -1083,6 +795,8 @@ function NewClassForm({
         <span className="font-medium">{t("className")}</span>
         <input
           type="text"
+          name="class-name"
+          autoComplete="off"
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
@@ -1095,6 +809,8 @@ function NewClassForm({
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium">{t("descriptionOptional")}</span>
         <textarea
+          name="class-description"
+          autoComplete="off"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           maxLength={2000}
@@ -1108,20 +824,19 @@ function NewClassForm({
         </p>
       ) : null}
       <div className="flex justify-end gap-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent"
-        >
+        <Button variant="secondary" size="sm" onClick={onCancel}>
           {t("cancel")}
-        </button>
-        <button
+        </Button>
+        <Button
           type="submit"
-          disabled={submitting || name.trim().length === 0}
-          className="rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-50"
+          variant="primary"
+          size="sm"
+          disabled={name.trim().length === 0}
+          pending={submitting}
+          pendingLabel={t("creating")}
         >
-          {submitting ? t("creating") : t("create")}
-        </button>
+          {t("create")}
+        </Button>
       </div>
     </form>
   );

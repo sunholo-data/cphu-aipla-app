@@ -15,16 +15,20 @@ import { useT } from "@/i18n";
  * cross-class on the manage-class hub co-pilot (/teacher/classes). Per-group
  * Reports stay a leaf reached from a group row.
  *
- * What remains: Overview (cross-class KPIs) plus the researcher-only Cost tab
- * (1.1.9) — cross-class spend gated on the researcher claim (1.1.5). With only
- * Overview for a non-researcher there's a single destination, so the bar hides
- * itself (nothing to switch between).
+ * Every teacher: Lessons | All classes. A researcher adds Conversations | Cost.
+ *
+ * UI sweep 2026-11-11: "All classes" (was "Overview", at `/teacher/insights`)
+ * moved to `/teacher/insights/classes` and gained the spend column and the four
+ * totals that used to sit in the class list's "insights & spend" panel — one
+ * home for the cross-class table instead of two. `/teacher/insights` itself now
+ * redirects to Lessons (old Overview links carrying `?since=`/`?scope=` go to
+ * All classes), which is also where the main nav lands.
  */
 // Lessons (1.1.139 M2) is FIRST: a teacher's first question after a lesson is
 // "what did the class get?", and that page answers it before any single group.
 const TABS = [
   { href: "/teacher/insights/lessons", key: "lessons", icon: BookOpenCheck },
-  { href: "/teacher/insights", key: "overview", icon: BarChart3 },
+  { href: "/teacher/insights/classes", key: "allClasses", icon: BarChart3 },
 ] as const;
 
 // Conversations (1.1.109) joined Insights in 1.1.125 M2: "what did students say
@@ -49,12 +53,7 @@ export function InsightsTabs() {
   return (
     <nav aria-label={t("navLabel")} className="flex items-center gap-1 border-b border-border">
       {tabs.map((tab) => {
-        // Overview's path is the parent of every other tab's, so it is active
-        // on its own path only — otherwise it lit up beside Lessons/Cost too.
-        const active =
-          tab.href === "/teacher/insights"
-            ? pathname === tab.href
-            : pathname === tab.href || pathname.startsWith(`${tab.href}/`);
+        const active = pathname === tab.href || pathname.startsWith(`${tab.href}/`);
         const Icon = tab.icon;
         return (
           <Link

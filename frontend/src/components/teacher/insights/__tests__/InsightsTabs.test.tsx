@@ -23,42 +23,51 @@ function render(ui: ReactElement, options?: Parameters<typeof rtlRender>[1]) {
 afterEach(() => mockIsResearcher.mockReturnValue(false));
 
 describe("InsightsTabs", () => {
-  it("gives a non-researcher Lessons first, then Overview (1.1.139 M2)", () => {
+  // UI sweep 2026-11-11 — "Overview" became "All classes" at its own path.
+  it("gives a non-researcher Lessons first, then All classes", () => {
     mockIsResearcher.mockReturnValue(false);
-    mockPathname.mockReturnValue("/teacher/insights");
+    mockPathname.mockReturnValue("/teacher/insights/lessons");
     render(<InsightsTabs />);
     const links = screen.getAllByRole("link");
-    expect(links.map((l) => l.getAttribute("href"))).toEqual(["/teacher/insights/lessons", "/teacher/insights"]);
+    expect(links.map((l) => l.textContent)).toEqual(["Lessons", "All classes"]);
+    expect(links.map((l) => l.getAttribute("href"))).toEqual(["/teacher/insights/lessons", "/teacher/insights/classes"]);
     expect(screen.queryByRole("link", { name: /Cost/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Conversations/ })).not.toBeInTheDocument();
   });
 
-  it("marks only Lessons active on a lesson page — Overview is not a prefix match", () => {
+  it("marks only Lessons active on a lesson page", () => {
     mockIsResearcher.mockReturnValue(false);
     mockPathname.mockReturnValue("/teacher/insights/lessons/c1/act-1");
     render(<InsightsTabs />);
     expect(screen.getByRole("link", { name: /Lessons/ })).toHaveAttribute("aria-current", "page");
-    expect(screen.getByRole("link", { name: /Overview/ })).not.toHaveAttribute("aria-current");
+    expect(screen.getByRole("link", { name: /All classes/ })).not.toHaveAttribute("aria-current");
   });
 
   it("never links to the retired /teacher/analytics chat surface", () => {
     mockIsResearcher.mockReturnValue(true);
-    mockPathname.mockReturnValue("/teacher/insights");
+    mockPathname.mockReturnValue("/teacher/insights/classes");
     render(<InsightsTabs />);
     expect(screen.queryByRole("link", { name: /Ask the data/ })).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("link", { name: /Overview/ })?.getAttribute("href"),
-    ).not.toBe("/teacher/analytics");
+    for (const link of screen.getAllByRole("link")) {
+      expect(link.getAttribute("href")).not.toBe("/teacher/analytics");
+    }
   });
 
-  it("renders Overview + Conversations + Cost for a researcher, with Overview active on the insights route", () => {
+  it("renders Lessons + All classes + Conversations + Cost for a researcher, with All classes active on its route", () => {
     mockIsResearcher.mockReturnValue(true);
-    mockPathname.mockReturnValue("/teacher/insights");
+    mockPathname.mockReturnValue("/teacher/insights/classes");
     render(<InsightsTabs />);
-    expect(screen.getByRole("link", { name: /Overview/ })).toHaveAttribute(
+    expect(screen.getAllByRole("link").map((l) => l.textContent)).toEqual([
+      "Lessons",
+      "All classes",
+      "Conversations",
+      "Cost",
+    ]);
+    expect(screen.getByRole("link", { name: /All classes/ })).toHaveAttribute(
       "href",
-      "/teacher/insights",
+      "/teacher/insights/classes",
     );
-    expect(screen.getByRole("link", { name: /Overview/ })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /All classes/ })).toHaveAttribute(
       "aria-current",
       "page",
     );
