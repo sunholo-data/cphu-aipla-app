@@ -139,4 +139,33 @@ describe("CrossClassTable", () => {
     expect(screen.getByText("Alice Hansen")).toBeInTheDocument();
     expect(screen.getByText("teacher-2")).toBeInTheDocument();
   });
+
+  // UI sweep 2026-11-11 — the header said "Messages 7d" on a 30-day and an
+  // all-time view.
+  it("names the window in the messages header", () => {
+    const { rerender } = render(<CrossClassTable rows={ROWS} since="30d" />);
+    expect(screen.getByRole("columnheader", { name: /Messages, 30d/ })).toBeInTheDocument();
+    rerender(<CrossClassTable rows={ROWS} since="all" />);
+    expect(screen.getByRole("columnheader", { name: /Messages, all time/ })).toBeInTheDocument();
+    expect(screen.queryByText(/7d/)).not.toBeInTheDocument();
+  });
+
+  it("tells assistive tech the sort state with aria-sort on the header cell", () => {
+    render(<CrossClassTable rows={ROWS} />);
+    const headers = screen.getAllByRole("columnheader");
+    const messages = headers.find((h) => h.textContent?.startsWith("Messages"))!;
+    expect(messages).toHaveAttribute("aria-sort", "descending");
+    expect(headers.filter((h) => h.getAttribute("aria-sort") === "none")).toHaveLength(headers.length - 1);
+    fireEvent.click(screen.getByRole("button", { name: /sort by class/i }));
+    expect(screen.getAllByRole("columnheader")[0]).toHaveAttribute("aria-sort", "ascending");
+    expect(messages).toHaveAttribute("aria-sort", "none");
+  });
+
+  it("adds a sortable spend column when given spend per class", () => {
+    render(<CrossClassTable rows={ROWS} spendByClassId={new Map([["c1", 1.5], ["c2", 0.25]])} />);
+    fireEvent.click(screen.getByRole("button", { name: /sort by spend/i }));
+    const rows = within(screen.getByTestId("cross-class-table")).getAllByRole("row").slice(1);
+    expect(rows[0]).toHaveTextContent("€1.50");
+    expect(rows[1]).toHaveTextContent("€0.250");
+  });
 });

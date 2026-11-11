@@ -17,7 +17,10 @@ import { ArrowLeft } from "lucide-react";
 import { InsightsTabs } from "@/components/teacher/insights/InsightsTabs";
 import { LessonOverview } from "@/components/teacher/lessons/LessonOverview";
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
-import { useT } from "@/i18n";
+import { formatLessonDay } from "@/components/teacher/insights/formatLessonDay";
+import { LoadError } from "@/components/ui/load-error";
+import { PageSkeleton } from "@/components/ui/skeleton";
+import { useLocaleMode, useT } from "@/i18n";
 import { type LessonDetail, fetchLesson, summariseLesson } from "@/lib/lessonOverviewApi";
 
 export default function TeacherLessonPage() {
@@ -33,6 +36,8 @@ type State = { kind: "loading" } | { kind: "ok"; lesson: LessonDetail } | { kind
 function LessonPageInner() {
   const t = useT("TeacherLessonPage");
   const tOverview = useT("LessonOverview");
+  const mode = useLocaleMode();
+  const locale = mode === "bilingual" ? "da" : mode;
   const params = useParams();
   const searchParams = useSearchParams();
   const classId = typeof params?.classId === "string" ? decodeURIComponent(params.classId) : "";
@@ -83,18 +88,24 @@ function LessonPageInner() {
         </Link>
       }
       title={lesson?.activityTitle ?? activityId}
-      subtitle={lesson ? t("subtitle", { date: lesson.date, n: lesson.coverage.groups }) : date}
+      subtitle={
+        lesson
+          ? t("subtitle", { date: formatLessonDay(lesson.date, locale), n: lesson.coverage.groups })
+          : formatLessonDay(date, locale)
+      }
     >
       <InsightsTabs />
       {!date ? <p className="text-sm text-muted-foreground">{t("missingDate")}</p> : null}
-      {date && state.kind === "loading" ? (
-        <p className="text-sm text-muted-foreground">{tOverview("loading")}</p>
-      ) : null}
+      {date && state.kind === "loading" ? <PageSkeleton rows={3} label={tOverview("loading")} /> : null}
       {state.kind === "notFound" ? <p className="text-sm text-muted-foreground">{tOverview("notFound")}</p> : null}
       {state.kind === "error" ? (
-        <p role="alert" className="text-sm text-destructive">
-          {tOverview("failed")}
-        </p>
+        <LoadError
+          what={t("whatLesson")}
+          onRetry={() => {
+            setState({ kind: "loading" });
+            setReload((n) => n + 1);
+          }}
+        />
       ) : null}
       {lesson ? (
         <LessonOverview

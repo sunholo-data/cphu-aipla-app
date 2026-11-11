@@ -276,7 +276,7 @@ export default function TeacherGroupReportPage() {
           className="flex items-center gap-1 hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          {t("dashboard")}
+          {t("classesCrumb")}
         </Link>
         {report.classId ? (
           <>

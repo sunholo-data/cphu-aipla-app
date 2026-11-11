@@ -1,146 +1,26 @@
 /**
- * Tests for the /teacher/insights page shell.
- *
- * - Renders loading then the table.
- * - Shows the error banner when fetch fails.
- * - Switching the since dropdown refetches.
+ * /teacher/insights is a redirect since the UI sweep (2026-11-11): Insights
+ * opens on Lessons, and the cross-class table it used to show moved to
+ * /teacher/insights/classes ("All classes"). Old links must keep working.
  */
 
-import { fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
-import type { ReactElement } from "react";
-import { LocaleProvider } from "@/i18n";
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import TeacherInsightsPage from "@/app/teacher/insights/page";
-import type { InsightsComparePayload } from "@/lib/insightsApi";
+const redirect = vi.fn();
+vi.mock("next/navigation", () => ({ redirect: (url: string) => redirect(url) }));
 
-// 1.1.108 — teacher screens follow the person's language, Danish by default.
-// These tests assert the English copy, so they render inside an English
-// context; the Danish default has its own assertion in teacherResearchLocale.test.tsx.
-function render(ui: ReactElement, options?: Parameters<typeof rtlRender>[1]) {
-  const wrap = (node: ReactElement) => <LocaleProvider locale="en">{node}</LocaleProvider>;
-  const result = rtlRender(wrap(ui), options);
-  return { ...result, rerender: (next: ReactElement) => result.rerender(wrap(next)) };
-}
+import InsightsIndex from "@/app/teacher/insights/page";
 
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: vi.fn() }),
-  usePathname: () => "/teacher/insights",
-}));
+beforeEach(() => redirect.mockReset());
 
-vi.mock("next/link", () => ({
-  default: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>,
-}));
-
-const fetchCompare = vi.fn();
-
-vi.mock("@/lib/insightsApi", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/insightsApi")>("@/lib/insightsApi");
-  return { ...actual, fetchInsightsCompare: (...args: unknown[]) => fetchCompare(...args) };
-});
-
-vi.mock("@/components/teacher/insights/CrossClassTable", () => ({
-  CrossClassTable: ({ rows }: { rows: unknown[] }) => (
-    <div data-testid="table-stub">rows={rows.length}</div>
-  ),
-}));
-
-let isResearcher = false;
-vi.mock("@/hooks/useIsResearcher", () => ({
-  useIsResearcher: () => isResearcher,
-}));
-
-const PAYLOAD: InsightsComparePayload = {
-  since: "2026-05-26T00:00:00+00:00",
-  until: "2026-06-02T00:00:00+00:00",
-  rows: [
-    {
-      classId: "c1",
-      name: "9A",
-      activeGroups: 2,
-      messages: 50,
-      messagesPrior: 40,
-      messagesDelta: 10,
-      simRuns: 4,
-      lastActivity: null,
-    },
-  ],
-};
-
-beforeEach(() => {
-  fetchCompare.mockReset();
-  isResearcher = false;
-});
-
-describe("/teacher/insights — page shell", () => {
-  it("renders header and loading then the table", async () => {
-    fetchCompare.mockResolvedValueOnce(PAYLOAD);
-    render(<TeacherInsightsPage />);
-    expect(screen.getByText("Insights", { selector: "h1" })).toBeInTheDocument();
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
-    const table = await screen.findByTestId("table-stub");
-    expect(table).toHaveTextContent("rows=1");
+describe("/teacher/insights", () => {
+  it("lands on Lessons", async () => {
+    await InsightsIndex({ searchParams: Promise.resolve({}) });
+    expect(redirect).toHaveBeenCalledWith("/teacher/insights/lessons");
   });
 
-  it("shows the window label", async () => {
-    fetchCompare.mockResolvedValueOnce(PAYLOAD);
-    render(<TeacherInsightsPage />);
-    await screen.findByTestId("table-stub");
-    expect(screen.getByTestId("window-label")).toHaveTextContent("Last 7 days");
-  });
-
-  it("renders an error banner on fetch failure", async () => {
-    fetchCompare.mockRejectedValueOnce(new Error("Backend hiccup"));
-    render(<TeacherInsightsPage />);
-    const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Backend hiccup");
-  });
-
-  it("changing the since dropdown refetches with the new value (own scope)", async () => {
-    fetchCompare.mockResolvedValue(PAYLOAD);
-    render(<TeacherInsightsPage />);
-    await screen.findByTestId("table-stub");
-
-    const select = screen.getByLabelText("Time window") as HTMLSelectElement;
-    fireEvent.change(select, { target: { value: "30d" } });
-
-    await waitFor(() => {
-      expect(fetchCompare).toHaveBeenLastCalledWith("30d", undefined, "own");
-    });
-    expect(screen.getByTestId("window-label")).toHaveTextContent("Last 30 days");
-  });
-
-  it("hides the scope toggle for a non-researcher", async () => {
-    fetchCompare.mockResolvedValueOnce(PAYLOAD);
-    render(<TeacherInsightsPage />);
-    await screen.findByTestId("table-stub");
-    expect(screen.queryByRole("group", { name: "Class scope" })).not.toBeInTheDocument();
-    expect(fetchCompare).toHaveBeenLastCalledWith("7d", undefined, "own");
-  });
-
-  it("a researcher lands on all-teachers scope by default (2026-09-11)", async () => {
-    // It defaulted to "own" before — an empty table for a researcher who
-    // teaches no class, with the data one un-noticed click away.
-    isResearcher = true;
-    fetchCompare.mockResolvedValue(PAYLOAD);
-    render(<TeacherInsightsPage />);
-    await screen.findByTestId("table-stub");
-    expect(fetchCompare).toHaveBeenLastCalledWith("7d", undefined, "all");
-    expect(screen.getByTestId("window-label")).toHaveTextContent("all teachers");
-    expect(screen.getByRole("button", { name: "All teachers" })).toHaveAttribute("aria-pressed", "true");
-  });
-
-  it("researcher can switch to own scope and refetches with scope=own", async () => {
-    isResearcher = true;
-    fetchCompare.mockResolvedValue(PAYLOAD);
-    render(<TeacherInsightsPage />);
-    await screen.findByTestId("table-stub");
-
-    fireEvent.click(screen.getByRole("button", { name: "My classes" }));
-
-    await waitFor(() => {
-      expect(fetchCompare).toHaveBeenLastCalledWith("7d", undefined, "own");
-    });
-    expect(screen.getByTestId("window-label")).not.toHaveTextContent("all teachers");
+  it("sends an old Overview link that carried its window or scope to All classes, keeping them", async () => {
+    await InsightsIndex({ searchParams: Promise.resolve({ since: "7d", scope: "all", other: "x" }) });
+    expect(redirect).toHaveBeenCalledWith("/teacher/insights/classes?since=7d&scope=all");
   });
 });

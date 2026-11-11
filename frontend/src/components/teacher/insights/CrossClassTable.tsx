@@ -18,7 +18,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 
-import type { InsightsCompareRow } from "@/lib/insightsApi";
+import type { InsightsCompareRow, InsightsSince } from "@/lib/insightsApi";
 import { formatEur } from "@/lib/costApi";
 import { useT, type Translate } from "@/i18n";
 
@@ -40,10 +40,16 @@ interface CrossClassTableProps {
   /** classId -> EUR spend. When provided, a sortable "Spend" column is added
    *  (engagement + cost in one table — no separate spend surface). */
   spendByClassId?: Map<string, number>;
+  /** The window the counts cover. The messages header names it — it said
+   *  "Beskeder 7 d" whatever the window was (UI sweep 2026-11-11). */
+  since?: InsightsSince;
 }
 
 type ColumnLabel =
   | "colName"
+  | "colMessages_7d"
+  | "colMessages_30d"
+  | "colMessages_all"
   | "colOwner"
   | "colGroups"
   | "colMessages"
@@ -87,6 +93,7 @@ export function CrossClassTable({
   rows,
   defaultSort = "messages",
   spendByClassId,
+  since,
 }: CrossClassTableProps) {
   const t = useT("CrossClassTable");
   const [sortKey, setSortKey] = useState<SortKey>(defaultSort);
@@ -105,9 +112,12 @@ export function CrossClassTable({
   }, [rows]);
 
   const columns = useMemo<ColumnDef[]>(() => {
+    const windowed: ColumnDef[] = COLUMNS.map((c) =>
+      c.key === "messages" && since ? { ...c, label: `colMessages_${since}` as ColumnLabel } : c,
+    );
     const base: ColumnDef[] = hasOwners
       ? [
-          COLUMNS[0],
+          windowed[0],
           {
             key: "owner",
             label: "colOwner",
@@ -115,9 +125,9 @@ export function CrossClassTable({
             render: (r) => r.ownerLabel ?? r.ownerUid ?? "—",
             sortValue: (r) => r.ownerLabel ?? r.ownerUid ?? "",
           },
-          ...COLUMNS.slice(1),
+          ...windowed.slice(1),
         ]
-      : COLUMNS;
+      : windowed;
     if (!spendByClassId) return base;
     return [
       ...base,
@@ -129,7 +139,7 @@ export function CrossClassTable({
         sortValue: (r) => spendByClassId.get(r.classId) ?? 0,
       },
     ];
-  }, [spendByClassId, hasOwners]);
+  }, [spendByClassId, hasOwners, since]);
 
   const sortedRows = useMemo(() => {
     const col = columns.find((c) => c.key === sortKey);
@@ -170,23 +180,28 @@ export function CrossClassTable({
       <table className="w-full text-sm">
         <thead className="bg-muted/40 text-xs uppercase tracking-wide text-muted-foreground">
           <tr>
-            {columns.map((col) => (
-              <th
-                key={col.key}
-                scope="col"
-                className={`whitespace-nowrap px-3 py-2 text-left font-medium ${col.numeric ? "text-right" : ""}`}
-              >
-                <button
-                  type="button"
-                  onClick={() => onSort(col.key)}
-                  aria-label={t("sortBy", { label: t(col.label) })}
-                  className="inline-flex items-center gap-1 text-xs uppercase tracking-wide hover:text-foreground"
+            {columns.map((col) => {
+              const active = sortKey === col.key;
+              return (
+                <th
+                  key={col.key}
+                  scope="col"
+                  aria-sort={active ? (direction === "asc" ? "ascending" : "descending") : "none"}
+                  className={`whitespace-nowrap px-3 py-2 text-left font-medium ${col.numeric ? "text-right" : ""}`}
                 >
-                  {t(col.label)}
-                  <SortIndicator active={sortKey === col.key} direction={direction} />
-                </button>
-              </th>
-            ))}
+                  <button
+                    type="button"
+                    onClick={() => onSort(col.key)}
+                    aria-label={t("sortBy", { label: t(col.label) })}
+                    title={col.key === "messagesDelta" ? t("colDeltaHint") : undefined}
+                    className="inline-flex items-center gap-1 rounded text-xs uppercase tracking-wide hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
+                  >
+                    {t(col.label)}
+                    <SortIndicator active={active} direction={direction} />
+                  </button>
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody>

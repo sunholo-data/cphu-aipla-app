@@ -61,17 +61,18 @@
   "TeacherLessonsPage": {
     "title": "Lessons",
     "subtitle": "After a lesson: what the whole class did, before any single group.",
-    "dashboard": "Dashboard",
+    "classesCrumb": "Classes",
     "classLabel": "Class",
     "noClasses": "You have no classes yet.",
     "noLessons": "No lessons yet. A lesson appears once groups have talked to the tutor in an activity.",
     "groups": "{n, plural, one {# group} other {# groups}}",
-    "open": "Open",
     "loading": "Loading lessons…",
-    "failed": "The lessons could not be loaded right now."
+    "whatClasses": "Your classes",
+    "whatLessons": "The lessons"
   },
   "TeacherLessonPage": {
     "lessons": "Lessons",
+    "whatLesson": "The lesson",
     "subtitle": "{date} · {n, plural, one {# group} other {# groups}}",
     "missingDate": "This link is missing the lesson's date."
   },
