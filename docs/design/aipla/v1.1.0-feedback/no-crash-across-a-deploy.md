@@ -122,6 +122,12 @@ M0, `5ab554ca` M1, `1da6681b` M2 — are in tag v0.1.70, 2026-09-30.)*
 
 ### M1 — no prod promote in school hours
 
+> **Removed 2026-11-11** at M's request (*"its never right"*). M2/M3 are the
+> fix that holds — M4 measured 0 unrecovered stale crashes in 21 days — and the
+> time-of-day gate had become a refusal to override, not a protection. The
+> script, its tests (`test_promote_any_hour.py` now pins the reverse) and
+> deploy.md were changed together.
+
 `scripts/promote-env.sh` refuses `--to prod` Mon–Fri 08:00–16:00
 Europe/Copenhagen unless `FORCE=1` (`make promote … FORCE=1`, which make passes
 through to the script's environment) or `--force`, and says why. The dry-run is
