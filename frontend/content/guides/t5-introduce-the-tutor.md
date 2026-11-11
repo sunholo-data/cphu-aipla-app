@@ -7,7 +7,7 @@ order: "5"
 lang: "en"
 status: "Provisional"
 owner: "AIPLA project team"
-reviewed: "2026-10-23"
+reviewed: "2026-11-11"
 reviewBy: "2027-01-05"
 ---
 
@@ -16,9 +16,13 @@ awaiting pedagogical review.
 
 ## Set what students see first
 
-Open your activity for editing. Under **Lesson**, find **What students see
-first**, below the teaching goal. The teaching goal is an instruction for the
-tutor; **Student introduction** is text your students read above the chat.
+Open your activity for editing. In the summary at the top of the builder,
+find the **Students see first** row and select **Change** — it opens **What
+students see first** in place (it is already open once you have set any of
+it). The row says what is set now (the default
+introduction or your own, and the starter prompts). The teaching goal is an
+instruction for the tutor; **Student introduction** is text your students read
+above the chat.
 
 Write the introduction in the activity's chosen language. You can use Markdown
 for emphasis and lists. The preview below the fields updates as you type.

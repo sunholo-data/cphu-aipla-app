@@ -7,7 +7,7 @@ order: "4"
 lang: "en"
 status: "Current"
 owner: "AIPLA project team"
-reviewed: "2026-10-05"
+reviewed: "2026-11-11"
 reviewBy: "2027-01-05"
 ---
 ::: callout-note
@@ -38,10 +38,11 @@ stay in control: the co-pilot never changes the activity on its own.
 
 ## Step 1 — Open the builder
 
-Create or open an activity (guide *T2*). Click **Ask AIPLA** in the header
-and choose **Co-builder** — the co-pilot panel opens at the bottom-right of the
-builder, ready for a description. (The same button offers *AIPLA Help* on
-every page; on pages with a co-pilot of their own it offers both.)
+Create or open an activity (guide *T2*). Open **Help** in the header and
+choose **Co-builder** — the co-pilot panel opens at the bottom-right of the
+builder, ready for a description. (The same menu offers **Guides** and **Ask
+AIPLA Help** on every page; pages with a co-pilot of their own add it below
+them.)
 
 ![The co-pilot panel (Co-builder) sits at the bottom-right of the activity builder.](/guides/assets/t4-01-copilot-panel.png)
 

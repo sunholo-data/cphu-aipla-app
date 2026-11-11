@@ -7,7 +7,7 @@ order: "4"
 lang: "da"
 status: "Current"
 owner: "AIPLA project team"
-reviewed: "2026-10-05"
+reviewed: "2026-11-11"
 reviewBy: "2027-01-05"
 ---
 ::: callout-note
@@ -40,10 +40,10 @@ hånd.
 
 ## Trin 1 — Åbn byggeren
 
-Opret eller åbn en aktivitet (vejledning *T2*). Klik på **Spørg AIPLA** i
-toppen og vælg **Medbygger** — panelet åbner nederst til højre i byggeren,
-klar til en beskrivelse. (Samme knap giver *AIPLA Hjælp* på alle sider; på
-sider med deres egen medbygger tilbyder den begge.)
+Opret eller åbn en aktivitet (vejledning *T2*). Åbn **Hjælp** i toppen og
+vælg **Medbygger** — panelet åbner nederst til højre i byggeren, klar til en
+beskrivelse. (Samme menu giver **Vejledninger** og **Spørg AIPLA Hjælp** på
+alle sider; sider med deres egen co-pilot tilføjer den nedenunder.)
 
 ![Medbygger-panelet (Medbygger) sidder nederst til højre i aktivitetsbyggeren.](/guides/assets/t4-01-copilot-panel.png)
 

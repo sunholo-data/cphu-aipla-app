@@ -7,7 +7,7 @@ order: "2"
 lang: "da"
 status: "Current"
 owner: "AIPLA project team"
-reviewed: "2026-10-23"
+reviewed: "2026-11-11"
 reviewBy: "2027-01-05"
 ---
 ::: callout-note
@@ -18,8 +18,10 @@ klasse endnu, så følg vejledning *T1 — Opret en klasse og del den* først, o
 kom så tilbage hertil. Denne vejledning tager cirka fem minutter.
 
 Har du travlt? Kortet **Kom i gang** på *Klasser* tilbyder **Hent fra
-biblioteket** — en kollegas delte aktivitet kopieret ind i din klasse med ét
-klik, uden byggeren. Kom tilbage hertil, når du vil lave din egen.
+biblioteket**. Det åbner **Delt af kolleger** på *Aktiviteter*, hvor **Kopiér
+til mine aktiviteter** kopierer en kollegas aktivitet ind i dit bibliotek som
+kladde; **Tildel** sætter den derefter i din klasse — uden byggeren. Kom
+tilbage hertil, når du vil lave din egen.
 :::
 
 ## Hvad en aktivitet er
@@ -36,7 +38,7 @@ side gøres i din browser.
 ::: callout-tip
 ## Vil du hellere beskrive det i ord?
 
-Byggeren har en AI-**medbygger** (**Spørg AIPLA** → *Medbygger*). Fortæl den, hvad du vil
+Byggeren har en AI-**medbygger** (**Hjælp** → **Medbygger**). Fortæl den, hvad du vil
 undervise i, og den udkaster et undervisningsmål og elementer til
 arbejdsområdet, som du kan redigere og anvende — se *T4 — Byg med
 AI-medbyggeren*. Hvert trin nedenfor kan også gøres af medbyggeren, ikke kun i
@@ -45,18 +47,21 @@ hånden.
 
 ## Trin 1 — Åbn aktivitetsbyggeren
 
-Fra dit lærerområde åbner du **Klasser**, vælger den klasse, aktiviteten er
-til, og vælger **Ny aktivitet**. (Du kan også nå byggeren fra klassesidens
-**Ny aktivitet**-knap, som forvælger den klasse for dig.)
+Fra dit lærerområde åbner du **Aktiviteter** og vælger **Ny aktivitet**. (Du
+kan også starte fra en klasse: på klassesidens fane **Opsætning** åbner du
+**Tilføj aktivitet** og vælger **Opret ny aktivitet…**, som forvælger den
+klasse for dig.)
 
 ![Aktivitetsbyggeren åbner med en skabelonvælger øverst og en live-forhåndsvisning til højre.](/guides/assets/t2-01-new-activity.png)
 
 ## Trin 2 — Vælg et udgangspunkt
 
-Øverst i byggeren er **Start fra en skabelon**. Klik på en skabelon tæt på det,
-du vil have — den udfylder en fornuftig startkonfiguration, og
-forhåndsvisningen ved siden af viser, hvad eleverne vil se — eller vælg **Start
-fra bunden**. Du kan ændre alt bagefter, så valget er ikke bindende.
+Øverst i byggeren vælger du, hvordan du vil starte: **Start fra en skabelon**
+eller **Start helt forfra**. En skabelon åbner en række færdige aktiviteter;
+klik på en tæt på det, du vil have — den udfylder en fornuftig
+startkonfiguration, og forhåndsvisningen ved siden af viser, hvad eleverne vil
+se. Valget skrumper derefter til én linje (*Skabelon: …*) med **Skift**, hvis
+du vil have en anden. Du kan ændre alt bagefter, så valget er ikke bindende.
 
 ## Trin 3 — Sæt undervisningsmålet
 
@@ -71,24 +76,31 @@ vejledende spørgsmål."*
 
 Under **Opsætning** sætter du også **Elevernes sprog** — det sprog, eleverne ser
 aktiviteten på, og som tutoren svarer på. (En elev kan stadig selv skifte
-DA | EN.) Selve tutoren kommer fra klassen (vejledning *T1*); afsnittet
-Opsætning viser, hvilken tutor der underviser.
+DA | EN.) Selve tutoren kommer fra klassen (vejledning *T1*); rækken **Tutor**
+i oversigten øverst i byggeren viser, hvilken tutor der underviser, med **Skift
+i klassen** for at skifte den dér.
 
 ![Undervisningsmålet er den instruktion, tutoren følger. Hold det specifikt.](/guides/assets/t2-03-goal.png)
 
-Under det finder du **Det første eleverne ser**. Her kan du skrive en
-elevintroduktion, vælge selv at introducere aktiviteten i klassen og skrive
-startspørgsmål. Lad felterne være tomme for at bruge de aktivitetsspecifikke
-standarder. Forhåndsvisningen opdateres, mens du redigerer.
-Se [T5 — Introducer tutoren](t5-introduce-the-tutor.da).
+Samme oversigt har rækken **Eleverne ser først**. Dens **Skift** åbner **Det
+første eleverne ser**, hvor du kan skrive en elevintroduktion, vælge selv at
+introducere aktiviteten i klassen og skrive startspørgsmål. Lad felterne være
+tomme for at bruge de aktivitetsspecifikke standarder. Forhåndsvisningen
+opdateres, mens du redigerer. Se [T5 — Introducer tutoren](t5-introduce-the-tutor.da).
+(Rækken **Elevvisning** ved siden af bestemmer, hvordan elevernes skærm er
+stillet op.)
 
 ## Trin 4 — Tilføj et arbejdsområde (valgfrit)
 
-I afsnittet **Arbejdsområde** tilføjer du de elementer, dine elever vil bruge —
-en simulation, en tjekliste, en tabel at udfylde, en graf, en beregner eller
-noter — eller lader det stå tomt for en ren chat-baseret begrebsdialog.
-**Live-forhåndsvisningen** til højre opdateres, efterhånden som du tilføjer
-hvert element, så du ser præcis, hvad eleven vil se.
+Afsnittet **Arbejdsområde** starter tomt og viser kun det, du tilføjer. Vælg
+**Tilføj til arbejdsområdet**, og vælg i oversigten over elementtyper — en
+simulation, en tjekliste, en tabel at udfylde, en graf, en beregner, noter og
+mere. Vælger du **Simulation**, åbner en vælger med de tilgængelige
+simulationer. Hvert element, du tilføjer, vises som et kort med **Redigér**;
+dets **⋯**-menu fjerner det. Du kan også lade arbejdsområdet stå tomt for en
+ren chat-baseret begrebsdialog. **Live-forhåndsvisningen** til højre
+opdateres, efterhånden som du tilføjer hvert element, så du ser præcis, hvad
+eleven vil se.
 
 ::: callout-tip
 Alt, hvad eleven gør i arbejdsområdet — værdier de indtaster, en simulation de
@@ -112,19 +124,18 @@ kan sagtens fungere godt og alligevel mangle begge dele.
 
 ## Trin 5 — Opret aktiviteten
 
-Når du er tilfreds med forhåndsvisningen, vælger du **Opret aktivitet**. Du vil
-se en bekræftelse på, at aktiviteten er live for din klasse.
+Når du er tilfreds med forhåndsvisningen, vælger du **Opret aktivitet**. En kort
+besked bekræfter, at aktiviteten er oprettet og tilgængelig for din klasse — den
+tilbyder også **Opret en til**, så du kan starte en ny aktivitet til den samme
+klasse — og aktiviteten åbner i editoren.
 
 ![Aktiviteten er nu live; elever, der tilslutter sig med klassens gruppekode, kan åbne den.](/guides/assets/t2-05-success.png)
 
-Fra bekræftelsen kan du:
-
-- **Konfigurér aktivitet** — genåbne den for at tilføje pensummaterialer eller
-  finjustere målet (se *T3 — Tilføj og organiser pensummaterialer*). Når den er
-  gemt, åbner **Prøv som elev** dér den rigtige elevvisning i en ny fane, med
-  tutor og uden gruppekode.
-- **Opret en til** — starte en ny aktivitet til den samme klasse.
-- **Tilbage til klasser** — vende tilbage til din klasseliste.
+I editoren kan du tilføje pensummaterialer eller finjustere målet (se *T3 —
+Tilføj og organiser pensummaterialer*) og vælge **Gem**. En linje under titlen
+viser, hvornår aktiviteten blev oprettet og sidst redigeret. **Prøv som elev**
+øverst åbner den rigtige elevvisning i en ny fane, med tutor og uden
+gruppekode.
 
 ## Hvad elever ser
 

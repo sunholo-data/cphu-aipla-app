@@ -7,7 +7,7 @@ order: "1"
 lang: "da"
 status: "Current"
 owner: "AIPLA project team"
-reviewed: "2026-10-05"
+reviewed: "2026-11-11"
 reviewBy: "2027-01-05"
 ---
 ::: callout-note
@@ -39,7 +39,7 @@ Alt nedenfor gøres i din browser. Du behøver ikke en udvikler.
 ::: callout-tip
 ## Medbyggeren kan gøre dette for dig
 
-På *Klasser* klikker du på **Spørg AIPLA** i toppen og vælger
+På *Klasser* åbner du **Hjælp** i toppen og vælger
 **Klasse-co-pilot**. Du kan oprette en klasse og udstede gruppekoder ved at bede
 den om det i almindeligt sprog, i stedet for at bruge formularerne nedenfor — se
 *T4 — Byg med AI-medbyggeren*.
@@ -59,8 +59,12 @@ Din nye klasse vises nu på klasselisten, sammen med eventuelle andre, du ejer.
 
 ## Trin 2 — Udsted en gruppekode
 
-Åbn klassen med **Administrér**. En ny klasse har endnu ingen gruppekoder, så
-vælg **Ny gruppe**. AIPLA genererer en kort kode og kopierer den til din
+Åbn klassen ved at vælge dens navn på listen. Klassesiden har tre faner:
+**Lektion** (grupperne, og hvad de laver lige nu), **Efter lektionen** (indsigt,
+forbrug, seneste sessioner og eksport) og **Opsætning** (tutoren, stemme og
+optagelse, klassens aktiviteter). En ny klasse åbner på **Opsætning**; skift
+til **Lektion**. Klassen har endnu ingen gruppekoder, så vælg **Ny gruppe** i
+tabellen **Grupper**. AIPLA genererer en kort kode og kopierer den til din
 udklipsholder.
 
 ![Ved at vælge Ny gruppe udstedes en kode, eleverne bruger til at tilslutte sig.](/guides/assets/t1-03-mint-group.png)
@@ -71,21 +75,26 @@ hinanden i rapporterne.
 
 ## Trin 3 — Del koden med eleverne
 
-Ved siden af hver kode vælger du **Kopiér tilmeldingslink** og giver eleverne
-det link. Det indeholder både adressen og koden, så ingen havner på det forkerte
-AIPLA-site — en kode virker kun på det site, den er lavet på. (**Kopiér kode**
-kopierer kun koden, til elever der allerede er på den rigtige side.) De åbner
+Hver kode er en række i tabellen **Grupper**. Vælg **Kopiér link** på dens
+række, og giv eleverne det link. Det indeholder både adressen og koden, så
+ingen havner på det forkerte AIPLA-site — en kode virker kun på det site, den
+er lavet på. (**Kopiér kode** under **⋯** på rækken kopierer kun koden, til
+elever der allerede er på den rigtige side.) De åbner
 linket, og så er de inde — ingen login, ingen personlig konto (se *S1 —
 Tilslut dig og brug din tutor*). Alt, hvad de foretager sig, grupperes under den
 kode, så dine klasserapporter forbliver organiserede.
 
-Vil du kunne huske, hvem der står bag hver kode, så åbn **Klasseliste** på
-klassesiden: skriv navnene ud for hver kode, og vælg **Download som Excel**.
-Navnene bliver i din browser på denne enhed — AIPLA modtager dem aldrig.
+Vil du kunne huske, hvem der står bag hver kode, så skriv navnene i kolonnen
+**Navne · kun i din browser** i tabellen, og brug **Navne: Excel** →
+**Download som Excel** til at gemme en kopi. Navnene bliver i din browser på
+denne enhed — AIPLA modtager dem aldrig.
 
-Hvis en kode slipper ud, vælger du **Tilbagekald** ved siden af den. Koden holder
-straks op med at virke og kan aldrig udstedes igen; gruppens arbejde bevares.
-Udsted en ny kode til gruppen med **Ny gruppe**.
+Menuen **⋯** på en række rummer også de sjældnere handlinger. **Start en ny
+samtale** arkiverer gruppens nuværende samtale (den gemmes til rapporten), så
+gruppen starter forfra næste gang. Hvis en kode slipper ud, vælger du
+**Tilbagekald koden…**. Koden holder straks op med at virke og kan aldrig
+udstedes igen; gruppens arbejde bevares. Udsted en ny kode til gruppen med
+**Ny gruppe**.
 
 ::: callout-tip
 Gruppekoder er måden, hvorpå du adskiller én klasse — eller én laboratoriegruppe
@@ -95,17 +104,20 @@ separat.
 
 ## Trin 4 — Vælg tutoren (valgfrit)
 
-Under **Klassens indstillinger** på klassesiden bestemmer **Tutor**, hvem der
-underviser i alle klassens aktiviteter — navn, billede, stemme, tone og
-undervisningstilgang i ét valg. Lad standarden stå, eller vælg en anden.
+På klassesidens fane **Opsætning** bestemmer **Tutor**, hvem der underviser i
+alle klassens aktiviteter — navn, billede, stemme, tone og undervisningstilgang
+i ét valg. Lad standarden stå, eller brug **Skift tutor** (**Vælg tutor**, hvis
+der ikke er valgt en) til at vælge en anden.
 
 ### Lav din egen tutor
 
 Alle lærere kan skrive en undervisningstilgang og bygge en tutor på den; du
 behøver ikke en forskerkonto. Åbn linket **Undervisningstilgange** ved siden af
-*Tutor* (eller **Tilgange** i kontomenuen øverst til højre):
+*Tutor* (eller **Tutorer** i kontomenuen øverst til højre). Siden har tre
+faner: **Prøv dem**, **Tilgange** og **Tutorer**.
 
-1. På fanen **Dine tilgange** vælger du **Ny tilgang**. Giv den et **Navn**, et
+1. På fanen **Tilgange**, under de publicerede tilgange, finder du **Dine egne
+   undervisningstilgange** og vælger **Ny tilgang**. Giv den et **Navn**, et
    **Resumé på én linje**, og skriv **Hvad tutoren får at vide** fuldt ud, som
    hvis du briefede en undervisningsassistent. Vælg **Gem**.
 2. På fanen **Tutorer** vælger du **Ny tutor**. Giv den et **Navn**, vælg din
@@ -113,7 +125,8 @@ behøver ikke en forskerkonto. Åbn linket **Undervisningstilgange** ved siden a
    publicerede), vælg **Ansigt og stemme**, og vælg **Opret tutor**. Vil du kun
    skifte tilgangen på en eksisterende tutor, så vælg i stedet grenikonet ved
    siden af den (*Lav en variant af …*).
-3. Tilbage på klassesiden vælger du din nye tutor under **Tutor**.
+3. Tilbage på klassesidens fane **Opsætning** vælger du din nye tutor under
+   **Tutor**.
 
 De syv publicerede tilgange kan læses på fanen **Tilgange**, men ikke ændres —
 de vedligeholdes af forskergruppen.

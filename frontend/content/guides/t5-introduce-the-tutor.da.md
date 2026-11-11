@@ -7,7 +7,7 @@ order: "5"
 lang: "da"
 status: "Provisional"
 owner: "AIPLA project team"
-reviewed: "2026-10-23"
+reviewed: "2026-11-11"
 reviewBy: "2027-01-05"
 ---
 
@@ -16,8 +16,11 @@ klassen afventer pædagogisk gennemgang.
 
 ## Vælg det første, eleverne ser
 
-Åbn aktiviteten til redigering. Under **Lektion** finder du **Det første
-eleverne ser**, under lærer-prompten. Lærer-prompten er en instruktion til
+Åbn aktiviteten til redigering. I oversigten øverst i byggeren finder du
+rækken **Eleverne ser først** og vælger **Skift** — så åbner **Det første
+eleverne ser** på stedet (den er allerede åben, når du har udfyldt noget af
+den). Rækken viser, hvad der er sat nu (standardintroduktionen
+eller din egen, og startspørgsmålene). Lærer-prompten er en instruktion til
 tutoren; **Introduktion til eleverne** er tekst, eleverne læser over chatten.
 
 Skriv introduktionen på aktivitetens valgte sprog. Du kan bruge Markdown til
