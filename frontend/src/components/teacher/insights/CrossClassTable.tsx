@@ -19,7 +19,7 @@ import { useMemo, useState } from "react";
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
 
 import type { InsightsCompareRow, InsightsSince } from "@/lib/insightsApi";
-import { formatEur } from "@/lib/costApi";
+import { formatEur, type SpendPeriod } from "@/lib/costApi";
 import { useT, type Translate } from "@/i18n";
 
 type SortKey =
@@ -43,6 +43,8 @@ interface CrossClassTableProps {
   /** The window the counts cover. The messages header names it — it said
    *  "Beskeder 7 d" whatever the window was (UI sweep 2026-11-11). */
   since?: InsightsSince;
+  /** The billing period the spend column covers; named in its header. */
+  spendPeriod?: SpendPeriod;
 }
 
 type ColumnLabel =
@@ -50,6 +52,9 @@ type ColumnLabel =
   | "colMessages_7d"
   | "colMessages_30d"
   | "colMessages_all"
+  | "colSpend_this_month"
+  | "colSpend_last_month"
+  | "colSpend_all_time"
   | "colOwner"
   | "colGroups"
   | "colMessages"
@@ -94,6 +99,7 @@ export function CrossClassTable({
   defaultSort = "messages",
   spendByClassId,
   since,
+  spendPeriod = "this_month",
 }: CrossClassTableProps) {
   const t = useT("CrossClassTable");
   const [sortKey, setSortKey] = useState<SortKey>(defaultSort);
@@ -133,13 +139,13 @@ export function CrossClassTable({
       ...base,
       {
         key: "spend",
-        label: "colSpend",
+        label: `colSpend_${spendPeriod}` as ColumnLabel,
         numeric: true,
         render: (r) => formatEur(spendByClassId.get(r.classId) ?? 0),
         sortValue: (r) => spendByClassId.get(r.classId) ?? 0,
       },
     ];
-  }, [spendByClassId, hasOwners, since]);
+  }, [spendByClassId, hasOwners, since, spendPeriod]);
 
   const sortedRows = useMemo(() => {
     const col = columns.find((c) => c.key === sortKey);

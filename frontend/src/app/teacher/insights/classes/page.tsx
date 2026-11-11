@@ -14,7 +14,10 @@
  *
  * Spend per class: the caller's own classes come from `/insights/cost/mine`;
  * a researcher's all-teachers view uses the cross-class cost overview, which is
- * also why Omkostninger no longer needs its own "per class" table.
+ * also why Omkostninger no longer needs its own "per class" table. Spend has
+ * its own period (this month / last month / all time, `?spend=`) because the
+ * billing periods are calendar months, not the 7 d / 30 d engagement window —
+ * and so the Cost page's per-class figures for every period survive here.
  *
  * Each read fails on its own and says so with Retry (`LoadError`) — a failed
  * read must never render as "no engagement".
@@ -35,7 +38,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
 import { useUrlTab } from "@/hooks/useUrlTab";
 import { useLocaleMode, useT } from "@/i18n";
-import { fetchCostInsights, fetchTeacherSpend, formatEur } from "@/lib/costApi";
+import { type SpendPeriod, fetchCostInsights, fetchTeacherSpend, formatEur } from "@/lib/costApi";
 import {
   type InsightsComparePayload,
   type InsightsScope,
@@ -48,6 +51,7 @@ import { formatRelativeTime } from "@/lib/relativeTime";
 
 const SINCE: readonly InsightsSince[] = ["7d", "30d", "all"];
 const SCOPES: readonly InsightsScope[] = ["own", "all"];
+const SPEND_PERIODS: readonly SpendPeriod[] = ["this_month", "last_month", "all_time"];
 
 type Load<T> = { kind: "loading" } | { kind: "ok"; value: T } | { kind: "error" };
 
@@ -100,6 +104,7 @@ function AllClassesInner() {
   // scope=all without the claim either way.
   const [scopeChoice, setScope] = useUrlTab<InsightsScope>("scope", SCOPES, isResearcher ? "all" : "own");
   const scope: InsightsScope = isResearcher ? scopeChoice : "own";
+  const [spendPeriod, setSpendPeriod] = useUrlTab<SpendPeriod>("spend", SPEND_PERIODS, "this_month");
 
   const [reloadTable, setReloadTable] = useState(0);
   const [reloadTotals, setReloadTotals] = useState(0);
@@ -118,13 +123,13 @@ function AllClassesInner() {
   const spend = useLoad<Spend>(
     async () => {
       if (scope === "all") {
-        const p = await fetchCostInsights("this_month");
+        const p = await fetchCostInsights(spendPeriod);
         return { total: p.total_eur, byClass: new Map(p.per_class.map((c) => [c.class_id, c.eur])) };
       }
-      const p = await fetchTeacherSpend("this_month");
+      const p = await fetchTeacherSpend(spendPeriod);
       return { total: p.total_eur, byClass: new Map(p.per_class.map((c) => [c.class_id, c.eur])) };
     },
-    scope,
+    `${scope}|${spendPeriod}`,
     reloadSpend,
   );
 
@@ -162,6 +167,7 @@ function AllClassesInner() {
         <div className="flex flex-wrap items-center gap-2">
           {isResearcher ? <ScopeToggle value={scopeChoice} onChange={setScope} /> : null}
           <SinceSelect value={since} onChange={setSince} />
+          <SpendSelect value={spendPeriod} onChange={setSpendPeriod} />
         </div>
       }
     >
@@ -182,7 +188,7 @@ function AllClassesInner() {
               label={t("messagesIn", { window: t(`opt_${since}`).toLowerCase() })}
               value={totals ? String(totals.totalMessages) : "…"}
             />
-            <Stat label={t("spendThisMonth")} value={spendValue} />
+            <Stat label={t(`spend_${spendPeriod}`)} value={spendValue} />
             <Stat
               label={t("lastActivity")}
               value={
@@ -212,6 +218,7 @@ function AllClassesInner() {
         <CrossClassTable
           rows={compare.value.rows}
           since={since}
+          spendPeriod={spendPeriod}
           spendByClassId={spend.kind === "ok" ? spend.value.byClass : undefined}
         />
       )}
@@ -225,6 +232,27 @@ function Stat({ label, value }: { label: string; value: string }) {
       <dt className="text-xs uppercase tracking-wide text-muted-foreground">{label}</dt>
       <dd className="mt-0.5 text-lg font-semibold tabular-nums">{value}</dd>
     </div>
+  );
+}
+
+function SpendSelect({ value, onChange }: { value: SpendPeriod; onChange: (v: SpendPeriod) => void }) {
+  const t = useT("TeacherInsightsPage");
+  return (
+    <label className="flex items-center gap-1 rounded border border-border bg-background px-2 py-1 text-xs font-medium text-foreground focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-1">
+      <span className="text-muted-foreground">{t("spendPeriod")}</span>
+      <select
+        aria-label={t("spendPeriodLabel")}
+        value={value}
+        onChange={(e) => onChange(e.target.value as SpendPeriod)}
+        className="cursor-pointer appearance-none bg-transparent text-xs focus:outline-none"
+      >
+        {SPEND_PERIODS.map((p) => (
+          <option key={p} value={p}>
+            {t(`spendOpt_${p}`)}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 

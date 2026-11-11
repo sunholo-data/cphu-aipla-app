@@ -118,6 +118,17 @@ describe("/teacher/insights/classes — All classes", () => {
     expect(await screen.findByRole("columnheader", { name: /Messages, 7d/ })).toBeInTheDocument();
   });
 
+  // The Cost page's per-class table went; its periods must survive here.
+  it("keeps the spend period in the URL (?spend=) and reads per-class spend for it", async () => {
+    render(<InsightsAllClassesPage />);
+    await screen.findByTestId("cross-class-table");
+    await userEvent.selectOptions(screen.getByLabelText("Spend period"), "last_month");
+    expect(nav.search.get("spend")).toBe("last_month");
+    await waitFor(() => expect(fetchTeacherSpend).toHaveBeenLastCalledWith("last_month"));
+    expect(await screen.findByRole("columnheader", { name: /Spend, last month/ })).toBeInTheDocument();
+    expect(screen.getByTestId("insights-totals")).toHaveTextContent("Spend (last month)");
+  });
+
   it("opens on the window a link carries", async () => {
     nav.reset("/teacher/insights/classes", "since=all");
     render(<InsightsAllClassesPage />);

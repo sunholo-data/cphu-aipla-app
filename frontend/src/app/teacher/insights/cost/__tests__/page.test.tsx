@@ -110,7 +110,7 @@ describe("cost page — layout after the sweep", () => {
     expect(screen.queryByText("By class")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Open All classes" })).toHaveAttribute(
       "href",
-      "/teacher/insights/classes?scope=all",
+      "/teacher/insights/classes?scope=all&spend=this_month",
     );
   });
 

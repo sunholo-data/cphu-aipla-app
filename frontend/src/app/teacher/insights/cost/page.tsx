@@ -135,7 +135,7 @@ export default function TeacherCostInsightsPage() {
           ) : null}
           <p className="text-sm text-muted-foreground" data-testid="by-class-moved">
             {t("byClassMoved")}{" "}
-            <Link href="/teacher/insights/classes?scope=all" className="font-medium text-primary hover:underline">
+            <Link href={`/teacher/insights/classes?scope=all&spend=${period}`} className="font-medium text-primary hover:underline">
               {t("byClassLink")}
             </Link>
           </p>
