@@ -3,21 +3,26 @@
   "_derived": "The check ALSO flags derived artefacts when a guide changes: each <slug>.da.qmd (Danish version) vs its English source, and backend/skills/templates/aipla-help/SKILL.md (the help co-pilot embeds condensed guide content) vs the newest English guide.",
   "t1-set-up-a-class": [
     "frontend/src/app/teacher/classes",
+    "frontend/src/app/teacher/classes/[id]",
     "frontend/src/components/teacher/research/CustomApproachPanel.tsx",
-    "frontend/src/components/teacher/research/MyTutorsPanel.tsx"
+    "frontend/src/components/teacher/research/MyTutorsPanel.tsx",
+    "frontend/src/components/teacher/ui/AccountMenu.tsx"
   ],
   "t2-create-your-first-activity": [
     "frontend/src/app/teacher/activities/new",
     "frontend/src/components/teacher/ActivityBuilderBody.tsx",
     "frontend/src/components/teacher/BuilderLayout.tsx",
-    "frontend/src/hooks/useActivityBuilder.ts"
+    "frontend/src/hooks/useActivityBuilder.ts",
+    "frontend/src/components/teacher/WorkspaceElements.tsx",
+    "frontend/src/app/teacher/activities/[id]/page.tsx"
   ],
   "t3-add-curriculum-materials": [
     "frontend/src/components/teacher/MaterialsSection.tsx"
   ],
   "t4-author-with-the-copilot": [
     "frontend/src/app/teacher/activities/[id]/_AuthoringCopilot.tsx",
-    "frontend/src/components/teacher/copilot"
+    "frontend/src/components/teacher/copilot",
+    "frontend/src/components/teacher/copilot/AskAiplaButton.tsx"
   ],
   "s1-join-and-use-your-tutor": [
     "frontend/src/app/group",
@@ -28,7 +33,8 @@
   "r1-researcher-onboarding": [
     "frontend/src/app/teacher/research",
     "frontend/src/app/teacher/insights",
-    "frontend/src/app/teacher/settings/_LensConfigPanel.tsx"
+    "frontend/src/components/teacher/research/LensConfigPanel.tsx",
+    "frontend/src/components/teacher/ui/AccountMenu.tsx"
   ],
   "r2-propose-a-simulation": [
     ".claude/skills/mcp-app-artefact",
@@ -38,6 +44,7 @@
   "t5-introduce-the-tutor": [
     "frontend/src/components/teacher/ActivityOpeningEditor.tsx",
     "frontend/src/components/chat/PinnedWelcome.tsx",
-    "backend/adk/proactive_greet.py"
+    "backend/adk/proactive_greet.py",
+    "frontend/src/components/teacher/ActivityBuilderBody.tsx"
   ]
 }
