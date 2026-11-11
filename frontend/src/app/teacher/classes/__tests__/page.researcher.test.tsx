@@ -9,6 +9,10 @@ import * as researcherHook from "@/hooks/useIsResearcher";
 import type { ClassPayload } from "@/lib/teacherApi";
 import { LocaleProvider } from "@/i18n";
 
+// Scope and filter live in the URL (UI sweep 2026-11-11).
+vi.mock("next/navigation", async () => (await import("@/test/nextNavigationMock")).navigationModule);
+import { nav } from "@/test/nextNavigationMock";
+
 // 1.1.108 M2 — these tests assert the English copy; the teacher UI defaults to
 // Danish (the teacher's own DA | EN choice), so render inside an English locale.
 function EnglishLocale({ children }: { children: React.ReactNode }) {
@@ -36,6 +40,7 @@ function makeClass(overrides: Partial<ClassPayload> = {}): ClassPayload {
 }
 
 beforeEach(() => {
+  nav.reset("/teacher/classes");
   vi.spyOn(teacherApi, "listClassRecentSessions").mockResolvedValue([]);
   vi.spyOn(teacherApi, "listAccessibleSkills").mockResolvedValue([]);
   vi.spyOn(insightsApi, "fetchInsightsSummary").mockResolvedValue({
@@ -63,7 +68,8 @@ describe("/teacher/classes — Research view (1.1.5)", () => {
     await waitFor(() => {
       expect(screen.getByRole("link", { name: "Mine" })).toBeInTheDocument();
     });
-    expect(screen.queryByRole("button", { name: "Research view" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "All teachers' classes" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("group", { name: "Whose classes" })).not.toBeInTheDocument();
   });
 
   it("shows the toggle for researchers and switches to scope=all on click", async () => {
@@ -84,7 +90,11 @@ describe("/teacher/classes — Research view (1.1.5)", () => {
     // Other teacher's class not visible in My classes scope.
     expect(screen.queryByRole("link", { name: "Theirs" })).not.toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("button", { name: "Research view" }));
+    // One name on every page (UI sweep 2026-11-11): "Your classes | All teachers' classes".
+    expect(screen.getByRole("button", { name: "Your classes" })).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(screen.getByRole("button", { name: "All teachers' classes" }));
+    // …kept in the URL, so a researcher can link to it and Back keeps it.
+    expect(nav.search.get("scope")).toBe("all");
 
     await waitFor(() => {
       expect(listSpy).toHaveBeenCalledWith("all");
@@ -101,8 +111,35 @@ describe("/teacher/classes — Research view (1.1.5)", () => {
     // fixtures have no codes → "No join code"), and the researcher's shortcut
     // to set a class up for a teacher replaces "New class" here.
     expect(screen.getAllByTestId("stage-chip").map((c) => c.getAttribute("data-stage"))).toEqual(["no_code", "no_code"]);
-    expect(screen.getByRole("button", { name: /set up a class for a teacher/i })).toBeInTheDocument();
+    // "Set up a class for a teacher…" sits in the header's ⋯ menu; "New class"
+    // is for the researcher's own classes only.
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    expect(screen.getByRole("menuitem", { name: /set up a class for a teacher/i })).toBeInTheDocument();
+    await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("button", { name: "New class" })).not.toBeInTheDocument();
+    // The Insights link follows the scope.
+    expect(screen.getByRole("link", { name: /every teacher's classes, with spend/ })).toHaveAttribute(
+      "href",
+      "/teacher/insights/classes?scope=all",
+    );
+  });
+
+  it("opens straight on all teachers' classes from a ?scope=all link", async () => {
+    vi.spyOn(researcherHook, "useIsResearcher").mockReturnValue(true);
+    nav.reset("/teacher/classes", "scope=all");
+    const listSpy = vi.spyOn(teacherApi, "listClasses").mockResolvedValue([makeClass({ name: "Theirs" })]);
+    render(<TeacherClassesPage />);
+    await waitFor(() => expect(listSpy).toHaveBeenCalledWith("all"));
+    expect(screen.getByRole("button", { name: "All teachers' classes" })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("ignores ?scope=all for a teacher without the claim", async () => {
+    vi.spyOn(researcherHook, "useIsResearcher").mockReturnValue(false);
+    nav.reset("/teacher/classes", "scope=all");
+    const listSpy = vi.spyOn(teacherApi, "listClasses").mockResolvedValue([makeClass({ name: "Mine" })]);
+    render(<TeacherClassesPage />);
+    await screen.findByRole("link", { name: "Mine" });
+    expect(listSpy).not.toHaveBeenCalledWith("all");
   });
 
   it("marks a class its teacher deleted, and does not count revoked codes as joinable (1.1.146)", async () => {
@@ -123,7 +160,7 @@ describe("/teacher/classes — Research view (1.1.5)", () => {
     );
 
     render(<TeacherClassesPage />);
-    await userEvent.click(await screen.findByRole("button", { name: "Research view" }));
+    await userEvent.click(await screen.findByRole("button", { name: "All teachers' classes" }));
 
     await waitFor(() => expect(screen.getByRole("link", { name: "Deleted one" })).toBeInTheDocument());
     expect(screen.getByTestId("class-deleted")).toHaveTextContent("Deleted by teacher");

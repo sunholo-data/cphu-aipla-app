@@ -6,9 +6,8 @@
  *  - a class nobody has spoken in says so IN WORDS (a blank cell reads the
  *    same as "not permitted", and a researcher cannot tell them apart)
  *  - latest activity sorts first; silent classes sink
- *  - the insights strip is fetched for scope=all in research view (it used
- *    to fetch own-scope there, so a researcher with no classes of their own
- *    saw an empty strip under a full table) and the window is selectable
+ *  - (the insights strip moved to Insights → All classes in the UI sweep,
+ *    2026-11-11; its scope + window tests live with that page)
  */
 
 import { render as rtlRender, screen, waitFor, within } from "@testing-library/react";
@@ -17,10 +16,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import TeacherClassesPage from "@/app/teacher/classes/page";
 import * as teacherApi from "@/lib/teacherApi";
-import * as insightsApi from "@/lib/insightsApi";
-import * as researcherHook from "@/hooks/useIsResearcher";
 import type { ClassPayload } from "@/lib/teacherApi";
 import { LocaleProvider } from "@/i18n";
+
+// Scope and filter live in the URL (UI sweep 2026-11-11).
+vi.mock("next/navigation", async () => (await import("@/test/nextNavigationMock")).navigationModule);
+import { nav } from "@/test/nextNavigationMock";
 
 // 1.1.108 M2 — these tests assert the English copy; the teacher UI defaults to
 // Danish (the teacher's own DA | EN choice), so render inside an English locale.
@@ -60,24 +61,12 @@ const ACTIVITY = {
   busy: { sessions: 4, turns: 42, activeGroups: 3, lastMessageAt: new Date().toISOString() },
 };
 
-let summarySpy: ReturnType<typeof vi.spyOn>;
-let compareSpy: ReturnType<typeof vi.spyOn>;
-
 beforeEach(() => {
+  nav.reset("/teacher/classes");
   vi.spyOn(teacherApi, "listClasses").mockResolvedValue(CLASSES);
   vi.spyOn(teacherApi, "fetchClassesActivity").mockResolvedValue(ACTIVITY);
   vi.spyOn(teacherApi, "listClassRecentSessions").mockResolvedValue([]);
   vi.spyOn(teacherApi, "listAccessibleSkills").mockResolvedValue([]);
-  summarySpy = vi.spyOn(insightsApi, "fetchInsightsSummary").mockResolvedValue({
-    since: "2026-05-26T00:00:00+00:00",
-    until: "2026-06-02T00:00:00+00:00",
-    classes: [],
-  });
-  compareSpy = vi.spyOn(insightsApi, "fetchInsightsCompare").mockResolvedValue({
-    since: "2026-05-26T00:00:00+00:00",
-    until: "2026-06-02T00:00:00+00:00",
-    rows: [],
-  });
 });
 
 afterEach(() => {
@@ -98,8 +87,9 @@ describe("/teacher/classes — activity column + sort", () => {
     await waitFor(() => expect(rowNames()).toEqual(["Busy class", "Old class", "Quiet class"]));
 
     const cells = screen.getAllByTestId("class-activity");
-    expect(cells[0]).toHaveTextContent("42 turns · 3 groups active");
-    expect(cells[1]).toHaveTextContent("3 turns · 1 group active");
+    // "turns" became "messages" (UI sweep 2026-11-11, copy item 7).
+    expect(cells[0]).toHaveTextContent("42 messages · 3 groups active");
+    expect(cells[1]).toHaveTextContent("3 messages · 1 group active");
     expect(cells[2]).toHaveTextContent("No messages yet");
   });
 
@@ -117,25 +107,7 @@ describe("/teacher/classes — activity column + sort", () => {
 
     await userEvent.selectOptions(screen.getByRole("combobox", { name: "Filter by activity" }), "active7d");
     await waitFor(() => expect(rowNames()).toEqual(["Busy class"]));
-  });
-});
-
-describe("/teacher/classes — insights strip follows the view and the window", () => {
-  it("fetches own-scope, 30d by default for a teacher; scope=all in research view; window is selectable", async () => {
-    vi.spyOn(researcherHook, "useIsResearcher").mockReturnValue(true);
-    render(<TeacherClassesPage />);
-    await screen.findByRole("link", { name: "Busy class" });
-
-    await userEvent.click(screen.getByRole("button", { name: /Show insights/ }));
-    await waitFor(() => expect(summarySpy).toHaveBeenCalledWith("30d", undefined, "own"));
-    expect(compareSpy).toHaveBeenCalledWith("30d", undefined, "own");
-
-    await userEvent.click(screen.getByRole("button", { name: "Research view" }));
-    await waitFor(() => expect(summarySpy).toHaveBeenCalledWith("30d", undefined, "all"));
-    expect(compareSpy).toHaveBeenCalledWith("30d", undefined, "all");
-
-    await userEvent.selectOptions(await screen.findByRole("combobox", { name: "Time window" }), "all");
-    await waitFor(() => expect(summarySpy).toHaveBeenCalledWith("all", undefined, "all"));
-    expect(screen.getByText("No engagement recorded in all time.")).toBeInTheDocument();
+    // The filter is in the URL, so Back and a refresh keep it.
+    expect(nav.search.get("filter")).toBe("active7d");
   });
 });

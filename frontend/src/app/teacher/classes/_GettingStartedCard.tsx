@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Check, Circle, Copy, Rocket, X } from "lucide-react";
+import { Check, ChevronDown, Circle, Copy, Rocket, X } from "lucide-react";
 
 import { type TeacherStagePayload, fetchTeacherStage } from "@/lib/teacherApi";
 import { STAGE_ORDER, type Stage } from "@/lib/onboardingStage";
@@ -13,17 +13,25 @@ type StepKey = "createClass" | "mintCode" | "addActivity" | "previewOpening" | "
 
 const DISMISS_KEY = "aipla.gettingStarted.dismissed";
 
-function readDismissed(): boolean {
+/**
+ * Hiding is a per-viewer convenience. Once the class is LIVE the card is done
+ * and "Skjul" is remembered in this browser (localStorage, as before). Before
+ * that, "Skjul" only hides it for this browser session (sessionStorage): a
+ * teacher half-way through setting up should get the checklist back tomorrow,
+ * not lose it for good to one click.
+ */
+function readDismissed(live: boolean): boolean {
   try {
-    return window.localStorage.getItem(DISMISS_KEY) === "1";
+    if (live && window.localStorage.getItem(DISMISS_KEY) === "1") return true;
+    return window.sessionStorage.getItem(DISMISS_KEY) === "1";
   } catch {
     return false;
   }
 }
 
-function writeDismissed(): void {
+function writeDismissed(live: boolean): void {
   try {
-    window.localStorage.setItem(DISMISS_KEY, "1");
+    (live ? window.localStorage : window.sessionStorage).setItem(DISMISS_KEY, "1");
   } catch {
     /* per-viewer convenience only */
   }
@@ -44,11 +52,17 @@ function reached(stage: Stage, target: Stage): boolean {
  * "Add an activity" offers ADOPT first: the builder is where teachers stall
  * (1.1.86, the 28-item list, JB's mail), and a one-click copy from the shared
  * catalogue gets a first lesson running without it.
+ *
+ * UI sweep 2026-11-11: it opens as ONE line — "Kom i gang · 4 af 6 · Næste
+ * trin: … · Fortsæt · Skjul" — because a six-row card at the top of the page
+ * teachers land on was most of what made it busy. "Fortsæt" expands the full
+ * checklist; every step keeps its action there.
  */
 export function GettingStartedCard({ onCreateClass }: { onCreateClass: () => void }) {
   const t = useT("GettingStartedCard");
   const [stage, setStage] = useState<TeacherStagePayload | null>(null);
   const [hidden, setHidden] = useState(true);
+  const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
   const [previewChecked, setPreviewChecked] = useState(false);
 
@@ -58,7 +72,7 @@ export function GettingStartedCard({ onCreateClass }: { onCreateClass: () => voi
       .then((s) => {
         if (cancelled) return;
         setStage(s);
-        setHidden(s.stage === "live" && readDismissed());
+        setHidden(readDismissed(s.stage === "live"));
       })
       .catch(() => {
         /* no card is better than a wrong card */
@@ -83,6 +97,7 @@ export function GettingStartedCard({ onCreateClass }: { onCreateClass: () => voi
     { key: "firstTurn", done: reached(s, "live") },
   ] as const;
   const done = steps.filter((st) => st.done).length;
+  const next = steps.find((st) => !st.done) ?? null;
 
   function copyJoinLink() {
     if (!firstCode) return;
@@ -98,48 +113,60 @@ export function GettingStartedCard({ onCreateClass }: { onCreateClass: () => voi
       aria-labelledby="getting-started-label"
       data-testid="getting-started-card"
       data-stage={s}
-      className="rounded-lg border border-border bg-background p-4"
+      className="rounded-lg border border-border bg-background px-4 py-2.5"
     >
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 id="getting-started-label" className="flex items-center gap-2 text-sm font-semibold">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+        <h2 id="getting-started-label" className="flex items-center gap-2 font-semibold">
           <Rocket className="h-4 w-4" aria-hidden="true" />
           {t("title")}
-          <span className="font-normal text-muted-foreground">{t("progress", { done, total: steps.length })}</span>
+          <span className="font-normal text-muted-foreground">· {t("progress", { done, total: steps.length })}</span>
         </h2>
-        {s === "live" ? (
-          <button
-            type="button"
-            onClick={() => {
-              writeDismissed();
-              setHidden(true);
-            }}
-            className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
-          >
-            <X className="h-3.5 w-3.5" aria-hidden="true" />
-            {t("dismiss")}
-          </button>
-        ) : null}
+        <p className="min-w-0 flex-1 text-muted-foreground" data-testid="getting-started-next">
+          {s === "live" ? t("live") : next ? t("nextStep", { step: t(`step_${next.key}`) }) : null}
+        </p>
+        <button
+          type="button"
+          aria-expanded={expanded}
+          aria-controls="getting-started-steps"
+          onClick={() => setExpanded((v) => !v)}
+          className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-primary hover:bg-accent"
+        >
+          {expanded ? t("collapse") : t("continue")}
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            writeDismissed(s === "live");
+            setHidden(true);
+          }}
+          className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-accent"
+        >
+          <X className="h-3.5 w-3.5" aria-hidden="true" />
+          {t("dismiss")}
+        </button>
       </div>
-      {s === "live" ? <p className="mb-2 text-sm text-muted-foreground">{t("live")}</p> : null}
-      <ol className="flex flex-col gap-1.5 text-sm">
-        {steps.map((st) => (
-          <li key={st.key} className="flex flex-wrap items-center gap-2" data-testid={`step-${st.key}`} data-done={st.done}>
-            {st.done ? (
-              <Check className="h-4 w-4 shrink-0 text-emerald-600" aria-label="done" />
-            ) : (
-              <Circle className="h-4 w-4 shrink-0 text-muted-foreground/50" aria-hidden="true" />
-            )}
-            <span className={st.done ? "text-muted-foreground line-through" : "font-medium"}>{t(`step_${st.key}`)}</span>
-            {!st.done ? <StepAction step={st.key} firstClassId={first?.classId ?? null} firstCode={firstCode} copied={copied} onCreateClass={onCreateClass} onCopy={copyJoinLink} onPreviewChecked={() => setPreviewChecked(true)} /> : null}
-          </li>
-        ))}
-      </ol>
-      <p className="mt-3 text-xs text-muted-foreground">
-        {t("readInstead")}{" "}
-        <Link href="/guides/t1-set-up-a-class" className="underline hover:text-foreground">
-          {t("guide")}
-        </Link>
-      </p>
+      <div id="getting-started-steps" hidden={!expanded} className={expanded ? "mt-3" : undefined}>
+        <ol className="flex flex-col gap-1.5 text-sm">
+          {steps.map((st) => (
+            <li key={st.key} className="flex flex-wrap items-center gap-2" data-testid={`step-${st.key}`} data-done={st.done}>
+              {st.done ? (
+                <Check className="h-4 w-4 shrink-0 text-emerald-600" aria-label={t("doneAria")} />
+              ) : (
+                <Circle className="h-4 w-4 shrink-0 text-muted-foreground/50" aria-hidden="true" />
+              )}
+              <span className={st.done ? "text-muted-foreground line-through" : "font-medium"}>{t(`step_${st.key}`)}</span>
+              {!st.done ? <StepAction step={st.key} firstClassId={first?.classId ?? null} firstCode={firstCode} copied={copied} onCreateClass={onCreateClass} onCopy={copyJoinLink} onPreviewChecked={() => setPreviewChecked(true)} /> : null}
+            </li>
+          ))}
+        </ol>
+        <p className="mt-3 text-xs text-muted-foreground">
+          {t("readInstead")}{" "}
+          <Link href="/guides/t1-set-up-a-class" className="underline hover:text-foreground">
+            {t("guide")}
+          </Link>
+        </p>
+      </div>
     </section>
   );
 }

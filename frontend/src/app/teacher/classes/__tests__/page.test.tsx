@@ -1,4 +1,4 @@
-import { render as rtlRender, screen, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
   type MockedFunction,
@@ -29,6 +29,11 @@ const render = ((ui: React.ReactElement, options?: Parameters<typeof rtlRender>[
 // The floating class co-pilot has its own tests and pulls in AG-UI + teacher
 // auth; stub it so these dashboard tests stay focused on the list/insights.
 vi.mock("../_ManageClassCopilot", () => ({ ManageClassCopilot: () => null }));
+// The getting-started card reads the stage; not under test here.
+vi.mock("../_GettingStartedCard", () => ({ GettingStartedCard: () => null }));
+// Scope and filter live in the URL (UI sweep 2026-11-11).
+vi.mock("next/navigation", async () => (await import("@/test/nextNavigationMock")).navigationModule);
+import { nav } from "@/test/nextNavigationMock";
 
 function makeClass(overrides: Partial<ClassPayload> = {}): ClassPayload {
   return {
@@ -54,6 +59,7 @@ let listSpy: ListClassesMock;
 let createSpy: CreateClassMock;
 
 beforeEach(() => {
+  nav.reset("/teacher/classes");
   listSpy = vi.spyOn(teacherApi, "listClasses") as unknown as ListClassesMock;
   createSpy = vi.spyOn(teacherApi, "createClass") as unknown as CreateClassMock;
   // Insights API: default to empty results so existing tests don't
@@ -110,15 +116,40 @@ describe("/teacher/classes — dashboard", () => {
     expect(screen.getByRole("link", { name: "Class B" })).toBeInTheDocument();
   });
 
-  it("links each class card to its detail page", async () => {
+  // UI sweep 2026-11-11 — the class name (and the row) is the link; the
+  // "Manage" button that went to the same URL is gone.
+  it("opens a class from its name or anywhere on its row, with no separate Manage button", async () => {
     listSpy.mockResolvedValue([makeClass({ classId: "abc", name: "Alpha" })]);
     render(<TeacherClassesPage />);
-    await waitFor(() => {
-      const link = screen
-        .getAllByRole("link", { name: /manage/i })
-        .find((el) => el.getAttribute("href") === "/teacher/classes/abc");
-      expect(link).toBeDefined();
+    const link = await screen.findByRole("link", { name: "Alpha" });
+    expect(link).toHaveAttribute("href", "/teacher/classes/abc");
+    expect(screen.queryByRole("link", { name: /manage/i })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByTestId("class-activity"));
+    expect(nav.push).toHaveBeenCalledWith("/teacher/classes/abc");
+  });
+
+  it("has no Delete on the list row — deleting a class lives on the class page's setup view", async () => {
+    listSpy.mockResolvedValue([makeClass({ classId: "c-9", name: "Old Class", groupCodes: ["alpha-bee-1"] })]);
+    render(<TeacherClassesPage />);
+    await screen.findByRole("link", { name: "Old Class" });
+    expect(screen.queryByRole("button", { name: /delete/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: /actions/i })).not.toBeInTheDocument();
+  });
+
+  it("links each assigned activity to its editor carrying THIS class, so the editor shows the class's tutor", async () => {
+    listSpy.mockResolvedValue([makeClass({ classId: "c-1", name: "Physik 9A", activityIds: ["act-x"] })]);
+    vi.spyOn(teacherApi, "listActivities").mockResolvedValue({
+      activities: [{ activityId: "act-x", title: "Waves" } as teacherApi.ActivityPayload],
+      total: 1,
+      limit: 200,
+      offset: 0,
     });
+    render(<TeacherClassesPage />);
+    const link = await screen.findByRole("link", { name: "Waves" });
+    expect(link.getAttribute("href")).toBe("/teacher/activities/act-x?title=Waves&classId=c-1");
+    // Following an activity link does not also open the class.
+    await userEvent.click(link);
+    expect(nav.push).not.toHaveBeenCalledWith("/teacher/classes/c-1");
   });
 
   it("shows an empty state when the teacher has no classes", async () => {
@@ -129,12 +160,16 @@ describe("/teacher/classes — dashboard", () => {
     });
   });
 
-  it("shows an error banner when /api/classes fails", async () => {
-    listSpy.mockRejectedValue(new Error("boom"));
+  it("shows a failed class read with Retry (and the server's words), never the empty state", async () => {
+    listSpy.mockRejectedValueOnce(new Error("boom")).mockResolvedValue([makeClass({ classId: "a", name: "Back" })]);
     render(<TeacherClassesPage />);
-    await waitFor(() => {
-      expect(screen.getByRole("alert")).toHaveTextContent(/boom/);
-    });
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Your classes could not be loaded");
+    expect(screen.getByText(/boom/)).toBeInTheDocument();
+    expect(screen.queryByText(/no classes yet/i)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("link", { name: "Back" })).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("submits the new-class form to createClass and refreshes the list", async () => {
@@ -168,52 +203,23 @@ describe("/teacher/classes — dashboard", () => {
     });
   });
 
-  it("loads the integrated insights panel with per-class table + spend on demand", async () => {
+  // UI sweep 2026-11-11 — the "insights & spend" panel was a second copy of
+  // Insights → All classes, which now carries the spend column and totals.
+  it("links to Insights → All classes instead of loading a second cross-class table here", async () => {
     listSpy.mockResolvedValue([
       makeClass({ classId: "a", name: "Class A" }),
       makeClass({ classId: "b", name: "Class B" }),
     ]);
-    vi.spyOn(insightsApi, "fetchInsightsCompare").mockResolvedValue({
-      since: "2026-05-26T00:00:00+00:00",
-      until: "2026-06-02T00:00:00+00:00",
-      rows: [
-        { classId: "a", name: "Class A", activeGroups: 2, messages: 50, messagesPrior: 40, messagesDelta: 10, simRuns: 3, lastActivity: null },
-        { classId: "b", name: "Class B", activeGroups: 1, messages: 20, messagesPrior: 30, messagesDelta: -10, simRuns: 0, lastActivity: null },
-      ],
-    });
-    vi.spyOn(costApi, "fetchTeacherSpend").mockResolvedValue({
-      currency: "EUR",
-      period: "this_month",
-      total_eur: 1.23,
-      per_class: [
-        { class_id: "a", eur: 1.0 },
-        { class_id: "b", eur: 0.23 },
-      ],
-    });
-
     render(<TeacherClassesPage />);
-    // Insights + spend are deferred (BigQuery) — opt in to load the panel.
-    await userEvent.click(await screen.findByRole("button", { name: /show insights/i }));
-    await waitFor(() => {
-      expect(screen.getByTestId("insights-panel")).toBeInTheDocument();
-    });
-    // Teacher-LEVEL spend total is surfaced in the panel (not just per-class).
-    expect(screen.getByText("€1.23")).toBeInTheDocument();
-    // …and the per-class engagement+spend table is integrated in the SAME panel
-    // (Class A now appears both in the config table AND the per-class table).
-    expect(screen.getByTestId("cross-class-compare-section")).toBeInTheDocument();
-    expect(screen.getAllByText("Class A").length).toBeGreaterThan(1);
-    // Per-class spend is in the table too.
-    expect(screen.getByText("€1.00")).toBeInTheDocument();
-  });
-
-  it("hides the cross-class compare section when only 1 class exists", async () => {
-    listSpy.mockResolvedValue([makeClass({ classId: "a", name: "Only class" })]);
-    render(<TeacherClassesPage />);
-    await waitFor(() => {
-      expect(screen.getByRole("link", { name: "Only class" })).toBeInTheDocument();
-    });
-    expect(screen.queryByTestId("cross-class-compare-section")).not.toBeInTheDocument();
+    await screen.findByRole("link", { name: "Class A" });
+    const link = screen.getByRole("link", { name: /Numbers across your classes, with spend/ });
+    expect(link).toHaveAttribute("href", "/teacher/insights/classes");
+    expect(screen.queryByRole("button", { name: /show insights/i })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("cross-class-table")).not.toBeInTheDocument();
+    // No BigQuery or spend reads from the class list any more.
+    expect(insightsApi.fetchInsightsCompare).not.toHaveBeenCalled();
+    expect(insightsApi.fetchInsightsSummary).not.toHaveBeenCalled();
+    expect(costApi.fetchTeacherSpend).not.toHaveBeenCalled();
   });
 
   it("surfaces each class's tutor + assigned activity titles (1.1.32)", async () => {
@@ -332,28 +338,70 @@ describe("/teacher/classes — dashboard", () => {
     expect(screen.queryByText("· default")).not.toBeInTheDocument();
   });
 
-  it("deletes a class only after confirming the warning (1.1.32)", async () => {
-    listSpy.mockResolvedValue([
-      makeClass({ classId: "c-9", name: "Old Class", groupCodes: ["alpha-bee-1"] }),
-    ]);
-    const deleteSpy = vi
-      .spyOn(teacherApi, "deleteClass")
-      .mockResolvedValue({ revoked: true, classId: "c-9" });
+});
 
+function sessionRow(i: number, groupCode: string | null = `g-${i}`): teacherApi.SessionRow {
+  return {
+    sessionId: `s-${i}`,
+    skillId: "concept-dialogue",
+    title: `Session ${i}`,
+    groupCode,
+    turnCount: i,
+    lastMessageAt: new Date(Date.now() - i * 60_000).toISOString(),
+  } as teacherApi.SessionRow;
+}
+
+describe("/teacher/classes — recent activity", () => {
+  it("shows the latest 3 sessions, and 'Show all (n)' reveals the rest", async () => {
+    listSpy.mockResolvedValue([makeClass({ classId: "a", name: "Class A" })]);
+    vi.spyOn(teacherApi, "listClassRecentSessions").mockResolvedValue([1, 2, 3, 4, 5].map((i) => sessionRow(i)));
     render(<TeacherClassesPage />);
-    await waitFor(() =>
-      expect(screen.getByRole("link", { name: "Old Class" })).toBeInTheDocument(),
+    await waitFor(() => expect(screen.getAllByRole("link", { name: /Session \d/ })).toHaveLength(3));
+    // Newest first.
+    expect(screen.getAllByRole("link", { name: /Session \d/ })[0]).toHaveTextContent("Session 1");
+    const toggle = screen.getByRole("button", { name: "Show all (5)" });
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(toggle);
+    expect(screen.getAllByRole("link", { name: /Session \d/ })).toHaveLength(5);
+    expect(screen.getByRole("link", { name: /Session 5/ })).toHaveAttribute(
+      "href",
+      "/teacher/reports/groups/g-5?session_id=s-5",
     );
+    await userEvent.click(screen.getByRole("button", { name: "Show fewer" }));
+    expect(screen.getAllByRole("link", { name: /Session \d/ })).toHaveLength(3);
+  });
 
-    // Clicking the row Delete opens a confirmation — it does NOT delete yet.
-    await userEvent.click(screen.getByRole("button", { name: "Delete Old Class" }));
-    expect(deleteSpy).not.toHaveBeenCalled();
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByText(/can.t be undone/i)).toBeInTheDocument();
+  it("a failed sessions read shows Retry — not 'No student sessions yet'", async () => {
+    listSpy.mockResolvedValue([makeClass({ classId: "a", name: "Class A" })]);
+    const sessions = vi
+      .spyOn(teacherApi, "listClassRecentSessions")
+      .mockRejectedValueOnce(new Error("503"))
+      .mockResolvedValue([sessionRow(1)]);
+    render(<TeacherClassesPage />);
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("The sessions could not be loaded");
+    expect(screen.queryByText(/No student sessions yet/)).not.toBeInTheDocument();
+    await userEvent.click(within(alert).getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("link", { name: /Session 1/ })).toBeInTheDocument();
+    expect(sessions).toHaveBeenCalledTimes(2);
+  });
 
-    // Confirming deletes + refreshes.
-    await userEvent.click(screen.getByRole("button", { name: "Delete class" }));
-    await waitFor(() => expect(deleteSpy).toHaveBeenCalledWith("c-9"));
+  it("when only some classes fail, shows what loaded AND says how many classes are missing", async () => {
+    listSpy.mockResolvedValue([makeClass({ classId: "a", name: "Class A" }), makeClass({ classId: "b", name: "Class B" })]);
+    vi.spyOn(teacherApi, "listClassRecentSessions").mockImplementation(async (id: string) => {
+      if (id === "b") throw new Error("503");
+      return [sessionRow(1)];
+    });
+    render(<TeacherClassesPage />);
+    expect(await screen.findByRole("link", { name: /Session 1/ })).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent("The sessions from 1 class could not be loaded");
+  });
+
+  it("says 'no sessions yet' only when every read answered with none", async () => {
+    listSpy.mockResolvedValue([makeClass({ classId: "a", name: "Class A" })]);
+    render(<TeacherClassesPage />);
+    expect(await screen.findByText(/No student sessions yet/)).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 });
 
@@ -364,8 +412,12 @@ describe("/teacher/classes — language", () => {
     listSpy.mockResolvedValue([makeClass({ classId: "a", name: "Hold A" })]);
     rtlRender(<TeacherClassesPage />);
     await waitFor(() => expect(screen.getByRole("link", { name: "Hold A" })).toBeInTheDocument());
-    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Mine klasser");
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Klasser");
     expect(screen.getByRole("columnheader", { name: "Klasse" })).toBeInTheDocument();
+    // "Aktivitet" | "Aktiviteter" two columns apart became "Sidst brugt" | "Aktiviteter".
+    expect(screen.getByRole("columnheader", { name: "Sidst brugt" })).toBeInTheDocument();
+    expect(screen.queryByRole("columnheader", { name: "Aktivitet" })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Tal på tværs af dine klasser, med forbrug → Indsigt/ })).toBeInTheDocument();
   });
 
   it("carries no Danish letters in its own chrome under English", async () => {
