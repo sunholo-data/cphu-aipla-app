@@ -12,8 +12,9 @@
 // student-facing surface may reach it (check-literature-corpus-isolation.sh).
 
 import { useState } from "react";
-import { BookMarked, Loader2, Search } from "lucide-react";
+import { BookMarked, Search } from "lucide-react";
 
+import { Spinner } from "@/components/ui/spinner";
 import { searchFrameworkSources, type SourcePassages } from "@/lib/teacherApi";
 import { useT } from "@/i18n";
 
@@ -67,7 +68,7 @@ export function SourcePassagePanel({ frameworkId }: { frameworkId: string }) {
           disabled={busy || !query.trim()}
           className="flex items-center gap-1 rounded border px-2 py-1 text-xs hover:bg-muted disabled:opacity-50"
         >
-          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden /> : <Search className="h-3.5 w-3.5" aria-hidden />}
+          {busy ? <Spinner size="xs" /> : <Search className="h-3.5 w-3.5" aria-hidden />}
           {busy ? t("searching") : t("search")}
         </button>
       </div>

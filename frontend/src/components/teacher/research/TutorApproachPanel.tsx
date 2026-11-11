@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { GraduationCap, Loader2, Undo2 } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+import { GraduationCap, Undo2 } from "lucide-react";
 
 import {
   type TutorCatalogue,
@@ -12,6 +12,8 @@ import {
 } from "@/lib/teacherApi";
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
 import { TutorFace } from "@/components/teacher/research/TutorFace";
+import { LoadError } from "@/components/ui/load-error";
+import { Spinner } from "@/components/ui/spinner";
 import { useT } from "@/i18n";
 
 /**
@@ -53,16 +55,27 @@ export function TutorApproachPanel({
   const [catalogue, setCatalogue] = useState<TutorCatalogue | null>(null);
   const [saving, setSaving] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** The catalogue could not be read — kept apart from a failed CHANGE, and
+   *  from "still loading", which it used to sit beside forever. */
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     let cancelled = false;
     fetchTutorCatalogue()
-      .then((c) => !cancelled && setCatalogue(c))
-      .catch(() => !cancelled && setError(t("loadFailed")));
+      .then((c) => {
+        if (cancelled) return;
+        setCatalogue(c);
+        setLoadFailed(false);
+      })
+      .catch(() => !cancelled && setLoadFailed(true))
+      .finally(() => !cancelled && setRetrying(false));
     return () => {
       cancelled = true;
     };
-  }, [t]);
+  }, []);
+
+  useEffect(() => load(), [load]);
 
   /** Remove the assignment entirely, so the tutor falls back to its own
    *  approach. Distinct from assigning null, which is an override meaning "this
@@ -115,7 +128,7 @@ export function TutorApproachPanel({
         {tutor.summary ? <p className="truncate text-xs text-muted-foreground">{tutor.summary}</p> : null}
       </div>
       <div className="flex items-center gap-2">
-        {saving === tutor.id ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" aria-hidden /> : null}
+        {saving === tutor.id ? <Spinner size="xs" className="text-muted-foreground" /> : null}
         <label htmlFor={`approach-${tutor.id}`} className="sr-only">
           {t("approachFor", { name: tutor.displayName })}
         </label>
@@ -167,9 +180,23 @@ export function TutorApproachPanel({
         {t.rich("undoExplainer", { b: (chunks) => <strong>{chunks}</strong> })}
       </p>
 
-      {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
+      {error ? (
+        <p role="alert" className="mt-3 text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
 
-      {catalogue === null ? (
+      {loadFailed && catalogue === null ? (
+        <LoadError
+          className="mt-3"
+          what={t("loadWhat")}
+          retrying={retrying}
+          onRetry={() => {
+            setRetrying(true);
+            load();
+          }}
+        />
+      ) : catalogue === null ? (
         <p className="mt-3 text-sm text-muted-foreground">{t("loading")}</p>
       ) : (
         <div className="mt-3">

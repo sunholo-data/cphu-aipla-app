@@ -9,6 +9,10 @@
 // R1-quarantined: nothing here is teacher- or student-visible vocabulary.
 // Abstains render as DESIGNED states — an uncalibrated judge says so, it
 // never fabricates a score.
+//
+// Lives on the tutors page's Research tools tab since the UI sweep
+// (2026-11-11), beside the calibration of the same judges. It was on
+// /teacher/settings, which split one research job across two unrelated pages.
 
 import { useCallback, useEffect, useState } from "react";
 import { ClipboardCopy, FlaskConical, RotateCcw } from "lucide-react";
@@ -16,6 +20,7 @@ import { ClipboardCopy, FlaskConical, RotateCcw } from "lucide-react";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
 import { fetchWithTeacherAuth } from "@/lib/apiClient";
 import ModelSelector from "@/components/skill/ModelSelector";
+import { LoadError } from "@/components/ui/load-error";
 import { useT } from "@/i18n";
 
 interface LensConfig {
@@ -45,14 +50,19 @@ export function LensConfigPanel() {
   const t = useT("LensConfigPanel");
   const isResearcher = useIsResearcher();
   const [lenses, setLenses] = useState<LensConfig[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   const load = useCallback(() => {
     fetchWithTeacherAuth("/api/proxy/api/research/lens-configs")
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`${r.status}`))))
-      .then((d) => setLenses(d.lenses ?? []))
-      .catch(() => setError(t("loadFailed")));
-  }, [t]);
+      .then((d) => {
+        setLenses(d.lenses ?? []);
+        setFailed(false);
+      })
+      .catch(() => setFailed(true))
+      .finally(() => setRetrying(false));
+  }, []);
 
   useEffect(() => {
     if (isResearcher) load();
@@ -61,16 +71,26 @@ export function LensConfigPanel() {
   if (!isResearcher) return null;
 
   return (
-    <section data-testid="lens-config-panel" className="flex flex-col gap-4 rounded-lg border border-violet-200 p-4">
+    <section data-testid="lens-config-panel" className="flex flex-col gap-4 rounded-lg border border-border p-4">
       <div>
-        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-violet-900">
-          <FlaskConical className="h-4 w-4" /> {t("title")}
+        <h2 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+          <FlaskConical className="h-4 w-4" aria-hidden="true" /> {t("title")}
         </h2>
-        <p className="mt-1 text-xs text-slate-500">{t("intro")}</p>
+        <p className="mt-1 text-xs text-muted-foreground">{t("intro")}</p>
       </div>
 
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
-      {lenses === null && !error ? <p className="text-sm text-slate-400">{t("loading")}</p> : null}
+      {/* A failed read is not "no lenses": say what failed, with a retry. */}
+      {failed ? (
+        <LoadError
+          what={t("loadWhat")}
+          retrying={retrying}
+          onRetry={() => {
+            setRetrying(true);
+            load();
+          }}
+        />
+      ) : null}
+      {lenses === null && !failed ? <p className="text-sm text-muted-foreground">{t("loading")}</p> : null}
 
       {(lenses ?? []).map((lens) => (
         <LensCard key={lens.lens_id} lens={lens} onSaved={load} />
@@ -111,12 +131,12 @@ function LensCard({ lens, onSaved }: { lens: LensConfig; onSaved: () => void }) 
   return (
     <div
       data-testid={`lens-card-${lens.lens_id}`}
-      className="flex flex-col gap-2 rounded-md border border-slate-200 p-3"
+      className="flex flex-col gap-2 rounded-md border border-border p-3"
     >
       <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm font-medium text-slate-800">{lens.label}</span>
-        <code className="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">{lens.prompt_version}</code>
-        <label className="ml-auto flex items-center gap-1.5 text-xs text-slate-600">
+        <span className="text-sm font-medium text-foreground">{lens.label}</span>
+        <code className="rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{lens.prompt_version}</code>
+        <label className="ml-auto flex items-center gap-1.5 text-xs text-muted-foreground">
           <input
             type="checkbox"
             checked={enabled}
@@ -129,7 +149,7 @@ function LensCard({ lens, onSaved }: { lens: LensConfig; onSaved: () => void }) 
         </label>
       </div>
 
-      <label className="flex flex-col gap-1 text-xs text-slate-600">
+      <label className="flex flex-col gap-1 text-xs text-muted-foreground">
         <span>{t("modelLabel")}</span>
         <ModelSelector
           value={model}
@@ -139,27 +159,27 @@ function LensCard({ lens, onSaved }: { lens: LensConfig; onSaved: () => void }) 
             void put({ model: apiName }, t("modelSet", { model: apiName }));
           }}
         />
-        <span className="text-[11px] text-slate-400">{t("modelRoadmap")}</span>
+        <span className="text-[11px] text-muted-foreground">{t("modelRoadmap")}</span>
       </label>
 
-      <details className="rounded-md border border-slate-200 bg-slate-50/70 px-3 py-2" data-testid={`lens-default-${lens.lens_id}`}>
-        <summary className="cursor-pointer text-xs font-medium text-slate-600">
+      <details className="rounded-md border border-border bg-muted/50 px-3 py-2" data-testid={`lens-default-${lens.lens_id}`}>
+        <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
           {prompt.trim() ? t("defaultPrompt") : t("defaultPromptInUse")}
         </summary>
-        <p className="mt-1 whitespace-pre-wrap font-mono text-xs text-slate-600" data-testid={`lens-default-text-${lens.lens_id}`}>
+        <p className="mt-1 whitespace-pre-wrap font-mono text-xs text-muted-foreground" data-testid={`lens-default-text-${lens.lens_id}`}>
           {lens.default_prompt}
         </p>
         <button
           type="button"
           onClick={() => setPrompt(lens.default_prompt)}
-          className="mt-2 flex items-center gap-1 rounded border border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-600 hover:bg-white"
+          className="mt-2 flex items-center gap-1 rounded border border-border px-2 py-0.5 text-xs font-medium text-muted-foreground hover:bg-background"
         >
-          <ClipboardCopy className="h-3 w-3" /> {t("copyIntoEditor")}
+          <ClipboardCopy className="h-3 w-3" aria-hidden="true" /> {t("copyIntoEditor")}
         </button>
       </details>
 
       <label className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-slate-600">{t("overrideLabel")}</span>
+        <span className="text-xs font-medium text-muted-foreground">{t("overrideLabel")}</span>
         <textarea
           aria-label={t("overrideAria", { lens: lens.lens_id })}
           value={prompt}
@@ -167,16 +187,16 @@ function LensCard({ lens, onSaved }: { lens: LensConfig; onSaved: () => void }) 
           rows={5}
           maxLength={8000}
           placeholder={t("overridePlaceholder")}
-          className="rounded-md border border-slate-300 px-3 py-2 font-mono text-xs"
+          className="rounded-md border border-border px-3 py-2 font-mono text-xs"
         />
-        <span className="text-[11px] text-slate-400">{t("overrideNote")}</span>
+        <span className="text-[11px] text-muted-foreground">{t("overrideNote")}</span>
       </label>
       <div className="flex items-center gap-2">
         <button
           type="button"
           disabled={saving}
           onClick={() => void put({ promptOverride: prompt.trim() || null }, t("promptSaved"))}
-          className="rounded border border-violet-300 bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-800 hover:bg-violet-100 disabled:opacity-50"
+          className="rounded border border-border bg-muted px-2.5 py-1 text-xs font-medium text-foreground hover:bg-accent disabled:opacity-50"
         >
           {t("savePrompt")}
         </button>
@@ -187,11 +207,11 @@ function LensCard({ lens, onSaved }: { lens: LensConfig; onSaved: () => void }) 
             setPrompt("");
             void put({ promptOverride: null }, t("resetDone"));
           }}
-          className="flex items-center gap-1 rounded px-2 py-1 text-xs text-slate-500 hover:bg-slate-100"
+          className="flex items-center gap-1 rounded px-2 py-1 text-xs text-muted-foreground hover:bg-muted"
         >
-          <RotateCcw className="h-3 w-3" /> {t("reset")}
+          <RotateCcw className="h-3 w-3" aria-hidden="true" /> {t("reset")}
         </button>
-        {note ? <span className="text-xs text-slate-500">{note}</span> : null}
+        {note ? <span role="status" className="text-xs text-muted-foreground">{note}</span> : null}
       </div>
     </div>
   );
@@ -228,9 +248,9 @@ function ExperimentBox({ lenses }: { lenses: LensConfig[] }) {
   return (
     <div
       data-testid="lens-experiment-box"
-      className="flex flex-col gap-2 rounded-md border border-dashed border-violet-300 p-3"
+      className="flex flex-col gap-2 rounded-md border border-dashed border-border p-3"
     >
-      <span className="text-xs font-semibold text-violet-900">{t("experimentTitle")}</span>
+      <span className="text-xs font-semibold text-foreground">{t("experimentTitle")}</span>
       <div className="flex flex-wrap items-center gap-2">
         <input
           type="text"
@@ -238,13 +258,13 @@ function ExperimentBox({ lenses }: { lenses: LensConfig[] }) {
           value={sessionId}
           onChange={(e) => setSessionId(e.target.value)}
           placeholder={t("sessionPlaceholder")}
-          className="min-w-56 flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+          className="min-w-56 flex-1 rounded-md border border-border px-3 py-1.5 text-sm"
         />
         <select
           aria-label={t("lensAria")}
           value={lens}
           onChange={(e) => setLens(e.target.value)}
-          className="rounded border border-slate-300 px-2 py-1.5 text-sm"
+          className="rounded border border-border px-2 py-1.5 text-sm"
         >
           {lenses.map((l) => (
             <option key={l.lens_id} value={l.lens_id}>
@@ -256,17 +276,17 @@ function ExperimentBox({ lenses }: { lenses: LensConfig[] }) {
           type="button"
           disabled={running || !sessionId.trim()}
           onClick={() => void run()}
-          className="rounded border border-violet-300 bg-violet-50 px-3 py-1.5 text-sm font-medium text-violet-800 hover:bg-violet-100 disabled:opacity-50"
+          className="rounded border border-border bg-muted px-3 py-1.5 text-sm font-medium text-foreground hover:bg-accent disabled:opacity-50"
         >
           {running ? t("scoring") : t("run")}
         </button>
       </div>
 
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
       {result ? (
         <div data-testid="lens-experiment-result" className="flex flex-col gap-1.5 text-sm">
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-muted-foreground">
             {t("resultMeta", {
               lens: result.lensId,
               version: result.promptVersion,
@@ -276,7 +296,7 @@ function ExperimentBox({ lenses }: { lenses: LensConfig[] }) {
             })}
           </p>
           {result.abstained ? (
-            <p className="rounded bg-slate-50 px-2 py-1.5 text-slate-600" data-testid="lens-abstain">
+            <p className="rounded bg-muted px-2 py-1.5 text-muted-foreground" data-testid="lens-abstain">
               {t.rich("abstained", {
                 reason: result.abstainReason ?? "",
                 b: (c) => <span className="font-medium">{c}</span>,
@@ -286,10 +306,10 @@ function ExperimentBox({ lenses }: { lenses: LensConfig[] }) {
             <table className="text-left text-xs">
               <tbody>
                 {Object.entries(result.profile).map(([category, entry]) => (
-                  <tr key={category} className="border-t border-slate-100">
-                    <td className="py-1 pr-3 font-medium text-slate-700">{category}</td>
+                  <tr key={category} className="border-t border-border">
+                    <td className="py-1 pr-3 font-medium text-foreground">{category}</td>
                     <td className="py-1 pr-3">{String(entry.score)}</td>
-                    <td className="py-1 text-slate-500">{entry.rationale ?? ""}</td>
+                    <td className="py-1 text-muted-foreground">{entry.rationale ?? ""}</td>
                   </tr>
                 ))}
               </tbody>

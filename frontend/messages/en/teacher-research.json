@@ -93,7 +93,8 @@
     "placeholder": "Awaiting content",
     "open": "Read this approach",
     "close": "Close",
-    "toggleAria": "{action}: {label}"
+    "toggleAria": "{action}: {label}",
+    "loadWhat": "The published approaches"
   },
   "SourcePassagePanel": {
     "title": "Check this against the paper",
@@ -143,7 +144,9 @@
     "failedSave": "That could not be saved. Try again.",
     "shareAria": "{action}: {name}",
     "nameTaken": "A tutor with that name already exists. Choose another name.",
-    "derivedFrom": "Its approach draws on: {list}"
+    "derivedFrom": "Its approach draws on: {list}",
+    "loadWhat": "The tutors",
+    "saving": "Creating…"
   },
   "PersonaEditorPanel": {
     "title": "Faces and voices",
@@ -175,7 +178,9 @@
     "badgeShared": "Shared",
     "badgePrivate": "Only you",
     "none": "No faces of your own yet.",
-    "failedSave": "That could not be saved. Try again."
+    "failedSave": "That could not be saved. Try again.",
+    "loadWhat": "The faces and voices",
+    "saving": "Saving…"
   },
   "RegisterPicker": {
     "label": "Voice",
@@ -205,7 +210,8 @@
     "undoExplainer": "“No stated approach” is itself a choice — it tells the tutor to teach with none, overriding whatever it says about itself. <b>Undo my choice</b> is the different thing: it removes your assignment so the tutor goes back to its own approach.",
     "loading": "Loading tutors…",
     "activityTutors": "Activity tutors",
-    "activityTutorsHelp": "Defined by an activity rather than chosen for a class. They can still be given an approach, and doing so does not detach them from their activity."
+    "activityTutorsHelp": "Defined by an activity rather than chosen for a class. They can still be given an approach, and doing so does not detach them from their activity.",
+    "loadWhat": "The tutors"
   },
   "TutorCrossviewPanel": {
     "title": "Everything that teaches, and how much it is used",
@@ -242,8 +248,12 @@
     "failed": "Could not reach the tutors. Try again.",
     "noApproach": "no teaching approach set",
     "composedTitle": "What this tutor was told",
-    "notIncluded": "A preview does not include {missing} — a real lesson turn carries those too, so this shows the approach rather than the whole prompt.",
-    "sameBoth": "Both tutors were asked the same thing."
+    "notIncluded": "A preview does not include {missing} — a real lesson carries those too, so this shows the approach rather than everything the tutor is told.",
+    "sameBoth": "Both tutors were asked the same thing.",
+    "loadWhat": "The tutors",
+    "loading": "Loading tutors…",
+    "noTutors": "There are no tutors to try yet.",
+    "maxPicked": "You can pick up to two. Unpick one first to choose another."
   },
   "CustomApproachPanel": {
     "title": "Your own teaching approaches",
@@ -283,7 +293,11 @@
     "sourceNote": "Note (optional)",
     "addSource": "Add a source",
     "removeSource": "Remove source {n}",
-    "sourcesHeading": "Draws on"
+    "sourcesHeading": "Draws on",
+    "loadWhat": "Your own approaches",
+    "loading": "Loading your approaches…",
+    "removeFailed": "“{label}” could not be deleted. Try again.",
+    "shareFailed": "Sharing for “{label}” could not be changed. Try again."
   },
   "FrameworkStructureEditor": {
     "itemAria": "{label} {n}",
@@ -367,7 +381,7 @@
   "ResearchFrameworksPage": {
     "copilotApproachNote": "The co-pilot proposed “{label}”. It is not saved — review the constructs and sources, then Save.",
     "copilotBehaviourNote": "The co-pilot proposed behaviours for “{name}”. Add them to that construct below, then Save.",
-    "title": "Teaching approaches",
+    "title": "Tutors and teaching approaches",
     "subtitle": "{n, plural, one {# published approach} other {# published approaches}} · what the tutor is told to do",
     "tabApproaches": "Approaches",
     "tabAssign": "Who teaches with what",
@@ -398,8 +412,10 @@
     "revertFailed": "Could not revert. Try again.",
     "loading": "Loading frameworks…",
     "errorTitle": "Could not load frameworks",
-    "errorBody": "Something went wrong reading the framework catalogue. Reload to try again.",
-    "tabCalibration": "Calibration"
+    "errorBody": "Something went wrong reading the framework catalogue. Try again.",
+    "tabCalibration": "Calibration",
+    "tabResearch": "Research tools",
+    "loadWhat": "The approaches"
   },
   "TutorProposal": {
     "approachTitle": "New approach: {label} — {n, plural, one {# construct} other {# constructs}}",

@@ -17,6 +17,9 @@ import {
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
 import { RegisterPicker } from "@/components/teacher/research/RegisterPicker";
 import { AuthorLine } from "@/components/teacher/research/AuthorLine";
+import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm";
+import { LoadError } from "@/components/ui/load-error";
 import { useT } from "@/i18n";
 
 /** UI copy, lifted out of JSX (1.1.108 M4) so a translator can reach it. */
@@ -93,16 +96,28 @@ function SourceList({ sources, heading }: { sources: ApproachSource[]; heading: 
 export function CustomApproachPanel() {
   const t = useT("CustomApproachPanel");
   const tConsent = useT("ResearchConsent");
+  const confirm = useConfirm();
   const [rows, setRows] = useState<CustomApproach[] | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
+  /** A failed save, delete or share. Shown in the open form, or above the list
+   *  when no form is open — never swallowed. */
   const [error, setError] = useState<string | null>(null);
+  /** The LIST could not be read. Kept apart from `error` and from an empty
+   *  list: a failed read used to render as an empty panel (UI sweep
+   *  2026-11-09), and a teacher reads that as "I have none". */
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [retrying, setRetrying] = useState(false);
 
   const load = useCallback(() => {
     listCustomApproaches()
-      .then(setRows)
-      .catch(() => setError(t("loadFailed")));
-  }, [t]);
+      .then((next) => {
+        setRows(next);
+        setLoadFailed(false);
+      })
+      .catch(() => setLoadFailed(true))
+      .finally(() => setRetrying(false));
+  }, []);
 
   useEffect(load, [load]);
 
@@ -130,11 +145,22 @@ export function CustomApproachPanel() {
   };
 
   const remove = async (row: CustomApproach) => {
-    if (!window.confirm(`${t("confirmRemove", { label: row.label })}\n\n${t("deleteWarning")}`)) return;
+    const ok = await confirm({
+      title: t("confirmRemove", { label: row.label }),
+      description: t("deleteWarning"),
+      confirmLabel: t("remove"),
+      destructive: true,
+    });
+    if (!ok) return;
     setBusy(true);
+    setError(null);
     try {
       await deleteCustomApproach(row.id);
       load();
+    } catch {
+      // Was try/finally with no catch: a failed delete said nothing and the
+      // row simply stayed, which reads as "it worked, then came back".
+      setError(t("removeFailed", { label: row.label }));
     } finally {
       setBusy(false);
     }
@@ -145,9 +171,12 @@ export function CustomApproachPanel() {
    *  of the rule — the thing `canEdit` is computed server-side to avoid. */
   const toggleShare = async (row: CustomApproach) => {
     setBusy(true);
+    setError(null);
     try {
       await setCustomApproachVisibility(row.id, (row.visibility ?? "shared") === "shared" ? "private" : "shared");
       load();
+    } catch {
+      setError(t("shareFailed", { label: row.label }));
     } finally {
       setBusy(false);
     }
@@ -273,17 +302,23 @@ export function CustomApproachPanel() {
             )}
           </fieldset>
 
-          {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          {error ? (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          ) : null}
 
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={busy || !valid}
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={!valid}
+              pending={busy}
+              pendingLabel={t("saving")}
               onClick={() => void save()}
-              className="rounded bg-brand px-3 py-1.5 text-sm text-white disabled:opacity-50"
             >
-              {busy ? t("saving") : t("save")}
-            </button>
+              {t("save")}
+            </Button>
             <button
               type="button"
               onClick={() => {
@@ -299,7 +334,25 @@ export function CustomApproachPanel() {
       ) : null}
 
       <div className="mt-4 space-y-2">
-        {rows === null ? null : rows.length === 0 ? (
+        {error && !draft ? (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
+        {/* Three states kept apart: could not read (with Retry), still
+            reading, and a real "none yet". */}
+        {loadFailed ? (
+          <LoadError
+            what={t("loadWhat")}
+            retrying={retrying}
+            onRetry={() => {
+              setRetrying(true);
+              load();
+            }}
+          />
+        ) : rows === null ? (
+          <p className="text-sm text-muted-foreground">{t("loading")}</p>
+        ) : rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">{t("none")}</p>
         ) : (
           rows.map((row) => (
@@ -334,6 +387,7 @@ export function CustomApproachPanel() {
                   <button
                     type="button"
                     aria-label={t("shareAria", { action: (row.visibility ?? "shared") === "shared" ? t("unshare") : t("share"), label: row.label })}
+                    disabled={busy}
                     onClick={() => void toggleShare(row)}
                     className="rounded border p-1.5 hover:bg-muted"
                   >
@@ -362,6 +416,7 @@ export function CustomApproachPanel() {
                   <button
                     type="button"
                     aria-label={t("removeAria", { label: row.label })}
+                    disabled={busy}
                     onClick={() => void remove(row)}
                     className="rounded border p-1.5 hover:bg-muted"
                   >

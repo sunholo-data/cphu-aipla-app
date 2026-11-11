@@ -1,4 +1,4 @@
-import { render as rtlRender, screen, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor, within } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { LocaleProvider } from "@/i18n";
 import userEvent from "@testing-library/user-event";
@@ -7,6 +7,57 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import * as teacherApi from "@/lib/teacherApi";
 import type { TeachingFrameworkPayload } from "@/lib/teacherApi";
 import ResearchFrameworksPage from "@/app/teacher/research/frameworks/page";
+
+// The tab and the rail selection live in the URL (UI sweep 2026-11-11). A small
+// reactive stand-in for the app router: `replace` rewrites the query string and
+// every `useSearchParams` reader re-renders, so a test can both seed a deep link
+// and watch a click write one.
+const nav = vi.hoisted(() => ({
+  search: "",
+  replaced: [] as string[],
+  listeners: new Set<() => void>(),
+}));
+vi.mock("next/navigation", async () => {
+  const React = await import("react");
+  return {
+    usePathname: () => "/teacher/research/frameworks",
+    useRouter: () => ({
+      replace: (url: string) => {
+        nav.replaced.push(url);
+        nav.search = url.split("?")[1] ?? "";
+        nav.listeners.forEach((l) => l());
+      },
+      push: vi.fn(),
+    }),
+    useSearchParams: () => {
+      const search = React.useSyncExternalStore(
+        (cb: () => void) => {
+          nav.listeners.add(cb);
+          return () => nav.listeners.delete(cb);
+        },
+        () => nav.search,
+      );
+      return new URLSearchParams(search);
+    },
+  };
+});
+
+// The judge lenses (moved here from Settings) gate themselves on the claim and
+// read their config with the teacher token.
+const lensState = vi.hoisted(() => ({ isResearcher: false, fetch: vi.fn() }));
+vi.mock("@/hooks/useIsResearcher", () => ({ useIsResearcher: () => lensState.isResearcher }));
+vi.mock("@/lib/apiClient", async (orig) => ({
+  ...(await orig<object>()),
+  fetchWithTeacherAuth: (...args: unknown[]) => lensState.fetch(...args),
+}));
+vi.mock("@/components/skill/ModelSelector", () => ({ default: () => null }));
+
+/** The page's own tablist — the approaches rail is a second one. */
+function outerTabs() {
+  return within(screen.getByRole("tablist", { name: /Tutors and teaching approaches/ }))
+    .getAllByRole("tab")
+    .map((tab) => tab.textContent?.replace(/\d+$/, "").trim());
+}
 
 // 1.1.108 — teacher screens follow the person's language, Danish by default.
 // These tests assert the English copy, so they render inside an English
@@ -66,6 +117,10 @@ function poe(): TeachingFrameworkPayload {
 }
 
 beforeEach(() => {
+  nav.search = "";
+  nav.replaced = [];
+  lensState.isResearcher = false;
+  lensState.fetch.mockReset().mockRejectedValue(new Error("not stubbed"));
   vi.spyOn(teacherApi, "listCustomApproaches").mockResolvedValue([]);
   vi.restoreAllMocks();
   // The page mounts TutorApproachPanel, which fetches on mount. Stubbed for the
@@ -109,23 +164,104 @@ describe("ResearchFrameworksPage (1.1.91 M1 — researcher edits the tutor instr
     vi.spyOn(teacherApi, "listTeachingFrameworks").mockResolvedValue([esru(), poe()]);
     render(<ResearchFrameworksPage />);
 
-    await screen.findByRole("tab", { name: /Approaches/ });
-    const labels = screen.getAllByRole("tab").map((t) => t.textContent ?? "");
-    for (const expected of [/Approaches/, /Who teaches with what/, /Try them/, /Usage/]) {
-      expect(labels.some((l) => expected.test(l))).toBe(true);
-    }
+    await screen.findByRole("tab", { name: /^Approaches/ });
+    // Exactly four since the UI sweep (2026-11-11; was seven): every panel
+    // survives, at most one level down.
+    expect(outerTabs()).toEqual(["Approaches", "Tutors", "Try them", "Research tools"]);
+    expect(screen.getByRole("heading", { level: 1, name: "Tutors and teaching approaches" })).toBeInTheDocument();
 
     // Approaches leads, and the framework cards live in it.
-    expect(screen.getByRole("tab", { name: /Approaches/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /^Approaches/ })).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("heading", { name: /ESRU/ })).toBeInTheDocument();
 
-    // Switching reveals another panel. Panels are hidden rather than unmounted,
-    // so a half-written approach survives a glance at another tab.
-    await user.click(screen.getByRole("tab", { name: /Who teaches with what/ }));
-    expect(screen.getByRole("tab", { name: /Who teaches with what/ })).toHaveAttribute(
-      "aria-selected",
-      "true",
+    // Tutors stacks the three tutor jobs that used to be three tabs: make one,
+    // say what each teaches with, give it a face.
+    await user.click(screen.getByRole("tab", { name: "Tutors" }));
+    expect(screen.getByRole("tab", { name: "Tutors" })).toHaveAttribute("aria-selected", "true");
+    const tutorsPanel = screen.getByRole("tabpanel", { name: "Tutors" });
+    expect(within(tutorsPanel).getByRole("heading", { name: "What each tutor teaches with" })).toBeInTheDocument();
+    // Panels are hidden rather than unmounted, so a half-written approach
+    // survives a glance at another tab.
+    expect(screen.getByRole("heading", { name: /ESRU/, hidden: true })).toBeInTheDocument();
+  });
+
+  it("keeps the tab in ?tab= both ways, and opens on a deep link", async () => {
+    // A refresh, Back, or a link in a guide lands where the reader was.
+    const user = userEvent.setup();
+    nav.search = "tab=research";
+    vi.spyOn(teacherApi, "listTeachingFrameworks").mockResolvedValue([esru(), poe()]);
+    render(<ResearchFrameworksPage />);
+
+    expect(await screen.findByRole("tab", { name: "Research tools" })).toHaveAttribute("aria-selected", "true");
+
+    await user.click(screen.getByRole("tab", { name: "Try them" }));
+    expect(nav.replaced.at(-1)).toBe("/teacher/research/frameworks?tab=try");
+    expect(screen.getByRole("tab", { name: "Try them" })).toHaveAttribute("aria-selected", "true");
+
+    // The default tab is the bare URL, not ?tab=approaches.
+    await user.click(screen.getByRole("tab", { name: /^Approaches/ }));
+    expect(nav.replaced.at(-1)).toBe("/teacher/research/frameworks");
+  });
+
+  it("falls back to the first tab on an unknown ?tab=, and honours ?approach= on the rail", async () => {
+    nav.search = "tab=usage&approach=poe";
+    vi.spyOn(teacherApi, "listTeachingFrameworks").mockResolvedValue([esru(), poe()]);
+    render(<ResearchFrameworksPage />);
+
+    // "usage" was a tab before the sweep; an old value opens the page, not an error.
+    expect(await screen.findByRole("tab", { name: /^Approaches/ })).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("tab", { name: /Predict-Observe-Explain/ })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("puts the judge lenses under Research tools, beside usage and calibration", async () => {
+    // Moved from /teacher/settings: lenses and their calibration are one job.
+    const user = userEvent.setup();
+    lensState.isResearcher = true;
+    // teacherApi reads through the same helper, so answer only the lens route
+    // and let everything else fail as it would without a server.
+    const lensResponse = {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        lenses: [
+          {
+            lens_id: "maps",
+            label: "MAPS problem solving (Docktor 2016)",
+            model: "gemini-2.5-flash",
+            prompt_version: "maps-r1",
+            enabled: true,
+            prompt_override: null,
+            default_prompt: "Judge.",
+          },
+        ],
+      }),
+    };
+    lensState.fetch.mockImplementation(async (url: string) =>
+      url.includes("/research/lens-configs") ? lensResponse : Promise.reject(new Error("offline")),
     );
+    vi.spyOn(teacherApi, "listTeachingFrameworks").mockResolvedValue([esru()]);
+    render(<ResearchFrameworksPage />);
+
+    await user.click(await screen.findByRole("tab", { name: "Research tools" }));
+    const panel = screen.getByRole("tabpanel", { name: "Research tools" });
+    expect(await within(panel).findByTestId("lens-card-maps")).toBeInTheDocument();
+    expect(within(panel).getByRole("heading", { name: "Judge lenses" })).toBeInTheDocument();
+    expect(within(panel).getByTestId("lens-experiment-box")).toBeInTheDocument();
+  });
+
+  it("says the catalogue could not be read, with a retry that reads it again", async () => {
+    // "Reload to try again" with no button was the old state.
+    const user = userEvent.setup();
+    const list = vi
+      .spyOn(teacherApi, "listTeachingFrameworks")
+      .mockRejectedValueOnce(new Error("list failed: 500"))
+      .mockResolvedValueOnce([esru()]);
+    render(<ResearchFrameworksPage />);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("The approaches could not be loaded");
+    await user.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("tab", { name: /ESRU/ })).toBeInTheDocument();
+    expect(list).toHaveBeenCalledTimes(2);
   });
 
   it("puts the seven approaches behind a rail rather than one long pane", async () => {
@@ -164,6 +300,9 @@ describe("ResearchFrameworksPage (1.1.91 M1 — researcher edits the tutor instr
     // access-required page would hide a surface built for them.
     vi.spyOn(teacherApi, "listTeachingFrameworks").mockRejectedValue(new Error("list failed: 403"));
     vi.spyOn(teacherApi, "listCustomApproaches").mockResolvedValue([]);
+    vi.spyOn(teacherApi, "fetchApproachCatalogue").mockResolvedValue([]);
+    vi.spyOn(teacherApi, "listCustomPersonas").mockResolvedValue({ personas: [] } as never);
+    vi.spyOn(teacherApi, "fetchVoiceList").mockResolvedValue({ voices: {} } as never);
 
     const user = userEvent.setup();
     render(<ResearchFrameworksPage />);
@@ -176,10 +315,21 @@ describe("ResearchFrameworksPage (1.1.91 M1 — researcher edits the tutor instr
     // TEACHER "Try them" leads, because the tutor library as teaching training
     // is what they came for; authoring is the second question.
     expect(screen.getByRole("tab", { name: /Try them/i })).toHaveAttribute("aria-selected", "true");
+    // Three since the UI sweep (was five): nothing researcher-only leaks in.
+    expect(outerTabs()).toEqual(["Try them", "Approaches", "Tutors"]);
 
-    await user.click(screen.getByRole("tab", { name: /Your approaches/i }));
-    expect(screen.getByText(/Your own teaching approaches/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /New approach/i })).toBeInTheDocument();
+    // The published seven, then "your own" below them, in one tab.
+    await user.click(screen.getByRole("tab", { name: "Approaches" }));
+    const approaches = screen.getByRole("tabpanel", { name: "Approaches" });
+    expect(within(approaches).getByText(/Your own teaching approaches/i)).toBeInTheDocument();
+    expect(within(approaches).getByRole("button", { name: /New approach/i })).toBeInTheDocument();
+    expect(within(approaches).getByTestId("published-approaches")).toBeInTheDocument();
+
+    // Tutors, then their faces and voices, in one tab.
+    await user.click(screen.getByRole("tab", { name: "Tutors" }));
+    const tutors = screen.getByRole("tabpanel", { name: "Tutors" });
+    expect(within(tutors).getByRole("heading", { name: "Faces and voices" })).toBeInTheDocument();
+    expect(nav.replaced.at(-1)).toBe("/teacher/research/frameworks?tab=tutors");
   });
 
   it("offers no way to hand-write an instruction", async () => {

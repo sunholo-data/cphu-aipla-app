@@ -458,7 +458,7 @@ export function FrameworkStructureEditor({
           type="button"
           disabled={busy || noConstructs || unvouched}
           onClick={() => onSave(draft)}
-          className="rounded bg-brand px-3 py-1.5 text-sm text-white disabled:opacity-50"
+          className="rounded bg-brand px-3 py-1.5 text-sm text-primary-foreground disabled:opacity-50"
         >
           {busy ? t("saving") : t("save")}
         </button>

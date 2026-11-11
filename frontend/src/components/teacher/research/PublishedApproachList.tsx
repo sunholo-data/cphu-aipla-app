@@ -12,10 +12,11 @@
 // renders has no editor state in it, because the route serves teachers a
 // different, smaller payload. See `fetchApproachCatalogue`.
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { BookOpen, ChevronDown } from "lucide-react";
 
 import { TeacherCard } from "@/components/teacher/ui/TeacherCard";
+import { LoadError } from "@/components/ui/load-error";
 import { fetchApproachCatalogue, type PublishedApproach } from "@/lib/teacherApi";
 import { useT } from "@/i18n";
 
@@ -25,21 +26,40 @@ export function PublishedApproachList() {
   const t = useT("PublishedApproachList");
   const [rows, setRows] = useState<PublishedApproach[] | null>(null);
   const [failed, setFailed] = useState(false);
+  const [retrying, setRetrying] = useState(false);
   const [openId, setOpenId] = useState<string | null>(null);
 
-  useEffect(() => {
+  const load = useCallback(() => {
     let alive = true;
     fetchApproachCatalogue()
-      .then((approaches) => alive && setRows(approaches))
+      .then((approaches) => {
+        if (!alive) return;
+        setRows(approaches);
+        setFailed(false);
+      })
       // Never takes the page with it: the teacher tier's other tabs are the
       // ones they came for, and this is the reading material beside them.
-      .catch(() => alive && setFailed(true));
+      .catch(() => alive && setFailed(true))
+      .finally(() => alive && setRetrying(false));
     return () => {
       alive = false;
     };
   }, []);
 
-  if (failed) return <p className="text-sm text-muted-foreground">{t("failed")}</p>;
+  useEffect(() => load(), [load]);
+
+  if (failed) {
+    return (
+      <LoadError
+        what={t("loadWhat")}
+        retrying={retrying}
+        onRetry={() => {
+          setRetrying(true);
+          load();
+        }}
+      />
+    );
+  }
   if (rows === null) return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
 
   return (

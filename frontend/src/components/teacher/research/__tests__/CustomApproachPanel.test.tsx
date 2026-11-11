@@ -1,4 +1,4 @@
-import { render as rtlRender, screen, waitFor } from "@testing-library/react";
+import { render as rtlRender, screen, waitFor, within } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { LocaleProvider } from "@/i18n";
 import userEvent from "@testing-library/user-event";
@@ -131,6 +131,47 @@ describe("custom teaching approaches (1.1.110)", () => {
 
     expect(await screen.findByText(/Could not save/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/What the tutor is told/i)).toHaveValue("Be kind.");
+  });
+});
+
+describe("when the list cannot be read (UI sweep 2026-11-11)", () => {
+  it("says so with a retry, instead of an empty panel", async () => {
+    // A failed load used to render as an empty panel, its error visible only
+    // inside the (closed) form — read by a teacher as "I have none".
+    const user = userEvent.setup();
+    const list = vi
+      .spyOn(teacherApi, "listCustomApproaches")
+      .mockRejectedValueOnce(new Error("500"))
+      .mockResolvedValueOnce([approach()]);
+    render(<CustomApproachPanel />);
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Your own approaches could not be loaded");
+    expect(screen.queryByText(/No custom approaches yet/i)).not.toBeInTheDocument();
+
+    await user.click(within(alert).getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("Warm coach")).toBeInTheDocument();
+    expect(list).toHaveBeenCalledTimes(2);
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("says so when a delete fails, instead of nothing", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.spyOn(teacherApi, "deleteCustomApproach").mockRejectedValue(new Error("500"));
+    render(<CustomApproachPanel />);
+
+    await user.click(await screen.findByRole("button", { name: /^Delete Warm coach/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("“Warm coach” could not be deleted");
+  });
+
+  it("says so when sharing fails, instead of nothing", async () => {
+    const user = userEvent.setup();
+    vi.spyOn(teacherApi, "setCustomApproachVisibility").mockRejectedValue(new Error("500"));
+    render(<CustomApproachPanel />);
+
+    await user.click(await screen.findByRole("button", { name: /Make private again: Warm coach/i }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Sharing for “Warm coach” could not be changed");
   });
 });
 

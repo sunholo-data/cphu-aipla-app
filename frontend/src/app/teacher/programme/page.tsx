@@ -11,19 +11,31 @@
  * researcher sees exactly what a programme admin sees, minus the buttons. Two
  * surfaces would drift, and the read-only view's whole value is that the person
  * looking at it can tell you what they see.
+ *
+ * UI sweep (2026-11-11): the daily budget and the "add a teacher" form are one
+ * button each above the tabs; the register shows five columns with the rest in
+ * a row detail (nothing dropped); a pending request has "Grant…", which opens
+ * the grant form pre-filled from it; the tab is in `?tab=` so the "ask" mail
+ * can link straight to the queue.
  */
 
 "use client";
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import * as Dialog from "@radix-ui/react-dialog";
+import { ArrowLeft, ChevronDown, Plus, X } from "lucide-react";
 
 import { TeacherPage } from "@/components/teacher/ui/TeacherPage";
+import { TeacherTabs } from "@/components/teacher/ui/TeacherTabs";
+import { Button } from "@/components/ui/button";
+import { LoadError } from "@/components/ui/load-error";
 import { BudgetPanel } from "@/app/teacher/programme/_BudgetPanel";
 import { GrantForm } from "@/app/teacher/programme/_GrantForm";
+import { useAsyncAction } from "@/hooks/useAsyncAction";
 import { useIsProgrammeAdmin } from "@/hooks/useIsProgrammeAdmin";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
+import { useUrlTab } from "@/hooks/useUrlTab";
 import {
   type AccessRequestRow,
   type RegisterRow,
@@ -43,14 +55,15 @@ import {
 } from "@/lib/programmeApi";
 import { STAGE_ORDER, describeStage } from "@/lib/onboardingStage";
 import { StageChip } from "@/components/teacher/StageChip";
-import { useT } from "@/i18n";
+import { useLocaleMode, useT } from "@/i18n";
 
 /** Mirrors the server default (`PROGRAMME_ADMIN_MAX_CAP_USD`). A convenience
  *  for the input's `max`; the server re-checks and names the real bound if this
  *  ever drifts from the deployed value. */
 const DELEGATED_CAP_CEILING = 50;
 
-type Tab = "register" | "requests" | "roles";
+const TABS = ["register", "requests", "roles"] as const;
+type Tab = (typeof TABS)[number];
 
 // Copy for the roles tab lives here rather than inline in JSX — the 1.1.108
 // rule: a translator reaches an object without a code change, and not JSX.
@@ -61,6 +74,19 @@ const ROLE_KEY: Record<RoleRow["roles"][number], "researcher" | "programmeAdmin"
   "programme-admin": "programmeAdmin",
   admin: "admin",
 };
+
+/** A date as the reader writes one, never a raw ISO string. An unparseable
+ *  value is shown as it came rather than as a plausible wrong date. */
+function useFormatDate(): (iso: string) => string {
+  const mode = useLocaleMode();
+  return useMemo(() => {
+    const fmt = new Intl.DateTimeFormat(mode === "en" ? "en-GB" : "da-DK", { dateStyle: "medium" });
+    return (iso: string) => {
+      const d = new Date(iso);
+      return Number.isNaN(d.getTime()) ? iso : fmt.format(d);
+    };
+  }, [mode]);
+}
 
 function GrantedViaBadge({ via }: { via: string }) {
   const t = useT("TeacherProgrammePage");
@@ -147,15 +173,10 @@ function CapEditor({ row, onSaved }: { row: RegisterRow; onSaved: () => void }) 
           onChange={(e) => setValue(e.target.value)}
           className="w-20 rounded border border-border bg-background px-1.5 py-0.5 text-sm"
         />
-        {dirty ? (
-          <button
-            type="button"
-            onClick={save}
-            disabled={busy}
-            className="rounded border border-border px-1.5 py-0.5 text-[11px] hover:bg-accent disabled:opacity-50"
-          >
-            {busy ? "…" : t("save")}
-          </button>
+        {dirty || busy ? (
+          <Button size="sm" className="h-7 px-2" onClick={() => void save()} pending={busy} pendingLabel={t("saving")}>
+            {t("save")}
+          </Button>
         ) : null}
       </div>
       {error ? (
@@ -170,43 +191,53 @@ function CapEditor({ row, onSaved }: { row: RegisterRow; onSaved: () => void }) 
 function RevokeButton({ row, onRevoked }: { row: RegisterRow; onRevoked: () => void }) {
   const t = useT("TeacherProgrammePage");
   const [confirming, setConfirming] = useState(false);
-  const [busy, setBusy] = useState(false);
+  // Was try/finally with no catch: a failed revoke said nothing, left an
+  // unhandled rejection, and the row looked as though it had not been asked.
+  const revoke = useAsyncAction(() => revokeAccess(row.email), { error: t("revokeFailed") });
 
   // Two-step rather than a browser confirm(): a modal dialog blocks the page,
   // and revoke is reversible (grant doubles as un-revoke) so it does not need
   // the heavier ceremony.
   if (!confirming) {
     return (
-      <button
-        type="button"
-        onClick={() => setConfirming(true)}
-        className="rounded border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent"
-      >
-        {t("revoke")}
-      </button>
+      <span className="flex flex-col items-start gap-1">
+        <button
+          type="button"
+          onClick={() => {
+            revoke.reset();
+            setConfirming(true);
+          }}
+          className="rounded border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent"
+        >
+          {t("revoke")}
+        </button>
+        {revoke.error ? (
+          <span role="alert" className="text-[11px] text-destructive">
+            {revoke.error}
+          </span>
+        ) : null}
+      </span>
     );
   }
   return (
     <span className="flex items-center gap-1">
-      <button
-        type="button"
-        disabled={busy}
+      <Button
+        variant="destructive-outline"
+        size="sm"
+        className="h-7 px-2"
+        pending={revoke.pending}
+        pendingLabel={t("revoking")}
         onClick={async () => {
-          setBusy(true);
-          try {
-            await revokeAccess(row.email);
-            onRevoked();
-          } finally {
-            setBusy(false);
-            setConfirming(false);
-          }
+          const done = await revoke.run();
+          setConfirming(false);
+          if (done !== undefined) onRevoked();
         }}
-        className="rounded border border-destructive px-1.5 py-0.5 text-[11px] text-destructive hover:bg-destructive/10 disabled:opacity-50"
       >
-        {busy ? "…" : t("confirm")}
-      </button>
+        {t("confirm")}
+      </Button>
       <button
         type="button"
+        disabled={revoke.pending}
         onClick={() => setConfirming(false)}
         className="text-[11px] text-muted-foreground hover:underline"
       >
@@ -331,7 +362,10 @@ function RegisterTable({
 }) {
   const t = useT("TeacherProgrammePage");
   const tStage = useT("StageChip");
+  const formatDate = useFormatDate();
   const [sortByStage, setSortByStage] = useState(false);
+  /** Rows whose detail (tier, expires, granted by/via, note) is open. */
+  const [openRows, setOpenRows] = useState<Set<string>>(() => new Set());
   const sorted = useMemo(() => {
     if (!sortByStage || !stages) return rows;
     const order = new Map(STAGE_ORDER.map((st, i) => [st, i]));
@@ -350,6 +384,15 @@ function RegisterTable({
       </p>
     );
   }
+  const toggleRow = (email: string) =>
+    setOpenRows((cur) => {
+      const next = new Set(cur);
+      if (next.has(email)) next.delete(email);
+      else next.add(email);
+      return next;
+    });
+  // Five columns; the rest of each grant is one click down in the row detail.
+  const columns = 5;
   return (
     <div className="overflow-x-auto">
       {stages ? (
@@ -364,101 +407,140 @@ function RegisterTable({
           </button>
         </div>
       ) : null}
-      <table className="w-full min-w-[52rem] border-collapse text-sm">
+      <table className="w-full min-w-[44rem] border-collapse text-sm">
         <thead>
           <tr className="border-b border-border text-left text-xs uppercase text-muted-foreground">
             <th className="py-2 pr-3 font-medium">{t("colEmail")}</th>
-            <th className="py-2 pr-3 font-medium">{t("colTier")}</th>
             <th className="py-2 pr-3 font-medium">{t("colStage")}</th>
             <th className="py-2 pr-3 font-medium">{t("colCap")}</th>
-            <th className="py-2 pr-3 font-medium">{t("colExpires")}</th>
-            <th className="py-2 pr-3 font-medium">{t("colGrantedBy")}</th>
-            <th className="py-2 pr-3 font-medium">{t("colNote")}</th>
             <th className="py-2 pr-3 font-medium">{t("colSimWorkshop")}</th>
-            {canWrite ? <th className="py-2 pr-3 font-medium">{t("colActions")}</th> : null}
+            <th className="py-2 pr-3 font-medium">{t("colActions")}</th>
           </tr>
         </thead>
         <tbody>
-          {sorted.map((row) => (
-            <tr key={row.email} className="border-b border-border/60 align-top">
-              <td className="py-2 pr-3 font-medium">
-                {row.email}
-                {!row.active ? (
-                  <span className="ml-2 rounded border border-destructive px-1.5 py-0.5 text-[11px] text-destructive">
-                    {row.revoked ? t("revoked") : t("lapsed")}
-                  </span>
-                ) : null}
-              </td>
-              <td className="py-2 pr-3">{row.tier}</td>
-              <td className="py-2 pr-3" data-testid="stage-cell">
-                {(() => {
-                  const st = stages?.get(row.email);
-                  if (!st) return <span className="text-muted-foreground">{t("stageUnavailable")}</span>;
-                  return (
-                    <div className="flex flex-col gap-0.5">
-                      <StageChip stage={st.stage} label={describeStage(st, tStage)} title={st.since ?? undefined} />
-                      {st.nextStep ? (
-                        <span className="text-xs text-muted-foreground">{tStage("next", {
-                            // The backend's next step is fixed per stage; say it by stage so it
-                            // follows the reader's language (its English stays for the co-pilot).
-                            step: st.stage !== "live" ? tStage(`nextStep_${st.stage}`) : st.nextStep,
-                          })}</span>
-                      ) : null}
-                    </div>
-                  );
-                })()}
-              </td>
-              <td className="py-2 pr-3">
-                {isUncapped(row) ? (
-                  // An alarm, not a blank: cap<0 disables the per-teacher gate
-                  // outright, so this row is bounded only by the shared
-                  // project ceiling and can starve every other teacher on it.
-                  <span
-                    role="status"
-                    title={t("uncappedTitle")}
-                    className="rounded border border-destructive bg-destructive/10 px-1.5 py-0.5 text-[11px] font-semibold text-destructive"
-                  >
-                    {t("uncapped")}
-                  </span>
-                ) : canWrite ? (
-                  <CapEditor row={row} onSaved={onChanged} />
-                ) : (
-                  formatCap(row)
-                )}
-                {/* The cap next to the spend it bounds. Setting caps blind is
-                    how this register arrived at "uncapped" once already. */}
-                <SpendBadge row={row} />
-              </td>
-              <td className="py-2 pr-3 text-muted-foreground">{row.expiresAt ?? t("never")}</td>
-              <td className="py-2 pr-3 text-muted-foreground">
-                <div>{row.grantedBy || "—"}</div>
-                <GrantedViaBadge via={row.grantedVia} />
-              </td>
-              <td className="py-2 pr-3 text-muted-foreground">{row.note || "—"}</td>
-              <td className="py-2 pr-3" data-testid="feature-cell">
-                {canSetFeatures ? (
-                  <FeatureToggle row={row} feature="simWorkshop" onSaved={onChanged} />
-                ) : row.features?.simWorkshop ? (
-                  t("featureOn")
-                ) : (
-                  t("featureOff")
-                )}
-              </td>
-              {canWrite ? (
-                <td className="py-2 pr-3">
-                  {row.active ? <RevokeButton row={row} onRevoked={onChanged} /> : null}
+          {sorted.map((row) => {
+            const open = openRows.has(row.email);
+            const detailId = `grant-detail-${row.email}`;
+            return [
+              <tr key={row.email} className="border-b border-border/60 align-top">
+                <td className="py-2 pr-3 font-medium">
+                  {row.email}
+                  {!row.active ? (
+                    <span className="ml-2 rounded border border-destructive px-1.5 py-0.5 text-[11px] text-destructive">
+                      {row.revoked ? t("revoked") : t("lapsed")}
+                    </span>
+                  ) : null}
                 </td>
-              ) : null}
-            </tr>
-          ))}
+                <td className="py-2 pr-3" data-testid="stage-cell">
+                  {(() => {
+                    const st = stages?.get(row.email);
+                    if (!st) return <span className="text-muted-foreground">{t("stageUnavailable")}</span>;
+                    return (
+                      <div className="flex flex-col gap-0.5">
+                        <StageChip stage={st.stage} label={describeStage(st, tStage)} title={st.since ?? undefined} />
+                        {st.nextStep ? (
+                          <span className="text-xs text-muted-foreground">{tStage("next", {
+                              // The backend's next step is fixed per stage; say it by stage so it
+                              // follows the reader's language (its English stays for the co-pilot).
+                              step: st.stage !== "live" ? tStage(`nextStep_${st.stage}`) : st.nextStep,
+                            })}</span>
+                        ) : null}
+                      </div>
+                    );
+                  })()}
+                </td>
+                <td className="py-2 pr-3">
+                  {isUncapped(row) ? (
+                    // An alarm, not a blank: cap<0 disables the per-teacher gate
+                    // outright, so this row is bounded only by the shared
+                    // project ceiling and can starve every other teacher on it.
+                    <span
+                      role="status"
+                      title={t("uncappedTitle")}
+                      className="rounded border border-destructive bg-destructive/10 px-1.5 py-0.5 text-[11px] font-semibold text-destructive"
+                    >
+                      {t("uncapped")}
+                    </span>
+                  ) : canWrite ? (
+                    <CapEditor row={row} onSaved={onChanged} />
+                  ) : (
+                    formatCap(row)
+                  )}
+                  {/* The cap next to the spend it bounds. Setting caps blind is
+                      how this register arrived at "uncapped" once already. */}
+                  <SpendBadge row={row} />
+                </td>
+                <td className="py-2 pr-3" data-testid="feature-cell">
+                  {canSetFeatures ? (
+                    <FeatureToggle row={row} feature="simWorkshop" onSaved={onChanged} />
+                  ) : row.features?.simWorkshop ? (
+                    t("featureOn")
+                  ) : (
+                    t("featureOff")
+                  )}
+                </td>
+                <td className="py-2 pr-3">
+                  <div className="flex flex-wrap items-start gap-1">
+                    <button
+                      type="button"
+                      aria-expanded={open}
+                      aria-controls={detailId}
+                      aria-label={open ? t("detailsHideFor", { email: row.email }) : t("detailsShowFor", { email: row.email })}
+                      onClick={() => toggleRow(row.email)}
+                      className="flex items-center gap-0.5 rounded border border-border px-1.5 py-0.5 text-[11px] text-muted-foreground hover:bg-accent"
+                    >
+                      {t("details")}
+                      <ChevronDown className={`h-3 w-3 ${open ? "rotate-180" : ""}`} aria-hidden="true" />
+                    </button>
+                    {canWrite && row.active ? <RevokeButton row={row} onRevoked={onChanged} /> : null}
+                  </div>
+                </td>
+              </tr>,
+              // Kept mounted and `hidden` when closed, so nothing about a grant
+              // is ever only in a column that no longer exists.
+              <tr key={`${row.email}-detail`} id={detailId} hidden={!open} className="border-b border-border/60 bg-muted/30">
+                <td colSpan={columns} className="px-3 py-2">
+                  <dl className="grid gap-x-6 gap-y-1 text-xs sm:grid-cols-4">
+                    <div>
+                      <dt className="text-muted-foreground">{t("colTier")}</dt>
+                      <dd>{row.tier}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">{t("colExpires")}</dt>
+                      <dd>{row.expiresAt ? formatDate(row.expiresAt) : t("never")}</dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">{t("colGrantedBy")}</dt>
+                      <dd className="flex flex-wrap items-center gap-1">
+                        <span>{row.grantedBy || "—"}</span>
+                        <GrantedViaBadge via={row.grantedVia} />
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">{t("colNote")}</dt>
+                      <dd>{row.note || "—"}</dd>
+                    </div>
+                  </dl>
+                </td>
+              </tr>,
+            ];
+          })}
         </tbody>
       </table>
     </div>
   );
 }
 
-function RequestsTable({ rows }: { rows: AccessRequestRow[] }) {
+function RequestsTable({
+  rows,
+  onGrant,
+}: {
+  rows: AccessRequestRow[];
+  /** Programme admin only: open the grant form pre-filled from this request. */
+  onGrant?: (row: AccessRequestRow) => void;
+}) {
   const t = useT("TeacherProgrammePage");
+  const formatDate = useFormatDate();
   if (rows.length === 0) {
     return (
       <p className="rounded border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
@@ -477,6 +559,11 @@ function RequestsTable({ rows }: { rows: AccessRequestRow[] }) {
             <th className="py-2 pr-3 font-medium">{t("colMessage")}</th>
             <th className="py-2 pr-3 font-medium">{t("colStatus")}</th>
             <th className="py-2 pr-3 font-medium">{t("colAsked")}</th>
+            {onGrant ? (
+              <th className="py-2 pr-3 font-medium">
+                <span className="sr-only">{t("colActions")}</span>
+              </th>
+            ) : null}
           </tr>
         </thead>
         <tbody>
@@ -487,7 +574,21 @@ function RequestsTable({ rows }: { rows: AccessRequestRow[] }) {
               <td className="py-2 pr-3 text-muted-foreground">{row.institution || "—"}</td>
               <td className="py-2 pr-3 text-muted-foreground">{row.message || "—"}</td>
               <td className="py-2 pr-3">{row.status}</td>
-              <td className="py-2 pr-3 text-muted-foreground">{row.requestedAt}</td>
+              <td className="py-2 pr-3 text-muted-foreground">{row.requestedAt ? formatDate(row.requestedAt) : "—"}</td>
+              {onGrant ? (
+                <td className="py-2 pr-3">
+                  {row.status === "pending" ? (
+                    <Button
+                      size="sm"
+                      className="border-brand/60 font-semibold text-brand hover:bg-brand/10"
+                      aria-label={t("grantForAria", { email: row.email })}
+                      onClick={() => onGrant(row)}
+                    >
+                      {t("grantFor")}
+                    </Button>
+                  ) : null}
+                </td>
+              ) : null}
             </tr>
           ))}
         </tbody>
@@ -496,13 +597,66 @@ function RequestsTable({ rows }: { rows: AccessRequestRow[] }) {
   );
 }
 
+/** The grant form in a side panel, pre-filled from one request. */
+function GrantFromRequestPanel({
+  request,
+  onClose,
+  onGranted,
+}: {
+  request: AccessRequestRow | null;
+  onClose: () => void;
+  onGranted: (email: string, cap: number) => void;
+}) {
+  const t = useT("TeacherProgrammePage");
+  // The note says where the person came from, in the admin's language; the
+  // institution and message are the requester's own words, quoted as given.
+  const details = request ? [request.institution, request.message].filter((s) => s && s.trim()).join(" — ") : "";
+  const note = details ? t("noteFromRequest", { details }) : t("noteFromRequestBare");
+  return (
+    <Dialog.Root open={request !== null} onOpenChange={(open) => !open && onClose()}>
+      <Dialog.Portal>
+        <Dialog.Overlay className="fixed inset-0 z-50 bg-black/40" />
+        <Dialog.Content className="fixed inset-y-0 right-0 z-50 flex w-full max-w-lg flex-col gap-4 overflow-y-auto border-l border-border bg-background p-5 shadow-lg">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <Dialog.Title className="text-base font-semibold">
+                {t("grantDialogTitle", { email: request?.email ?? "" })}
+              </Dialog.Title>
+              <Dialog.Description className="mt-1 text-sm text-muted-foreground">
+                {t("grantDialogNote")}
+              </Dialog.Description>
+            </div>
+            <Dialog.Close asChild>
+              <Button variant="ghost" size="icon-sm" aria-label={t("close")}>
+                <X className="h-4 w-4" aria-hidden="true" />
+              </Button>
+            </Dialog.Close>
+          </div>
+          {request ? (
+            <GrantForm
+              key={request.uid}
+              idPrefix="grant-request"
+              heading={null}
+              maxCapUsd={DELEGATED_CAP_CEILING}
+              initialEmail={request.email}
+              initialNote={note}
+              onGranted={(row) => onGranted(row.email, row.monthlyCapUsd)}
+            />
+          ) : null}
+        </Dialog.Content>
+      </Dialog.Portal>
+    </Dialog.Root>
+  );
+}
+
 export default function TeacherProgrammePage() {
   const t = useT("TeacherProgrammePage");
+  const tGrant = useT("GrantForm");
   const isResearcher = useIsResearcher();
   const isProgrammeAdmin = useIsProgrammeAdmin();
   const mayRead = isResearcher || isProgrammeAdmin;
 
-  const [tab, setTab] = useState<Tab>("register");
+  const [tab, setTab] = useUrlTab<Tab>("tab", TABS, "register");
   const [register, setRegister] = useState<RegisterRow[] | null>(null);
   const [requests, setRequests] = useState<AccessRequestRow[] | null>(null);
   const [roles, setRoles] = useState<RoleRow[] | null>(null);
@@ -511,6 +665,11 @@ export default function TeacherProgrammePage() {
   const [stages, setStages] = useState<Map<string, OnboardingRow> | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  /** The request whose "Grant…" is open in the side panel. */
+  const [granting, setGranting] = useState<AccessRequestRow | null>(null);
+  /** The standalone form, for a teacher who never asked. */
+  const [addOpen, setAddOpen] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const load = useCallback(() => {
     if (!mayRead) {
@@ -558,6 +717,11 @@ export default function TeacherProgrammePage() {
     };
   }, [mayRead]);
 
+  const pending = (requests ?? []).filter((r) => r.status === "pending").length;
+
+  const body = (content: React.ReactNode) =>
+    loading ? <p className="text-sm text-muted-foreground">{t("loading")}</p> : content;
+
   return (
     <TeacherPage
       breadcrumb={
@@ -570,6 +734,8 @@ export default function TeacherProgrammePage() {
       subtitle={
         isProgrammeAdmin
           ? t("subtitleAdmin")
+          // A researcher is not read-only here: they can switch the Sim
+          // workshop per teacher. Say what is theirs and what is not.
           : t("subtitleReadOnly")
       }
     >
@@ -579,63 +745,91 @@ export default function TeacherProgrammePage() {
         </div>
       ) : (
         <>
-          <div className="flex gap-2 border-b border-border">
-            {(["register", "requests", "roles"] as Tab[]).map((tb) => (
-              <button
-                key={tb}
-                type="button"
-                onClick={() => setTab(tb)}
-                aria-current={tab === tb ? "page" : undefined}
-                className={
-                  tab === tb
-                    ? "border-b-2 border-brand px-3 py-2 text-sm font-medium text-foreground"
-                    : "px-3 py-2 text-sm text-muted-foreground hover:text-foreground"
-                }
-              >
-                {tb === "register" ? t("tabRegister") : tb === "requests" ? t("tabRequests") : t("rolesTab")}
-                {tb === "register" && register ? ` (${register.length})` : null}
-                {tb === "roles" && roles ? ` (${roles.length})` : null}
-                {tb === "requests" && requests
-                  ? ` (${requests.filter((r) => r.status === "pending").length})`
-                  : null}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-start gap-2">
+            <BudgetPanel canWrite={isProgrammeAdmin} />
+            {isProgrammeAdmin ? (
+              <Button aria-expanded={addOpen} onClick={() => setAddOpen((v) => !v)}>
+                <Plus className="h-4 w-4" aria-hidden="true" />
+                {t("addTeacher")}
+              </Button>
+            ) : null}
           </div>
 
-          {/* There is no email notification anywhere in this flow — the queue
-              does not tell anyone it has something in it. Say so, so a reader
-              knows checking it is their job. */}
-          <p className="text-xs text-muted-foreground">
-            {t("nobodyNotified")}
-          </p>
+          {isProgrammeAdmin && addOpen ? (
+            <GrantForm maxCapUsd={DELEGATED_CAP_CEILING} onGranted={() => load()} />
+          ) : null}
 
-          {tab === "roles" ? <p className="text-xs text-muted-foreground">{t("rolesIntro")}</p> : null}
-
-          {tab === "register" ? <BudgetPanel canWrite={isProgrammeAdmin} /> : null}
-
-          {isProgrammeAdmin && tab === "register" ? (
-            <GrantForm maxCapUsd={DELEGATED_CAP_CEILING} onGranted={load} />
+          {notice ? (
+            <p role="status" className="rounded border border-border bg-muted/40 p-2 text-sm">
+              {notice}
+            </p>
           ) : null}
 
           {error ? (
-            <div role="alert" className="rounded border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
-              {error}
-            </div>
-          ) : loading ? (
-            <p className="text-sm text-muted-foreground">{t("loading")}</p>
-          ) : tab === "register" ? (
-            <RegisterTable
-              rows={register ?? []}
-              canWrite={isProgrammeAdmin}
-              canSetFeatures={mayRead}
-              onChanged={load}
-              stages={stages}
-            />
-          ) : tab === "requests" ? (
-            <RequestsTable rows={requests ?? []} />
+            <LoadError what={t("loadWhat")} retrying={loading} onRetry={() => load()} />
           ) : (
-            <RolesTable rows={roles ?? []} />
+            <TeacherTabs
+              ariaLabel={t("title")}
+              active={tab}
+              onChange={(id) => setTab(id as Tab)}
+              tabs={[
+                {
+                  id: "register",
+                  label: t("tabRegister"),
+                  count: register?.length,
+                  content: body(
+                    <RegisterTable
+                      rows={register ?? []}
+                      canWrite={isProgrammeAdmin}
+                      canSetFeatures={mayRead}
+                      onChanged={load}
+                      stages={stages}
+                    />,
+                  ),
+                },
+                {
+                  id: "requests",
+                  label: t("tabRequests"),
+                  count: requests ? pending : undefined,
+                  content: (
+                    <>
+                      {/* There is no email notification anywhere in this flow —
+                          the queue does not tell anyone it has something in it.
+                          Say so, so a reader knows checking it is their job. */}
+                      <p className="text-xs text-muted-foreground">{t("nobodyNotified")}</p>
+                      {body(
+                        <RequestsTable
+                          rows={requests ?? []}
+                          onGrant={isProgrammeAdmin ? (row) => setGranting(row) : undefined}
+                        />,
+                      )}
+                    </>
+                  ),
+                },
+                {
+                  id: "roles",
+                  label: t("rolesTab"),
+                  count: roles?.length,
+                  content: (
+                    <>
+                      <p className="text-xs text-muted-foreground">{t("rolesIntro")}</p>
+                      {body(<RolesTable rows={roles ?? []} />)}
+                    </>
+                  ),
+                },
+              ]}
+            />
           )}
+
+          <GrantFromRequestPanel
+            request={granting}
+            onClose={() => setGranting(null)}
+            onGranted={(email, cap) => {
+              setGranting(null);
+              setNotice(`${tGrant("granted", { email, cap: cap.toFixed(2) })} ${tGrant("reloadHint")}`);
+              load();
+            }}
+          />
         </>
       )}
     </TeacherPage>
