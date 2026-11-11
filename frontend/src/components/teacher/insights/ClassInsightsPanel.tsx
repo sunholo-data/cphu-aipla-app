@@ -16,8 +16,6 @@
 
 "use client";
 
-import { AlertCircle } from "lucide-react";
-
 import { useState } from "react";
 
 import { EngagementBar } from "./EngagementBar";
@@ -31,12 +29,16 @@ import {
   fetchInsightsClassTrend,
   type InsightsSince,
 } from "@/lib/insightsApi";
+import { LoadError } from "@/components/ui/load-error";
 import { useT, type Translate } from "@/i18n";
 
 interface ClassInsightsPanelProps {
   classId: string;
   /** Initial window; the panel carries its own selector from here. */
   since?: InsightsSince;
+  /** The class page shows the panel inside a section already titled
+   *  "Indsigt"; keep the heading for screen readers only there. */
+  hideTitle?: boolean;
 }
 
 // Copy lives in messages/*/teacher-research.json (ClassInsightsPanel) — 1.1.108.
@@ -47,13 +49,19 @@ interface ClassInsightsPanelProps {
 // when it could not read", applied to a UI. The error case is the amber alert;
 // this is the genuine, verified absence.
 
-export function ClassInsightsPanel({ classId, since: initialSince = "30d" }: ClassInsightsPanelProps) {
+export function ClassInsightsPanel({ classId, since: initialSince = "30d", hideTitle = false }: ClassInsightsPanelProps) {
   const t = useT("ClassInsightsPanel");
   const [since, setSince] = useState<InsightsSince>(initialSince);
-  const kpis = useInsightsFetch(() => fetchInsightsClassKpis(classId, since), [classId, since]);
-  const groups = useInsightsFetch(() => fetchInsightsClassGroups(classId, since), [classId, since]);
-  const activities = useInsightsFetch(() => fetchInsightsClassActivities(classId, since), [classId, since]);
-  const trend = useInsightsFetch(() => fetchInsightsClassTrend(classId, since), [classId, since]);
+  // One nonce per section: Retry re-reads only the section that failed.
+  const [nonce, setNonce] = useState({ kpis: 0, groups: 0, activities: 0, trend: 0 });
+  const retry = (key: keyof typeof nonce) => () => setNonce((n) => ({ ...n, [key]: n[key] + 1 }));
+  const kpis = useInsightsFetch(() => fetchInsightsClassKpis(classId, since), [classId, since, nonce.kpis]);
+  const groups = useInsightsFetch(() => fetchInsightsClassGroups(classId, since), [classId, since, nonce.groups]);
+  const activities = useInsightsFetch(
+    () => fetchInsightsClassActivities(classId, since),
+    [classId, since, nonce.activities],
+  );
+  const trend = useInsightsFetch(() => fetchInsightsClassTrend(classId, since), [classId, since, nonce.trend]);
 
   const kpiQueries = kpis.data?._debug.queries ?? [];
 
@@ -64,7 +72,7 @@ export function ClassInsightsPanel({ classId, since: initialSince = "30d" }: Cla
       className="flex flex-col gap-4 rounded border border-border bg-background p-4"
     >
       <header className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="insights-panel-label" className="text-lg font-semibold">
+        <h2 id="insights-panel-label" className={hideTitle ? "sr-only" : "text-lg font-semibold"}>
           {t("title")}
         </h2>
         <label className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -94,7 +102,7 @@ export function ClassInsightsPanel({ classId, since: initialSince = "30d" }: Cla
         </p>
       ) : null}
 
-      <Section id="glance" title={t("sectionGlance")} loading={kpis.isLoading} error={kpis.error}>
+      <Section id="glance" title={t("sectionGlance")} loading={kpis.isLoading} error={kpis.error} onRetry={retry("kpis")}>
         {kpis.data ? (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
             <KpiCard
@@ -138,11 +146,11 @@ export function ClassInsightsPanel({ classId, since: initialSince = "30d" }: Cla
         ) : null}
       </Section>
 
-      <Section id="trend" title={t("sectionTrend")} loading={trend.isLoading} error={trend.error}>
+      <Section id="trend" title={t("sectionTrend")} loading={trend.isLoading} error={trend.error} onRetry={retry("trend")}>
         {trend.data ? <TrendSparkline points={trend.data.perDay} /> : null}
       </Section>
 
-      <Section id="groups" title={t("sectionGroups")} loading={groups.isLoading} error={groups.error}>
+      <Section id="groups" title={t("sectionGroups")} loading={groups.isLoading} error={groups.error} onRetry={retry("groups")}>
         {groups.data ? (
           <EngagementBar
             title={t("perGroupTitle")}
@@ -153,7 +161,13 @@ export function ClassInsightsPanel({ classId, since: initialSince = "30d" }: Cla
         ) : null}
       </Section>
 
-      <Section id="activities" title={t("sectionActivities")} loading={activities.isLoading} error={activities.error}>
+      <Section
+        id="activities"
+        title={t("sectionActivities")}
+        loading={activities.isLoading}
+        error={activities.error}
+        onRetry={retry("activities")}
+      >
         {activities.data ? (
           <EngagementBar
             title={t("perActivityTitle")}
@@ -176,6 +190,7 @@ function Section({
   title,
   loading,
   error,
+  onRetry,
   children,
 }: {
   /** Stable, untranslated id for test hooks. */
@@ -183,15 +198,18 @@ function Section({
   title: string;
   loading: boolean;
   error: string | null;
+  onRetry: () => void;
   children: React.ReactNode;
 }) {
   const t = useT("ClassInsightsPanel");
   if (error) {
+    // The one failed-read state (LoadError, with Retry); the raw error stays
+    // underneath for whoever has to report it.
     return (
-      <div data-testid={`section-error-${id}`} role="alert" className="flex items-start gap-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
-        <AlertCircle className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-        <p>
-          <span className="font-medium">{t("unavailable", { section: title })}</span> {error}
+      <div data-testid={`section-error-${id}`} className="flex flex-col gap-1">
+        <LoadError what={title} onRetry={onRetry} />
+        <p className="text-xs text-muted-foreground">
+          {t("unavailable", { section: title })} {error}
         </p>
       </div>
     );

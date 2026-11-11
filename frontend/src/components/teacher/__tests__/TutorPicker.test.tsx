@@ -205,3 +205,58 @@ describe("TutorPicker — a group-talk approach needs lesson recording (2026-09-
     expect(await screen.findByText(/builds on several students' statements/)).toBeInTheDocument();
   });
 });
+
+describe("TutorPicker — compact, on the class page's Setup view (UI sweep 2026-11)", () => {
+  it("shows the chosen tutor and its approach, with the grid one click away", async () => {
+    mockCatalogue([tutor(), withFramework]);
+    render(<TutorPicker classId="c-1" selectedTutorId="sofie-esru" compact />);
+    const chosen = await screen.findByTestId("tutor-chosen");
+    expect(chosen).toHaveTextContent("Sofie — lab coach");
+    expect(chosen).toHaveTextContent("Question-and-use cycle (ESRU)");
+    // What the approach does stays one disclosure away.
+    expect(screen.getByText(/What does this teaching approach do\?/)).toBeInTheDocument();
+    // The other tutors are not laid out until asked for.
+    expect(screen.queryByRole("button", { name: /Sofie — Allround/ })).toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Change tutor" }));
+    expect(screen.getByRole("button", { name: /Sofie — Allround/ })).toBeInTheDocument();
+  });
+
+  it("saves a new choice and closes the grid", async () => {
+    mockCatalogue([tutor(), withFramework]);
+    const save = vi.spyOn(teacherApi, "setClassTutor").mockResolvedValue(undefined);
+    render(<TutorPicker classId="c-1" selectedTutorId="sofie" compact />);
+    await userEvent.click(await screen.findByRole("button", { name: "Change tutor" }));
+    await userEvent.click(screen.getByRole("button", { name: /Sofie — lab coach/ }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith("c-1", "sofie-esru"));
+    expect(await screen.findByTestId("tutor-chosen")).toHaveTextContent("Sofie — lab coach");
+  });
+
+  it("can still clear the tutor — now with a control that says so", async () => {
+    mockCatalogue([tutor()]);
+    const save = vi.spyOn(teacherApi, "setClassTutor").mockResolvedValue(undefined);
+    render(<TutorPicker classId="c-1" selectedTutorId="sofie" compact />);
+    await userEvent.click(await screen.findByRole("button", { name: "Change tutor" }));
+    await userEvent.click(screen.getByRole("button", { name: "Use the default tutor" }));
+    await waitFor(() => expect(save).toHaveBeenCalledWith("c-1", null));
+    expect(await screen.findByTestId("tutor-chosen")).toHaveTextContent(/teaches as it always has/);
+  });
+
+  it("offers 'Choose a tutor' when none is chosen", async () => {
+    mockCatalogue([tutor()]);
+    render(<TutorPicker classId="c-1" selectedTutorId={null} compact />);
+    expect(await screen.findByRole("button", { name: "Choose a tutor" })).toBeInTheDocument();
+  });
+
+  it("a failed catalogue read offers Retry instead of 'reload the page'", async () => {
+    const fetchCat = vi
+      .spyOn(teacherApi, "fetchTutorCatalogue")
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockResolvedValue({ tutors: [tutor()], frameworks: [] });
+    render(<TutorPicker classId="c-1" selectedTutorId="sofie" compact />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("The tutor list could not be loaded");
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByTestId("tutor-chosen")).toHaveTextContent("Sofie");
+    expect(fetchCat).toHaveBeenCalledTimes(2);
+  });
+});

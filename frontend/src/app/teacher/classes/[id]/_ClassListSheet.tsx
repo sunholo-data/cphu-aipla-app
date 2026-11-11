@@ -1,7 +1,9 @@
 "use client";
 
 /** The class list — names against join codes, kept ONLY on this device
- *  (1.1.137, CLASSVISIT-1 lane C).
+ *  (1.1.137, CLASSVISIT-1 lane C). Since the 2026-11 UI sweep the names are a
+ *  column of the class page's one groups table (`_GroupsTable.tsx`); this file
+ *  is the storage, the Excel round trip and the `useClassList` hook behind it.
  *
  *  ⚠️ PRIVACY BOUNDARY — read before changing anything here.
  *  ADR-001 (`docs/design/aipla/_scoping-snapshot/architecture.qmd`) promises
@@ -10,19 +12,20 @@
  *  table on the server IS the identity map ADR-001 removed. So:
  *
  *    - names and notes live in `localStorage` under `aipla.classlist.{classId}`
- *      and in this component's own state — NOTHING ELSE;
- *    - this file imports no API client, no fetch helper, no analytics hook;
+ *      and in the hook's own state — NOTHING ELSE;
+ *    - this file and `_GroupsTable.tsx` import no API client, no fetch helper,
+ *      no analytics hook (the table hands its row actions a CODE, never a name);
  *    - the Excel download is built in memory (`lib/xlsx.ts`) and the import is
  *      parsed in the browser — no upload.
  *
  *  `__tests__/_ClassListSheet.test.tsx` spies on `fetch` and both auth-fetch
- *  helpers while a name is typed, downloaded and imported, and fails if any
- *  request URL, body or header carries it. Do not pass these values to a
- *  callback prop, a toast that is logged, an error reporter, or the co-pilot.
+ *  helpers while a name is typed, downloaded and imported in the groups table,
+ *  and while every row action runs, and fails if any request URL, body, header
+ *  or callback argument carries it. Do not pass these values to a callback
+ *  prop, a toast that is logged, an error reporter, or the co-pilot.
  */
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { Download, Upload } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 
 import { parseCsv, slugify } from "@/lib/download";
 import { XlsxUnsupportedError, downloadXlsx, readXlsxRows } from "@/lib/xlsx";
@@ -31,7 +34,7 @@ import { translate, useLocaleMode, useT } from "@/i18n";
 export type ClassListLocale = "da" | "en";
 
 // Copy lives in messages/{da,en}/teacher-classes.json (namespace ClassListSheet,
-// 1.1.108 M2). The sheet follows the teacher's own language; `locale` pins it.
+// 1.1.108 M2). The list follows the teacher's own language; `locale` pins it.
 
 // ── storage ──────────────────────────────────────────────────────────────────
 
@@ -200,41 +203,53 @@ export async function readClassListFile(file: File): Promise<string[][]> {
   return parseCsv(new TextDecoder().decode(bytes));
 }
 
-// ── component ────────────────────────────────────────────────────────────────
+// ── hook ─────────────────────────────────────────────────────────────────────
 
-export interface ClassListSheetProps {
+export interface UseClassListOptions {
   classId: string;
   className: string;
-  /** LIVE codes only — the page's `activeGroupCodes(cls)`. A revoked code is
-   *  not a row here: it cannot be handed out any more. */
+  /** LIVE codes only — the page's `activeGroupCodes(cls)`. Only these are
+   *  exported to Excel and matched on import. */
   codes: ReadonlyArray<string>;
   /** 1.1.146 — revoked codes whose names this device keeps. Revoke ends
    *  access, not evidence: their sessions stay reviewable, and the teacher's
    *  own note of who was in the group is what makes those sessions readable.
-   *  Not shown as rows, not exported; only kept in storage. */
+   *  Kept in storage and shown read-only beside the revoked code; never
+   *  exported. */
   retainedCodes?: ReadonlyArray<string>;
   /** `window.location.origin` as the page read it; the link carries the env. */
   joinOrigin: string;
-  /** Pins the sheet's language; defaults to the teacher's own (1.1.108 M2). */
+  /** Pins the list's language; defaults to the teacher's own (1.1.108 M2). */
   locale?: ClassListLocale;
 }
 
-export function ClassListSheet({
+export interface ClassListState {
+  entries: ClassListEntries;
+  /** null until read after mount; false when the browser refuses storage. */
+  storageOk: boolean | null;
+  importMsg: { tone: "ok" | "warn"; text: string } | null;
+  update: (code: string, field: keyof ClassListEntry, value: string) => void;
+  download: () => void;
+  importFile: (file: File | undefined) => Promise<void>;
+}
+
+/** Names and notes per code, in this browser only. Everything a caller can do
+ *  with them stays inside this hook: localStorage, an in-memory xlsx, and a
+ *  file read in the browser. */
+export function useClassList({
   classId,
   className,
   codes,
   retainedCodes,
   joinOrigin,
   locale: pinned,
-}: ClassListSheetProps) {
+}: UseClassListOptions): ClassListState {
   const mode = useLocaleMode();
   const locale: ClassListLocale = pinned ?? (mode === "bilingual" ? "da" : mode);
   const t = useT("ClassListSheet", locale);
   const [entries, setEntries] = useState<ClassListEntries>({});
   const [storageOk, setStorageOk] = useState<boolean | null>(null);
-  const [importMsg, setImportMsg] = useState<{ tone: "ok" | "warn"; text: string } | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const importHelpId = useId();
+  const [importMsg, setImportMsg] = useState<ClassListState["importMsg"]>(null);
 
   // Read after mount: the server render has no window.
   useEffect(() => {
@@ -261,7 +276,7 @@ export function ClassListSheet({
     persist(next);
   }
 
-  function handleDownload() {
+  function download() {
     const date = new Date().toISOString().slice(0, 10);
     const rows = buildClassListRows({ className, date, codes, entries, origin: joinOrigin, locale });
     const stem = slugify(className) || "class";
@@ -271,7 +286,7 @@ export function ClassListSheet({
     });
   }
 
-  async function handleImport(file: File | undefined) {
+  async function importFile(file: File | undefined) {
     if (!file) return;
     setImportMsg(null);
     try {
@@ -290,115 +305,12 @@ export function ClassListSheet({
           : t("importDone", { matched: result.matched }),
       });
     } catch (err) {
-      setImportMsg({ tone: "warn", text: err instanceof XlsxUnsupportedError ? t("importNeedsCsv") : t("importFailed") });
-    } finally {
-      if (fileRef.current) fileRef.current.value = "";
+      setImportMsg({
+        tone: "warn",
+        text: err instanceof XlsxUnsupportedError ? t("importNeedsCsv") : t("importFailed"),
+      });
     }
   }
 
-  return (
-    <div className="flex flex-col gap-3" data-testid="class-list-sheet">
-      {storageOk === false ? (
-        <p role="alert" className="rounded border border-amber-400 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:bg-amber-950 dark:text-amber-100">
-          {t("storageUnavailable")}
-        </p>
-      ) : null}
-
-      {codes.length === 0 ? (
-        <p className="rounded border border-dashed border-border px-3 py-4 text-sm text-muted-foreground">{t("noCodes")}</p>
-      ) : (
-        <div className="overflow-x-auto rounded border border-border">
-          <table className="w-full min-w-[40rem] text-sm">
-            <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
-              <tr>
-                <th scope="col" className="px-3 py-2 font-medium">{t("colCode")}</th>
-                <th scope="col" className="px-3 py-2 font-medium">{t("colLink")}</th>
-                <th scope="col" className="px-3 py-2 font-medium">{t("colNames")}</th>
-                <th scope="col" className="px-3 py-2 font-medium">{t("colNote")}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {codes.map((code) => {
-                const link = joinLinkFor(joinOrigin, code);
-                return (
-                  <tr key={code}>
-                    <td className="px-3 py-2 align-top">
-                      <code className="font-mono text-xs">{code}</code>
-                    </td>
-                    <td className="max-w-[16rem] px-3 py-2 align-top">
-                      <span className="block truncate font-mono text-xs text-muted-foreground" title={link}>
-                        {link}
-                      </span>
-                    </td>
-                    <td className="px-3 py-1.5 align-top">
-                      <input
-                        type="text"
-                        value={entries[code]?.names ?? ""}
-                        onChange={(e) => update(code, "names", e.target.value)}
-                        aria-label={t("namesLabel", { code })}
-                        placeholder={t("namesPlaceholder")}
-                        autoComplete="off"
-                        className="w-full rounded border border-border bg-background px-2 py-1 text-sm"
-                      />
-                    </td>
-                    <td className="px-3 py-1.5 align-top">
-                      <input
-                        type="text"
-                        value={entries[code]?.note ?? ""}
-                        onChange={(e) => update(code, "note", e.target.value)}
-                        aria-label={t("noteLabel", { code })}
-                        autoComplete="off"
-                        className="w-full rounded border border-border bg-background px-2 py-1 text-sm"
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      <p className="text-xs text-muted-foreground">{t("keptLocally")}</p>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={handleDownload}
-          disabled={codes.length === 0}
-          className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent disabled:opacity-50"
-        >
-          <Download className="h-4 w-4" aria-hidden="true" />
-          {t("download")}
-        </button>
-        <button
-          type="button"
-          onClick={() => fileRef.current?.click()}
-          disabled={codes.length === 0}
-          aria-describedby={importHelpId}
-          className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-accent disabled:opacity-50"
-        >
-          <Upload className="h-4 w-4" aria-hidden="true" />
-          {t("importButton")}
-        </button>
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-          className="hidden"
-          data-testid="class-list-import"
-          onChange={(e) => void handleImport(e.target.files?.[0])}
-        />
-      </div>
-      <p id={importHelpId} className="text-xs text-muted-foreground">{t("importHelp")}</p>
-      {importMsg ? (
-        <p
-          role="status"
-          className={importMsg.tone === "ok" ? "text-sm text-foreground" : "text-sm text-amber-700 dark:text-amber-300"}
-        >
-          {importMsg.text}
-        </p>
-      ) : null}
-    </div>
-  );
+  return { entries, storageOk, importMsg, update, download, importFile };
 }

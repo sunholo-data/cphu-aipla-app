@@ -11,8 +11,13 @@ import type { ClassPayload } from "@/lib/teacherApi";
 
 const CLASS_ID = "class-7b-physics-a";
 
+// UI sweep 2026-11: the lesson card and the concepts lead the "After the
+// lesson" view, which is where these tests open.
 vi.mock("next/navigation", () => ({
   useParams: () => ({ id: CLASS_ID }),
+  useSearchParams: () => new URLSearchParams({ tab: "after" }),
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+  usePathname: () => `/teacher/classes/${CLASS_ID}`,
   notFound: () => {
     throw new Error("notFound() was called");
   },
@@ -102,25 +107,24 @@ afterEach(() => {
 // generous. They cost nothing when the page is fast.
 const SLOW = { timeout: 10_000 };
 
-describe("/teacher/classes/[id] — concepts at the top", () => {
-  it("renders 'Concepts across the class' above the groups list, once", async () => {
+describe("/teacher/classes/[id] — concepts lead 'After the lesson'", () => {
+  it("renders 'Concepts across the class' in the After view, above the numbers, once", async () => {
     renderPage();
     const concepts = await screen.findByRole("heading", { name: "Concepts across the class" }, SLOW);
-    const groups = screen.getByRole("heading", { name: "Groups" });
-    expect(
-      concepts.compareDocumentPosition(groups) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    const after = screen.getByRole("tabpanel", { name: "After the lesson" });
+    expect(after).toContainElement(concepts);
+    const numbers = screen.getByRole("heading", { name: "Numbers" });
+    expect(concepts.compareDocumentPosition(numbers) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     // One place only — the old bottom section is gone.
     expect(screen.getAllByTestId("class-concept-graph-stub")).toHaveLength(1);
     expect(screen.queryByRole("heading", { name: "Concept map for the class" })).toBeNull();
   }, 20_000);
 
-  it("shows no card at the top when the class has no concepts — one muted line", async () => {
+  it("shows no card when the class has no concepts — one muted line", async () => {
     conceptCount = 0;
     renderPage();
     const hint = await screen.findByTestId("class-concepts-hint", {}, SLOW);
-    const groups = screen.getByRole("heading", { name: "Groups" });
-    expect(hint.compareDocumentPosition(groups) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole("tabpanel", { name: "After the lesson" })).toContainElement(hint);
     await waitFor(() =>
       expect(screen.queryByRole("heading", { name: "Concepts across the class" })).toBeNull(),
     );

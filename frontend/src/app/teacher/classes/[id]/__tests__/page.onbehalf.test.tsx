@@ -1,4 +1,4 @@
-import { render as rtlRender, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
 import { type MockedFunction, afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import * as teacherApi from "@/lib/teacherApi";
@@ -6,8 +6,12 @@ import type { ActivityPayload, ClassPayload } from "@/lib/teacherApi";
 
 const CLASS_ID = "class-bobs";
 
+// The activity picker lives in the class page's Setup view (UI sweep 2026-11).
 vi.mock("next/navigation", () => ({
   useParams: () => ({ id: CLASS_ID }),
+  useSearchParams: () => new URLSearchParams({ tab: "setup" }),
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+  usePathname: () => `/teacher/classes/${CLASS_ID}`,
   notFound: () => {
     throw new Error("notFound() was called");
   },
@@ -103,8 +107,11 @@ describe("/teacher/classes/[id] — a researcher acting for the owner", () => {
     render(<TeacherClassDetailPage />);
     await waitFor(() => expect(listSpy).toHaveBeenCalledWith("all", { limit: 200 }));
     // Open the assign picker.
+    // "Tilføj aktivitet ▾" → "Fra dit bibliotek…".
     const add = await screen.findByRole("button", { name: /add activity/i });
-    add.click();
+    add.focus();
+    fireEvent.keyDown(add, { key: "Enter" });
+    fireEvent.click(await screen.findByRole("menuitem", { name: /from your library/i }));
     await waitFor(() => expect(screen.getByText("Activity act-bob")).toBeInTheDocument());
     expect(screen.queryByText("Activity act-rae")).not.toBeInTheDocument();
     expect(screen.queryByText("Activity act-other")).not.toBeInTheDocument();

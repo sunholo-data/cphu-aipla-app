@@ -11,6 +11,7 @@ import {
   formatEur,
   usedVoice,
 } from "@/lib/costApi";
+import { LoadError } from "@/components/ui/load-error";
 import { useLocaleMode, useT, type MessageKey } from "@/i18n";
 
 const PERIODS: { value: SpendPeriod; label: MessageKey<"BudgetPanel"> }[] = [
@@ -27,12 +28,21 @@ const PERIODS: { value: SpendPeriod; label: MessageKey<"BudgetPanel"> }[] = [
  * progress bar — class-level caps are deferred (the shipped enforcer is
  * skill-level). EUR only.
  */
-export function BudgetPanel({ classId }: { classId: string }) {
+export function BudgetPanel({
+  classId,
+  hideTitle = false,
+}: {
+  classId: string;
+  /** The class page shows it inside a section already titled "Forbrug"; a
+   *  second "Forbrug" heading inside it is the same word twice. */
+  hideTitle?: boolean;
+}) {
   const t = useT("BudgetPanel");
   const [period, setPeriod] = useState<SpendPeriod>("this_month");
   const [data, setData] = useState<ClassSpendPayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadNonce, setLoadNonce] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -53,12 +63,12 @@ export function BudgetPanel({ classId }: { classId: string }) {
     };
     // `t` is stable per locale; a language switch need not refetch.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [classId, period]);
+  }, [classId, period, loadNonce]);
 
   return (
     <section aria-labelledby="budget-panel-label" className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
-        <h3 id="budget-panel-label" className="text-sm font-semibold">
+        <h3 id="budget-panel-label" className={hideTitle ? "sr-only" : "text-sm font-semibold"}>
           {t("spend")}
         </h3>
         <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
@@ -80,9 +90,11 @@ export function BudgetPanel({ classId }: { classId: string }) {
       {loading ? (
         <p className="text-sm text-muted-foreground">{t("loading")}</p>
       ) : error ? (
-        <p role="alert" className="text-sm text-destructive">
-          {t("loadFailed", { error })}
-        </p>
+        // A failed read says so, with Retry — never a blank panel or "no spend".
+        <div className="flex flex-col gap-1">
+          <LoadError what={t("spend")} onRetry={() => setLoadNonce((n) => n + 1)} />
+          <p className="text-xs text-muted-foreground">{t("loadFailed", { error })}</p>
+        </div>
       ) : data ? (
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap items-baseline gap-x-6 gap-y-1">

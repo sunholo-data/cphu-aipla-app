@@ -23,10 +23,10 @@
  */
 
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
+import { notify } from "@/components/ui/toast";
 import { patchClass } from "@/lib/teacherApi";
-import { useToast } from "@/hooks/useToast";
 import { useT } from "@/i18n";
 
 
@@ -51,7 +51,6 @@ export function ClassDetailsPanel({
   const [description, setDescription] = useState(initialDescription ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { toast, showToast } = useToast();
 
   const trimmed = name.trim();
   // The backend enforces min_length=1; refusing here keeps the teacher out of a
@@ -74,7 +73,8 @@ export function ClassDetailsPanel({
         // which is not what an emptied box means.
         description: description.trim(),
       });
-      showToast(t("saved"), 2000);
+      // notify() is announced; the old inline toast was a bare text node.
+      notify.success(t("saved"));
       onSaved();
     } catch (err) {
       setError(err instanceof Error ? err.message : t("failed"));
@@ -126,17 +126,10 @@ export function ClassDetailsPanel({
       ) : null}
 
       <div>
-        <button
-          type="button"
-          onClick={save}
-          disabled={!canSave}
-          className="inline-flex items-center gap-1.5 rounded bg-brand px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-        >
-          {saving ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
-          {saving ? t("saving") : t("save")}
-        </button>
+        <Button variant="primary" size="sm" onClick={save} disabled={!canSave} pending={saving} pendingLabel={t("saving")}>
+          {t("save")}
+        </Button>
       </div>
-      {toast}
     </div>
   );
 }
