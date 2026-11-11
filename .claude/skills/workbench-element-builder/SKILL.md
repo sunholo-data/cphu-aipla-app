@@ -183,7 +183,11 @@ keystroke. `make audit-trust-cards` fails on a push with neither.
    your new element should not be a new red row (unless it's a no-card shape).
    This is the same script the CI `local-mode-safety` job runs as a blocking gate
    (P1.4), so a dropped card fails the build, not just this manual check.
-6. **Wire the co-pilot** — see the section below. A teacher-authorable element the
+6. **Make it addable in the builder** — add the kind to `WORKSPACE_KINDS` in
+   `frontend/src/components/teacher/WorkspaceElements.tsx` (+ its `WorkspaceAdd` name/help
+   keys in `teacher-activities.json`). Since the 2026-11-11 UI sweep the editor only
+   renders added elements, so a kind missing here can never be added by hand. Recipe step 5a.
+7. **Wire the co-pilot** — see the section below. A teacher-authorable element the
    co-pilot can't propose is a silent gap.
 
 ## Also: make the element co-pilot-authorable
