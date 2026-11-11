@@ -19,22 +19,24 @@
     "goToClasses": "Gå til klasser"
   },
   "TeacherClientShell": {
-    "loading": "Indlæser…",
+    "skipToMain": "Gå til indholdet",
     "teacherFallback": "Lærer",
     "homeLabel": "{app} Lærer — forside",
     "brand": "{app} Lærer",
-    "localMode": "Lokal tilstand",
-    "researcherActive": "Forskerrolle aktiv",
-    "researcherTitle": "Forskerrolle — læseadgang på tværs af alle læreres klasser",
-    "researcher": "Forsker"
+    "localMode": "Lokal tilstand"
   },
   "AccountMenu": {
     "open": "Kontomenu",
     "settings": "Indstillinger",
-    "approaches": "Tilgange",
+    "tutors": "Tutorer",
     "signOut": "Log ud",
     "language": "Sprog",
-    "signedInAs": "Logget ind som {label}"
+    "signedInAs": "Logget ind som {label}",
+    "role": "Rolle: {role}",
+    "roleResearcher": "forsker",
+    "roleProgrammeAdmin": "programadministrator",
+    "roleBoth": "forsker og programadministrator",
+    "roleHint": "Forskerrolle: læseadgang på tværs af alle læreres klasser"
   },
   "AdvancedDisclosure": {
     "advanced": "Avanceret"
@@ -50,7 +52,6 @@
     "activities": "Aktiviteter",
     "materials": "Materialer",
     "insights": "Indsigt",
-    "guides": "Vejledninger",
     "programme": "Programmet",
     "sections": "Lærerafsnit",
     "expand": "Udvid navigationen",
@@ -110,10 +111,13 @@
     "dayDetail": "{replies} svar · {groups, plural, one {# gruppe} other {# grupper}}"
   },
   "AskAiplaButton": {
-    "button": "Spørg AIPLA",
-    "menu": "Spørg AIPLA",
-    "help": "AIPLA Hjælp — hvordan gør jeg…",
-    "helpOnly": "Hjælp"
+    "button": "Hjælp",
+    "menu": "Hjælp",
+    "guides": "Vejledninger",
+    "guidesHint": "Trin for trin, med billeder og PDF",
+    "help": "Spørg AIPLA Hjælp",
+    "helpHint": "Stil et spørgsmål om, hvordan du bruger AIPLA",
+    "copilotHint": "Hjælp med det, du arbejder på her"
   },
   "FloatingCopilot": {
     "minimize": "Minimér",

@@ -5,7 +5,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BarChart3,
-  BookOpen,
   ClipboardList,
   FlaskConical,
   Library,
@@ -39,8 +38,10 @@ interface Destination {
 
 /**
  * The core teacher destinations. Insights is the home for the analytics
- * surfaces (Overview / Reports), so it stays active across `/insights` and
- * `/reports`. (The standalone `/teacher/analytics` chat was retired in favour
+ * surfaces (Lessons / All classes / Reports), so it stays active across
+ * `/insights` and `/reports`. It LANDS on Lessons (UI sweep 2026-11-11): a
+ * teacher's first question after a lesson is "what did the class get?", and
+ * the tabs already put Lessons first — the nav used to open the second tab. (The standalone `/teacher/analytics` chat was retired in favour
  * of the floating co-pilots, so it's no longer a match prefix.)
  *
  * Materials sits next to Activities (1.1.61): the document corpus is the raw
@@ -62,15 +63,16 @@ const DESTINATIONS: Destination[] = [
     match: ["/teacher/materials"],
   },
   {
-    href: "/teacher/insights",
+    href: "/teacher/insights/lessons",
     label: "insights",
     icon: BarChart3,
     match: ["/teacher/insights", "/teacher/reports"],
   },
   // Settings left the nav in 1.1.125 M0 — it is a defaults card and a signpost,
-  // reached from the account menu. Approaches went with it (both entries: the
-  // account menu and the class page's Tutor setting; JB/AR prune one).
-  { href: "/guides", label: "guides", icon: BookOpen, match: ["/guides"] },
+  // reached from the account menu. Approaches went with it (now "Tutors").
+  // Guides left in the UI sweep (2026-11-11): reference material, not a place a
+  // teacher goes every session. They are the first item of the header's Help
+  // menu, which renders on every teacher page whatever the flags say.
 ];
 
 /**
@@ -198,8 +200,10 @@ export function TeacherNav() {
               )}
             >
               <Icon className="h-4 w-4" aria-hidden="true" />
-              {!collapsed ? t(d.label) : null}
+              {collapsed ? <span className="sr-only">{t(d.label)}</span> : t(d.label)}
               {!collapsed && d.locked ? <Lock className="ml-auto h-3 w-3" aria-hidden="true" /> : null}
+              {/* `title` never reaches touch users or many screen readers. */}
+              {d.locked ? <span className="sr-only">{` — ${t("lockedHint")}`}</span> : null}
             </Link>
           );
         })}
@@ -221,9 +225,10 @@ export function TeacherNav() {
               title={d.locked ? t("lockedHint") : undefined}
               data-locked={d.locked ? "true" : undefined}
               className={cn(
-                // basis-0 + min-w-0: six or seven destinations share a 390px
+                // basis-0 + min-w-0: up to six destinations share a 390px
                 // phone equally; a long label truncates instead of pushing
-                // the last one off the edge ("Vejledninger" was cut off).
+                // the last one off the edge ("Vejledninger" was cut off
+                // before it moved into the Help menu).
                 "flex min-w-0 flex-1 basis-0 flex-col items-center gap-0.5 px-0.5 py-2 text-[11px] font-medium",
                 active ? "text-primary" : "text-muted-foreground hover:text-foreground",
                 d.locked && "opacity-50",
@@ -231,6 +236,7 @@ export function TeacherNav() {
             >
               <Icon className="h-5 w-5" aria-hidden="true" />
               <span className="max-w-full truncate">{t(d.label)}</span>
+              {d.locked ? <span className="sr-only">{` — ${t("lockedHint")}`}</span> : null}
             </Link>
           );
         })}

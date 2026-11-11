@@ -45,6 +45,8 @@ describe("TeacherNav — the Sim workshop entry", () => {
     for (const link of links) {
       expect(link).toHaveAttribute("data-locked", "true");
       expect(link).toHaveAttribute("href", "/teacher/sims");
+      // The lock explains itself to touch and screen-reader users, not only via `title`.
+      expect(link).toHaveAccessibleName(/Not switched on for you yet/);
     }
   });
 
@@ -62,9 +64,12 @@ describe("TeacherNav", () => {
   it("renders the core destinations (no Research) for a non-researcher", () => {
     mockPathname.mockReturnValue("/teacher/classes");
     render(<TeacherNav />);
-    for (const label of ["Classes", "Activities", "Materials", "Insights", "Guides"]) {
+    for (const label of ["Classes", "Activities", "Materials", "Insights"]) {
       expect(screen.getAllByRole("link", { name: new RegExp(label) })).toHaveLength(2);
     }
+    // UI sweep 2026-11-11 — Guides moved into the header's Help menu.
+    expect(screen.queryByRole("link", { name: /Guides/ })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("link")).toHaveLength(8);
     expect(screen.queryByRole("link", { name: /Research/ })).not.toBeInTheDocument();
     // 1.1.125 M0 — Settings and Approaches live in the account menu now.
     expect(screen.queryByRole("link", { name: /Settings/ })).not.toBeInTheDocument();
@@ -95,8 +100,8 @@ describe("TeacherNav", () => {
     // Insights tab. Neither is a place in the nav any more.
     expect(screen.queryByRole("link", { name: /^Research$/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: /Conversations/ })).not.toBeInTheDocument();
-    // 5 teacher destinations + Programme, each twice.
-    expect(screen.getAllByRole("link")).toHaveLength(12);
+    // 4 teacher destinations + Programme, each twice.
+    expect(screen.getAllByRole("link")).toHaveLength(10);
   });
 
   it("marks the active destination with aria-current and leaves others unset", () => {
@@ -107,6 +112,19 @@ describe("TeacherNav", () => {
     }
     for (const link of screen.getAllByRole("link", { name: /Classes/ })) {
       expect(link).not.toHaveAttribute("aria-current");
+    }
+  });
+
+  // UI sweep 2026-11-11 — the tabs put Lessons first; the nav now lands there.
+  it("lands Insights on Lessons, and keeps it current on every Insights tab", () => {
+    for (const path of ["/teacher/insights/lessons", "/teacher/insights/classes", "/teacher/insights/cost"]) {
+      mockPathname.mockReturnValue(path);
+      const { unmount } = render(<TeacherNav />);
+      for (const link of screen.getAllByRole("link", { name: /Insights/ })) {
+        expect(link).toHaveAttribute("href", "/teacher/insights/lessons");
+        expect(link).toHaveAttribute("aria-current", "page");
+      }
+      unmount();
     }
   });
 
@@ -143,7 +161,7 @@ describe("TeacherNav", () => {
 describe("TeacherNav — no two destinations claim the same page", () => {
   it("exactly one destination is current on every destination's own href, for a researcher", () => {
     researcherRef.current = true;
-    const hrefs = ["/teacher/classes", "/teacher/activities", "/teacher/materials", "/teacher/insights", "/guides", "/teacher/programme"];
+    const hrefs = ["/teacher/classes", "/teacher/activities", "/teacher/materials", "/teacher/insights/lessons", "/teacher/programme"];
     for (const href of hrefs) {
       mockPathname.mockReturnValue(href);
       const { unmount } = render(<TeacherNav />);

@@ -3,9 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
-import { FlaskConical } from "lucide-react";
-
 import { SiteFooter } from "@/components/site/SiteFooter";
+import { PageLoading } from "@/components/ui/skeleton";
 import { AskAiplaButton, CopilotEntryProvider } from "@/components/teacher/copilot";
 import { AccountMenu } from "@/components/teacher/ui/AccountMenu";
 import { TeacherNav } from "@/components/teacher/ui/TeacherNav";
@@ -17,6 +16,7 @@ import { isLocalMode } from "@/lib/localMode";
 import { signOut } from "@/lib/firebase";
 import { useTeacherAuth } from "@/hooks/useTeacherAuth";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
+import { useIsProgrammeAdmin } from "@/hooks/useIsProgrammeAdmin";
 import { useTeacherBootstrap } from "@/hooks/useTeacherBootstrap";
 import { useTeacherFeature } from "@/hooks/useTeacherFeature";
 import { AiplaHelpCopilot } from "./_AiplaHelpCopilot";
@@ -33,6 +33,7 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
   const { user, loading } = useTeacherAuth();
   const t = useT("TeacherClientShell");
   const isResearcher = useIsResearcher();
+  const isProgrammeAdmin = useIsProgrammeAdmin();
   const pathname = usePathname() ?? "";
   // First sign-in (incl. the first after a clean-slate wipe): seed the teacher's
   // onboarding demo. Idempotent backend; reloads once if it just seeded.
@@ -57,8 +58,8 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
   // keep this node mounted until that redirect fires.
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center">
-        <p className="text-sm text-muted-foreground">{t("loading")}</p>
+      <main className="min-h-screen">
+        <PageLoading />
       </main>
     );
   }
@@ -91,6 +92,14 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
     // header's one button knows what this page offers.
     <CopilotEntryProvider>
     <div className="flex min-h-screen flex-col">
+      {/* UI sweep 2026-11-11 — the first focusable element on every teacher
+          page, so a keyboard user skips the banners, header and nav. */}
+      <a
+        href="#teacher-main"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded focus:bg-background focus:px-3 focus:py-2 focus:text-sm focus:font-medium focus:shadow-lg focus:outline focus:outline-2 focus:outline-ring"
+      >
+        {t("skipToMain")}
+      </a>
       {/* ACCESS-1 M4: renders nothing for a pilot teacher; above the header so
           it is the first thing a visitor reads, and never covers the nav. */}
       <VisitorAccessBanner />
@@ -115,8 +124,8 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
           </Link>
 
           <div className="flex items-center gap-3">
-            {/* 1.1.125 M3 — the ONE entry to every copilot: the page's work
-                copilot (if it registered one) and the help assistant. */}
+            {/* The one "Hjælp" menu (UI sweep 2026-11-11): guides, the help
+                assistant (flag) and the page's work copilot (1.1.125 M3). */}
             <AskAiplaButton helpEnabled={helpEnabled} onOpenHelp={() => setHelpOpen(true)} />
             {isLocalMode() ? (
               <div
@@ -127,22 +136,15 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
                 LOCAL_MODE
               </div>
             ) : null}
-            {isResearcher ? (
-              <div
-                role="status"
-                aria-label={t("researcherActive")}
-                title={t("researcherTitle")}
-                className="flex items-center gap-1 rounded border border-indigo-300 bg-indigo-50 px-2 py-1 text-[11px] font-medium text-indigo-900 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-200"
-              >
-                <FlaskConical className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>{t("researcher")}</span>
-              </div>
-            ) : null}
-            {/* 1.1.125 M0 — Settings, Approaches and Sign out live behind the
+            {/* 1.1.125 M0 — Settings, Tutors and Sign out live behind the
                 account, not in the nav: a nav slot is for the places a teacher
-                goes every session. */}
+                goes every session. The researcher role is a line in this menu
+                (and a marker on its trigger) since the UI sweep — the header
+                "Forsker" pill went. */}
             <AccountMenu
               label={accountLabel}
+              isResearcher={isResearcher}
+              isProgrammeAdmin={isProgrammeAdmin}
               onSignOut={() => void signOut()}
               avatar={
                 photoURL && !avatarFailed ? (
@@ -180,7 +182,9 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
         <TeacherNav />
         {/* pb-24 on mobile clears the fixed bottom nav bar; reset at md. */}
         <div className="flex min-w-0 flex-1 flex-col md:pl-6">
-          <main className="flex-1 py-6 pb-24 sm:py-8 md:pb-8">{children}</main>
+          <main id="teacher-main" tabIndex={-1} className="flex-1 py-6 pb-24 outline-none sm:py-8 md:pb-8">
+            {children}
+          </main>
           <SiteFooter />
         </div>
       </div>
