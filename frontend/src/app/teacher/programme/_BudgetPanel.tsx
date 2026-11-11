@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useId, useState } from "react";
+import { ChevronDown } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
+import { LoadError } from "@/components/ui/load-error";
 import {
   type ProgrammeBudgetPayload,
   fetchProgrammeBudget,
@@ -19,25 +22,37 @@ import { useT } from "@/i18n";
  *
  * Settable by a programme admin, VISIBLE to a researcher — same split as the
  * register, same reasoning.
+ *
+ * Collapsed to one button that already carries the answer ("Daily budget: $x
+ * of $y ▸") since the UI sweep (2026-11-11), so the register is the first thing
+ * on the page. A failed read says so with a retry: it used to return null
+ * before reaching its own error, so "no budget" and "could not read" looked
+ * identical — the reassuring answer a broken read produces.
  */
 export function BudgetPanel({ canWrite }: { canWrite: boolean }) {
   const t = useT("ProgrammeBudgetPanel");
+  const regionId = useId();
   const [payload, setPayload] = useState<ProgrammeBudgetPayload | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const [open, setOpen] = useState(false);
   const [value, setValue] = useState("");
   const [action, setAction] = useState<"warn" | "block">("warn");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const load = () => {
+  const load = useCallback(() => {
     fetchProgrammeBudget()
       .then((p) => {
         setPayload(p);
+        setLoadFailed(false);
         setValue(p.dailyBudgetUsd === null ? "" : String(p.dailyBudgetUsd));
         setAction(p.action);
       })
-      .catch((e) => setError(e instanceof Error ? e.message : String(e)));
-  };
-  useEffect(load, []);
+      .catch(() => setLoadFailed(true))
+      .finally(() => setRetrying(false));
+  }, []);
+  useEffect(load, [load]);
 
   const save = async (next: number | null) => {
     setBusy(true);
@@ -52,89 +67,122 @@ export function BudgetPanel({ canWrite }: { canWrite: boolean }) {
     }
   };
 
-  if (!payload) return null;
+  if (loadFailed && !payload) {
+    return (
+      <LoadError
+        what={t("loadWhat")}
+        retrying={retrying}
+        onRetry={() => {
+          setRetrying(true);
+          load();
+        }}
+      />
+    );
+  }
+  if (!payload) {
+    return (
+      <p className="text-sm text-muted-foreground" aria-live="polite">
+        {t("loading")}
+      </p>
+    );
+  }
 
   const spent =
     payload.spentTodayUsd === null ? t("unreadable") : `$${payload.spentTodayUsd.toFixed(2)}`;
+  const summary =
+    payload.dailyBudgetUsd !== null
+      ? t("toggle", { spent, budget: payload.dailyBudgetUsd.toFixed(2) })
+      : t("toggleNoBudget", { spent });
 
   return (
-    <section className="space-y-3 rounded border border-border p-4">
-      <div>
-        <h2 className="text-sm font-semibold">{t("title")}</h2>
-        <p className="text-xs text-muted-foreground">{t("intro")}</p>
-      </div>
+    <div className="flex flex-col gap-2">
+      <Button
+        className="self-start"
+        aria-expanded={open}
+        aria-controls={regionId}
+        onClick={() => setOpen((v) => !v)}
+      >
+        {summary}
+        <ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
+      </Button>
 
-      <p className="text-sm">
-        {t.rich("spentToday", { spent, b: (c) => <strong>{c}</strong> })}
-        {payload.dailyBudgetUsd !== null
-          ? t("ofBudget", { budget: payload.dailyBudgetUsd.toFixed(2) })
-          : t("noBudgetSet")}
-      </p>
+      {open ? (
+        <section id={regionId} aria-label={t("title")} className="space-y-3 rounded border border-border p-4">
+          <div>
+            <h2 className="text-sm font-semibold">{t("title")}</h2>
+            <p className="text-xs text-muted-foreground">{t("intro")}</p>
+          </div>
 
-      {payload.dailyBudgetUsd === null ? (
-        <p className="text-xs text-muted-foreground">
-          {t("noBudget")}
-        </p>
-      ) : null}
+          <p className="text-sm">
+            {t.rich("spentToday", { spent, b: (c) => <strong>{c}</strong> })}
+            {payload.dailyBudgetUsd !== null
+              ? t("ofBudget", { budget: payload.dailyBudgetUsd.toFixed(2) })
+              : t("noBudgetSet")}
+          </p>
 
-      {canWrite ? (
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="font-medium">{t("dailyBudget")}</span>
-            <input
-              type="number"
-              min={1}
-              max={payload.ceilingUsd}
-              step={1}
-              value={value}
-              disabled={busy}
-              aria-label={t("dailyBudgetAria")}
-              onChange={(e) => setValue(e.target.value)}
-              className="w-28 rounded border border-border bg-background px-2 py-1 text-sm"
-            />
-            <span className="text-[11px] text-muted-foreground">{t("upTo", { max: payload.ceilingUsd })}</span>
-          </label>
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="font-medium">{t("whenReached")}</span>
-            <select
-              value={action}
-              disabled={busy}
-              aria-label={t("whenReachedAria")}
-              onChange={(e) => setAction(e.target.value as "warn" | "block")}
-              className="rounded border border-border bg-background px-2 py-1 text-sm"
-            >
-              {/* warn first, and the default: a programme-wide block is a very
-                  large blast radius for a knob still being calibrated. */}
-              <option value="warn">{t("warn")}</option>
-              <option value="block">{t("block")}</option>
-            </select>
-          </label>
-          <button
-            type="button"
-            disabled={busy || !value}
-            onClick={() => save(Number(value))}
-            className="rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
-          >
-            {busy ? t("saving") : t("save")}
-          </button>
-          {payload.dailyBudgetUsd !== null ? (
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => save(null)}
-              className="rounded border border-border px-3 py-1.5 text-sm text-muted-foreground hover:bg-accent disabled:opacity-50"
-            >
-              {t("remove")}
-            </button>
+          {payload.dailyBudgetUsd === null ? (
+            <p className="text-xs text-muted-foreground">
+              {t("noBudget")}
+            </p>
           ) : null}
-        </div>
-      ) : null}
 
-      {error ? (
-        <p role="alert" className="rounded border border-destructive bg-destructive/10 p-2 text-xs text-destructive">
-          {error}
-        </p>
+          {canWrite ? (
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="flex flex-col gap-1 text-xs">
+                <span className="font-medium">{t("dailyBudget")}</span>
+                <input
+                  type="number"
+                  min={1}
+                  max={payload.ceilingUsd}
+                  step={1}
+                  value={value}
+                  disabled={busy}
+                  aria-label={t("dailyBudgetAria")}
+                  onChange={(e) => setValue(e.target.value)}
+                  className="w-28 rounded border border-border bg-background px-2 py-1 text-sm"
+                />
+                <span className="text-[11px] text-muted-foreground">{t("upTo", { max: payload.ceilingUsd })}</span>
+              </label>
+              <label className="flex flex-col gap-1 text-xs">
+                <span className="font-medium">{t("whenReached")}</span>
+                <select
+                  value={action}
+                  disabled={busy}
+                  aria-label={t("whenReachedAria")}
+                  onChange={(e) => setAction(e.target.value as "warn" | "block")}
+                  className="rounded border border-border bg-background px-2 py-1 text-sm"
+                >
+                  {/* warn first, and the default: a programme-wide block is a very
+                      large blast radius for a knob still being calibrated. */}
+                  <option value="warn">{t("warn")}</option>
+                  <option value="block">{t("block")}</option>
+                </select>
+              </label>
+              <Button
+                variant="primary"
+                size="sm"
+                disabled={!value}
+                pending={busy}
+                pendingLabel={t("saving")}
+                onClick={() => void save(Number(value))}
+              >
+                {t("save")}
+              </Button>
+              {payload.dailyBudgetUsd !== null ? (
+                <Button size="sm" disabled={busy} onClick={() => void save(null)}>
+                  {t("remove")}
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+
+          {error ? (
+            <p role="alert" className="rounded border border-destructive bg-destructive/10 p-2 text-xs text-destructive">
+              {error}
+            </p>
+          ) : null}
+        </section>
       ) : null}
-    </section>
+    </div>
   );
 }

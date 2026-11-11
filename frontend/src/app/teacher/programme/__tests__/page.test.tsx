@@ -7,7 +7,7 @@
  *  - uncapped row   -> an ALARM, never a blank cell
  */
 
-import { fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen, waitFor, within } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { LocaleProvider } from "@/i18n";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -23,10 +23,36 @@ function render(ui: ReactElement, options?: Parameters<typeof rtlRender>[1]) {
   return { ...r, rerender: (next: ReactElement) => r.rerender(wrap(next)) };
 }
 
-vi.mock("next/navigation", () => ({
-  useRouter: () => ({ replace: vi.fn() }),
-  usePathname: () => "/teacher/programme",
+// The tab lives in `?tab=` (UI sweep 2026-11-11), so the router is a small
+// reactive stand-in: `replace` rewrites the query and re-renders its readers.
+const nav = vi.hoisted(() => ({
+  search: "",
+  replaced: [] as string[],
+  listeners: new Set<() => void>(),
 }));
+vi.mock("next/navigation", async () => {
+  const React = await import("react");
+  return {
+    useRouter: () => ({
+      replace: (url: string) => {
+        nav.replaced.push(url);
+        nav.search = url.split("?")[1] ?? "";
+        nav.listeners.forEach((l) => l());
+      },
+    }),
+    usePathname: () => "/teacher/programme",
+    useSearchParams: () => {
+      const search = React.useSyncExternalStore(
+        (cb: () => void) => {
+          nav.listeners.add(cb);
+          return () => nav.listeners.delete(cb);
+        },
+        () => nav.search,
+      );
+      return new URLSearchParams(search);
+    },
+  };
+});
 
 vi.mock("next/link", () => ({
   default: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>,
@@ -139,7 +165,19 @@ const BUDGET: ProgrammeBudgetPayload = {
   canWrite: false,
 };
 
+/** The daily budget is one button until opened (UI sweep 2026-11-11). */
+async function openBudget() {
+  fireEvent.click(await screen.findByRole("button", { name: /^Daily budget:/ }));
+}
+
+/** The standalone grant form is behind one button for programme admins. */
+async function openAddTeacher() {
+  fireEvent.click(await screen.findByRole("button", { name: /Add a teacher who has not asked/i }));
+}
+
 beforeEach(() => {
+  nav.search = "";
+  nav.replaced = [];
   fetchRegister.mockReset().mockResolvedValue(REGISTER);
   // 1.1.124 — stage per email. Default: unreadable, so the column shows "—".
   fetchOnboarding.mockReset().mockRejectedValue(new Error("no stages"));
@@ -223,17 +261,20 @@ describe("the register", () => {
 });
 
 describe("the read-only half", () => {
-  it("shows the read-only subtitle for a researcher", async () => {
+  it("tells a researcher what is theirs, without calling the page read-only", async () => {
+    // A researcher CAN switch the Sim workshop per teacher, so "(read-only)"
+    // was wrong; the subtitle says who sets what instead.
     isResearcher = true;
     render(<TeacherProgrammePage />);
-    expect(await screen.findByText(/read-only/i)).toBeInTheDocument();
+    expect(await screen.findByText(/researchers can switch the Sim workshop on/i)).toBeInTheDocument();
+    expect(screen.queryByText(/read-only/i)).not.toBeInTheDocument();
   });
 
-  it("drops the read-only subtitle for a programme admin", async () => {
+  it("gives a programme admin the plain subtitle", async () => {
     isProgrammeAdmin = true;
     render(<TeacherProgrammePage />);
     await screen.findByText("lb@toerring-gym.dk");
-    expect(screen.queryByText(/read-only/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/researchers can switch/i)).not.toBeInTheDocument();
   });
 });
 
@@ -245,7 +286,8 @@ describe("the write half (M2)", () => {
     await screen.findByText("lb@toerring-gym.dk");
     // The read-only view IS the write view minus the buttons — so the absence
     // of every control is the assertion, not an incidental detail.
-    expect(screen.queryByRole("button", { name: /grant access/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /grant access/i, hidden: true })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /add a teacher/i })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /revoke/i })).not.toBeInTheDocument();
     expect(screen.queryByLabelText(/monthly cap for/i)).not.toBeInTheDocument();
   });
@@ -254,15 +296,30 @@ describe("the write half (M2)", () => {
     isProgrammeAdmin = true;
     render(<TeacherProgrammePage />);
     await screen.findByText("lb@toerring-gym.dk");
-    expect(screen.getByRole("button", { name: /grant access/i })).toBeInTheDocument();
+    // The standalone form (for someone who never asked) is one click away,
+    // so the register is the first thing on the page.
+    expect(screen.queryByRole("button", { name: /^grant access$/i })).not.toBeInTheDocument();
+    await openAddTeacher();
+    expect(screen.getByRole("button", { name: /^grant access$/i })).toBeInTheDocument();
     expect(screen.getByLabelText("Monthly cap for lb@toerring-gym.dk")).toBeInTheDocument();
     expect(screen.getAllByRole("button", { name: /^revoke$/i }).length).toBeGreaterThan(0);
+  });
+
+  it("keeps the grant email out of password managers and spellcheck", async () => {
+    isProgrammeAdmin = true;
+    render(<TeacherProgrammePage />);
+    await openAddTeacher();
+    const email = screen.getByRole("textbox", { name: /^Email/ });
+    expect(email).toHaveAttribute("name", "email");
+    expect(email).toHaveAttribute("autocomplete", "off");
+    expect(email).toHaveAttribute("spellcheck", "false");
   });
 
   it("caps the grant form's input at the delegated ceiling", async () => {
     isProgrammeAdmin = true;
     render(<TeacherProgrammePage />);
     await screen.findByText("lb@toerring-gym.dk");
+    await openAddTeacher();
     // The <label> wraps a helper span too, so match on a fragment.
     const capInput = screen.getByLabelText(/Cap \(USD \/ month\)/i) as HTMLInputElement;
     expect(capInput.max).toBe("50");
@@ -272,6 +329,7 @@ describe("the write half (M2)", () => {
     isProgrammeAdmin = true;
     render(<TeacherProgrammePage />);
     await screen.findByText("lb@toerring-gym.dk");
+    await openAddTeacher();
     // "Why is this person on the register" is the thing nobody remembers in
     // six weeks, so the field is required rather than encouraged.
     const note = screen.getByLabelText(/why \(required\)/i) as HTMLInputElement;
@@ -312,6 +370,18 @@ describe("the write half (M2)", () => {
     await waitFor(() => expect(revokeAccess).toHaveBeenCalledWith("lb@toerring-gym.dk"));
   });
 
+  it("says so when a revoke fails, instead of nothing", async () => {
+    // Was try/finally with no catch: a failed revoke was silent.
+    isProgrammeAdmin = true;
+    revokeAccess.mockRejectedValue(new Error("500"));
+    render(<TeacherProgrammePage />);
+    await screen.findByText("lb@toerring-gym.dk");
+    fireEvent.click(screen.getAllByRole("button", { name: /^revoke$/i })[0]);
+    fireEvent.click(screen.getByRole("button", { name: /confirm/i }));
+    expect(await screen.findByText("Not revoked — try again.")).toBeInTheDocument();
+    expect(fetchRegister).toHaveBeenCalledTimes(1);
+  });
+
   it("surfaces the server's named bound when a grant is refused", async () => {
     isProgrammeAdmin = true;
     grantAccess.mockRejectedValue(new Error("$5000.00/month exceeds the delegated ceiling of $50.00."));
@@ -347,6 +417,7 @@ describe("the programme daily budget (M3)", () => {
   it("shows today's programme spend to a researcher", async () => {
     isResearcher = true;
     render(<TeacherProgrammePage />);
+    await openBudget();
     expect(await screen.findByText(/Programme daily budget/i)).toBeInTheDocument();
     expect(screen.getByText("$3.20")).toBeInTheDocument();
   });
@@ -354,12 +425,14 @@ describe("the programme daily budget (M3)", () => {
   it("says plainly when no budget is set rather than showing a bare zero", async () => {
     isResearcher = true;
     render(<TeacherProgrammePage />);
+    await openBudget();
     expect(await screen.findByText(/no budget set/i)).toBeInTheDocument();
   });
 
   it("gives a researcher no controls", async () => {
     isResearcher = true;
     render(<TeacherProgrammePage />);
+    await openBudget();
     await screen.findByText(/Programme daily budget/i);
     expect(screen.queryByLabelText(/Programme daily budget in USD/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /save budget/i })).not.toBeInTheDocument();
@@ -368,6 +441,7 @@ describe("the programme daily budget (M3)", () => {
   it("gives a programme admin the control, defaulting to warn", async () => {
     isProgrammeAdmin = true;
     render(<TeacherProgrammePage />);
+    await openBudget();
     await screen.findByText(/Programme daily budget/i);
     expect(screen.getByLabelText(/Programme daily budget in USD/i)).toBeInTheDocument();
     const select = screen.getByLabelText(/Action when the budget is reached/i) as HTMLSelectElement;
@@ -379,6 +453,7 @@ describe("the programme daily budget (M3)", () => {
   it("bounds the input by the ceiling it sits under", async () => {
     isProgrammeAdmin = true;
     render(<TeacherProgrammePage />);
+    await openBudget();
     await screen.findByText(/Programme daily budget/i);
     const input = screen.getByLabelText(/Programme daily budget in USD/i) as HTMLInputElement;
     expect(input.max).toBe("500");
@@ -387,6 +462,7 @@ describe("the programme daily budget (M3)", () => {
   it("saves a budget", async () => {
     isProgrammeAdmin = true;
     render(<TeacherProgrammePage />);
+    await openBudget();
     await screen.findByText(/Programme daily budget/i);
     fireEvent.change(screen.getByLabelText(/Programme daily budget in USD/i), { target: { value: "40" } });
     fireEvent.click(screen.getByRole("button", { name: /save budget/i }));
@@ -397,7 +473,109 @@ describe("the programme daily budget (M3)", () => {
     isResearcher = true;
     fetchProgrammeBudget.mockResolvedValue({ ...BUDGET, spentTodayUsd: null });
     render(<TeacherProgrammePage />);
+    await openBudget();
     expect(await screen.findByText("unreadable")).toBeInTheDocument();
+  });
+
+  it("collapses to one button that already carries the answer", async () => {
+    isResearcher = true;
+    fetchProgrammeBudget.mockResolvedValue({ ...BUDGET, dailyBudgetUsd: 20, spentTodayUsd: 4.1 });
+    render(<TeacherProgrammePage />);
+    const toggle = await screen.findByRole("button", { name: /^Daily budget:/ });
+    expect(toggle).toHaveTextContent("Daily budget: $4.10 of $20.00");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByText(/Programme daily budget/i)).not.toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText(/Programme daily budget/i)).toBeInTheDocument();
+  });
+
+  it("says the budget could not be read, with a retry, rather than showing nothing", async () => {
+    // _BudgetPanel returned null before reaching its own error, so a failed
+    // read and "no budget panel at all" looked the same.
+    isResearcher = true;
+    fetchProgrammeBudget.mockReset().mockRejectedValueOnce(new Error("500")).mockResolvedValueOnce(BUDGET);
+    render(<TeacherProgrammePage />);
+    const alert = await screen.findByText("The programme daily budget could not be loaded");
+    expect(alert.closest("[role=alert]")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /^Daily budget:/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(await screen.findByRole("button", { name: /^Daily budget:/ })).toBeInTheDocument();
+    expect(fetchProgrammeBudget).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("granting from a request (UI sweep 2026-11-11)", () => {
+  it("opens the grant form pre-filled from the request — nobody retypes the email", async () => {
+    isProgrammeAdmin = true;
+    nav.search = "tab=requests";
+    render(<TeacherProgrammePage />);
+    // ?tab=requests opens the queue, so the "ask" mail can link straight to it.
+    expect(await screen.findByRole("tab", { name: /^Requests/ })).toHaveAttribute("aria-selected", "true");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Grant access to asks@ku.dk" }));
+    const dialog = await screen.findByRole("dialog", { name: "Grant asks@ku.dk access" });
+    expect(within(dialog).getByRole("textbox", { name: /^Email/ })).toHaveValue("asks@ku.dk");
+    expect(within(dialog).getByLabelText(/why \(required\)/i)).toHaveValue("Asked in the app: UCPH — please");
+
+    fireEvent.click(within(dialog).getByRole("button", { name: /^grant access$/i }));
+    await waitFor(() =>
+      expect(grantAccess).toHaveBeenCalledWith(
+        expect.objectContaining({ email: "asks@ku.dk", note: "Asked in the app: UCPH — please", tier: "pilot" }),
+      ),
+    );
+    // Closes, says what happened, and re-reads (the server closes the request).
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByRole("status", { name: "" })).toHaveTextContent(/can now spend/i);
+    expect(fetchRegister).toHaveBeenCalledTimes(2);
+  });
+
+  it("offers Grant… only to a programme admin, and only on pending requests", async () => {
+    isResearcher = true;
+    nav.search = "tab=requests";
+    render(<TeacherProgrammePage />);
+    await screen.findByText("asks@ku.dk");
+    expect(screen.queryByRole("button", { name: /Grant access to/ })).not.toBeInTheDocument();
+  });
+
+  it("shows the asked date as a date, not an ISO string", async () => {
+    isResearcher = true;
+    nav.search = "tab=requests";
+    render(<TeacherProgrammePage />);
+    await screen.findByText("asks@ku.dk");
+    expect(screen.queryByText("2026-09-01T00:00:00Z")).not.toBeInTheDocument();
+    // en-GB medium; older ICU data says "Sep", newer "Sept".
+    expect(screen.getByText(/^1 Sept? 2026$/)).toBeInTheDocument();
+  });
+});
+
+describe("the thinned register (UI sweep 2026-11-11)", () => {
+  it("shows five columns and keeps tier, expiry, granted-by and note in a row detail", async () => {
+    isResearcher = true;
+    render(<TeacherProgrammePage />);
+    await screen.findByText("lb@toerring-gym.dk");
+    const headers = screen.getAllByRole("columnheader").map((h) => h.textContent);
+    expect(headers).toEqual(["Email", "Getting started", "Cap / month", "Sim workshop", "Actions"]);
+
+    const toggle = screen.getByRole("button", { name: "Show details for lb@toerring-gym.dk" });
+    const detail = document.getElementById(toggle.getAttribute("aria-controls")!)!;
+    expect(detail).not.toBeVisible();
+    fireEvent.click(toggle);
+    expect(detail).toBeVisible();
+    expect(detail).toHaveTextContent("pilot");
+    expect(detail).toHaveTextContent(/15 Sept? 2027/);
+    expect(detail).toHaveTextContent("m@sunholo.com");
+    expect(detail).toHaveTextContent("Teacher pilot");
+  });
+
+  it("switches tabs through the URL", async () => {
+    isResearcher = true;
+    render(<TeacherProgrammePage />);
+    await screen.findByText("lb@toerring-gym.dk");
+    fireEvent.click(screen.getByRole("tab", { name: /^Requests/ }));
+    expect(nav.replaced.at(-1)).toBe("/teacher/programme?tab=requests");
+    fireEvent.click(screen.getByRole("tab", { name: /^Register/ }));
+    expect(nav.replaced.at(-1)).toBe("/teacher/programme");
   });
 });
 
@@ -408,7 +586,7 @@ describe("the roles tab (2026-09-11)", () => {
     isResearcher = true;
     render(<TeacherProgrammePage />);
     await screen.findByText("lb@toerring-gym.dk");
-    fireEvent.click(screen.getByRole("button", { name: /^Roles/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /^Roles/ }));
 
     const sh = (await screen.findByText("sh@example.com")).closest("tr")!;
     expect(sh).toHaveTextContent("researcher");

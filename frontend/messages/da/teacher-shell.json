@@ -257,7 +257,11 @@
     "block": "Bloker nye beskeder",
     "saving": "Gemmer…",
     "save": "Gem budget",
-    "remove": "Fjern budget"
+    "remove": "Fjern budget",
+    "loadWhat": "Programmets dagsbudget",
+    "loading": "Henter dagsbudgettet…",
+    "toggle": "Dagligt budget: {spent} af ${budget}",
+    "toggleNoBudget": "Dagligt budget: {spent} brugt i dag · intet sat"
   },
   "TeacherProgrammePage": {
     "colStage": "Kom i gang",
@@ -313,7 +317,7 @@
     "dashboard": "Overblik",
     "title": "Programmet",
     "subtitleAdmin": "Hvem der må bruge AI i AIPLA, og hvem der har spurgt",
-    "subtitleReadOnly": "Hvem der må bruge AI i AIPLA, og hvem der har spurgt (kun læsning)",
+    "subtitleReadOnly": "Hvem der må bruge AI i AIPLA, og hvem der har spurgt. Loft og adgang sættes af en programadministrator; forskere kan slå simuleringsværkstedet til.",
     "noAccess": "Denne visning er for programadministratorer og forskere.",
     "tabRegister": "Register",
     "tabRequests": "Anmodninger",
@@ -323,7 +327,22 @@
     "featureOn": "Til",
     "featureOff": "Fra",
     "featureSaveFailed": "Ikke gemt — prøv igen",
-    "featureSimWorkshopFor": "Simuleringsværksted for {email}"
+    "featureSimWorkshopFor": "Simuleringsværksted for {email}",
+    "saving": "Gemmer…",
+    "revoking": "Tilbagekalder…",
+    "revokeFailed": "Ikke tilbagekaldt — prøv igen.",
+    "details": "Detaljer",
+    "detailsShowFor": "Vis detaljer for {email}",
+    "detailsHideFor": "Skjul detaljer for {email}",
+    "grantFor": "Tildel…",
+    "grantForAria": "Tildel adgang til {email}",
+    "grantDialogTitle": "Giv {email} adgang",
+    "grantDialogNote": "Udfyldt fra anmodningen. Tjek loftet og begrundelsen, før du giver adgang.",
+    "noteFromRequest": "Spurgte i appen: {details}",
+    "noteFromRequestBare": "Spurgte i appen",
+    "addTeacher": "Tilføj lærer, der ikke har spurgt",
+    "loadWhat": "Programmets register",
+    "close": "Luk"
   },
   "PrivacyNoticeGate": {
     "title": "Sådan behandler vi dine data",

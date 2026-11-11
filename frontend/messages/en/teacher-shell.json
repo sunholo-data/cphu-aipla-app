@@ -257,7 +257,11 @@
     "block": "Block new turns",
     "saving": "Saving…",
     "save": "Save budget",
-    "remove": "Remove budget"
+    "remove": "Remove budget",
+    "loadWhat": "The programme daily budget",
+    "loading": "Loading the daily budget…",
+    "toggle": "Daily budget: {spent} of ${budget}",
+    "toggleNoBudget": "Daily budget: {spent} spent today · none set"
   },
   "TeacherProgrammePage": {
     "colStage": "Getting started",
@@ -313,7 +317,7 @@
     "dashboard": "Dashboard",
     "title": "Programme",
     "subtitleAdmin": "Who may spend on AIPLA, and who has asked to",
-    "subtitleReadOnly": "Who may spend on AIPLA, and who has asked to (read-only)",
+    "subtitleReadOnly": "Who may spend on AIPLA, and who has asked to. Caps and access are set by a programme admin; researchers can switch the Sim workshop on.",
     "noAccess": "This view is available to programme administrators and researchers.",
     "tabRegister": "Register",
     "tabRequests": "Requests",
@@ -323,7 +327,22 @@
     "featureOn": "On",
     "featureOff": "Off",
     "featureSaveFailed": "Not saved — try again",
-    "featureSimWorkshopFor": "Sim workshop for {email}"
+    "featureSimWorkshopFor": "Sim workshop for {email}",
+    "saving": "Saving…",
+    "revoking": "Revoking…",
+    "revokeFailed": "Not revoked — try again.",
+    "details": "Details",
+    "detailsShowFor": "Show details for {email}",
+    "detailsHideFor": "Hide details for {email}",
+    "grantFor": "Grant…",
+    "grantForAria": "Grant access to {email}",
+    "grantDialogTitle": "Grant {email} access",
+    "grantDialogNote": "Filled in from the request. Check the cap and the reason before you grant.",
+    "noteFromRequest": "Asked in the app: {details}",
+    "noteFromRequestBare": "Asked in the app",
+    "addTeacher": "Add a teacher who has not asked",
+    "loadWhat": "The programme register",
+    "close": "Close"
   },
   "PrivacyNoticeGate": {
     "title": "How we handle your data",
