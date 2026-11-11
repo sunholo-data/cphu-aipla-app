@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { listArtefacts, type ArtefactSummary } from "@/lib/teacherApi";
 import { SimThumbnail } from "@/components/teacher/SimThumbnail";
+import { LoadError } from "@/components/ui/load-error";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 
@@ -23,6 +24,10 @@ interface SimPickerProps {
   /** Selected artefact id, or null for no simulation. */
   value: string | null;
   onChange: (artefactId: string | null) => void;
+  /** `browse` always shows the catalogue grid (the "Add a simulation" dialog,
+   *  UI sweep 2026-11-11) and marks the current sim instead of replacing the
+   *  grid with it. `inline` (default) is the selected-sim card once one is set. */
+  mode?: "inline" | "browse";
 }
 
 /**
@@ -32,21 +37,31 @@ interface SimPickerProps {
  * comes from the catalogue; the teacher's per-activity guidance stays the lesson
  * goal. The same sim can power many activities.
  */
-export function SimPicker({ value, onChange }: SimPickerProps) {
+export function SimPicker({ value, onChange, mode = "inline" }: SimPickerProps) {
   const t = useT("SimPicker");
   const [catalogue, setCatalogue] = useState<ArtefactSummary[] | null>(null);
+  // A failed read is its own state, never an empty catalogue: "no simulations
+  // in this environment" was what a network blip used to say (UI sweep item 1).
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [query, setQuery] = useState("");
   const [level, setLevel] = useState("");
 
   useEffect(() => {
     let alive = true;
+    setFailed(false);
     listArtefacts()
-      .then((a) => alive && setCatalogue(a))
-      .catch(() => alive && setCatalogue([]));
+      .then((a) => {
+        if (alive) setCatalogue(a);
+      })
+      .catch(() => {
+        if (alive) setFailed(true);
+      });
     return () => {
       alive = false;
     };
-  }, []);
+  }, [attempt]);
+  const browse = mode === "browse";
 
   const selected = catalogue?.find((a) => a.id === value) ?? null;
   const levels = useMemo(
@@ -64,8 +79,8 @@ export function SimPicker({ value, onChange }: SimPickerProps) {
         <FlaskConical className="h-4 w-4 text-slate-500" /> {t("title")}
       </span>
 
-      {value ? (
-        <div className="flex flex-col gap-2 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2">
+      {value && !browse ? (
+        <div className="flex flex-col gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
           <div className="flex items-center justify-between gap-2">
           <span className="flex min-w-0 items-center gap-2.5 text-sm">
             <SimThumbnail
@@ -100,6 +115,8 @@ export function SimPicker({ value, onChange }: SimPickerProps) {
             fallback="none"
           />
         </div>
+      ) : failed && catalogue === null ? (
+        <LoadError what={t("what")} onRetry={() => setAttempt((n) => n + 1)} />
       ) : catalogue === null ? (
         <p className="text-xs text-slate-400">{t("loading")}</p>
       ) : catalogue.length === 0 ? (
@@ -132,8 +149,8 @@ export function SimPicker({ value, onChange }: SimPickerProps) {
                       className={cn(
                         "rounded-full border px-2.5 py-1 text-xs font-medium",
                         level === l
-                          ? "border-indigo-400 bg-indigo-50 text-indigo-800"
-                          : "border-slate-200 text-slate-600 hover:border-indigo-300",
+                          ? "border-primary bg-primary/5 text-foreground"
+                          : "border-slate-200 text-slate-600 hover:border-primary/40",
                       )}
                     >
                       {l ? t("level", { levels: l }) : t("allLevels")}
@@ -152,7 +169,7 @@ export function SimPicker({ value, onChange }: SimPickerProps) {
                   setQuery("");
                   setLevel("");
                 }}
-                className="font-medium text-indigo-700 underline-offset-2 hover:underline"
+                className="font-medium text-primary underline-offset-2 hover:underline"
               >
                 {t("clear")}
               </button>
@@ -165,7 +182,11 @@ export function SimPicker({ value, onChange }: SimPickerProps) {
                   type="button"
                   onClick={() => onChange(a.id)}
                   data-testid={`sim-picker-${a.id}`}
-                  className="flex flex-col overflow-hidden rounded-md border border-slate-200 bg-white text-left transition-colors hover:border-indigo-300 hover:bg-indigo-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300"
+                  aria-pressed={browse ? a.id === value : undefined}
+                  className={cn(
+                    "flex flex-col overflow-hidden rounded-md border bg-white text-left transition-colors hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    browse && a.id === value ? "border-primary ring-1 ring-primary" : "border-slate-200",
+                  )}
                 >
                   {/* The screenshot leads: a teacher recognises a sim by its picture. */}
                   <SimThumbnail

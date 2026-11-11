@@ -57,7 +57,9 @@ describe("Foreslå begrebskort", () => {
     const asked = withCopilot(true);
     // 1.1.108 M2 — Danish by default (no locale provider): the teacher UI and the
     // request it sends both speak the teacher's language.
-    await userEvent.click(screen.getByRole("button", { name: /Tilføj begrebskort/i }));
+    // UI sweep 2026-11-11 — the concept map is added from the workspace grid.
+    await userEvent.click(screen.getByRole("button", { name: /Tilføj til arbejdsområdet/i }));
+    await userEvent.click(screen.getByTestId("workspace-add-conceptMap"));
     await userEvent.click(screen.getByRole("button", { name: /Foreslå begrebskort/i }));
     expect(asked).toHaveLength(1);
     expect(asked[0]).toContain("begrebskort");
@@ -72,7 +74,9 @@ describe("Foreslå begrebskort", () => {
     withCopilot(false);
     // 1.1.108 M2 — Danish by default (no locale provider): the teacher UI and the
     // request it sends both speak the teacher's language.
-    await userEvent.click(screen.getByRole("button", { name: /Tilføj begrebskort/i }));
+    // UI sweep 2026-11-11 — the concept map is added from the workspace grid.
+    await userEvent.click(screen.getByRole("button", { name: /Tilføj til arbejdsområdet/i }));
+    await userEvent.click(screen.getByTestId("workspace-add-conceptMap"));
     // A control that silently does nothing is worse than no control — the
     // "shipped with the control unmounted" footgun from the other direction.
     expect(screen.queryByRole("button", { name: /Foreslå begrebskort/i })).not.toBeInTheDocument();

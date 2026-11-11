@@ -1,7 +1,7 @@
 // 1.1.108 M2 — the activity builder speaks the TEACHER's language: Danish by
 // default, English when the teacher picks EN. The students' language (the
 // activity's own `language` field) is data and is not what this file tests.
-import { render, renderHook, screen } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { ActivityBuilderBody } from "@/components/teacher/ActivityBuilderBody";
@@ -42,9 +42,35 @@ describe("activity builder — teacher language", () => {
     const { result } = renderHook(() => useActivityBuilder());
     render(<ActivityBuilderBody builder={result.current} footer={<button type="submit">Gem</button>} />);
     expect(screen.getByLabelText(/elevernes sprog/i)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /tilføj trin/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /tilføj til arbejdsområdet/i })).toBeInTheDocument();
     expect(screen.getAllByText("Opsætning").length).toBeGreaterThan(0);
-    expect(screen.queryByText(/Add step/)).not.toBeInTheDocument();
+    expect(screen.getByText("Eleverne ser først")).toBeInTheDocument();
+    expect(screen.queryByText(/Add to the workspace/)).not.toBeInTheDocument();
+  });
+
+  // UI sweep 2026-11-11 — the summary rows, the workspace cards, their menus
+  // and the add grid are new copy; all of it must follow the teacher's EN.
+  it("has no Danish in the summary, the workspace cards or the add grid under English", () => {
+    const { result } = renderHook(() => useActivityBuilder());
+    act(() => {
+      result.current.addChecklistItems(["Measure"]);
+      result.current.setNote({ title: "", body: "" });
+      result.current.setSolution({ prompt: "" });
+      result.current.setStarterPrompts(["Why?"]);
+      // The opening's preview speaks the STUDENTS' language by design.
+      result.current.setLanguage("en");
+    });
+    render(
+      <LocaleProvider locale="en">
+        <ActivityBuilderBody builder={result.current} tutorSummary={<span>Sofie</span>} />
+      </LocaleProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /change: student view/i }));
+    expect(screen.getByText("Students see first")).toBeInTheDocument();
+    // Last: the modal grid hides the page behind it from queries.
+    fireEvent.click(screen.getByRole("button", { name: "Add to the workspace" }));
+    expect(screen.getByRole("dialog", { name: "Add to the workspace" })).toBeInTheDocument();
+    expect(allCopy(document.body)).not.toMatch(DANISH);
   });
 
   it("has no Danish anywhere in the editors under English", () => {

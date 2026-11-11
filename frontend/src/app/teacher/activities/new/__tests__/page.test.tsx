@@ -42,13 +42,30 @@ vi.mock("@/components/teacher/ActivityOpeningEditor", () => ({
 }));
 
 import NewActivityPage from "@/app/teacher/activities/new/page";
+import { Toaster } from "@/components/ui/toast";
 
 import { LocaleProvider } from "@/i18n";
 
 // 1.1.108 M2 — these tests assert the English copy; the teacher UI defaults to
 // Danish, so render inside an English locale (the teacher chose EN).
 function EnglishUI({ children }: { children: React.ReactNode }) {
-  return <LocaleProvider locale="en">{children}</LocaleProvider>;
+  return (
+    <LocaleProvider locale="en">
+      {children}
+      <Toaster />
+    </LocaleProvider>
+  );
+}
+
+/** UI sweep 2026-11-11 — elements are added on demand from one grid. */
+function addToWorkspace(kind: string) {
+  fireEvent.click(screen.getByRole("button", { name: "Add to the workspace" }));
+  fireEvent.click(screen.getByTestId(`workspace-add-${kind}`));
+}
+
+/** The create page opens on two choices; the template strip is behind one. */
+function openTemplates() {
+  fireEvent.click(screen.getByRole("button", { name: /start from a template/i }));
 }
 const render = (ui: React.ReactElement, options?: Omit<RenderOptions, "wrapper">) =>
   rtlRender(ui, { wrapper: EnglishUI, ...options });
@@ -124,9 +141,11 @@ describe("/teacher/activities/new — concept activity builder", () => {
     render(<NewActivityPage />);
     await screen.findByLabelText(/activity name/i);
     // 1.1.41 reverses 1.1.32's "you can't attach a sim" lie — the artefact is now
-    // decoupled from the skill, so the builder has a real catalogue picker.
-    expect(await screen.findByText("Boldkast")).toBeInTheDocument();
+    // decoupled from the skill, so the builder has a real catalogue picker —
+    // since the UI sweep, in a dialog from "Add to the workspace".
     expect(screen.getByText(/optionally host a vetted simulation/i)).toBeInTheDocument();
+    addToWorkspace("sim");
+    expect(await screen.findByText("Boldkast")).toBeInTheDocument();
   });
 
   it("creates a concept-dialogue activity with the entered title + goal", async () => {
@@ -154,23 +173,27 @@ describe("/teacher/activities/new — concept activity builder", () => {
     );
     // No activityId is sent on create — the backend mints it (distinct every time).
     expect(createActivityMock.mock.calls[0][0]).not.toHaveProperty("activityId");
-    // Success state replaces the form.
-    expect(await screen.findByText(/is live for/i)).toBeInTheDocument();
+    // UI sweep 2026-11-11 — straight to the editor, with a toast that carries
+    // "Create another" (the success panel is gone).
+    await waitFor(() => expect(pushMock).toHaveBeenCalledWith(expect.stringContaining("/teacher/activities/act-new-1?")));
+    expect(await screen.findByText(/is created and live for Physics A — 7B/i)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Create another" }));
+    expect(pushMock).toHaveBeenLastCalledWith("/teacher/activities/new?classId=c-1");
   });
 
-  it("links the success panel to the MINTED activity id, not the shared skill id", async () => {
+  it("goes to the editor of the MINTED activity id, not the shared skill id", async () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     createActivityMock.mockResolvedValueOnce({ activityId: "act-aaa" });
     render(<NewActivityPage />);
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "First" } });
     fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "g1" } });
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
-    // The configure deep-link carries the minted act- id (the root-cause fix:
-    // never the shared concept-dialogue skill id that used to collide).
-    await waitFor(() =>
-      expect(document.querySelector('a[href*="/teacher/activities/act-aaa"]')).not.toBeNull(),
-    );
-    expect(document.querySelector(`a[href*="/teacher/activities/${CONCEPT_UUID}"]`)).toBeNull();
+    // The editor link carries the minted act- id (the root-cause fix: never the
+    // shared concept-dialogue skill id that used to collide) and the class.
+    await waitFor(() => expect(pushMock).toHaveBeenCalledTimes(1));
+    const href = pushMock.mock.calls[0][0] as string;
+    expect(href).toMatch(/^\/teacher\/activities\/act-aaa\?classId=c-1&title=First$/);
+    expect(href).not.toContain(CONCEPT_UUID);
   });
 
   it("shows the inherited class persona read-only and never writes persona/style (1.1.32 — class-default-only)", async () => {
@@ -181,8 +204,8 @@ describe("/teacher/activities/new — concept activity builder", () => {
 
     // The persona is shown read-only (resolved from the class default) — there
     // is NO co-equal picker and NO standalone teaching-style control anymore.
-    expect(await screen.findByText("Sofie")).toBeInTheDocument();
-    expect(screen.getByText(/change in class settings/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Sofie/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /change in the class/i })).toHaveAttribute("href", "/teacher/classes/c-1");
     expect(screen.queryByLabelText(/teaching style/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^Custom$/ })).not.toBeInTheDocument();
 
@@ -201,8 +224,8 @@ describe("/teacher/activities/new — concept activity builder", () => {
     render(<NewActivityPage />);
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Energi" } });
     fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "Explore." } });
-    // Add two checklist steps.
-    fireEvent.click(screen.getByRole("button", { name: /add step/i }));
+    // Add a checklist (one step), then a second step.
+    addToWorkspace("checklist");
     fireEvent.click(screen.getByRole("button", { name: /add step/i }));
     fireEvent.change(screen.getByLabelText(/checklist step 1/i), { target: { value: "Identify the system" } });
     fireEvent.change(screen.getByLabelText(/checklist step 2/i), { target: { value: "List transforms" } });
@@ -220,7 +243,7 @@ describe("/teacher/activities/new — concept activity builder", () => {
     render(<NewActivityPage />);
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "E" } });
     fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "g" } });
-    fireEvent.click(screen.getByRole("button", { name: /add step/i }));
+    addToWorkspace("checklist");
     // leave it blank
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
     await waitFor(() => expect(createActivityMock).toHaveBeenCalledTimes(1));
@@ -233,7 +256,7 @@ describe("/teacher/activities/new — concept activity builder", () => {
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Lab" } });
     fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "Measure." } });
     // Add a data table + name its first (seeded) column.
-    fireEvent.click(screen.getByRole("button", { name: /add data table/i }));
+    addToWorkspace("table");
     fireEvent.change(screen.getByLabelText(/column 1 label/i), { target: { value: "Tid" } });
     fireEvent.change(screen.getByLabelText(/column 1 unit/i), { target: { value: "s" } });
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
@@ -260,7 +283,7 @@ describe("/teacher/activities/new — concept activity builder", () => {
     render(<NewActivityPage />);
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "E" } });
     fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "g" } });
-    fireEvent.click(screen.getByRole("button", { name: /add data table/i }));
+    addToWorkspace("table");
     // leave the seeded column blank → the table is dropped
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
     await waitFor(() => expect(createActivityMock).toHaveBeenCalledTimes(1));
@@ -274,7 +297,7 @@ describe("/teacher/activities/new — concept activity builder", () => {
     fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "Plot." } });
     // 1.1.64 — the chart editor is a list (English here, via the render shim), and axis pickers only
     // appear once a table has two numeric columns (none here).
-    fireEvent.click(screen.getByRole("button", { name: /add chart/i }));
+    addToWorkspace("chart");
     fireEvent.change(screen.getByLabelText(/chart type for chart 1/i), { target: { value: "line" } });
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
 
@@ -289,7 +312,7 @@ describe("/teacher/activities/new — concept activity builder", () => {
     render(<NewActivityPage />);
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Lab" } });
     fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "Compute." } });
-    fireEvent.click(screen.getByRole("button", { name: /add calculator/i }));
+    addToWorkspace("calculator");
     fireEvent.change(screen.getByLabelText(/variable 1 name/i), { target: { value: "s" } });
     fireEvent.change(screen.getByLabelText(/variable 1 label/i), { target: { value: "Strækning" } });
     fireEvent.change(screen.getByLabelText(/^formula$/i), { target: { value: "s * 2" } });
@@ -306,7 +329,7 @@ describe("/teacher/activities/new — concept activity builder", () => {
     render(<NewActivityPage />);
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Lab" } });
     fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "Read." } });
-    fireEvent.click(screen.getByRole("button", { name: /add note/i }));
+    addToWorkspace("note");
     fireEvent.change(screen.getByLabelText(/note text/i), { target: { value: "v = s / t" } });
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
 
@@ -321,7 +344,10 @@ describe("/teacher/activities/new — concept activity builder", () => {
     render(<NewActivityPage />);
     await screen.findByLabelText(/activity name/i);
     // Pick the "Fart, tid og strækning" (calculator) template.
+    openTemplates();
     fireEvent.click(screen.getByText("Fart, tid og strækning"));
+    // The strip collapses to one line with Change.
+    expect(screen.getByText("Template: Fart, tid og strækning")).toBeInTheDocument();
     expect((screen.getByLabelText(/activity name/i) as HTMLInputElement).value).toBe("Beregn fart");
     expect((screen.getByLabelText(/lesson prompt/i) as HTMLTextAreaElement).value.length).toBeGreaterThan(0);
 
@@ -348,7 +374,8 @@ describe("/teacher/activities/new — concept activity builder", () => {
     render(<NewActivityPage />);
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Lab" } });
     fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "Explore." } });
-    // Pick the Boldkast sim from the catalogue picker.
+    // Pick the Boldkast sim from the catalogue picker, in its dialog.
+    addToWorkspace("sim");
     fireEvent.click(await screen.findByText("Boldkast"));
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
 
@@ -371,10 +398,10 @@ describe("/teacher/activities/new — concept activity builder", () => {
     render(<NewActivityPage />);
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Aflever opgave" } });
     fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "Give feedback." } });
-    fireEvent.click(screen.getByRole("button", { name: /add document upload/i }));
+    addToWorkspace("document");
     fireEvent.change(screen.getByLabelText(/document prompt/i), { target: { value: "Upload dit arbejde" } });
     // It's an element, not a mode — the workspace tools are still available.
-    expect(screen.getByRole("button", { name: /add step/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add to the workspace" })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
     await waitFor(() => expect(createActivityMock).toHaveBeenCalledTimes(1));
@@ -387,8 +414,11 @@ describe("/teacher/activities/new — concept activity builder", () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);
     await screen.findByLabelText(/activity name/i);
+    openTemplates();
     fireEvent.click(screen.getByText("Din løsning"));
     expect((screen.getByLabelText(/activity name/i) as HTMLInputElement).value).toBe("Din løsning");
+    // A template's elements rest as cards; Edit opens one.
+    fireEvent.click(screen.getByRole("button", { name: "Edit Solution editor" }));
     // The solution prompt is pre-filled in the builder's solution editor.
     expect((screen.getByLabelText(/solution prompt/i) as HTMLTextAreaElement).value.length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
@@ -402,10 +432,12 @@ describe("/teacher/activities/new — concept activity builder", () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);
     await screen.findByLabelText(/activity name/i);
+    openTemplates();
     fireEvent.click(screen.getByText("Dokumentfeedback"));
+    fireEvent.click(screen.getByRole("button", { name: "Edit Document upload" }));
     // The document prompt is pre-filled; the workspace tools stay available (element, not mode).
     expect((screen.getByLabelText(/document prompt/i) as HTMLTextAreaElement).value.length).toBeGreaterThan(0);
-    expect(screen.getByRole("button", { name: /add step/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add to the workspace" })).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
     await waitFor(() => expect(createActivityMock).toHaveBeenCalledTimes(1));
     const body = createActivityMock.mock.calls[0][0];
@@ -418,7 +450,7 @@ describe("/teacher/activities/new — concept activity builder", () => {
     render(<NewActivityPage />);
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Aflever" } });
     fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "Feedback." } });
-    fireEvent.click(screen.getByRole("button", { name: /add solution editor/i }));
+    addToWorkspace("solution");
     fireEvent.change(screen.getByLabelText(/solution prompt/i), { target: { value: "Skriv din løsning" } });
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
 
@@ -444,7 +476,7 @@ describe("/teacher/activities/new — concept activity builder", () => {
   it("surfaces an error state when classes fail to load", async () => {
     listClassesMock.mockRejectedValue(new Error("boom"));
     render(<NewActivityPage />);
-    expect(await screen.findByText(/could not load your classes/i)).toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent(/your classes could not be loaded/i);
   });
 
   it("shows a not-seeded state when the concept-dialogue skill is missing", async () => {
@@ -455,5 +487,60 @@ describe("/teacher/activities/new — concept activity builder", () => {
     // run scripts/seed-platform-skills.sh.
     // Rule 6 (1.1.108): the message no longer names the internal skill id.
     expect(await screen.findByText(/activity tutor isn't set up here yet/i)).toBeInTheDocument();
+  });
+  // UI sweep 2026-11-11 — applying a template overwrites the title, the goal
+  // and every element; it used to do so silently.
+  it("asks before a template replaces what the teacher typed, and keeps it on No", async () => {
+    listClassesMock.mockResolvedValue(ONE_CLASS);
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    try {
+      render(<NewActivityPage />);
+      fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Mine" } });
+      openTemplates();
+      fireEvent.click(screen.getByText("Fart, tid og strækning"));
+      await waitFor(() => expect(confirmSpy).toHaveBeenCalledTimes(1));
+      expect((screen.getByLabelText(/activity name/i) as HTMLInputElement).value).toBe("Mine");
+
+      confirmSpy.mockReturnValue(true);
+      fireEvent.click(screen.getByText("Fart, tid og strækning"));
+      await waitFor(() => expect((screen.getByLabelText(/activity name/i) as HTMLInputElement).value).toBe("Beregn fart"));
+    } finally {
+      confirmSpy.mockRestore();
+    }
+  });
+
+  it("does not ask when the form is untouched, nor when switching between templates", async () => {
+    listClassesMock.mockResolvedValue(ONE_CLASS);
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
+    try {
+      render(<NewActivityPage />);
+      await screen.findByLabelText(/activity name/i);
+      openTemplates();
+      fireEvent.click(screen.getByText("Fart, tid og strækning"));
+      await waitFor(() => expect((screen.getByLabelText(/activity name/i) as HTMLInputElement).value).toBe("Beregn fart"));
+      fireEvent.click(screen.getByRole("button", { name: "Change" }));
+      fireEvent.click(screen.getByText("Din løsning"));
+      await waitFor(() => expect((screen.getByLabelText(/activity name/i) as HTMLInputElement).value).toBe("Din løsning"));
+      expect(confirmSpy).not.toHaveBeenCalled();
+    } finally {
+      confirmSpy.mockRestore();
+    }
+  });
+
+  it("offers two starts and collapses Start from scratch to one line", async () => {
+    listClassesMock.mockResolvedValue(ONE_CLASS);
+    render(<NewActivityPage />);
+    await screen.findByLabelText(/activity name/i);
+    expect(screen.queryByRole("list", { name: /activity templates/i })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /start from scratch/i }));
+    expect(screen.getByText("Starting from scratch")).toBeInTheDocument();
+  });
+
+  it("goes back to Activities, not Classes, and drops the settings map", async () => {
+    listClassesMock.mockResolvedValue(ONE_CLASS);
+    render(<NewActivityPage />);
+    await screen.findByLabelText(/activity name/i);
+    expect(screen.getByRole("link", { name: /back to activities/i })).toHaveAttribute("href", "/teacher/activities");
+    expect(screen.queryByText(/where settings live/i)).toBeNull();
   });
 });

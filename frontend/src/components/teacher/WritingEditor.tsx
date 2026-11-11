@@ -36,7 +36,10 @@ interface WritingEditorProps {
  * "conclusion" box is the obvious first request, and 1.1.71 records what
  * retrofitting that costs once ids have student data hanging off them.
  */
-export function WritingEditor({ value, onChange, nextKey, maxItems = 3 }: WritingEditorProps) {
+/** ELEMENT_REGISTRY["writing"].max_items — mirrored for the add menu. */
+export const MAX_WRITING = 3;
+
+export function WritingEditor({ value, onChange, nextKey, maxItems = MAX_WRITING }: WritingEditorProps) {
   const t = useT("WritingEditor");
   const add = () =>
     onChange([...value, { key: nextKey(), id: "", title: "", prompt: "", minWords: 0 }]);

@@ -131,6 +131,9 @@ export interface ActivityBuilder {
   addChecklistItems: (labels: string[]) => void;
   removeChecklistItem: (key: number) => void;
   setChecklistLabel: (key: number, label: string) => void;
+  /** Replace the whole checklist — the workspace card's Remove (an empty list)
+   *  and its Undo (the rows it removed). UI sweep 2026-11-11. */
+  setChecklist: (rows: ChecklistRow[]) => void;
 
   table: TableEditorValue[];
   setTable: (v: TableEditorValue[]) => void;
@@ -559,6 +562,7 @@ export function useActivityBuilder(): ActivityBuilder {
       addChecklistItems,
       removeChecklistItem,
       setChecklistLabel,
+      setChecklist,
       table,
       setTable: setTableReconciling,
       chart,

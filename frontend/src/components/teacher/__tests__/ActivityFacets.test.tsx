@@ -82,6 +82,9 @@ describe("toFilterParams / hasActiveFilters", () => {
 describe("ActivityFilterBar", () => {
   it("renders subject options from the SERVER facets, not a hardcoded list", () => {
     render(<ActivityFilterBar facets={FACETS} filters={EMPTY_ACTIVITY_FILTERS} onChange={() => {}} />);
+    // UI sweep 2026-11-11 — the facet rows sit behind one Filter button.
+    expect(screen.queryByRole("button", { name: /Fysik/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /^Filter/ }));
     expect(screen.getByRole("button", { name: /Fysik/ })).toBeInTheDocument();
     // A zero-count option stays visible and clickable — the rail must not
     // reshuffle as you filter.
@@ -108,6 +111,8 @@ describe("ActivityFilterBar", () => {
         onChange={onChange}
       />,
     );
+    // One facet filter set ⇒ the button says so.
+    fireEvent.click(screen.getByRole("button", { name: "Filter · 1" }));
     fireEvent.click(screen.getByRole("button", { name: /lab/ }));
     expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ tags: ["exam", "lab"] }));
   });

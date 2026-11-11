@@ -153,6 +153,19 @@ describe("useActivityBuilder — checklist transitions", () => {
     expect(result.current.checklist.map((c) => c.label)).toEqual(["a", "c"]);
   });
 
+  // UI sweep 2026-11-11 — the workspace card's Remove clears the whole list,
+  // and its Undo puts the same rows back; the payload follows both.
+  it("setChecklist clears the checklist from the payload and restores it", () => {
+    const { result } = renderHook(() => useActivityBuilder());
+    act(() => result.current.addChecklistItems(["a", "b"]));
+    const rows = result.current.checklist;
+    act(() => result.current.setChecklist([]));
+    expect(result.current.toSavePayload().checklist).toEqual([]);
+    expect(result.current.workspaceCount).toBe(0);
+    act(() => result.current.setChecklist(rows));
+    expect(result.current.toSavePayload().checklist.map((c) => c.label)).toEqual(["a", "b"]);
+  });
+
   it("a checklist contributes 1 to workspaceCount once it has at least one row", () => {
     const { result } = renderHook(() => useActivityBuilder());
     expect(result.current.workspaceCount).toBe(0);

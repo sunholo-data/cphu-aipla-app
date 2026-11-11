@@ -1,73 +1,60 @@
 "use client";
 
 import Link from "next/link";
-import { useToast } from "@/hooks/useToast";
 import { useParams, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import {
-  AlertTriangle,
-  ArrowLeft,
-  Code2,
-  Eye,
-  GitBranch,
-  History,
-  Loader2,
-  Save,
-  Sparkles,
-  Target,
-  Wand2,
-} from "lucide-react";
+import { ArrowLeft, Save } from "lucide-react";
 
 import {
+  type ClassPayload,
   NotFoundError,
   fetchActivity,
   fetchMyActivityConfig,
+  listClasses,
   saveActivityConfig,
   updateActivity,
 } from "@/lib/teacherApi";
 import type { ActivityPayload } from "@/lib/teacherApi";
-import { ActingForOwnerBanner, LastEditedLine } from "@/components/teacher/ActingForOwnerBanner";
+import { ActingForOwnerBanner } from "@/components/teacher/ActingForOwnerBanner";
 import { StudentsLanguageBadge } from "@/components/teacher/StudentsLanguageBadge";
-import { SettingsMap } from "@/components/teacher/SettingsMap";
-import { InheritedTutor } from "@/components/teacher/InheritedTutor";
+import { ClassTutorSummary, tutorSettingsHref } from "@/components/teacher/InheritedTutor";
 import { ModelTierControl } from "@/components/teacher/ModelTierControl";
 import { TryAsStudentButton } from "@/components/teacher/TryAsStudentButton";
 import { ActivityBuilderBody } from "@/components/teacher/ActivityBuilderBody";
+import { Button } from "@/components/ui/button";
+import { LoadError } from "@/components/ui/load-error";
+import { PageSkeleton } from "@/components/ui/skeleton";
+import { notify } from "@/components/ui/toast";
 import { useActivityBuilder } from "@/hooks/useActivityBuilder";
+import { useTeacherAuth } from "@/hooks/useTeacherAuth";
 import { AuthoringCopilot } from "./_AuthoringCopilot";
 import { applyCopilotProposal } from "../applyCopilotProposal";
 import { runGoalLint } from "@/lib/teachingGoalLint";
 import { useLocaleMode, useT } from "@/i18n";
-import { visibilityLabel } from "@/components/teacher/activityDisplay";
-
-type TabId = "goal" | "parameters" | "code" | "history";
-
-type TabDescriptor = {
-  id: TabId;
-  icon: typeof Target;
-  status: "active" | "v1.1" | "v2";
-};
-
-const TABS: TabDescriptor[] = [
-  { id: "goal", icon: Target, status: "active" },
-  { id: "code", icon: Code2, status: "v2" },
-  // History ships a real read-only provenance + lifecycle panel (M-HIST); the
-  // version-timeline + rollback half stays a Year-2 roadmap note inside it.
-  { id: "history", icon: History, status: "active" },
-];
 
 type LoadState = "loading" | "ready" | "error";
 
+const FORM_ID = "activity-editor-form";
+
+/**
+ * The activity editor.
+ *
+ * UI sweep 2026-11-11: no tabs. The "Code" tab was a roadmap mock showing
+ * teachers fake Boldkast source and an internal note to M/JB (the design it
+ * previews lives in docs/design/aipla/post-pilot/teacher-artefact-authoring.md);
+ * History is one line under the title. The h1 is the activity's name, Save and
+ * Try as student sit in the header, and the tutor row names the tutor in every
+ * class that runs the activity instead of guessing from the URL.
+ */
 export default function TeacherActivityConfigPage() {
   const t = useT("ActivityConfigPage");
   const params = useParams();
   const searchParams = useSearchParams();
   const activityId = typeof params?.id === "string" ? params.id : "";
 
-  // The editor is real-only: the activity is loaded from the live
-  // /api/activity-configs endpoint, keyed by (classId, activityId). All
-  // navigation here (activities list "Configure", new→edit handoff) carries
-  // the classId. Arriving without one is an error state, never mock data.
+  // An act- activity loads by id alone. A legacy per-class config (the
+  // dual-read window) needs the classId, so arriving without one is an error
+  // state there, never mock data.
   const classId = searchParams.get("classId") ?? "";
   const titleParam = searchParams.get("title") ?? "";
 
@@ -83,18 +70,13 @@ export default function TeacherActivityConfigPage() {
   // edit render identical config + preview and assemble identical save payloads.
   const builder = useActivityBuilder();
   const displayName = builder.title || titleParam || t("untitled");
-  const { toast, showToast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
-  const [activeTab, setActiveTab] = useState<TabId>("goal");
   // The loaded activity's provenance + lifecycle metadata (visibility, source_*,
-  // timestamps), surfaced read-only in the History tab (M-HIST). Null for a
-  // not-yet-saved (404) activity — the panel shows a "no history yet" state.
+  // timestamps) for the history line. Null for a not-yet-saved (404) activity.
   const [meta, setMeta] = useState<ActivityPayload | null>(null);
-  // Block the form on the network load. An act- activity loads by id alone; a
-  // legacy config needs the classId, so a missing one is an error there only.
-  const [loadState, setLoadState] = useState<LoadState>(
-    isActivityStore || classId ? "loading" : "error",
-  );
+  const [loadState, setLoadState] = useState<LoadState>(isActivityStore || classId ? "loading" : "error");
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const { user } = useTeacherAuth({ redirectOnSignedOut: false });
 
   // Load the saved activity. This IS the data source — a 404 means a not-yet-saved
   // activity (render an empty form so the teacher can save it).
@@ -104,19 +86,17 @@ export default function TeacherActivityConfigPage() {
       return;
     }
     let alive = true;
+    setLoadState("loading");
     // Seed the title from the deep-link param so the header + name field show
     // something before the load resolves (and for a 404 fresh form).
     if (titleParam) builder.setTitle(titleParam);
-    const loader = isActivityStore
-      ? fetchActivity(activityId)
-      : fetchMyActivityConfig(classId, activityId);
+    const loader = isActivityStore ? fetchActivity(activityId) : fetchMyActivityConfig(classId, activityId);
     loader
       .then((saved) => {
         if (!alive) return;
         // Hydrate the FULL builder — goal, language, every element, the sim,
         // materials — so editing round-trips instead of wiping (1.1.40 M1).
         builder.hydrate(saved);
-        // Keep the raw payload for the History panel's provenance + lifecycle.
         setMeta(saved as ActivityPayload);
         // Preserve the running skill for the PATCH back (Activity store only).
         if (isActivityStore) setLoadedSkillId((saved as { skillId?: string }).skillId ?? "");
@@ -137,7 +117,41 @@ export default function TeacherActivityConfigPage() {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [classId, activityId]);
+  }, [classId, activityId, loadAttempt]);
+
+  // The classes that RUN this activity — its assignments — so the tutor row can
+  // name the tutor in each. A researcher editing someone else's activity reads
+  // across every teacher's classes, or the owner's would never be found.
+  const ownerUid = meta?.ownerUid ?? "";
+  const viewerUid = user?.uid ?? "";
+  const classScope: "own" | "all" = ownerUid && viewerUid && ownerUid !== viewerUid ? "all" : "own";
+  const [assigned, setAssigned] = useState<ClassPayload[] | null>(null);
+  const [classesFailed, setClassesFailed] = useState(false);
+  const [classesAttempt, setClassesAttempt] = useState(0);
+  useEffect(() => {
+    if (loadState !== "ready") return;
+    let alive = true;
+    setClassesFailed(false);
+    listClasses(classScope)
+      .then((cls) => {
+        if (!alive) return;
+        setAssigned(
+          isActivityStore
+            ? cls.filter((c) => (c.activityIds ?? []).includes(activityId))
+            : cls.filter((c) => c.classId === classId),
+        );
+      })
+      .catch(() => {
+        if (alive) setClassesFailed(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [loadState, classScope, activityId, classId, isActivityStore, classesAttempt]);
+
+  // Try as student opens the class the editor came from, else the one class
+  // that runs the activity; with several, the server picks.
+  const previewClassId = classId || (assigned?.length === 1 ? assigned[0].classId : "");
 
   async function handleSave(ev: React.FormEvent) {
     ev.preventDefault();
@@ -153,18 +167,22 @@ export default function TeacherActivityConfigPage() {
       const elementSlice = { ...payload, title: payload.title || displayName };
       if (isActivityStore) {
         // ALS-1 M0: PATCH the class-independent activity, preserving its skill.
-        await updateActivity(activityId, { skillId: loadedSkillId, ...elementSlice });
+        const saved = await updateActivity(activityId, { skillId: loadedSkillId, ...elementSlice });
+        // Only the timestamp moves the history line; the rest of `meta` is
+        // provenance, which a save does not change.
+        const updatedAt = (saved as { updatedAt?: string } | undefined)?.updatedAt;
+        if (updatedAt) setMeta((prev) => (prev ? { ...prev, updatedAt } : prev));
       } else {
         // Legacy per-class config (dual-read window).
         await saveActivityConfig({ activityId, classId, ...elementSlice });
       }
-      showToast(t("saved"), 4000);
+      notify.success(t("saved"));
       // 1.1.141 M2 — once per save (cached by text), never per turn. Advisory:
       // the save above has already succeeded whatever this returns.
       void runGoalLint(builder.setGoalLint, payload.teachingGoal, { classId, activityId });
     } catch (err) {
       console.error("[teacher-ui] activity save failed:", err);
-      showToast(t("saveFailed"), 4000);
+      notify.error(t("saveFailed"));
     } finally {
       setIsSaving(false);
     }
@@ -172,15 +190,12 @@ export default function TeacherActivityConfigPage() {
 
   const breadcrumb = (
     <nav className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
-      <Link
-        href="/teacher/activities"
-        className="flex items-center gap-1 hover:text-foreground"
-      >
+      <Link href="/teacher/activities" className="flex items-center gap-1 hover:text-foreground">
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
         {t("activities")}
       </Link>
       <span aria-hidden="true">/</span>
-      <span className="text-foreground">{t("crumb", { name: displayName })}</span>
+      <span className="text-foreground">{displayName}</span>
     </nav>
   );
 
@@ -188,50 +203,51 @@ export default function TeacherActivityConfigPage() {
     return (
       <div className="flex flex-col gap-6">
         {breadcrumb}
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-          {t("loading")}
-        </div>
+        <PageSkeleton label={t("loading")} />
       </div>
     );
   }
 
   if (loadState === "error") {
+    const canRetry = Boolean(activityId) && (isActivityStore || Boolean(classId));
     return (
-      <div className="flex flex-col gap-6">
+      <div className="flex flex-col gap-4">
         {breadcrumb}
-        <div
-          role="alert"
-          className="flex items-start gap-2 rounded border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
-        >
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-          <span>
-            {t.rich("loadFailed", {
-              link: (chunks) => (
-                <Link href="/teacher/activities" className="font-medium underline">
-                  {chunks}
-                </Link>
-              ),
-            })}
-          </span>
-        </div>
+        <LoadError what={t("what")} onRetry={canRetry ? () => setLoadAttempt((n) => n + 1) : undefined} />
+        <Link href="/teacher/activities" className="text-sm font-medium text-primary hover:underline">
+          {t("backToActivities")}
+        </Link>
       </div>
     );
   }
 
+  const saveButton = (
+    <Button type="submit" form={FORM_ID} variant="primary" pending={isSaving} pendingLabel={t("saving")}>
+      <Save className="h-4 w-4" aria-hidden="true" />
+      {t("save")}
+    </Button>
+  );
+
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-5">
       {breadcrumb}
 
-      <header>
-        <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold sm:text-2xl">
-          {t("title", { name: displayName })}
-          {/* 1.1.151 F2b — the students' language, visible from the top. */}
-          <StudentsLanguageBadge language={builder.language} />
-        </h1>
-        <p className="max-w-3xl text-sm text-muted-foreground">
-          {t("intro")}
-        </p>
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1 className="flex flex-wrap items-center gap-2 text-xl font-semibold sm:text-2xl">
+            {displayName}
+            {/* 1.1.151 F2b — the students' language, visible from the top. */}
+            <StudentsLanguageBadge language={builder.language} />
+          </h1>
+          <HistoryLine meta={meta} />
+        </div>
+        <div className="flex flex-wrap items-start gap-2">
+          {/* 1.1.133 — the whole student view, tutor included, no code.
+              Activity-store ids only: the legacy composite config has no
+              activity to mint a preview group for. */}
+          {isActivityStore ? <TryAsStudentButton activityId={activityId} classId={previewClassId} /> : null}
+          {saveButton}
+        </div>
       </header>
 
       {/* 1.1.123 M0 — a researcher editing another teacher's activity is told
@@ -239,345 +255,99 @@ export default function TeacherActivityConfigPage() {
           not-yet-saved activity (no owner yet) shows no banner either. */}
       {meta ? <ActingForOwnerBanner resource={meta} kind="activity" /> : null}
 
-      <div
-        role="tablist"
-        aria-label={t("tabs")}
-        className="flex flex-wrap gap-1 border-b border-border"
-      >
-        {TABS.map((tab) => {
-          const Icon = tab.icon;
-          const selected = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              id={`tab-${tab.id}`}
-              aria-selected={selected}
-              aria-controls={`tabpanel-${tab.id}`}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 rounded-t border-b-2 px-3 py-2 text-sm font-medium transition-colors ${
-                selected
-                  ? "border-primary text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              <Icon className="h-4 w-4" aria-hidden="true" />
-              <span>{t(`tab_${tab.id}`)}</span>
-              {tab.status !== "active" ? (
-                <span
-                  className="ml-1 rounded border border-dashed border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
-                >
-                  {tab.status}
-                </span>
-              ) : null}
-            </button>
-          );
-        })}
-      </div>
-
-      {activeTab === "goal" ? (
-        <section
-          role="tabpanel"
-          id="tabpanel-goal"
-          aria-labelledby="tab-goal"
-        >
-          <form onSubmit={handleSave} className="flex flex-col gap-5">
-            <SettingsMap highlight="activity" classId={classId} />
-            <ActivityBuilderBody
-              builder={builder}
-              activityId={activityId}
-              tutorSlot={<InheritedTutor classId={classId} />}
-              lintContext={{ classId, activityId }}
-              footer={
-                <div className="flex flex-wrap gap-2">
-                  {/* The live preview (+ its full-screen pop-out) replaces the
-                      old defunct "Preview as student" affordance (1.1.40). */}
-                  <button
-                    type="submit"
-                    disabled={isSaving}
-                    className="flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:opacity-90 disabled:opacity-60"
-                  >
-                    <Save className="h-4 w-4" aria-hidden="true" />
-                    {isSaving ? t("saving") : t("save")}
-                  </button>
-                  {/* 1.1.133 — the whole student view, tutor included, no code.
-                      Activity-store ids only: the legacy composite config has
-                      no activity to mint a preview group for. */}
-                  {isActivityStore ? <TryAsStudentButton activityId={activityId} classId={classId} /> : null}
-                </div>
-              }
+      <form id={FORM_ID} onSubmit={handleSave} className="flex flex-col gap-5">
+        <ActivityBuilderBody
+          builder={builder}
+          activityId={activityId}
+          tutorSummary={
+            <ClassTutorSummary
+              classes={assigned}
+              failed={classesFailed}
+              onRetry={() => setClassesAttempt((n) => n + 1)}
             />
-          </form>
-          {/* 1.1.142 M3 — researcher-only smart-model opt-in; renders nothing
-              for anyone else. Saves through its own route, not handleSave. */}
-          {isActivityStore && meta ? (
-            <div className="mt-5">
-              <ModelTierControl key={meta.activityId} activityId={activityId} initialTier={meta.modelTier} />
-            </div>
-          ) : null}
-          {/* COPILOT-1/2: the authoring co-pilot (dark-flagged → renders null
-              when NEXT_PUBLIC_AUTHORING_COPILOT !== "1", so the builder is
-              unaffected). The Apply router maps each proposal kind to a builder
-              setter (M0: lesson prompt; M1/M2 add element + sim). */}
-          <AuthoringCopilot
-            activityId={activityId}
-            draft={builder.toSavePayload()}
-            onApplyProposal={(p) => {
-              applyCopilotProposal(p, builder);
-              // 1.1.141 M3 — a drafted goal is linted and its how-to-teach
-              // lines are moved into tutor notes, visibly and with Undo.
-              if (p.kind === "set_lesson_prompt") {
-                void runGoalLint(builder.setGoalLint, p.value, { classId, activityId }, "move");
-              }
-            }}
-          />
-        </section>
+          }
+          tutorChangeHref={tutorSettingsHref(assigned)}
+          lintContext={{ classId, activityId }}
+          // The header's Save is out of reach at the bottom of a long form, so
+          // the form ends with one too.
+          footer={<div>{saveButton}</div>}
+        />
+      </form>
+
+      {/* 1.1.142 M3 — researcher-only smart-model opt-in; renders nothing
+          for anyone else. Saves through its own route, not handleSave. */}
+      {isActivityStore && meta ? (
+        <ModelTierControl key={meta.activityId} activityId={activityId} initialTier={meta.modelTier} />
       ) : null}
-
-      {activeTab === "code" ? <CodeTabPreview /> : null}
-
-      {activeTab === "history" ? <HistoryPanel meta={meta} /> : null}
-
-      <div
-        role="status"
-        aria-live="polite"
-        aria-atomic="true"
-        className="pointer-events-none fixed bottom-6 left-1/2 -translate-x-1/2 text-sm"
-      >
-        {toast ? (
-          <div className="pointer-events-auto rounded border border-border bg-background px-4 py-2 shadow-md">
-            {toast}
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-// -----------------------------------------------------------------------------
-// Roadmap preview tabs — Parameters / Code / History
-// -----------------------------------------------------------------------------
-// These are **wireframe stubs** for the feedback loop with M + JB. They signal
-// the direction of teacher control over artefacts without committing to the
-// final shape. Each block is read-only; nothing here calls the backend.
-//
-// Replace with real implementations when the matching design docs ship:
-//   docs/design/aipla/post-pilot/teacher-artefact-parameters.md   (v1.1)
-//   docs/design/aipla/post-pilot/teacher-artefact-authoring.md    (v2 / Year-2)
-//
-// Until then, the visual purpose is to surface the affordances JB/AR/M can
-// react to: "do I want sliders here?", "what does 'edit with AI assist'
-// actually mean?", "where would version history feel right?".
-
-function RoadmapBanner({
-  version,
-  description,
-}: {
-  version: "v1.1" | "v2";
-  description: string;
-}) {
-  const t = useT("ActivityConfigPage");
-  return (
-    <div
-      role="note"
-      aria-label={t("roadmapAria")}
-      className="flex items-start gap-2 rounded border border-dashed border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
-    >
-      <Sparkles className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-      <div className="flex flex-col gap-1">
-        <span className="font-semibold">{t("roadmap", { version })}</span>
-        <span className="leading-relaxed opacity-90">{description}</span>
-      </div>
-    </div>
-  );
-}
-
-function CodeTabPreview() {
-  const t = useT("ActivityConfigPage");
-  return (
-    <section
-      role="tabpanel"
-      id="tabpanel-code"
-      aria-labelledby="tab-code"
-      className="flex flex-col gap-4 opacity-90"
-    >
-      <RoadmapBanner
-        version="v2"
-        description={t("codeRoadmap")}
+      {/* COPILOT-1/2: the authoring co-pilot (dark-flagged → renders null
+          when NEXT_PUBLIC_AUTHORING_COPILOT !== "1", so the builder is
+          unaffected). The Apply router maps each proposal kind to a builder
+          setter; an applied element shows up as its workspace card. */}
+      <AuthoringCopilot
+        activityId={activityId}
+        draft={builder.toSavePayload()}
+        onApplyProposal={(p) => {
+          applyCopilotProposal(p, builder);
+          // 1.1.141 M3 — a drafted goal is linted and its how-to-teach
+          // lines are moved into tutor notes, visibly and with Undo.
+          if (p.kind === "set_lesson_prompt") {
+            void runGoalLint(builder.setGoalLint, p.value, { classId, activityId }, "move");
+          }
+        }}
       />
-
-      <div className="flex flex-col gap-3 rounded border border-border bg-background p-4">
-        <header className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="flex items-center gap-1.5 text-sm font-semibold">
-            <Code2 className="h-4 w-4" aria-hidden="true" />
-            {t("codeTitle")}
-          </h2>
-          <span className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[11px]">
-            artefacts/boldkast/v1/index.html · 12.4 KB / 200 KB cap
-          </span>
-        </header>
-
-        <pre className="overflow-x-auto rounded border border-border bg-muted/40 p-3 text-[11px] leading-relaxed">
-          {`<!doctype html>
-<html lang="da">
-<head>
-  <meta charset="utf-8">
-  <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; script-src 'self' 'unsafe-inline'">
-  <title>Boldkast</title>
-  <style>
-    canvas { width: 100%; max-width: 600px; }
-    /* ... */
-  </style>
-</head>
-<body>
-  <canvas id="sim" width="600" height="400"></canvas>
-  <script type="module">
-    const canvas = document.getElementById('sim');
-    // ... simulation loop ...
-  </script>
-</body>
-</html>`}
-        </pre>
-
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled
-            className="flex items-center gap-1.5 rounded bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground opacity-60"
-          >
-            <Wand2 className="h-4 w-4" aria-hidden="true" />
-            {t("aiEdit")}
-          </button>
-          <button
-            type="button"
-            disabled
-            className="flex items-center gap-1.5 rounded border border-border bg-background px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-60"
-          >
-            <Code2 className="h-4 w-4" aria-hidden="true" />
-            {t("rawEdit")}
-          </button>
-          <button
-            type="button"
-            disabled
-            className="flex items-center gap-1.5 rounded border border-border bg-background px-3 py-1.5 text-sm font-medium text-muted-foreground opacity-60"
-          >
-            <Eye className="h-4 w-4" aria-hidden="true" />
-            {t("previewStudent")}
-          </button>
-        </div>
-
-        <ul className="flex flex-col gap-1 text-xs text-muted-foreground">
-          <li className="flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-            {t("check1")}
-          </li>
-          <li className="flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-            {t("check2")}
-          </li>
-          <li className="flex items-center gap-1.5">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" aria-hidden="true" />
-            {t("check3")}
-          </li>
-        </ul>
-      </div>
-
-      <p className="text-xs text-muted-foreground">
-        {t("openQuestion")}
-      </p>
-    </section>
+    </div>
   );
 }
-
-// -----------------------------------------------------------------------------
-// History — real read-only provenance + lifecycle panel (M-HIST, ALS-SHARE)
-// -----------------------------------------------------------------------------
-// Where an activity came from (original vs adapted-from another teacher) and its
-// lifecycle (visibility + created/updated stamps). Backed by the activity GET,
-// which enriches an adopted activity with `sourceOwnerLabel`. The richer
-// per-edit version timeline + rollback stays a Year-2 roadmap note below.
-
-// Visibility sentences are message keys `vis_<visibility>` (1.1.108 M2).
 
 // The date follows the teacher's chosen language, never the browser's (M4.3).
 function formatStamp(iso: string | null | undefined, locale: string): string {
-  if (!iso) return "—";
+  if (!iso) return "";
   const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "—";
+  if (Number.isNaN(d.getTime())) return "";
   return d.toLocaleDateString(locale === "en" ? "en-GB" : "da-DK", { year: "numeric", month: "short", day: "numeric" });
 }
 
-function HistoryPanel({ meta }: { meta: ActivityPayload | null }) {
+/**
+ * What used to be the History tab, as one line under the title (M-HIST,
+ * ALS-SHARE; UI sweep 2026-11-11): created, last edited (and by whom, when it
+ * was not the owner — 1.1.123 M3), whether it is shared, and where it was
+ * adapted from.
+ */
+function HistoryLine({ meta }: { meta: ActivityPayload | null }) {
   const t = useT("ActivityConfigPage");
-  const tv = useT("ActivityDisplay");
+  const tOwner = useT("ActingForOwnerBanner");
   const mode = useLocaleMode();
   const locale = mode === "en" ? "en" : "da";
-  const visibility = meta?.visibility ?? "draft";
-  const adapted = Boolean(meta?.sourceOwnerUid);
-  const sourceLabel = meta?.sourceOwnerLabel ?? meta?.sourceOwnerUid ?? t("anotherTeacher");
-
+  const parts: string[] = [];
+  if (!meta) {
+    parts.push(t("historyNew"));
+  } else {
+    const created = formatStamp(meta.createdAt, locale);
+    if (created) parts.push(t("historyCreated", { date: created }));
+    const updated = formatStamp(meta.updatedAt, locale);
+    // `lastEditedBy` is stamped only when someone other than the owner wrote
+    // the activity; it names them only while it is still the latest edit.
+    const stamp = meta.lastEditedBy;
+    const stampIsLatest =
+      stamp && (!meta.updatedAt || new Date(stamp.at).getTime() >= new Date(meta.updatedAt).getTime() - 60_000);
+    if (stamp && stampIsLatest) {
+      parts.push(
+        t("historyEditedBy", {
+          date: formatStamp(stamp.at, locale) || updated,
+          who: meta.lastEditedByLabel ?? tOwner("someoneElse"),
+        }),
+      );
+    } else if (updated) {
+      parts.push(t("historyEdited", { date: updated }));
+    }
+    parts.push(t(`vis_${meta.visibility ?? "draft"}`));
+    if (meta.sourceOwnerUid) {
+      parts.push(t("historyAdapted", { source: meta.sourceOwnerLabel ?? meta.sourceOwnerUid ?? t("anotherTeacher") }));
+    }
+  }
   return (
-    <section
-      role="tabpanel"
-      id="tabpanel-history"
-      aria-labelledby="tab-history"
-      className="flex flex-col gap-4"
-    >
-      <div className="flex flex-col gap-3 rounded border border-border bg-background p-4">
-        <h2 className="flex items-center gap-1.5 text-sm font-semibold">
-          <History className="h-4 w-4" aria-hidden="true" />
-          {t("provenance")}
-        </h2>
-        {meta == null ? (
-          <p className="text-sm text-muted-foreground">
-            {t("noHistory")}
-          </p>
-        ) : adapted ? (
-          <p className="flex items-start gap-2 text-sm">
-            <GitBranch className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-            <span>
-              {t.rich("adapted", {
-                source: sourceLabel,
-                b: (chunks) => <span className="font-medium text-foreground">{chunks}</span>,
-              })}
-            </span>
-          </p>
-        ) : (
-          <p className="flex items-start gap-2 text-sm text-muted-foreground">
-            <Sparkles className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-            <span>{t("original")}</span>
-          </p>
-        )}
-      </div>
-
-      <dl className="grid grid-cols-1 gap-px overflow-hidden rounded border border-border bg-border text-sm sm:grid-cols-3">
-        <div className="flex flex-col gap-0.5 bg-background p-3">
-          <dt className="text-xs text-muted-foreground">{t("visibility")}</dt>
-          <dd className="font-medium">{visibilityLabel(tv, visibility)}</dd>
-          <dd className="text-xs text-muted-foreground">{t(`vis_${visibility}`)}</dd>
-        </div>
-        <div className="flex flex-col gap-0.5 bg-background p-3">
-          <dt className="text-xs text-muted-foreground">{t("created")}</dt>
-          <dd className="font-medium">{formatStamp(meta?.createdAt, locale)}</dd>
-        </div>
-        <div className="flex flex-col gap-0.5 bg-background p-3">
-          <dt className="text-xs text-muted-foreground">{t("updated")}</dt>
-          <dd className="font-medium">{formatStamp(meta?.updatedAt, locale)}</dd>
-          {/* 1.1.123 M3 — only when someone other than the owner wrote it. */}
-          {meta ? (
-            <dd>
-              <LastEditedLine resource={meta} />
-            </dd>
-          ) : null}
-        </div>
-      </dl>
-
-      <RoadmapBanner
-        version="v2"
-        description={t("historyRoadmap")}
-      />
-    </section>
+    <p data-testid="activity-history" className="mt-1 text-sm text-muted-foreground">
+      {parts.join(" · ")}
+    </p>
   );
 }
