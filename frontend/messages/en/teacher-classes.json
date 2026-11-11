@@ -77,7 +77,7 @@
     "loading": "Loading tutors…",
     "loadFailed": "Could not load the tutor list. Reload the page to try again.",
     "intro": "One choice sets the tutor’s name, picture, voice, tone and teaching approach for every activity in this class.",
-    "noneChosen": "No tutor chosen — this class uses the default identity and teaches as it always has.",
+    "noneChosen": "No tutor chosen — students meet the default tutor, Sofie, with no particular teaching approach.",
     "noApproach": "no set teaching approach",
     "variant": "variant",
     "whatDoesItDo": "What does this teaching approach do?",

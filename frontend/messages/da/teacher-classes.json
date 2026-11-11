@@ -77,7 +77,7 @@
     "loading": "Indlæser tutorer…",
     "loadFailed": "Tutorlisten kunne ikke hentes. Genindlæs siden for at prøve igen.",
     "intro": "Ét valg bestemmer tutorens navn, billede, stemme, tone og undervisningstilgang for alle aktiviteter i klassen.",
-    "noneChosen": "Ingen tutor valgt — klassen bruger standardidentiteten og underviser som hidtil.",
+    "noneChosen": "Ingen tutor valgt — eleverne møder standardtutoren Sofie, uden en bestemt undervisningstilgang.",
     "noApproach": "ingen fast undervisningstilgang",
     "variant": "variant",
     "whatDoesItDo": "Hvad gør denne undervisningstilgang?",

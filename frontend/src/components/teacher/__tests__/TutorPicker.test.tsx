@@ -145,7 +145,8 @@ describe("TutorPicker (1.1.91 M1 — one choice)", () => {
   it("says plainly when no tutor is chosen", async () => {
     mockCatalogue([tutor()]);
     render(<TutorPicker classId="c-1" selectedTutorId={null} />);
-    await screen.findByText(/teaches as it always has/i);
+    // Plain words: who the students meet, and that no approach applies.
+    await screen.findByText(/students meet the default tutor, Sofie, with no particular teaching approach/i);
   });
 
   it("offers no variant authoring on a class page", async () => {
@@ -156,7 +157,9 @@ describe("TutorPicker (1.1.91 M1 — one choice)", () => {
     // survive; only this placement is gone, and it must not creep back.
     mockCatalogue([tutor()]);
     render(<TutorPicker classId="c-1" selectedTutorId={null} />);
-    await screen.findByText(/Sofie/);
+    // "Sofie" is both the fixture tutor and the default named in the
+    // none-chosen line, so wait on the line itself.
+    await screen.findByText(/no particular teaching approach/i);
 
     expect(screen.queryByText(/create a variant/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/^Researcher:/i)).not.toBeInTheDocument();
@@ -239,7 +242,7 @@ describe("TutorPicker — compact, on the class page's Setup view (UI sweep 2026
     await userEvent.click(await screen.findByRole("button", { name: "Change tutor" }));
     await userEvent.click(screen.getByRole("button", { name: "Use the default tutor" }));
     await waitFor(() => expect(save).toHaveBeenCalledWith("c-1", null));
-    expect(await screen.findByTestId("tutor-chosen")).toHaveTextContent(/teaches as it always has/);
+    expect(await screen.findByTestId("tutor-chosen")).toHaveTextContent(/no particular teaching approach/);
   });
 
   it("offers 'Choose a tutor' when none is chosen", async () => {
