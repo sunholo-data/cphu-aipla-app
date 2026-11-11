@@ -200,7 +200,7 @@ function StepAction({
       );
     case "mintCode":
       return firstClassId ? (
-        <Link href={`/teacher/classes/${encodeURIComponent(firstClassId)}`} className={linkClass}>
+        <Link href={`/teacher/classes/${encodeURIComponent(firstClassId)}?tab=lesson`} className={linkClass}>
           {t("action_mintCode")}
         </Link>
       ) : null;
@@ -227,7 +227,7 @@ function StepAction({
       ) : null;
     case "previewOpening":
       return firstClassId ? <>
-        <Link href={`/teacher/classes/${encodeURIComponent(firstClassId)}`} className={linkClass}>{t("action_previewOpening")}</Link>
+        <Link href={`/teacher/classes/${encodeURIComponent(firstClassId)}?tab=setup`} className={linkClass}>{t("action_previewOpening")}</Link>
         <button type="button" onClick={onPreviewChecked} className={linkClass}>{t("action_previewChecked")}</button>
       </> : null;
     case "firstTurn":

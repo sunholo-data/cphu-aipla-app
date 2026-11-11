@@ -737,7 +737,10 @@ export default function TeacherClassDetailPage() {
         </div>
       </SettingsSection>
 
-      {/* Danger row — moved here from the class list (UI sweep 2026-11). */}
+      {/* Danger row — moved here from the class list (UI sweep 2026-11).
+          Owner only: the backend refuses a delete from anyone else, so a
+          researcher acting for the owner is not offered one. */}
+      {!onBehalf && (
       <section
         aria-labelledby="class-danger"
         className="flex flex-wrap items-center justify-between gap-3 rounded border border-destructive/30 px-4 py-3"
@@ -752,6 +755,7 @@ export default function TeacherClassDetailPage() {
           {t("deleteClass")}
         </Button>
       </section>
+      )}
     </>
   );
 

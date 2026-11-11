@@ -125,6 +125,12 @@ describe("/teacher/classes/[id] — a researcher acting for the owner", () => {
     await waitFor(() => expect(screen.getByTestId("last-edited-line")).toHaveTextContent(/Last edited by Rae/));
   });
 
+  it("offers Delete class only to the owner — the backend refuses anyone else", async () => {
+    render(<TeacherClassDetailPage />);
+    await waitFor(() => expect(screen.getByTestId("acting-for-owner-banner")).toBeInTheDocument());
+    expect(screen.queryByRole("button", { name: "Delete class…" })).not.toBeInTheDocument();
+  });
+
   it("keeps the owner's own page unchanged: own-scope library, no banner", async () => {
     authState.uid = "teacher-bob";
     render(<TeacherClassDetailPage />);

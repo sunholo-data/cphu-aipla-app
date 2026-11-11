@@ -116,7 +116,7 @@ describe("GettingStartedCard", () => {
     expect(screen.queryByRole("link", { name: "Open the class" })).not.toBeInTheDocument();
     fireEvent.click(toggle);
     expect(screen.getByRole("button", { name: /show less/i })).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByRole("link", { name: "Open the class" })).toHaveAttribute("href", "/teacher/classes/c-1");
+    expect(screen.getByRole("link", { name: "Open the class" })).toHaveAttribute("href", "/teacher/classes/c-1?tab=lesson");
     expect(screen.getByRole("link", { name: "Set up a class" })).toHaveAttribute("href", "/guides/t1-set-up-a-class");
   });
 
