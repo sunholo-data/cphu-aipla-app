@@ -1,4 +1,4 @@
-import { fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Both auth-fetch helpers are spied: the privacy claim is "no request carries a
@@ -13,14 +13,18 @@ vi.mock("@/lib/xlsx", async (orig) => ({
   downloadXlsx: (...args: unknown[]) => downloadXlsxSpy(...args),
 }));
 
-import {
-  ClassListSheet,
-  classListStorageKey,
-  mergeImportedRows,
-} from "@/app/teacher/classes/[id]/_ClassListSheet";
+import { classListStorageKey, mergeImportedRows } from "@/app/teacher/classes/[id]/_ClassListSheet";
+import { GroupsTable, type GroupsTableProps } from "@/app/teacher/classes/[id]/_GroupsTable";
 import { buildXlsx } from "@/lib/xlsx";
 import { toCsv } from "@/lib/download";
 import { LocaleProvider } from "@/i18n";
+
+// 1.1.137 → UI sweep 2026-11: the names left their own "Class list" section and
+// became a column of the class page's ONE groups table. These are the class
+// list's privacy assertions, FOLLOWING the names into that table (M's open
+// question 2: merging puts browser-only names beside server data, so the
+// guard has to cover the merged component). The row actions are now in the
+// same component as the names, so they are exercised here too.
 
 // 1.1.108 M2 — these tests assert the English copy; the teacher UI defaults to
 // Danish (the teacher's own DA | EN choice), so render inside an English locale.
@@ -30,12 +34,18 @@ function EnglishLocale({ children }: { children: React.ReactNode }) {
 const render = ((ui: React.ReactElement, options?: Parameters<typeof rtlRender>[1]) =>
   rtlRender(ui, { wrapper: EnglishLocale, ...options })) as typeof rtlRender;
 
-
 const CLASS_ID = "class-7b";
 const ORIGIN = "https://aipla.example";
 const NAME = "Søren Kierkegaard-Testesen";
 
 let fetchSpy: ReturnType<typeof vi.fn>;
+const callbacks = {
+  onNewGroup: vi.fn(),
+  onCopyLink: vi.fn(),
+  onCopyCode: vi.fn(),
+  onReset: vi.fn(),
+  onRevoke: vi.fn(),
+};
 
 // An in-memory localStorage: the runner's is not reliably present (Node's own
 // global shadows jsdom's without --localstorage-file). Same shape as
@@ -53,9 +63,23 @@ function installStorage(overrides: Partial<Storage> = {}) {
   });
 }
 
-function sheet(codes = ["still-violin-61", "bright-fox-12"]) {
+function table(codes = ["still-violin-61", "bright-fox-12"], extra: Partial<GroupsTableProps> = {}) {
   return (
-    <ClassListSheet classId={CLASS_ID} className="Physics 7B" codes={codes} joinOrigin={ORIGIN} />
+    <GroupsTable
+      classId={CLASS_ID}
+      className="Physics 7B"
+      liveCodes={codes}
+      retiredCodes={[]}
+      joinOrigin={ORIGIN}
+      description=""
+      live={null}
+      liveError={false}
+      latestByGroup={new Map()}
+      timeLocale="en"
+      minting={false}
+      {...callbacks}
+      {...extra}
+    />
   );
 }
 
@@ -78,6 +102,14 @@ function everythingSent(): string {
     .join("\n");
 }
 
+/** Open a Radix menu by keyboard and return its items. */
+async function openMenu(name: string | RegExp) {
+  const trigger = screen.getByRole("button", { name });
+  trigger.focus();
+  fireEvent.keyDown(trigger, { key: "Enter" });
+  return screen.findAllByRole("menuitem");
+}
+
 beforeEach(() => {
   store.clear();
   installStorage();
@@ -86,6 +118,7 @@ beforeEach(() => {
   fetchWithAuth.mockClear();
   fetchWithTeacherAuth.mockClear();
   downloadXlsxSpy.mockClear();
+  for (const cb of Object.values(callbacks)) cb.mockClear();
 });
 
 afterEach(() => {
@@ -93,12 +126,15 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("ClassListSheet — names stay on this device (ADR-001)", () => {
-  it("typing, downloading and importing names never produces a request carrying them", async () => {
-    render(sheet());
+describe("GroupsTable names — stay on this device (ADR-001)", () => {
+  it("typing, downloading, importing and every row action never carry a name anywhere", async () => {
+    render(table());
     fireEvent.change(screen.getByLabelText("Names for still-violin-61"), { target: { value: NAME } });
     fireEvent.change(screen.getByLabelText("Note for still-violin-61"), { target: { value: `${NAME} note` } });
-    fireEvent.click(screen.getByRole("button", { name: /download as excel/i }));
+
+    // Excel ▾ → Download.
+    fireEvent.click((await openMenu(/names: excel/i))[0]);
+    expect(downloadXlsxSpy).toHaveBeenCalledTimes(1);
 
     const file = new File([toCsv([["Code", "Join link", "Names", "Note"], ["bright-fox-12", "", NAME, ""]])], "list.csv", {
       type: "text/csv",
@@ -106,25 +142,37 @@ describe("ClassListSheet — names stay on this device (ADR-001)", () => {
     fireEvent.change(screen.getByTestId("class-list-import"), { target: { files: [file] } });
     await screen.findByText(/imported names for 1 code/i);
 
-    // It went to localStorage — and nowhere else.
+    // Every row action, on the row whose names were just typed.
+    fireEvent.click(screen.getByRole("button", { name: "Copy join link for still-violin-61" }));
+    for (const i of [0, 1, 2]) {
+      fireEvent.click((await openMenu("More actions for still-violin-61"))[i]);
+    }
+    fireEvent.click(screen.getByRole("button", { name: /new group/i }));
+    expect(callbacks.onCopyLink).toHaveBeenCalledWith("still-violin-61");
+    expect(callbacks.onCopyCode).toHaveBeenCalledWith("still-violin-61");
+    expect(callbacks.onReset).toHaveBeenCalledWith("still-violin-61");
+    expect(callbacks.onRevoke).toHaveBeenCalledWith("still-violin-61");
+
+    // It went to localStorage — and nowhere else: no request, no callback.
     expect(window.localStorage.getItem(classListStorageKey(CLASS_ID))).toContain(NAME);
     expect(everythingSent()).not.toContain("Kierkegaard");
+    expect(JSON.stringify(Object.values(callbacks).map((cb) => cb.mock.calls))).not.toContain("Kierkegaard");
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(fetchWithAuth).not.toHaveBeenCalled();
     expect(fetchWithTeacherAuth).not.toHaveBeenCalled();
   });
 
   it("names survive a remount (a reload)", async () => {
-    const { unmount } = render(sheet());
+    const { unmount } = render(table());
     fireEvent.change(screen.getByLabelText("Names for bright-fox-12"), { target: { value: "Anna, Bo" } });
     unmount();
-    render(sheet());
+    render(table());
     await waitFor(() => expect(screen.getByLabelText("Names for bright-fox-12")).toHaveValue("Anna, Bo"));
   });
 
-  it("says so plainly — the list is only in this browser", () => {
-    render(sheet());
-    expect(screen.getByText("Names (only on this device)")).toBeInTheDocument();
+  it("says so plainly — the names are only in this browser", () => {
+    render(table());
+    expect(screen.getByRole("columnheader", { name: "Names · only in your browser" })).toBeInTheDocument();
     expect(screen.getByText(/kept only in this browser/i)).toBeInTheDocument();
   });
 
@@ -133,23 +181,23 @@ describe("ClassListSheet — names stay on this device (ADR-001)", () => {
       throw new Error("SecurityError");
     };
     installStorage({ getItem: blocked, setItem: blocked });
-    render(sheet());
+    render(table());
     expect(await screen.findByRole("alert")).toHaveTextContent(/not letting AIPLA save/i);
   });
 });
 
-describe("ClassListSheet — revoked codes", () => {
+describe("GroupsTable names — revoked codes", () => {
   it("drops a revoked code from the table, the export and the device", async () => {
     window.localStorage.setItem(
       classListStorageKey(CLASS_ID),
       JSON.stringify({ v: 1, rows: { "gone-code-99": { names: "Revoked Person", note: "" }, "bright-fox-12": { names: "Eva", note: "" } } }),
     );
-    // The page passes cls.groupCodes, which no longer holds a revoked code.
-    render(sheet(["bright-fox-12"]));
+    // The page passes activeGroupCodes(cls), which no longer holds a revoked code.
+    render(table(["bright-fox-12"]));
     await waitFor(() => expect(screen.getByLabelText("Names for bright-fox-12")).toHaveValue("Eva"));
     expect(screen.queryByText("gone-code-99")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /download as excel/i }));
+    fireEvent.click((await openMenu(/names: excel/i))[0]);
     const [filename, rows] = downloadXlsxSpy.mock.calls[0] as [string, string[][]];
     expect(filename).toMatch(/^class-list-physics-7b-\d{4}-\d{2}-\d{2}\.xlsx$/);
     expect(rows[0][0]).toMatch(/^Class list: Physics 7B \(\d{4}-\d{2}-\d{2}\)$/);
@@ -161,40 +209,30 @@ describe("ClassListSheet — revoked codes", () => {
     fireEvent.change(screen.getByLabelText("Note for bright-fox-12"), { target: { value: "front row" } });
     expect(window.localStorage.getItem(classListStorageKey(CLASS_ID))).not.toContain("Revoked Person");
   });
-});
 
-describe("ClassListSheet — retained revoked codes (1.1.146)", () => {
-  it("keeps a revoked code's names on the device, but not in the table or export", async () => {
+  it("keeps a retained revoked code's names on the device and beside the code, but not as a row or in the export", async () => {
+    // 1.1.146 — its sessions are still reviewable, so who was in the group is kept.
     window.localStorage.setItem(
       classListStorageKey(CLASS_ID),
       JSON.stringify({ v: 1, rows: { "gone-code-99": { names: "Revoked Person", note: "" }, "bright-fox-12": { names: "Eva", note: "" } } }),
     );
-    render(
-      <ClassListSheet
-        classId={CLASS_ID}
-        className="Physics 7B"
-        codes={["bright-fox-12"]}
-        retainedCodes={["gone-code-99"]}
-        joinOrigin={ORIGIN}
-        locale="en"
-      />,
-    );
+    render(table(["bright-fox-12"], { retiredCodes: ["gone-code-99"] }));
     await waitFor(() => expect(screen.getByLabelText("Names for bright-fox-12")).toHaveValue("Eva"));
-    expect(screen.queryByText("gone-code-99")).not.toBeInTheDocument();
+    expect(within(screen.getByTestId("groups-table")).queryByText("gone-code-99")).toBeNull();
+    expect(screen.getByTestId("revoked-codes")).toHaveTextContent("Revoked Person");
 
-    fireEvent.click(screen.getByRole("button", { name: /download as excel/i }));
+    fireEvent.click((await openMenu(/names: excel/i))[0]);
     const [, rows] = downloadXlsxSpy.mock.calls[0] as [string, string[][]];
     expect(JSON.stringify(rows)).not.toContain("Revoked Person");
 
-    // Its sessions are still reviewable, so who was in the group is kept.
     fireEvent.change(screen.getByLabelText("Note for bright-fox-12"), { target: { value: "front row" } });
     expect(window.localStorage.getItem(classListStorageKey(CLASS_ID))).toContain("Revoked Person");
   });
 });
 
-describe("ClassListSheet — import (M2)", () => {
+describe("GroupsTable names — import (M2)", () => {
   it("imports our own .xlsx, matched on Code, in the browser", async () => {
-    render(sheet());
+    render(table());
     const bytes = buildXlsx([
       ["Class list: Physics 7B (2026-09-29)"],
       [],
@@ -211,10 +249,17 @@ describe("ClassListSheet — import (M2)", () => {
   });
 
   it("says so when nothing matched", async () => {
-    render(sheet());
+    render(table());
     const file = new File([toCsv([["Code", "Names"], ["nope-nope-1", "X"]])], "x.csv");
     fireEvent.change(screen.getByTestId("class-list-import"), { target: { files: [file] } });
     await screen.findByText(/no rows matched/i);
+  });
+
+  it("offers import from the table header's Excel menu, saying nothing is uploaded", async () => {
+    render(table());
+    const items = await openMenu(/names: excel/i);
+    expect(items[1]).toHaveTextContent(/Import from Excel\/CSV/);
+    expect(items[1]).toHaveTextContent(/nothing is uploaded/);
   });
 });
 

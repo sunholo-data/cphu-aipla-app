@@ -9,7 +9,8 @@ vi.mock("@/lib/teacherApi", () => ({
   ackClassSignal: (...a: unknown[]) => ackClassSignal(...a),
 }));
 
-import { LiveClassView } from "../_LiveClassView";
+import { LiveSummary, RaisedHands, useLiveClass } from "../_LiveClassView";
+import { notify } from "@/components/ui/toast";
 import { LocaleProvider } from "@/i18n";
 
 // 1.1.108 M2 — these tests assert the English copy; the teacher UI defaults to
@@ -20,70 +21,76 @@ function EnglishLocale({ children }: { children: React.ReactNode }) {
 const render = ((ui: React.ReactElement, options?: Parameters<typeof rtlRender>[1]) =>
   rtlRender(ui, { wrapper: EnglishLocale, ...options })) as typeof rtlRender;
 
-
 const NOW = new Date().toISOString();
 
 function payload(over: Record<string, unknown> = {}) {
   return { calls: [], groups: [], summary: null, generatedAt: NOW, ...over };
 }
 
-const group = (over: Record<string, unknown> = {}) => ({
-  groupId: "g1",
-  status: "active",
-  turns: 5,
-  lastActivityAt: NOW,
-  idleSeconds: 10,
-  stuck: false,
-  activityTitle: "Energi",
-  skillId: "boldkast",
-  ...over,
-});
+/** The class page's Lektion view, minus the groups table (its own tests). */
+function Harness() {
+  const live = useLiveClass("c1", 1_000_000);
+  return (
+    <div>
+      <span data-testid="state">{live.error ? "error" : live.data ? "ok" : "loading"}</span>
+      <RaisedHands calls={live.data?.calls ?? []} acking={live.acking} onAck={(g) => void live.ack(g)} />
+      <LiveSummary summary={live.data?.summary ?? null} />
+    </div>
+  );
+}
 
 beforeEach(() => {
   listClassLive.mockReset().mockResolvedValue(payload());
   ackClassSignal.mockReset().mockResolvedValue(undefined);
 });
 
-describe("LiveClassView", () => {
-  it("renders deterministic group rows incl. a stuck flag", async () => {
-    listClassLive.mockResolvedValue(
-      payload({ groups: [group(), group({ groupId: "g2", status: "idle", stuck: true })] }),
-    );
-    render(<LiveClassView classId="c1" pollMs={1_000_000} />);
-    await waitFor(() => expect(screen.getByText("g1")).toBeInTheDocument());
-    expect(screen.getByText("g2")).toBeInTheDocument();
-    expect(screen.getByText(/stuck/i)).toBeInTheDocument();
-  });
-
-  it("shows the empty state when no groups are online", async () => {
-    render(<LiveClassView classId="c1" pollMs={1_000_000} />);
-    await waitFor(() => expect(screen.getByText(/no groups online/i)).toBeInTheDocument());
-  });
-
+describe("useLiveClass + RaisedHands + LiveSummary", () => {
   it("renders a raised hand and acknowledges it", async () => {
     listClassLive
       .mockResolvedValueOnce(
         payload({ calls: [{ groupId: "g1", activityId: "", activityTitle: "Energi", raisedHandAt: NOW }] }),
       )
       .mockResolvedValue(payload());
-    render(<LiveClassView classId="c1" pollMs={1_000_000} />);
-    await waitFor(() => expect(screen.getByRole("button", { name: /acknowledge/i })).toBeInTheDocument());
-    fireEvent.click(screen.getByRole("button", { name: /acknowledge/i }));
+    render(<Harness />);
+    const button = await screen.findByRole("button", { name: "Acknowledge g1" });
+    expect(screen.getByTestId("raised-hands")).toHaveTextContent(/g1\s*raised a hand/);
+    fireEvent.click(button);
     await waitFor(() => expect(ackClassSignal).toHaveBeenCalledWith("c1", "g1"));
+    // Re-polled after the ack, so the hand goes away.
+    await waitFor(() => expect(screen.queryByTestId("raised-hands")).toBeNull());
+  });
+
+  it("says so when Acknowledge fails, instead of an unhandled rejection", async () => {
+    const error = vi.spyOn(notify, "error");
+    ackClassSignal.mockRejectedValue(new Error("boom"));
+    listClassLive.mockResolvedValue(
+      payload({ calls: [{ groupId: "g1", activityId: "", activityTitle: "", raisedHandAt: NOW }] }),
+    );
+    render(<Harness />);
+    fireEvent.click(await screen.findByRole("button", { name: "Acknowledge g1" }));
+    await waitFor(() => expect(error).toHaveBeenCalledWith("Could not acknowledge g1. Try again."));
+  });
+
+  it("renders nothing for hands or summary when there are none", async () => {
+    render(<Harness />);
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("ok"));
+    expect(screen.queryByTestId("raised-hands")).toBeNull();
+    expect(screen.queryByTestId("live-summary")).toBeNull();
   });
 
   it("renders the summary panel only when present (M1 graceful absence)", async () => {
     listClassLive.mockResolvedValue(
       payload({ summary: { text: "Most groups working.", framework: "AIPLA live-summary v0", generatedAt: NOW } }),
     );
-    render(<LiveClassView classId="c1" pollMs={1_000_000} />);
+    render(<Harness />);
     await waitFor(() => expect(screen.getByTestId("live-summary")).toBeInTheDocument());
     expect(screen.getByText(/Most groups working/)).toBeInTheDocument();
+    expect(screen.getByText("The class right now")).toBeInTheDocument();
   });
 
-  it("degrades to an alert if the fetch fails before any data", async () => {
+  it("reports a failed poll, so the groups table can say it does not know", async () => {
     listClassLive.mockReset().mockRejectedValue(new Error("boom"));
-    render(<LiveClassView classId="c1" pollMs={1_000_000} />);
-    await waitFor(() => expect(screen.getByRole("alert")).toBeInTheDocument());
+    render(<Harness />);
+    await waitFor(() => expect(screen.getByTestId("state")).toHaveTextContent("error"));
   });
 });
