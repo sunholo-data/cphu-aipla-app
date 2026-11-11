@@ -61,7 +61,9 @@ function newColumn(nextKey: () => number): TableEditorColumn {
   return { key: nextKey(), label: "", unit: "", kind: "number" };
 }
 
-function newTable(nextKey: () => number): TableEditorValue {
+/** A new, empty table with one column — what this editor's Add creates, and
+ *  what the builder's "Add to the workspace" menu creates (UI sweep 2026-11-11). */
+export function newTable(nextKey: () => number): TableEditorValue {
   return { key: nextKey(), title: "", columns: [newColumn(nextKey)], rows: 5 };
 }
 

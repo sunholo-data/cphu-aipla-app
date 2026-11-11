@@ -25,41 +25,58 @@ interface TryAsStudentButtonProps {
   classId?: string;
 }
 
-export function TryAsStudentButton({ activityId, classId }: TryAsStudentButtonProps) {
+/**
+ * The click handler behind "Try as student", for surfaces that are not a
+ * button of their own — the activity library's ⋯ menu (UI sweep 2026-11-11).
+ * `open` MUST run inside the user's click (or menu select): the tab is opened
+ * synchronously so a popup blocker allows it.
+ */
+export function useTryAsStudent(activityId: string, classId?: string) {
   const t = useT("TryAsStudentButton");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function open() {
+  async function open(): Promise<string | null> {
     setError(null);
     // Open the tab synchronously, inside the click, so a popup blocker allows
     // it; point it at the join link once the server has minted the group.
     const tab = window.open("", "_blank");
     if (!tab) {
-      setError(t("popupBlocked"));
-      return;
+      const msg = t("popupBlocked");
+      setError(msg);
+      return msg;
     }
     setBusy(true);
     try {
       const preview = await createStudentPreview(activityId, classId || undefined);
       tab.opener = null;
       tab.location.href = preview.joinUrl;
+      return null;
     } catch (err) {
       tab.close();
-      setError(err instanceof ConflictError && err.message ? err.message : t("failed"));
+      const msg = err instanceof ConflictError && err.message ? err.message : t("failed");
+      setError(msg);
+      return msg;
     } finally {
       setBusy(false);
     }
   }
 
+  return { open, busy, error };
+}
+
+export function TryAsStudentButton({ activityId, classId }: TryAsStudentButtonProps) {
+  const t = useT("TryAsStudentButton");
+  const { open, busy, error } = useTryAsStudent(activityId, classId);
+
   return (
     <div className="flex flex-col gap-1">
       <button
         type="button"
-        onClick={open}
+        onClick={() => void open()}
         disabled={busy || !activityId}
         title={t("hint")}
-        className="flex items-center gap-1.5 rounded border border-border bg-background px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:opacity-60"
+        className="flex h-9 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-sm font-medium hover:bg-muted disabled:opacity-60"
       >
         <UserRound className="h-4 w-4" aria-hidden="true" />
         {busy ? t("opening") : t("label")}

@@ -29,6 +29,8 @@ interface TemplatePickerProps {
   onPick: (template: ActivityTemplate) => void;
   /** Reset the builder to a blank draft — the "start from scratch" card. */
   onStartBlank?: () => void;
+  /** The template already applied, so reopening the strip still marks it. */
+  appliedId?: string | null;
 }
 
 // 1.1.108 M2 — copy lives in messages (namespace TemplatePicker). Families and
@@ -109,10 +111,10 @@ function templateFeatures(t: ActivityTemplate): { key: FeatureKey; icon: LucideI
  * config column, so the live "what students see" preview is beside it and
  * re-renders with each click — that IS the preview.
  */
-export function TemplatePicker({ onPick, onStartBlank }: TemplatePickerProps) {
+export function TemplatePicker({ onPick, onStartBlank, appliedId = null }: TemplatePickerProps) {
   const t = useT("TemplatePicker");
   const [family, setFamily] = useState<FamilyId | null>(null);
-  const [applied, setApplied] = useState<string | null>(null);
+  const [applied, setApplied] = useState<string | null>(appliedId);
   const stripRef = useRef<HTMLDivElement>(null);
   const [edges, setEdges] = useState({ atStart: true, atEnd: true });
 
@@ -159,7 +161,7 @@ export function TemplatePicker({ onPick, onStartBlank }: TemplatePickerProps) {
     <div className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
-          <Sparkles className="h-4 w-4 text-indigo-500" /> {t("heading")}
+          <Sparkles className="h-4 w-4 text-primary" aria-hidden="true" /> {t("heading")}
         </span>
         <div className="flex flex-wrap gap-1" role="group" aria-label={t("filter")}>
           <FilterChip active={family === null} onClick={() => setFamily(null)}>
@@ -218,7 +220,7 @@ function FilterChip({
       className={cn(
         "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium transition-colors",
         active
-          ? "border-indigo-300 bg-indigo-50 text-indigo-700"
+          ? "border-primary/40 bg-primary/5 text-foreground"
           : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",
       )}
     >
@@ -247,10 +249,10 @@ function TemplateCard({
         onClick={onPick}
         aria-pressed={applied}
         className={cn(
-          "flex h-full w-60 flex-col items-start gap-2 rounded-lg border bg-white px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300",
+          "flex h-full w-60 flex-col items-start gap-2 rounded-lg border bg-white px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           applied
-            ? "border-indigo-400 bg-indigo-50 ring-1 ring-indigo-300"
-            : "border-slate-200 hover:border-indigo-300 hover:bg-indigo-50",
+            ? "border-primary bg-primary/5 ring-1 ring-primary"
+            : "border-slate-200 hover:border-primary/40 hover:bg-primary/5",
         )}
       >
         <span className="flex w-full items-center gap-2">
@@ -274,7 +276,7 @@ function TemplateCard({
             <span className="line-clamp-2 text-sm font-medium leading-snug text-slate-800">{tpl.name}</span>
           </span>
           {applied ? (
-            <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-indigo-600 px-1.5 py-0.5 text-[11px] font-medium text-white">
+            <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-primary px-1.5 py-0.5 text-[11px] font-medium text-primary-foreground">
               <Check className="h-3 w-3" aria-hidden="true" /> {t("applied")}
             </span>
           ) : null}
@@ -308,10 +310,10 @@ function BlankCard({ applied, onPick }: { applied: boolean; onPick: () => void }
         onClick={onPick}
         aria-pressed={applied}
         className={cn(
-          "flex h-full w-60 flex-col items-start gap-2 rounded-lg border border-dashed px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300",
+          "flex h-full w-60 flex-col items-start gap-2 rounded-lg border border-dashed px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
           applied
-            ? "border-indigo-400 bg-indigo-50 ring-1 ring-indigo-300"
-            : "border-slate-300 bg-slate-50 hover:border-indigo-300 hover:bg-indigo-50",
+            ? "border-primary bg-primary/5 ring-1 ring-primary"
+            : "border-slate-300 bg-slate-50 hover:border-primary/40 hover:bg-primary/5",
         )}
       >
         <span className="flex w-full items-center gap-2">
@@ -326,7 +328,7 @@ function BlankCard({ applied, onPick }: { applied: boolean; onPick: () => void }
             <span className="truncate text-sm font-medium text-slate-800">{t("blankName")}</span>
           </span>
           {applied ? (
-            <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-indigo-600 px-1.5 py-0.5 text-[11px] font-medium text-white">
+            <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-primary px-1.5 py-0.5 text-[11px] font-medium text-primary-foreground">
               <Check className="h-3 w-3" aria-hidden="true" /> {t("applied")}
             </span>
           ) : null}

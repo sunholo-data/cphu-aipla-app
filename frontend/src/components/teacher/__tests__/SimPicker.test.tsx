@@ -106,6 +106,25 @@ describe("SimPicker", () => {
     expect(screen.getByTestId("sim-picker-sim-2")).toBeInTheDocument();
   });
 
+  // UI sweep 2026-11-11 — a failed read used to say "no simulations available
+  // in this environment", which a teacher reads as "none exist".
+  it("says a failed catalogue load failed, and retries", async () => {
+    listArtefactsMock.mockRejectedValueOnce(new Error("offline"));
+    render(<SimPicker value={null} onChange={vi.fn()} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/simulations could not be loaded/i);
+    expect(screen.queryByText(/no simulations available/i)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /try again/i }));
+    expect(await screen.findByText("Boldkast")).toBeInTheDocument();
+  });
+
+  it("browse mode shows the grid with the current sim marked, not the selected card", async () => {
+    const onChange = vi.fn();
+    render(<SimPicker mode="browse" value="boldkast" onChange={onChange} />);
+    const card = await screen.findByTestId("sim-picker-boldkast");
+    expect(card).toHaveAttribute("aria-pressed", "true");
+    expect(screen.queryByRole("button", { name: /remove simulation/i })).toBeNull();
+  });
+
   it("shows no filter for a short catalogue", async () => {
     render(<SimPicker value={null} onChange={vi.fn()} />);
     await screen.findByTestId("sim-picker-boldkast");

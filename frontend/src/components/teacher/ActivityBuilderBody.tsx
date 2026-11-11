@@ -1,24 +1,15 @@
 "use client";
 
-import { MessageCircle, Plus, X } from "lucide-react";
-import type { ReactNode } from "react";
+import Link from "next/link";
+import { useState, type ReactNode } from "react";
 
 import { ActivityPreview } from "@/components/teacher/ActivityPreview";
 import { ActivityOpeningEditor } from "@/components/teacher/ActivityOpeningEditor";
 import { BuilderHints } from "@/components/teacher/BuilderHints";
 import { BuilderSection, BuilderSectionNav, SECTION } from "@/components/teacher/BuilderLayout";
-import { CalculatorEditor } from "@/components/teacher/CalculatorEditor";
-import { ChartEditor } from "@/components/teacher/ChartEditor";
-import { ConceptMapEditor } from "@/components/teacher/ConceptMapEditor";
-import { ConceptListNudge } from "@/components/teacher/lessons/ConceptListNudge";
-import { DocumentEditor } from "@/components/teacher/DocumentEditor";
 import { MaterialsSection } from "@/components/teacher/MaterialsSection";
-import { NoteEditor } from "@/components/teacher/NoteEditor";
-import { WritingEditor } from "@/components/teacher/WritingEditor";
-import { SimPicker } from "@/components/teacher/SimPicker";
-import { SolutionEditor } from "@/components/teacher/SolutionEditor";
 import { StudentViewPicker } from "@/components/teacher/StudentViewPicker";
-import { TableEditor } from "@/components/teacher/TableEditor";
+import { WorkspaceSection } from "@/components/teacher/WorkspaceElements";
 import { useCopilotEntry } from "@/components/teacher/copilot";
 import type { ActivityBuilder } from "@/hooks/useActivityBuilder";
 import { TeachingGoalLint, TutorNotesField } from "@/components/teacher/TeachingGoalLint";
@@ -26,13 +17,9 @@ import { useT } from "@/i18n";
 import { languageHint, tableHints, type BuilderHint } from "@/lib/builderHints";
 import { runGoalLint, type GoalLintContext } from "@/lib/teachingGoalLint";
 
-// Living concept map (CONCEPT-1 M1) — dark-flagged like the authoring co-pilot;
-// bakes at build time (cloudbuild `_CONCEPT_MAP`), on for dev.
-const CONCEPT_MAP_ENABLED = process.env.NEXT_PUBLIC_CONCEPT_MAP === "1";
-
 interface ActivityBuilderBodyProps {
   builder: ActivityBuilder;
-  /** The template strip (create page only), rendered at the top of the config
+  /** The template choice (create page only), rendered at the top of the config
    *  column so the live preview sits BESIDE it — clicking through templates
    *  re-renders the student view, which is the preview a teacher chooses by. */
   templateSlot?: ReactNode;
@@ -40,33 +27,42 @@ interface ActivityBuilderBodyProps {
    *  attached to the activity slot (1.1.44). Edit page: route param; create
    *  page: the resolved concept skill id. */
   activityId?: string;
-  /** The class control for the Setup section — a `<select>` on the create page,
-   *  a read-only line on the edit page (class is fixed once an activity exists). */
+  /** The class control for the Setup section — a `<select>` on the create page.
+   *  The edit page has none: an activity's classes are its assignments. */
   classControl?: ReactNode;
-  /** The read-only inherited tutor — needs the page's classId, so it's passed
-   *  in rather than resolved here. */
-  tutorSlot?: ReactNode;
+  /** The tutor summary row's value — who teaches this activity in each class
+   *  that runs it (`ClassTutorSummary`). Resolved by the page, which knows the
+   *  classes; the row itself is rendered here (UI sweep 2026-11-11). */
+  tutorSummary?: ReactNode;
+  /** Where the tutor row's "Change in the class" link goes. */
+  tutorChangeHref?: string;
   /** 1.1.141 M2 — the class (and activity) the teaching goal is linted
    *  against: its tutor's approach decides which lines would conflict. */
   lintContext?: GoalLintContext;
-  /** Actions row (Create / Save), rendered under the config column. */
-  footer: ReactNode;
+  /** Actions row under the config column (optional: both pages now put their
+   *  Save / Create in the page header). */
+  footer?: ReactNode;
   /** Optional error/alert node rendered above the footer. */
   error?: ReactNode;
 }
 
 /**
  * The activity-builder workspace, shared by the create and edit pages (1.1.40
- * M1) so they can't drift. Two columns on wide screens: four colour-coded
- * config sections on the left, the live student preview pinned beside them on
+ * M1) so they can't drift. Two columns on wide screens: a summary block and
+ * four sections on the left, the live student preview pinned beside them on
  * the right. Both pages feed it the same `useActivityBuilder` state.
+ *
+ * UI sweep 2026-11-11: the "where settings live" map is gone (the tutor row
+ * names the tutor per class and links there); the tutor, the student view and
+ * the opening are one summary block; the workspace adds on demand.
  */
 export function ActivityBuilderBody({
   builder,
   templateSlot,
   activityId,
   classControl,
-  tutorSlot,
+  tutorSummary,
+  tutorChangeHref = "/teacher/classes",
   lintContext,
   footer,
   error,
@@ -88,9 +84,16 @@ export function ActivityBuilderBody({
     : undefined;
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,46rem)_minmax(0,1fr)]">
-      {/* LEFT — configuration, grouped into four colour-coded sections. */}
+      {/* LEFT — configuration. */}
       <div className="flex min-w-0 flex-col gap-4">
         {templateSlot}
+
+        {/* Three settings that used to sit in three different sections (or,
+            for the tutor, said "Default tutor" whenever the URL carried no
+            class) as one block. Each row says what is set and opens its
+            existing editor in place. */}
+        <SummaryBlock builder={b} tutorSummary={tutorSummary} tutorChangeHref={tutorChangeHref} />
+
         <BuilderSectionNav
           counts={{
             [SECTION.workspace.id]: b.workspaceCount,
@@ -112,7 +115,7 @@ export function ActivityBuilderBody({
                   onChange={(e) => b.setTitle(e.target.value)}
                   placeholder={t("namePlaceholder")}
                   maxLength={200}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-border px-3 py-2 text-sm"
                 />
               </Field>
             </div>
@@ -124,25 +127,22 @@ export function ActivityBuilderBody({
                   id="activity-language"
                   value={b.language}
                   onChange={(e) => b.setLanguage(e.target.value as ActivityBuilder["language"])}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  className="w-full rounded-md border border-border px-3 py-2 text-sm"
                 >
-                  <option value="da">Dansk</option>
-                  <option value="en">English</option>
+                  {/* Endonyms: each language named in itself, never translated. */}
+                  <option value="da" translate="no">
+                    Dansk
+                  </option>
+                  <option value="en" translate="no">
+                    English
+                  </option>
                 </select>
               </Field>
             </div>
           </div>
-          <span className="-mt-2 text-xs text-slate-500">{t("languageHelp")}</span>
+          <span className="-mt-2 text-xs text-muted-foreground">{t("languageHelp")}</span>
 
           {classControl}
-
-          {/* The tutor is class-default-only (1.1.32 Q4): chosen once in class
-              settings, inherited by every activity. Shown read-only here so the
-              teacher knows which tutor teaches this + where to change it. */}
-          {tutorSlot}
-
-          {/* 2026-11-09 — how the students' screen is arranged (lib/studentView). */}
-          <StudentViewPicker value={b.studentView} onChange={b.setStudentView} />
         </BuilderSection>
 
         <BuilderSection section={SECTION.lesson}>
@@ -161,110 +161,23 @@ export function ActivityBuilderBody({
               placeholder={t("goalPlaceholder")}
               rows={6}
               maxLength={2000}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="w-full rounded-md border border-border px-3 py-2 text-sm"
             />
           </Field>
-          <p className="text-xs text-slate-500">
-            {t("goalHelp")}
-          </p>
+          <p className="text-xs text-muted-foreground">{t("goalHelp")}</p>
           <TeachingGoalLint builder={b} />
           <TutorNotesField builder={b} />
-          <ActivityOpeningEditor builder={b} />
         </BuilderSection>
 
         <BuilderSection section={SECTION.workspace}>
-          <p className="flex items-start gap-1.5 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-500">
-            <MessageCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            <span>
-              {t("workspaceIntro")}
-            </span>
-          </p>
-
-          <SimPicker value={b.artefactId} onChange={b.setArtefactId} />
-
-          <div className="flex flex-col gap-2">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-slate-700">{t("checklist")}</span>
-              <button
-                type="button"
-                onClick={b.addChecklistItem}
-                className="flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs font-medium text-slate-600 hover:bg-slate-50"
-              >
-                <Plus className="h-3.5 w-3.5" /> {t("addStep")}
-              </button>
-            </div>
-            <p className="text-xs text-slate-500">
-              {t("checklistHelp")}
-            </p>
-            {b.checklist.length === 0 ? (
-              <p className="rounded border border-dashed border-slate-200 px-3 py-2 text-xs text-slate-400">
-                {t("noChecklist")}
-              </p>
-            ) : (
-              <ul className="flex flex-col gap-2">
-                {b.checklist.map((item, idx) => (
-                  <li key={item.key} className="flex items-center gap-2">
-                    <span className="w-5 text-right text-xs text-slate-400">{idx + 1}.</span>
-                    <input
-                      type="text"
-                      aria-label={t("stepAria", { n: idx + 1 })}
-                      value={item.label}
-                      onChange={(e) => b.setChecklistLabel(item.key, e.target.value)}
-                      placeholder={t("stepPlaceholder")}
-                      maxLength={200}
-                      className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => b.removeChecklistItem(item.key)}
-                      aria-label={t("removeStep", { n: idx + 1 })}
-                      className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-
-          <TableEditor value={b.table} onChange={b.setTable} nextKey={b.nextElementKey} />
-
-          <ChartEditor value={b.chart} onChange={b.setChart} tables={b.table} />
-
-          <CalculatorEditor value={b.calculator} onChange={b.setCalculator} />
-
-          <NoteEditor value={b.note} onChange={b.setNote} />
-          <WritingEditor value={b.writing} onChange={b.setWriting} nextKey={b.nextElementKey} />
-
-          <SolutionEditor value={b.solution} onChange={b.setSolution} />
-
-          <DocumentEditor value={b.document} onChange={b.setDocument} />
-
-          {/* 1.1.139 M3 — the before-lesson nudge: the lesson overview is only
-              as good as this activity's list of concepts. */}
-          {CONCEPT_MAP_ENABLED && (
-            <ConceptListNudge
-              activityId={activityId}
-              hasConcepts={(b.conceptMap?.nodes.length ?? 0) > 0}
-              onPropose={proposeConceptMap}
-            />
-          )}
-          {CONCEPT_MAP_ENABLED && (
-            <ConceptMapEditor
-              value={b.conceptMap}
-              onChange={b.setConceptMap}
-              nextKey={b.nextElementKey}
-              onPropose={proposeConceptMap}
-            />
-          )}
+          <WorkspaceSection builder={b} activityId={activityId} onProposeConceptMap={proposeConceptMap} />
         </BuilderSection>
 
         <BuilderSection section={SECTION.materials}>
           <MaterialsSection materials={b.materials} onChange={b.setMaterials} activityId={activityId} />
         </BuilderSection>
 
-        {/* 1.1.151 — soft hints beside save; never blocking. */}
+        {/* 1.1.151 — soft hints; never blocking. */}
         <BuilderHints hints={hints} />
         {error}
         {footer}
@@ -295,6 +208,143 @@ export function ActivityBuilderBody({
   );
 }
 
+/** The "what is set, and change it here" rows at the top of the builder. */
+function SummaryBlock({
+  builder: b,
+  tutorSummary,
+  tutorChangeHref,
+}: {
+  builder: ActivityBuilder;
+  tutorSummary?: ReactNode;
+  tutorChangeHref: string;
+}) {
+  const t = useT("ActivitySummary");
+  const tView = useT("StudentViewPicker");
+  const [viewOpen, setViewOpen] = useState(false);
+  // The opening auto-opens while any of its fields carries something, so a
+  // teacher who wrote an introduction sees it, not a summary of it. Their own
+  // open/close click wins from then on.
+  const [openingChoice, setOpeningChoice] = useState<boolean | null>(null);
+  const prompts = b.starterPrompts.filter((p) => p.trim()).length;
+  const openingSet = Boolean(b.studentOpening.trim() || b.openingByTeacher || b.starterPrompts.length > 0);
+  const openingOpen = openingChoice ?? openingSet;
+  const openingParts = [
+    b.openingByTeacher ? t("openingByTeacher") : b.studentOpening.trim() ? t("openingOwn") : t("openingDefault"),
+    prompts > 0 ? t("openingPrompts", { count: prompts }) : t("openingDefaultPrompts"),
+  ];
+
+  return (
+    <div
+      data-testid="activity-summary"
+      className="divide-y divide-border rounded-lg border border-border bg-background text-sm"
+    >
+      {tutorSummary !== undefined ? (
+        <SummaryRow
+          label={t("tutor")}
+          value={tutorSummary}
+          action={
+            <Link href={tutorChangeHref} className="text-sm font-medium text-primary hover:underline">
+              {t("changeInClass")}
+            </Link>
+          }
+        />
+      ) : null}
+      <SummaryRow
+        label={t("studentView")}
+        value={
+          <>
+            <span className="font-medium text-foreground">{tView(`${b.studentView}_title`)}</span>
+            <span className="text-muted-foreground"> · {tView(`${b.studentView}_desc`)}</span>
+          </>
+        }
+        action={
+          <ToggleLink
+            open={viewOpen}
+            onClick={() => setViewOpen((v) => !v)}
+            controls="summary-student-view"
+            label={t("studentView")}
+          />
+        }
+      >
+        {viewOpen ? (
+          <div id="summary-student-view">
+            <StudentViewPicker value={b.studentView} onChange={b.setStudentView} />
+          </div>
+        ) : null}
+      </SummaryRow>
+      <SummaryRow
+        label={t("opening")}
+        value={<span className="text-foreground">{openingParts.join(" · ")}</span>}
+        action={
+          <ToggleLink
+            open={openingOpen}
+            onClick={() => setOpeningChoice(!openingOpen)}
+            controls="summary-opening"
+            label={t("opening")}
+          />
+        }
+      >
+        {openingOpen ? (
+          <div id="summary-opening">
+            <ActivityOpeningEditor builder={b} />
+          </div>
+        ) : null}
+      </SummaryRow>
+    </div>
+  );
+}
+
+function SummaryRow({
+  label,
+  value,
+  action,
+  children,
+}: {
+  label: string;
+  value: ReactNode;
+  action?: ReactNode;
+  children?: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-3 px-3 py-2.5">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:gap-3">
+        <span className="shrink-0 text-xs font-medium uppercase tracking-wide text-muted-foreground sm:w-36 sm:pt-0.5">
+          {label}
+        </span>
+        <div className="min-w-0 flex-1">{value}</div>
+        {action ? <div className="shrink-0">{action}</div> : null}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ToggleLink({
+  open,
+  onClick,
+  controls,
+  label,
+}: {
+  open: boolean;
+  onClick: () => void;
+  controls: string;
+  label: string;
+}) {
+  const t = useT("ActivitySummary");
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-expanded={open}
+      aria-controls={controls}
+      aria-label={open ? t("closeAria", { label }) : t("changeAria", { label })}
+      className="text-sm font-medium text-primary hover:underline"
+    >
+      {open ? t("close") : t("change")}
+    </button>
+  );
+}
+
 /** Every hint the builder's current state earns (1.1.151). */
 function collectBuilderHints(b: ActivityBuilder): BuilderHint[] {
   const labels = [
@@ -321,7 +371,7 @@ function Field({
 }) {
   return (
     <label htmlFor={htmlFor} className="flex flex-col gap-1">
-      <span className="text-sm font-medium text-slate-700">{label}</span>
+      <span className="text-sm font-medium text-foreground">{label}</span>
       {children}
     </label>
   );

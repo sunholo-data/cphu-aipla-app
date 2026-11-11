@@ -34,7 +34,34 @@ const CHART_KINDS: { value: ChartKind }[] = [{ value: "scatter" }, { value: "lin
 
 /** ELEMENT_REGISTRY["chart"].max_items — the backend cap, mirrored so the UI can
  *  explain itself rather than silently refusing an Add. */
-const MAX_CHARTS = 5;
+export const MAX_CHARTS = 5;
+
+/** The columns a chart may put on an axis: labelled, numeric. */
+function numericColumnsOf(t: TableEditorValue | null) {
+  return (t?.columns ?? [])
+    .filter((c) => c.label.trim())
+    .map((c) => ({ ...c, mintedId: mintedColumnId(c) }))
+    .filter((c) => (c.kind ?? "number") === "number");
+}
+
+/** A new chart, bound like the editor's own Add: the first table, its first two
+ *  numeric columns. Exported so the builder's "Add to the workspace" menu adds
+ *  exactly what this editor's Add button adds (UI sweep 2026-11-11). */
+export function newChart(charts: ChartEditorValue[], tables: TableEditorValue[]): ChartEditorValue {
+  const defaultTable = tables[0] ?? null;
+  const numeric = numericColumnsOf(defaultTable);
+  return {
+    id: `chart-${charts.length + 1}`,
+    title: "",
+    chartKind: "scatter",
+    tableId: defaultTable ? mintedTableId(defaultTable) : null,
+    // Default to the first two numeric columns — the same pair auto-bind
+    // would have chosen, so adding a chart and changing nothing behaves
+    // exactly as it did before this editor grew axis pickers.
+    xColumn: numeric[0]?.mintedId ?? null,
+    yColumn: numeric[1]?.mintedId ?? null,
+  };
+}
 
 /** Resolve which table a chart plots.
  *
@@ -77,11 +104,7 @@ export function ChartEditor({ value, onChange, tables }: ChartEditorProps) {
   // question 2): one table should not grow a dropdown that can only say one
   // thing.
   const showTablePicker = allTables.length > 1;
-  const numericOf = (t: TableEditorValue | null) =>
-    (t?.columns ?? [])
-      .filter((c) => c.label.trim())
-      .map((c) => ({ ...c, mintedId: mintedColumnId(c) }))
-      .filter((c) => (c.kind ?? "number") === "number");
+  const numericOf = numericColumnsOf;
   // Column ids are minted POSITIONALLY at conversion (`col-{n}` over the
   // label-bearing columns — see `tableDefs` in lib/activityPreview). The axis
   // pickers must therefore speak the same minted ids, and deleting a column
@@ -101,21 +124,7 @@ export function ChartEditor({ value, onChange, tables }: ChartEditorProps) {
   const update = (idx: number, patch: Partial<ChartEditorValue>) =>
     onChange(charts.map((c, i) => (i === idx ? { ...c, ...patch } : c)));
 
-  const add = () =>
-    onChange([
-      ...charts,
-      {
-        id: `chart-${charts.length + 1}`,
-        title: "",
-        chartKind: "scatter",
-        tableId: defaultTable ? mintedTableId(defaultTable) : null,
-        // Default to the first two numeric columns — the same pair auto-bind
-        // would have chosen, so adding a chart and changing nothing behaves
-        // exactly as it did before this editor grew axis pickers.
-        xColumn: numericColumns[0]?.mintedId ?? null,
-        yColumn: numericColumns[1]?.mintedId ?? null,
-      },
-    ]);
+  const add = () => onChange([...charts, newChart(charts, allTables)]);
 
   return (
     <div className="flex flex-col gap-2">

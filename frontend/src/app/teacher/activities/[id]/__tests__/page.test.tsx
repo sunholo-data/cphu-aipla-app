@@ -65,6 +65,10 @@ vi.mock("@/lib/teacherApi", async () => {
       defaultId: "sofie",
     })),
     getClass: vi.fn(async (id: string) => ({ classId: id, persona: null })),
+    // UI sweep 2026-11-11 — the tutor row reads the activity's ASSIGNMENTS
+    // (the classes that run it), not the URL's classId.
+    listClasses: vi.fn(async () => []),
+    fetchTutorCatalogue: vi.fn(async () => ({ tutors: [], skillBoundTutors: [], frameworks: [] })),
     // The editor now renders the full builder body (sim picker + element
     // editors + live preview). Stub the catalogue; the preview tree has its own
     // test, so stub it too (mirrors the create-page test).
@@ -82,10 +86,16 @@ vi.mock("@/components/teacher/ActivityOpeningEditor", () => ({
 }));
 
 import TeacherActivityConfigPage from "@/app/teacher/activities/[id]/page";
+import { Toaster } from "@/components/ui/toast";
 import {
+  type ClassPayload,
+  type TutorCatalogue,
   NotFoundError,
   fetchActivity,
   fetchMyActivityConfig,
+  fetchPersonaCatalogue,
+  fetchTutorCatalogue,
+  listClasses,
   saveActivityConfig,
   updateActivity,
 } from "@/lib/teacherApi";
@@ -95,8 +105,16 @@ import { LocaleProvider } from "@/i18n";
 // 1.1.108 M2 — these tests assert the English copy; the teacher UI defaults to
 // Danish, so render inside an English locale (the teacher chose EN).
 function EnglishUI({ children }: { children: React.ReactNode }) {
-  return <LocaleProvider locale="en">{children}</LocaleProvider>;
+  return (
+    <LocaleProvider locale="en">
+      {children}
+      <Toaster />
+    </LocaleProvider>
+  );
 }
+
+/** Save sits in the header AND at the end of the form; either submits. */
+const saveButton = () => screen.getAllByRole("button", { name: /^save$/i })[0];
 const render = (ui: React.ReactElement, options?: Omit<RenderOptions, "wrapper">) =>
   rtlRender(ui, { wrapper: EnglishUI, ...options });
 
@@ -104,6 +122,7 @@ const fetchMock = vi.mocked(fetchActivity);
 const saveMock = vi.mocked(updateActivity);
 const legacyFetchMock = vi.mocked(fetchMyActivityConfig);
 const legacySaveMock = vi.mocked(saveActivityConfig);
+const listClassesMock = vi.mocked(listClasses);
 
 beforeEach(() => {
   nav.params = { id: "act-real-123" };
@@ -117,6 +136,8 @@ beforeEach(() => {
   legacyFetchMock.mockReset();
   legacyFetchMock.mockRejectedValue(new NotFoundError());
   legacySaveMock.mockClear();
+  listClassesMock.mockReset();
+  listClassesMock.mockResolvedValue([]);
 });
 
 describe("/teacher/activities/[id] — real activity editor", () => {
@@ -140,14 +161,16 @@ describe("/teacher/activities/[id] — real activity editor", () => {
     render(<TeacherActivityConfigPage />);
 
     // Blocks on the network load first.
-    expect(screen.getByText(/loading activity/i)).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: /loading activity/i })).toBeInTheDocument();
 
     const textarea = (await screen.findByRole("textbox", {
       name: /teaching goal/i,
     })) as HTMLTextAreaElement;
     expect(textarea.value).toBe("Discover component independence");
     expect(fetchMock).toHaveBeenCalledWith("act-real-123");
-    expect(screen.getByText(/configure: projectile motion/i)).toBeInTheDocument();
+    // UI sweep 2026-11-11 — the h1 is the activity's name, no "Configure".
+    expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(/^Projectile motion/);
+    expect(screen.queryByText(/configure/i)).toBeNull();
   });
 
   it("renders an empty form for a not-yet-saved activity (404, no mock)", async () => {
@@ -160,20 +183,21 @@ describe("/teacher/activities/[id] — real activity editor", () => {
     expect(textarea.value).toBe("");
   });
 
-  it("keeps Code as a v2 roadmap tab, ships History as real, and drops Parameters", async () => {
+  // UI sweep 2026-11-11 — the Code tab was a roadmap mock (fake Boldkast
+  // source, three fake green checks, an internal note to M/JB) shown to every
+  // teacher. It is gone, and so is the tab bar.
+  it("has no tab bar and no Code mock", async () => {
     render(<TeacherActivityConfigPage />);
     await screen.findByRole("textbox", { name: /teaching goal/i });
-    // Parameters was dropped (parked: conflicts with the research baseline).
-    expect(screen.queryByRole("tab", { name: /parameters/i })).not.toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: /code/i })).toHaveTextContent(/v2/i);
-    // History is no longer a pure roadmap stub — it ships a real provenance panel
-    // (M-HIST), so its tab carries no "v2" badge.
-    const historyTab = screen.getByRole("tab", { name: /history/i });
-    expect(historyTab).toBeInTheDocument();
-    expect(historyTab).not.toHaveTextContent(/v2/i);
+    expect(screen.queryByRole("tablist")).toBeNull();
+    expect(screen.queryByRole("tab")).toBeNull();
+    expect(screen.queryByText(/open question/i)).toBeNull();
+    expect(screen.queryByText(/boldkast simulation source/i)).toBeNull();
+    expect(screen.queryByText(/12[.,]4 KB/)).toBeNull();
+    expect(screen.queryByText(/where settings live/i)).toBeNull();
   });
 
-  it("History tab shows adapted-from provenance + lifecycle for an adopted activity", async () => {
+  it("the history line shows adapted-from provenance + lifecycle for an adopted activity", async () => {
     fetchMock.mockResolvedValueOnce({
       activityId: "act-real-123",
       ownerUid: "teacher-1",
@@ -195,16 +219,15 @@ describe("/teacher/activities/[id] — real activity editor", () => {
     });
     render(<TeacherActivityConfigPage />);
     await screen.findByRole("textbox", { name: /teaching goal/i });
-    fireEvent.click(screen.getByRole("tab", { name: /history/i }));
 
-    const panel = await screen.findByRole("tabpanel", { name: /history/i });
-    expect(panel).toHaveTextContent(/adapted from/i);
-    expect(panel).toHaveTextContent("Bob Jensen");
-    expect(panel).toHaveTextContent(/published/i);
-    expect(panel).not.toHaveTextContent(/from scratch/i);
+    const line = screen.getByTestId("activity-history");
+    expect(line).toHaveTextContent(/Created 22 Jun 2026/);
+    expect(line).toHaveTextContent(/Last edited 24 Jun 2026/);
+    expect(line).toHaveTextContent(/Shared with colleagues/);
+    expect(line).toHaveTextContent(/Adapted from Bob Jensen/);
   });
 
-  it("tells a researcher whose activity they are editing, and History says who last edited it (1.1.123)", async () => {
+  it("tells a researcher whose activity they are editing, and the history line says who last edited it (1.1.123)", async () => {
     authState.uid = "researcher-rae";
     fetchMock.mockResolvedValueOnce({
       activityId: "act-real-123",
@@ -231,9 +254,10 @@ describe("/teacher/activities/[id] — real activity editor", () => {
       expect(screen.getByTestId("acting-for-owner-banner")).toHaveTextContent(
         "You are editing Bob Jensen’s activity as a researcher.",
       );
-      fireEvent.click(screen.getByRole("tab", { name: /history/i }));
-      const panel = await screen.findByRole("tabpanel", { name: /history/i });
-      expect(panel).toHaveTextContent(/Last edited by Rae/);
+      expect(screen.getByTestId("activity-history")).toHaveTextContent(/Last edited .* by Rae/);
+      // A researcher reads across every teacher's classes, or the owner's
+      // would never be found for the tutor row.
+      await waitFor(() => expect(listClassesMock).toHaveBeenCalledWith("all"));
     } finally {
       authState.uid = "teacher-1";
     }
@@ -261,7 +285,7 @@ describe("/teacher/activities/[id] — real activity editor", () => {
     expect(screen.queryByTestId("acting-for-owner-banner")).not.toBeInTheDocument();
   });
 
-  it("History tab shows a from-scratch lifecycle (no provenance) for an original activity", async () => {
+  it("the history line shows a from-scratch lifecycle (no provenance) for an original activity", async () => {
     fetchMock.mockResolvedValueOnce({
       activityId: "act-real-123",
       ownerUid: "teacher-1",
@@ -282,12 +306,10 @@ describe("/teacher/activities/[id] — real activity editor", () => {
     });
     render(<TeacherActivityConfigPage />);
     await screen.findByRole("textbox", { name: /teaching goal/i });
-    fireEvent.click(screen.getByRole("tab", { name: /history/i }));
 
-    const panel = await screen.findByRole("tabpanel", { name: /history/i });
-    expect(panel).toHaveTextContent(/from scratch/i);
-    expect(panel).not.toHaveTextContent(/adapted from/i);
-    expect(panel).toHaveTextContent(/private/i);
+    const line = screen.getByTestId("activity-history");
+    expect(line).not.toHaveTextContent(/adapted from/i);
+    expect(line).toHaveTextContent(/Private — your classes only/);
   });
 
   it("saves with the real classId + activityId", async () => {
@@ -297,7 +319,7 @@ describe("/teacher/activities/[id] — real activity editor", () => {
       name: /teaching goal/i,
     })) as HTMLTextAreaElement;
     fireEvent.change(textarea, { target: { value: "New goal" } });
-    fireEvent.click(screen.getByRole("button", { name: /save configuration/i }));
+    fireEvent.click(saveButton());
 
     await waitFor(() => {
       // ALS-1 M0: PATCH /api/activities/{id} — (activityId, body). The body
@@ -307,7 +329,7 @@ describe("/teacher/activities/[id] — real activity editor", () => {
         expect.objectContaining({ teachingGoal: "New goal" }),
       );
     });
-    expect(screen.getByRole("status").textContent ?? "").toMatch(/saved\b/i);
+    expect(await screen.findByText(/^Saved/)).toBeInTheDocument();
   });
 
   it("round-trips a loaded activity's elements + sim on save (no data loss)", async () => {
@@ -347,7 +369,7 @@ describe("/teacher/activities/[id] — real activity editor", () => {
     })) as HTMLTextAreaElement;
     expect(textarea.value).toBe("Discover the optimal angle");
     fireEvent.change(textarea, { target: { value: "Discover the optimal launch angle" } });
-    fireEvent.click(screen.getByRole("button", { name: /save configuration/i }));
+    fireEvent.click(saveButton());
 
     await waitFor(() => expect(saveMock).toHaveBeenCalledTimes(1));
     const body = saveMock.mock.calls[0][1];
@@ -368,7 +390,7 @@ describe("/teacher/activities/[id] — real activity editor", () => {
   it("shows an error panel when the load fails (non-404)", async () => {
     fetchMock.mockRejectedValueOnce(new Error("boom"));
     render(<TeacherActivityConfigPage />);
-    expect(await screen.findByRole("alert")).toHaveTextContent(/could not load/i);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/could not be loaded/i);
   });
 
   it("shows the error state (never mock data) when a LEGACY activity arrives without a classId", () => {
@@ -377,7 +399,7 @@ describe("/teacher/activities/[id] — real activity editor", () => {
     nav.params = { id: "legacy-skill-uuid" };
     nav.search = new Map(); // no classId
     render(<TeacherActivityConfigPage />);
-    expect(screen.getByRole("alert")).toHaveTextContent(/could not load/i);
+    expect(screen.getByRole("alert")).toHaveTextContent(/could not be loaded/i);
   });
 
   it("dual-read: a LEGACY (non-act) id loads + saves via the per-class config store", async () => {
@@ -400,11 +422,77 @@ describe("/teacher/activities/[id] — real activity editor", () => {
     expect(textarea.value).toBe("Old goal");
     expect(legacyFetchMock).toHaveBeenCalledWith("c-1", "legacy-skill-uuid");
     fireEvent.change(textarea, { target: { value: "Edited" } });
-    fireEvent.click(screen.getByRole("button", { name: /save configuration/i }));
+    fireEvent.click(saveButton());
     await waitFor(() =>
       expect(legacySaveMock).toHaveBeenCalledWith(
         expect.objectContaining({ activityId: "legacy-skill-uuid", classId: "c-1", teachingGoal: "Edited" }),
       ),
     );
+  });
+  // UI sweep 2026-11-11 — every link into the editor except the post-create one
+  // omitted ?classId=, and with no classId the tutor box said "Default tutor —
+  // this class hasn't chosen one yet" even when every class had one.
+  it("names the tutor in every class that runs the activity, with no classId in the URL", async () => {
+    nav.search = new Map(); // the library's link, which carries no class
+    fetchMock.mockResolvedValueOnce({
+      activityId: "act-real-123",
+      ownerUid: "teacher-1",
+      skillId: "concept",
+      visibility: "private",
+      classId: "",
+      teacherUid: "teacher-1",
+      title: "Bohr",
+      teachingGoal: "Goal",
+      language: "da",
+      difficulty: "standard",
+      pairedWorkbench: null,
+      materials: [],
+      updatedAt: "2026-06-24T10:00:00Z",
+    });
+    listClassesMock.mockResolvedValue([
+      { classId: "c-7b", name: "2.g Fysik B", activityIds: ["act-real-123"], tutorId: "tu-sofie" },
+      { classId: "c-3x", name: "3.x Fysik A", activityIds: ["act-real-123"], tutorId: "tu-niels" },
+      { classId: "c-other", name: "Not this one", activityIds: ["act-else"], tutorId: null },
+    ] as unknown as ClassPayload[]);
+    vi.mocked(fetchPersonaCatalogue).mockResolvedValueOnce({
+      personas: [
+        { id: "sofie", name: "Sofie", title: null, avatar: "", language: "da", interactionStyle: "socratic", bio: null },
+        { id: "niels", name: "Niels", title: null, avatar: "", language: "da", interactionStyle: "rigorous", bio: null },
+      ],
+      defaultId: "sofie",
+      interactionStyles: [],
+    });
+    vi.mocked(fetchTutorCatalogue).mockResolvedValueOnce({
+      tutors: [
+        { id: "tu-sofie", personaId: "sofie", frameworkName: "POE" },
+        { id: "tu-niels", personaId: "niels", frameworkName: "CER" },
+      ],
+      skillBoundTutors: [],
+      frameworks: [],
+    } as unknown as TutorCatalogue);
+
+    render(<TeacherActivityConfigPage />);
+    const summary = await screen.findByTestId("class-tutor-summary");
+    expect(summary).toHaveTextContent("2.g Fysik B: Sofie (POE) · 3.x Fysik A: Niels (CER)");
+    expect(summary).not.toHaveTextContent("Not this one");
+    expect(screen.queryByText(/default tutor/i)).toBeNull();
+    expect(screen.getByRole("link", { name: "2.g Fysik B" })).toHaveAttribute("href", "/teacher/classes/c-7b");
+    // Two classes ⇒ "Change in the class" goes to the class list.
+    expect(screen.getByRole("link", { name: "Change in the class" })).toHaveAttribute("href", "/teacher/classes");
+  });
+
+  it("says the activity is in no class yet, rather than naming a default", async () => {
+    nav.search = new Map();
+    render(<TeacherActivityConfigPage />);
+    await screen.findByRole("textbox", { name: /teaching goal/i });
+    expect(await screen.findByText(/not assigned to a class yet/i)).toBeInTheDocument();
+  });
+
+  it("a failed load says so and retries", async () => {
+    fetchMock.mockRejectedValueOnce(new Error("boom"));
+    render(<TeacherActivityConfigPage />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/the activity could not be loaded/i);
+    fireEvent.click(screen.getByRole("button", { name: /try again/i }));
+    expect(await screen.findByRole("textbox", { name: /teaching goal/i })).toBeInTheDocument();
   });
 });

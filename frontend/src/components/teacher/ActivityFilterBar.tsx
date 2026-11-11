@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { BookOpen, Layers, Search, Tag } from "lucide-react";
+import { BookOpen, ChevronDown, Layers, Search, SlidersHorizontal, Tag } from "lucide-react";
 
 import { ActiveChip, ALL, FacetRow } from "@/components/teacher/ui/FacetRow";
 import { useT } from "@/i18n";
@@ -29,6 +29,11 @@ export const EMPTY_ACTIVITY_FILTERS: ActivityFilters = { q: "", level: "", subje
 
 export function hasActiveFilters(f: ActivityFilters): boolean {
   return Boolean(f.q.trim() || f.level || f.subject || f.tags.length);
+}
+
+/** How many facet filters are set (the search box is not one — it is visible). */
+export function facetFilterCount(f: ActivityFilters): number {
+  return (f.subject ? 1 : 0) + (f.level ? 1 : 0) + f.tags.length;
 }
 
 /** Filters → the API's param shape. Empty values are omitted, not sent blank. */
@@ -67,10 +72,16 @@ export function ActivityFilterBar({
   facets: CurriculumFacets | null;
   filters: ActivityFilters;
   onChange: (next: ActivityFilters) => void;
-  /** Distinguishes the two instances on the page (library vs catalogue). */
+  /** Distinguishes instances (ids of the search box and the facet panel). */
   idPrefix?: string;
 }) {
   const t = useT("ActivityFilterBar");
+  // UI sweep 2026-11-11 — the three facet rows (10–15 chips) sit behind one
+  // Filter button; the active-filter chips below stay visible either way, so a
+  // narrowed list always says why.
+  const [open, setOpen] = useState(false);
+  const facetCount = facetFilterCount(filters);
+  const panelId = `${idPrefix}-facets`;
   const set = (patch: Partial<ActivityFilters>) => onChange({ ...filters, ...patch });
   const toggleTag = (tag: string) =>
     set({ tags: filters.tags.includes(tag) ? filters.tags.filter((x) => x !== tag) : [...filters.tags, tag] });
@@ -79,46 +90,63 @@ export function ActivityFilterBar({
 
   return (
     <div className="space-y-2">
-      <div className="relative">
-        <Search
-          className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
-          aria-hidden="true"
-        />
-        <input
-          id={`${idPrefix}-search`}
-          type="search"
-          value={filters.q}
-          onChange={(e) => set({ q: e.target.value })}
-          placeholder={t("searchPlaceholder")}
-          aria-label={t("search")}
-          className="w-full rounded border border-border bg-background py-1.5 pl-8 pr-2 text-sm"
-        />
+      <div className="flex items-center gap-2">
+        <div className="relative min-w-0 flex-1">
+          <Search
+            className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <input
+            id={`${idPrefix}-search`}
+            type="search"
+            value={filters.q}
+            onChange={(e) => set({ q: e.target.value })}
+            placeholder={t("searchPlaceholder")}
+            aria-label={t("search")}
+            className="w-full rounded-md border border-border bg-background py-1.5 pl-8 pr-2 text-sm"
+          />
+        </div>
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          aria-controls={panelId}
+          className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-border bg-background px-3 text-sm font-medium hover:bg-muted"
+        >
+          <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+          {facetCount > 0 ? t("filterCount", { count: facetCount }) : t("filter")}
+          <ChevronDown className={`h-3.5 w-3.5 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
+        </button>
       </div>
 
-      {/* Subject options come from the server, never a hardcoded list — the
-          frontend used to keep its own copy of SUBJECTS and it drifted. */}
-      <FacetRow
-        label={t("subject")}
-        icon={<BookOpen className="h-3 w-3" aria-hidden="true" />}
-        options={facets?.subjects ?? []}
-        selected={filters.subject}
-        onSelect={(v) => set({ subject: v === ALL ? "" : v })}
-      />
-      <FacetRow
-        label={t("level")}
-        icon={<Layers className="h-3 w-3" aria-hidden="true" />}
-        options={facets?.levels ?? []}
-        selected={filters.level}
-        onSelect={(v) => set({ level: v === ALL ? "" : (v as LevelFilter) })}
-      />
-      <FacetRow
-        label={t("tags")}
-        icon={<Tag className="h-3 w-3" aria-hidden="true" />}
-        options={facets?.tags ?? []}
-        selected={filters.tags}
-        onSelect={toggleTag}
-        multi
-      />
+      {open ? (
+        <div id={panelId} className="space-y-2 rounded-md border border-border p-2">
+          {/* Subject options come from the server, never a hardcoded list — the
+              frontend used to keep its own copy of SUBJECTS and it drifted. */}
+          <FacetRow
+            label={t("subject")}
+            icon={<BookOpen className="h-3 w-3" aria-hidden="true" />}
+            options={facets?.subjects ?? []}
+            selected={filters.subject}
+            onSelect={(v) => set({ subject: v === ALL ? "" : v })}
+          />
+          <FacetRow
+            label={t("level")}
+            icon={<Layers className="h-3 w-3" aria-hidden="true" />}
+            options={facets?.levels ?? []}
+            selected={filters.level}
+            onSelect={(v) => set({ level: v === ALL ? "" : (v as LevelFilter) })}
+          />
+          <FacetRow
+            label={t("tags")}
+            icon={<Tag className="h-3 w-3" aria-hidden="true" />}
+            options={facets?.tags ?? []}
+            selected={filters.tags}
+            onSelect={toggleTag}
+            multi
+          />
+        </div>
+      ) : null}
 
       {hasActiveFilters(filters) ? (
         <div className="flex flex-wrap items-center gap-1.5 pt-1">
