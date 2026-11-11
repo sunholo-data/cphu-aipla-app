@@ -1,4 +1,4 @@
-import { render as rtlRender, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render as rtlRender, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { LocaleProvider } from "@/i18n";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -60,10 +60,24 @@ describe("BudgetPanel", () => {
     await waitFor(() => expect(screen.getByText(/no spend recorded/i)).toBeInTheDocument());
   });
 
-  it("surfaces an error", async () => {
-    vi.spyOn(costApi, "fetchClassSpend").mockRejectedValue(new Error("boom"));
+  it("surfaces an error, with the detail and a Retry that reads again", async () => {
+    const spy = vi
+      .spyOn(costApi, "fetchClassSpend")
+      .mockRejectedValueOnce(new Error("boom"))
+      .mockResolvedValue(payload());
     render(<BudgetPanel classId="c-1" />);
-    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/boom/));
+    await waitFor(() => expect(screen.getByRole("alert")).toHaveTextContent(/Spend could not be loaded/));
+    expect(screen.getByText(/boom/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+  });
+
+  it("can drop its own heading when the host section already says 'Spend'", async () => {
+    vi.spyOn(costApi, "fetchClassSpend").mockResolvedValue(payload());
+    render(<BudgetPanel classId="c-1" hideTitle />);
+    // Still named for screen readers, not shown twice.
+    expect(screen.getByRole("heading", { name: "Spend" })).toHaveClass("sr-only");
   });
 
   it("shows the voice cost line when voice_eur > 0 (1.1.9)", async () => {

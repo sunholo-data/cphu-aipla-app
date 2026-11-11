@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { BookOpen, Check, Info, Radio } from "lucide-react";
 import { TutorFace } from "@/components/teacher/research/TutorFace";
+import { Button } from "@/components/ui/button";
+import { LoadError } from "@/components/ui/load-error";
 import { useT } from "@/i18n";
 
 import {
@@ -48,6 +50,7 @@ export function TutorPicker({
   selectedTutorId,
   onChange,
   recordingEnabled = false,
+  compact = false,
 }: {
   classId: string;
   selectedTutorId: string | null;
@@ -56,6 +59,11 @@ export function TutorPicker({
    *  group-talk approach (Accountable Talk) is only pickable when it does —
    *  AR/JB, 2026-09-21: the moves are made of several students' statements. */
   recordingEnabled?: boolean;
+  /** UI sweep 2026-11 (class page › Opsætning): show the chosen tutor and a
+   *  "Skift tutor" button; the card grid opens on demand and closes once a
+   *  choice is saved. Every tutor, the approach summary and clearing the tutor
+   *  stay reachable — only the grid is one click away. */
+  compact?: boolean;
 }) {
   const t = useT("TutorPicker");
   const [tutors, setTutors] = useState<TutorPayload[]>([]);
@@ -64,11 +72,14 @@ export function TutorPicker({
   const [saving, setSaving] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(selectedTutorId);
   const [error, setError] = useState<string | null>(null);
+  const [gridOpen, setGridOpen] = useState(!compact);
+  const [loadNonce, setLoadNonce] = useState(0);
 
   useEffect(() => setSelected(selectedTutorId), [selectedTutorId]);
 
   useEffect(() => {
     let cancelled = false;
+    setState("loading");
     fetchTutorCatalogue()
       .then((cat) => {
         if (cancelled) return;
@@ -85,17 +96,18 @@ export function TutorPicker({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loadNonce]);
 
-  const choose = async (tutorId: string) => {
-    const next = tutorId === selected ? null : tutorId;
-    setSaving(tutorId);
+  const choose = async (tutorId: string | null) => {
+    const next = tutorId === null || tutorId === selected ? null : tutorId;
+    setSaving(tutorId ?? "__default");
     setError(null);
     const previous = selected;
     setSelected(next); // optimistic — the list is the teacher's own click
     try {
       await setClassTutor(classId, next);
       onChange?.(next);
+      if (compact) setGridOpen(false);
     } catch (err) {
       setSelected(previous);
       // A 409 carries the reason the pairing cannot work (e.g. the class is
@@ -110,10 +122,49 @@ export function TutorPicker({
     return <p className="text-sm text-muted-foreground">{t("loading")}</p>;
   }
   if (state === "error") {
+    // Was "Reload the page to try again" — a dead end on a page with unsaved
+    // edits elsewhere. Retry re-reads only the catalogue.
+    return <LoadError what={t("listWhat")} onRetry={() => setLoadNonce((n) => n + 1)} />;
+  }
+
+  if (compact && !gridOpen) {
+    const chosen = selected ? tutors.find((tu) => tu.id === selected) : undefined;
     return (
-      <p className="text-sm text-muted-foreground">
-        {t("loadFailed")}
-      </p>
+      <div className="space-y-2" data-testid="tutor-chosen">
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-border p-3">
+          {selected ? (
+            <>
+              <TutorFace avatar={chosen?.persona?.avatar} name={chosen?.displayName ?? selected} size="lg" />
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate font-medium text-foreground">{chosen?.displayName ?? selected}</span>
+                <span className="text-xs text-muted-foreground">{chosen?.frameworkName ?? t("noApproach")}</span>
+              </span>
+            </>
+          ) : (
+            <p className="flex min-w-0 flex-1 items-start gap-1.5 text-sm text-muted-foreground">
+              <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+              {t("noneChosen")}
+            </p>
+          )}
+          <Button size="sm" variant="secondary" onClick={() => setGridOpen(true)}>
+            {selected ? t("change") : t("choose")}
+          </Button>
+        </div>
+        {chosen?.frameworkSummary ? (
+          <details>
+            <summary className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+              <BookOpen className="h-3 w-3" aria-hidden />
+              {t("whatDoesItDo")}
+            </summary>
+            <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{chosen.frameworkSummary}</p>
+          </details>
+        ) : null}
+        {error ? (
+          <p role="alert" className="text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
+      </div>
     );
   }
 
@@ -137,15 +188,37 @@ export function TutorPicker({
         ))}
       </ul>
 
-      {error ? <p className="text-sm text-destructive">{error}</p> : null}
-
-
+      {error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
 
       {selected === null ? (
         <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
           <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
           {t("noneChosen")}
         </p>
+      ) : null}
+
+      {compact ? (
+        <div className="flex flex-wrap gap-2">
+          {/* Clearing used to be possible only by clicking the selected card
+              again, which nothing said. Still works; this says it. */}
+          {selected !== null ? (
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => void choose(null)}
+              pending={saving === "__default"}
+            >
+              {t("useDefault")}
+            </Button>
+          ) : null}
+          <Button size="sm" variant="secondary" onClick={() => setGridOpen(false)}>
+            {t("closeGrid")}
+          </Button>
+        </div>
       ) : null}
     </div>
   );
