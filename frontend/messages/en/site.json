@@ -52,6 +52,11 @@
     "confirmAria": "Confirm this action.",
     "loading": "Loading",
     "dismiss": "Dismiss",
-    "genericError": "Something went wrong. Try again."
+    "genericError": "Something went wrong. Try again.",
+    "loadFailed": "{what} could not be loaded",
+    "loadFailedDetail": "Nothing is lost. The server did not answer.",
+    "retry": "Try again",
+    "retrying": "Trying again…",
+    "moreActions": "More actions"
   }
 }

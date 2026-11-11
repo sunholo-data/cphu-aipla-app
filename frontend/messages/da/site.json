@@ -52,6 +52,11 @@
     "confirmAria": "Bekræft handlingen.",
     "loading": "Indlæser",
     "dismiss": "Luk",
-    "genericError": "Noget gik galt. Prøv igen."
+    "genericError": "Noget gik galt. Prøv igen.",
+    "loadFailed": "{what} kunne ikke hentes",
+    "loadFailedDetail": "Intet er gået tabt. Serveren svarede ikke.",
+    "retry": "Prøv igen",
+    "retrying": "Prøver igen…",
+    "moreActions": "Flere handlinger"
   }
 }
