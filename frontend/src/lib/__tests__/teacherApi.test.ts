@@ -419,18 +419,6 @@ describe("teacherApi — class voice / persona / capabilities", () => {
 // lessons / groups
 // ---------------------------------------------------------------------------
 describe("teacherApi — lessons & group codes", () => {
-  it("patchLessons: PATCH /classes/{id}/lessons with add/remove", async () => {
-    mockResp({ classId: "c1" });
-    await api.patchLessons("c1", { add: ["s1"], remove: ["s2"] });
-    expect(lastUrl()).toBe("/api/proxy/api/classes/c1/lessons");
-    const init = lastInit()!;
-    expect(init.method).toBe("PATCH");
-    expect(JSON.parse(init.body as string)).toEqual({
-      add: ["s1"],
-      remove: ["s2"],
-    });
-  });
-
   it("mintGroupCodes: POST /classes/{id}/groups with default count=1", async () => {
     mockResp({ classId: "c1", codes: ["abc"] });
     await api.mintGroupCodes("c1");

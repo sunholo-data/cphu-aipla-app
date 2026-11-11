@@ -1109,11 +1109,6 @@ export interface CreateClassBody {
   description?: string | null;
 }
 
-export interface LessonsPatchBody {
-  add?: string[];
-  remove?: string[];
-}
-
 export interface MintGroupsResult {
   classId: string;
   codes: string[];
@@ -1270,22 +1265,6 @@ export async function fetchVoiceList(
   const q = lang ? `?lang=${encodeURIComponent(lang)}` : "";
   const resp = await fetchWithAuth(`/api/proxy/api/voice/voices${q}`);
   return readJson<VoiceListResponse>(resp, "fetch voices");
-}
-
-/** Add and/or remove skills from a class's lessons. */
-export async function patchLessons(
-  classId: string,
-  body: LessonsPatchBody,
-): Promise<ClassPayload> {
-  const resp = await fetchWithAuth(
-    `/api/proxy/api/classes/${encodeURIComponent(classId)}/lessons`,
-    {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    },
-  );
-  return readJson<ClassPayload>(resp, "update activities");
 }
 
 /** Mint N group codes under a class. */
