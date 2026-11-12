@@ -399,7 +399,9 @@ describe("useActivityBuilder — applyTemplate", () => {
     const b = result.current;
     expect(b.title).toBe("Energy lab");
     expect(b.teachingGoal).toBe("Discover energy conservation");
-    expect(b.language).toBe("en");
+    // 2026-11-12 — a template no longer switches the students' language (the
+    // template is English; the builder keeps its default).
+    expect(b.language).toBe("da");
     expect(b.checklist.map((c) => c.label)).toEqual(["Set up", "Measure", "Conclude"]);
     expect(b.table[0]?.title).toBe("Run data");
     expect(b.table[0]?.columns.map((c) => c.label)).toEqual(["Height", "Speed"]);

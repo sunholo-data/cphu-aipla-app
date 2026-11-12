@@ -9,7 +9,7 @@ vi.mock("@/lib/apiClient", () => ({
 }));
 
 import { useTeacherFeature } from "../useTeacherFeature";
-import { conceptMapDefault, languageSeed } from "../useTeacherPrefs";
+import { conceptMapDefault, languageSeed, studentLanguageDefault } from "../useTeacherPrefs";
 
 beforeEach(() => mockFetch.mockReset());
 
@@ -38,6 +38,19 @@ describe("useTeacherFeature (tri-state, 1.1.58)", () => {
     const { result } = renderHook(() => useTeacherFeature("x", "beta"));
     await waitFor(() => expect(mockFetch).toHaveBeenCalled());
     expect(result.current).toBe(false);
+  });
+});
+
+describe("studentLanguageDefault (the class's language first, 2026-11-12)", () => {
+  it("uses the class's language when it has one, over the account default", () => {
+    expect(studentLanguageDefault("en", { defaultLanguage: "da" })).toBe("en");
+    expect(studentLanguageDefault("da-DK", { defaultLanguage: "en" })).toBe("da");
+  });
+
+  it("falls back to the account default, then Danish", () => {
+    expect(studentLanguageDefault(null, { defaultLanguage: "en" })).toBe("en");
+    expect(studentLanguageDefault("", {})).toBe("da");
+    expect(studentLanguageDefault("sv", {})).toBe("da");
   });
 });
 

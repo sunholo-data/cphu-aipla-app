@@ -37,7 +37,7 @@ interface TemplatePickerProps {
 
 // 1.1.108 M2 — copy lives in messages (namespace TemplatePicker). Families and
 // features are keyed `family_<id>` / `feature_<key>`.
-type FeatureKey =
+export type FeatureKey =
   | "sim"
   | "checklist"
   | "table"
@@ -84,10 +84,20 @@ export function templateFamily(t: ActivityTemplate): Family {
   return FAMILIES.dialogue;
 }
 
+/** One template per lesson shape, in the picker's family order — the short row
+ *  of examples on the new-activity wizard's first step (2026-11-12). Derived,
+ *  so a template added to a family can never leave the row stale. */
+export function featuredTemplates(): ActivityTemplate[] {
+  return FAMILY_ORDER.flatMap((id) => {
+    const first = ACTIVITY_TEMPLATES.find((tpl) => templateFamily(tpl).id === id);
+    return first ? [first] : [];
+  });
+}
+
 // The features each template demonstrates, in workspace order. Rendered as
 // at-a-glance pills so a teacher can pick a starting point by the tools it
 // shows — together the templates cover the whole element palette.
-function templateFeatures(t: ActivityTemplate): { key: FeatureKey; icon: LucideIcon }[] {
+export function templateFeatures(t: ActivityTemplate): { key: FeatureKey; icon: LucideIcon }[] {
   const f: { key: FeatureKey; icon: LucideIcon }[] = [];
   if (t.artefactId) f.push({ key: "sim", icon: FlaskConical });
   if (t.checklist.length) f.push({ key: "checklist", icon: ListChecks });

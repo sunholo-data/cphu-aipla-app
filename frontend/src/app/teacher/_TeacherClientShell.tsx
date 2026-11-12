@@ -52,6 +52,10 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
   // beside its assistant.
   const wide = pathname.startsWith("/teacher/activities/") || pathname.startsWith("/teacher/sims");
   const containerMax = wide ? "max-w-none" : "max-w-6xl";
+  // The new-activity wizard (2026-11-12) is a focused, stepped flow with its
+  // own sticky footer: no section nav beside it (or, on a phone, fixed over
+  // that footer). Cancel and the header mark lead out.
+  const focused = pathname.replace(/\/$/, "") === "/teacher/activities/new";
 
   // Show a minimal loading state while Firebase auth resolves.
   // useTeacherAuth will redirect to /teacher/sign-in if auth fails —
@@ -179,10 +183,14 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
       </header>
 
       <div className={cn("mx-auto flex w-full flex-1 px-4 sm:px-6", containerMax)}>
-        <TeacherNav />
+        {focused ? null : <TeacherNav />}
         {/* pb-24 on mobile clears the fixed bottom nav bar; reset at md. */}
-        <div className="flex min-w-0 flex-1 flex-col md:pl-6">
-          <main id="teacher-main" tabIndex={-1} className="flex-1 py-6 pb-24 outline-none sm:py-8 md:pb-8">
+        <div className={cn("flex min-w-0 flex-1 flex-col", !focused && "md:pl-6")}>
+          <main
+            id="teacher-main"
+            tabIndex={-1}
+            className={cn("flex-1 py-6 outline-none sm:py-8", focused ? "pb-6" : "pb-24 md:pb-8")}
+          >
             {children}
           </main>
           <SiteFooter />

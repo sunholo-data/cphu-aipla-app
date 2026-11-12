@@ -44,6 +44,20 @@ export function languageSeed(
   return untouched && prefs.defaultLanguage !== form.language ? prefs.defaultLanguage : null;
 }
 
+/** The students' language a NEW activity starts with (the new-activity wizard,
+ *  2026-11-12): the class's own language when it has one (`voice.language`,
+ *  set on the class page), else the account default, else Danish. The wizard
+ *  re-applies it when the teacher switches class, until they pick a language
+ *  themselves. A template no longer decides it (`applyTemplate`). */
+export function studentLanguageDefault(
+  classLanguage: string | null | undefined,
+  prefs: TeacherPrefs,
+): "da" | "en" {
+  const tag = (classLanguage ?? "").trim().slice(0, 2).toLowerCase();
+  if (tag === "da" || tag === "en") return tag;
+  return prefs.defaultLanguage ?? "da";
+}
+
 export function useTeacherPrefs() {
   const [prefs, setPrefs] = useState<TeacherPrefs>({});
   const [loaded, setLoaded] = useState(false);

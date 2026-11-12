@@ -4,7 +4,9 @@ import type { ReactElement } from "react";
 import { LocaleProvider } from "@/i18n";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("next/navigation", () => ({ usePathname: () => "/teacher/classes" }));
+// Mutable so a test can open the new-activity wizard's focused layout.
+const navState = vi.hoisted(() => ({ pathname: "/teacher/classes" }));
+vi.mock("next/navigation", () => ({ usePathname: () => navState.pathname }));
 // Mutable so a test can change the signed-in account. `vi.hoisted` because
 // `vi.mock` factories are hoisted above ordinary module scope.
 const authState = vi.hoisted(() => ({
@@ -43,6 +45,7 @@ beforeEach(() => {
   // Default: a plain teacher. Individual tests override for the researcher case.
   vi.spyOn(researcherHook, "useIsResearcher").mockReturnValue(false);
   flags.aiplaHelp = false;
+  navState.pathname = "/teacher/classes";
   authState.user = { displayName: "Ms Hansen", email: "hansen@ku.dk", photoURL: null };
 });
 
@@ -71,6 +74,22 @@ describe("TeacherClientShell", () => {
     expect(screen.getByRole("menuitem", { name: /Sign out/ })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /Settings/ })).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /Tutors/ })).toBeInTheDocument();
+  });
+
+  // 2026-11-12 — the new-activity wizard is a focused flow with its own sticky
+  // footer: no section nav (whose phone bar would sit on top of that footer),
+  // but the header, its Help menu and the site footer stay.
+  it("drops the section nav on the new-activity wizard, keeping the header and Help", () => {
+    navState.pathname = "/teacher/activities/new";
+    render(
+      <TeacherClientShell>
+        <p>wizard</p>
+      </TeacherClientShell>,
+    );
+    expect(screen.getByText("wizard")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: /Insights/ })).toBeNull();
+    expect(screen.getByRole("button", { name: /help/i })).toBeInTheDocument();
+    expect(screen.getByText("footer")).toBeInTheDocument();
   });
 
   // UI sweep 2026-11-11 — Guides left the nav; the header Help menu carries

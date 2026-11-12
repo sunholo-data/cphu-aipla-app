@@ -3,26 +3,39 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
-import { ArrowLeft, FilePlus2, LayoutTemplate, Save, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Rocket } from "lucide-react";
 
 import {
   type ClassPayload,
+  type Language,
   createActivity,
   listAccessibleSkills,
   listClasses,
+  setActivityVisibility,
 } from "@/lib/teacherApi";
-import { ClassTutorSummary, tutorSettingsHref } from "@/components/teacher/InheritedTutor";
-import { TemplatePicker } from "@/components/teacher/TemplatePicker";
-import { ActivityBuilderBody } from "@/components/teacher/ActivityBuilderBody";
+import { GoalStep } from "@/components/teacher/activity-wizard/GoalStep";
+import { ReviewStep } from "@/components/teacher/activity-wizard/ReviewStep";
+import {
+  WizardColumns,
+  WizardFooter,
+  WizardHeader,
+  WizardPreview,
+  WizardStepper,
+  type WizardStep,
+} from "@/components/teacher/activity-wizard/WizardFrame";
+import { WorkspaceSection } from "@/components/teacher/WorkspaceElements";
+import { useCopilotEntry } from "@/components/teacher/copilot";
 import { Button } from "@/components/ui/button";
 import { useConfirm } from "@/components/ui/confirm";
 import { LoadError } from "@/components/ui/load-error";
 import { PageSkeleton } from "@/components/ui/skeleton";
 import { notify } from "@/components/ui/toast";
 import { useActivityBuilder, type ActivityBuilder } from "@/hooks/useActivityBuilder";
+import { useUrlTab } from "@/hooks/useUrlTab";
 import { useT } from "@/i18n";
-import { ACTIVITY_TEMPLATES, type ActivityTemplate } from "@/lib/activityTemplates";
-import { conceptMapDefault, languageSeed, useTeacherPrefs } from "@/hooks/useTeacherPrefs";
+import type { ActivityTemplate } from "@/lib/activityTemplates";
+import { suggestActivityTitle } from "@/lib/suggestActivityTitle";
+import { conceptMapDefault, studentLanguageDefault, useTeacherPrefs } from "@/hooks/useTeacherPrefs";
 import { AuthoringCopilot } from "../[id]/_AuthoringCopilot";
 import { applyCopilotProposal } from "../applyCopilotProposal";
 import { runGoalLint } from "@/lib/teachingGoalLint";
@@ -43,12 +56,9 @@ type ClassesState =
   | { status: "empty" }
   | { status: "ready"; classes: ClassPayload[]; conceptSkillId: string };
 
-/** How the teacher chose to start (UI sweep 2026-11-11). */
-type Start =
-  | { mode: "choose" }
-  | { mode: "picking"; appliedId?: string }
-  | { mode: "template"; id: string; name: string }
-  | { mode: "blank" };
+/** The step, kept in the URL (`?step=`) so the browser's Back steps back. */
+const STEP_PARAMS = ["1", "2", "3"] as const;
+type StepParam = (typeof STEP_PARAMS)[number];
 
 /** The part of the form a template or "start over" would overwrite. */
 interface Baseline {
@@ -62,8 +72,8 @@ function snapshot(b: ActivityBuilder): Baseline {
 }
 
 /** Has the teacher typed or added anything a template would silently replace?
- *  Seeds (the `?brief=` goal, the account's language and empty concept map)
- *  are in the baseline, so they do not count. */
+ *  Seeds (the `?brief=` goal and the name suggested from it, the language and
+ *  the empty concept map) are in the baseline, so they do not count. */
 function hasOwnWork(b: ActivityBuilder, base: Baseline): boolean {
   return (
     b.title.trim() !== base.title ||
@@ -76,19 +86,27 @@ function hasOwnWork(b: ActivityBuilder, base: Baseline): boolean {
   );
 }
 
-// Wrapped in Suspense because the form reads useSearchParams() — Next.js
+// Wrapped in Suspense because the wizard reads useSearchParams() — Next.js
 // requires a Suspense boundary for that during static prerender.
 export default function NewActivityPage() {
   const t = useT("NewActivityPage");
   return (
     <Suspense fallback={<PageSkeleton label={t("loading")} />}>
-      <NewActivityForm />
+      <NewActivityWizard />
     </Suspense>
   );
 }
 
-function NewActivityForm() {
+/**
+ * Create an activity in three steps (2026-11-12): what students should learn,
+ * what they work with, check and start. Replaces the long form; the EDITOR
+ * (`activities/[id]`) keeps its sections. The state is the same
+ * `useActivityBuilder` the editor uses, so the save payload cannot drift.
+ */
+function NewActivityWizard() {
   const t = useT("NewActivityPage");
+  const tw = useT("ActivityWizard");
+  const tBody = useT("ActivityBuilderBody");
   const router = useRouter();
   const confirm = useConfirm();
   // Pre-select the class the teacher came from (the "New activity" button on
@@ -99,20 +117,28 @@ function NewActivityForm() {
   // the class's "next time" here as the teaching goal: the draft the authoring
   // co-pilot reads as its starting brief. Seeded once, never over typed text.
   const brief = searchParams.get("brief");
+  const briefGoal = (brief ?? "").slice(0, 2000);
 
   const builder = useActivityBuilder();
+  // The name follows the goal until the teacher types one (or a template
+  // names it). Never overwrites a typed name.
+  const [nameSuggested, setNameSuggested] = useState(false);
   useEffect(() => {
-    if (brief && !builder.teachingGoal) builder.setTeachingGoal(brief.slice(0, 2000));
+    if (briefGoal && !builder.teachingGoal) {
+      builder.setTeachingGoal(briefGoal);
+      const name = suggestActivityTitle(briefGoal);
+      if (name && !builder.title) {
+        builder.setTitle(name);
+        setNameSuggested(true);
+      }
+    }
     // Seed exactly once, on arrival.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  // 1.1.58 — seed the language from the account default, CREATE-time only and
-  // only while the form is untouched (an explicit choice is never overridden).
+
   const { prefs, loaded: prefsLoaded } = useTeacherPrefs();
   useEffect(() => {
     if (!prefsLoaded) return;
-    const seed = languageSeed(prefs, builder);
-    if (seed) builder.setLanguage(seed);
     // CONCEPT-2 M3 — open a new activity WITH a concept-map section unless the
     // teacher turned the default off. Seeding (not forcing): if the builder
     // already carries a map — a template was picked first — it is left alone.
@@ -122,26 +148,31 @@ function NewActivityForm() {
   }, [prefsLoaded]);
 
   // What a template would overwrite, as it stood after the last template (or
-  // seed). Re-taken on the render AFTER a template applies, when the builder
-  // holds the template's values.
+  // seed). Re-taken once the builder HOLDS the template's name and goal: an
+  // unrelated update (the prefs seed) can re-render first, and snapshotting
+  // that render kept the old baseline, so switching examples asked to
+  // overwrite the example itself.
   const [baseline, setBaseline] = useState<Baseline>(() => ({
-    title: "",
-    goal: (brief ?? "").slice(0, 2000).trim(),
+    title: briefGoal ? suggestActivityTitle(briefGoal) : "",
+    goal: briefGoal.trim(),
     count: 0,
   }));
-  const rebase = useRef(false);
+  const rebase = useRef<{ title: string; goal: string } | null>(null);
   useEffect(() => {
-    if (!rebase.current) return;
-    rebase.current = false;
+    const expected = rebase.current;
+    if (!expected) return;
+    if (builder.title.trim() !== expected.title || builder.teachingGoal.trim() !== expected.goal) return;
+    rebase.current = null;
     setBaseline(snapshot(builder));
   }, [builder]);
 
-  const [start, setStart] = useState<Start>({ mode: "choose" });
+  const [appliedTemplateId, setAppliedTemplateId] = useState<string | null>(null);
   const [classesState, setClassesState] = useState<ClassesState>({ status: "loading" });
   const [classesAttempt, setClassesAttempt] = useState(0);
   const [classId, setClassId] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [share, setShare] = useState(false);
 
   useEffect(() => {
     let alive = true;
@@ -171,8 +202,67 @@ function NewActivityForm() {
     };
   }, [preferredClassId, classesAttempt]);
 
-  const canSubmit = builder.isFormValid() && classId.length > 0 && !isSaving;
+  const classes = classesState.status === "ready" ? classesState.classes : [];
+  const selectedClass = classes.find((c) => c.classId === classId) ?? null;
 
+  // The students' language is the CLASS's when it has one, else the account
+  // default (2026-11-12). It follows a class switch until the teacher picks a
+  // language under "More settings"; a template never changes it.
+  const languageChosen = useRef(false);
+  const classLanguage = selectedClass?.voice?.language ?? null;
+  useEffect(() => {
+    if (!prefsLoaded || !selectedClass || languageChosen.current) return;
+    const next = studentLanguageDefault(classLanguage, prefs);
+    if (next !== builder.language) builder.setLanguage(next);
+    // Re-derived when the class or the prefs change — not on builder edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefsLoaded, classId, classLanguage]);
+
+  // ── Steps ────────────────────────────────────────────────────────────────
+  const [stepParam, setStepParam] = useUrlTab<StepParam>("step", STEP_PARAMS, "1", { history: "push" });
+  const goalReady = builder.teachingGoal.trim().length > 0 && builder.title.trim().length > 0 && classId.length > 0;
+  // A step past the goal is reachable only once the goal step is complete — a
+  // refreshed or shared `?step=3` link lands on step 1 rather than an empty
+  // review.
+  const step: WizardStep = goalReady ? (Number(stepParam) as WizardStep) : 1;
+  const reachable: WizardStep = goalReady ? 3 : 1;
+  const goTo = (n: WizardStep) => setStepParam(String(n) as StepParam);
+
+  // Focus the step's question when the step changes (not on first paint).
+  const goalRef = useRef<HTMLTextAreaElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const lastStep = useRef<WizardStep | null>(null);
+  useEffect(() => {
+    if (classesState.status !== "ready") return;
+    if (lastStep.current !== null && lastStep.current !== step) {
+      if (typeof window !== "undefined" && typeof window.scrollTo === "function") {
+        try {
+          window.scrollTo({ top: 0 });
+        } catch {
+          /* jsdom */
+        }
+      }
+      if (step === 1) goalRef.current?.focus();
+      else headingRef.current?.focus();
+    }
+    lastStep.current = step;
+  }, [step, classesState.status]);
+
+  // ── Goal and name ────────────────────────────────────────────────────────
+  function changeGoal(goal: string) {
+    builder.setTeachingGoal(goal);
+    if (nameSuggested || !builder.title.trim()) {
+      builder.setTitle(suggestActivityTitle(goal));
+      setNameSuggested(true);
+    }
+  }
+
+  function changeName(name: string) {
+    builder.setTitle(name);
+    setNameSuggested(false);
+  }
+
+  // ── Templates ────────────────────────────────────────────────────────────
   async function pickTemplate(tpl: ActivityTemplate) {
     // Applying a template replaces the title, the goal and every element. It
     // used to do that silently, so a teacher who typed first and browsed
@@ -189,39 +279,60 @@ function NewActivityForm() {
       return;
     }
     builder.applyTemplate(tpl);
-    rebase.current = true;
-    setStart({ mode: "template", id: tpl.id, name: tpl.name });
+    setNameSuggested(false);
+    rebase.current = { title: tpl.title.trim(), goal: tpl.teachingGoal.trim() };
+    setAppliedTemplateId(tpl.id);
   }
 
   async function startBlank() {
-    if (hasOwnWork(builder, baseline)) {
-      if (
-        !(await confirm({
-          title: t("confirmBlankTitle"),
-          description: t("confirmBlankBody"),
-          confirmLabel: t("confirmBlankOk"),
-          destructive: true,
-        }))
-      ) {
-        return;
-      }
-      // A blank draft: hydrating an empty config clears the title, goal and
-      // every element (hydrate reads each field with a `?? default`).
-      builder.hydrate({} as Parameters<typeof builder.hydrate>[0]);
-      rebase.current = true;
-    } else if (start.mode === "template") {
-      builder.hydrate({} as Parameters<typeof builder.hydrate>[0]);
-      rebase.current = true;
+    if (
+      hasOwnWork(builder, baseline) &&
+      !(await confirm({
+        title: t("confirmBlankTitle"),
+        description: t("confirmBlankBody"),
+        confirmLabel: t("confirmBlankOk"),
+        destructive: true,
+      }))
+    ) {
+      return;
     }
-    setStart({ mode: "blank" });
+    // A blank draft: hydrating an empty config clears the title, goal and
+    // every element (hydrate reads each field with a `?? default`) — but the
+    // students' language and the concept-map default are seeds, not work, so
+    // they are put back.
+    const language = builder.language;
+    builder.hydrate({} as Parameters<typeof builder.hydrate>[0]);
+    builder.setLanguage(language);
+    if (conceptMapDefault(prefs)) builder.setConceptMap({ title: "", nodes: [] });
+    setNameSuggested(false);
+    rebase.current = { title: "", goal: "" };
+    setAppliedTemplateId("__blank__");
   }
 
-  async function handleSave(ev: React.FormEvent) {
-    ev.preventDefault();
-    if (!canSubmit || classesState.status !== "ready") return;
+  // ── Leave / create ───────────────────────────────────────────────────────
+  async function cancel() {
+    if (
+      hasOwnWork(builder, baseline) &&
+      !(await confirm({
+        title: tw("discardTitle"),
+        description: tw("discardBody"),
+        confirmLabel: tw("discardOk"),
+        destructive: true,
+      }))
+    ) {
+      return;
+    }
+    router.push("/teacher/activities");
+  }
+
+  const canCreate = goalReady && !isSaving && classesState.status === "ready";
+
+  async function create() {
+    if (!canCreate || classesState.status !== "ready") return;
     const conceptSkillId = classesState.conceptSkillId;
     setIsSaving(true);
     setSaveError(null);
+    let activityId: string;
     try {
       // ALS-1 M0: create a NEW activity in the class-independent store. The backend
       // mints a distinct `act-…` id every time, so creating a second activity in
@@ -235,210 +346,222 @@ function NewActivityForm() {
         // can't drift on which fields they persist.
         ...builder.toSavePayload(),
       });
-      const cls = classesState.classes.find((c) => c.classId === classId);
-      const title = builder.title.trim();
-      // UI sweep 2026-11-11 — straight to the editor (the success panel's
-      // "Configure" sent the teacher to the builder they had just used); the
-      // toast carries "Create another".
-      notify.success(t("createdToast", { title, className: cls?.name ?? classId }), {
-        action: {
-          label: t("another"),
-          onClick: () => router.push(`/teacher/activities/new?classId=${encodeURIComponent(classId)}`),
-        },
-      });
-      router.push(
-        `/teacher/activities/${encodeURIComponent(activity.activityId)}?classId=${encodeURIComponent(classId)}&title=${encodeURIComponent(title)}`,
-      );
+      activityId = activity.activityId;
     } catch (err) {
       console.error("[teacher-ui] create activity failed:", err);
       setSaveError(t("saveFailed"));
       setIsSaving(false);
+      return;
     }
+    // Sharing is a second call. If it fails the activity still exists: say so,
+    // and never roll the create back.
+    if (share) {
+      try {
+        await setActivityVisibility(activityId, "published");
+      } catch (err) {
+        console.error("[teacher-ui] share new activity failed:", err);
+        notify.error(tw("shareFailed"));
+      }
+    }
+    const title = builder.title.trim();
+    // UI sweep 2026-11-11 — straight to the editor; the toast carries
+    // "Create another".
+    notify.success(t("createdToast", { title, className: selectedClass?.name ?? classId }), {
+      action: {
+        label: t("another"),
+        onClick: () => router.push(`/teacher/activities/new?classId=${encodeURIComponent(classId)}`),
+      },
+    });
+    router.push(
+      `/teacher/activities/${encodeURIComponent(activityId)}?classId=${encodeURIComponent(classId)}&title=${encodeURIComponent(title)}`,
+    );
   }
 
-  const selectedClass = classesState.status === "ready" ? classesState.classes.find((c) => c.classId === classId) : null;
-  const tutorClasses = selectedClass ? [selectedClass] : null;
+  // CONCEPT-2 M3 — "Propose a concept map" asks the page's co-pilot; only
+  // offered where a work co-pilot is mounted (see ActivityBuilderBody).
+  const entry = useCopilotEntry();
+  const proposeConceptMap = entry?.registered ? () => entry.ask(tBody("proposeConceptMap")) : undefined;
 
-  return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <Link
-          href="/teacher/activities"
-          className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" /> {t("back")}
-        </Link>
-        <h1 className="flex items-center gap-2 text-xl font-semibold sm:text-2xl">
-          <Sparkles className="h-6 w-6 text-primary" aria-hidden="true" /> {t("title")}
-        </h1>
-        <p className="mt-1 max-w-3xl text-sm text-muted-foreground">{t("intro")}</p>
-      </div>
+  // ── Render ───────────────────────────────────────────────────────────────
+  const stepper = <WizardStepper step={step} reachable={reachable} onGo={goTo} />;
 
-      {classesState.status === "loading" ? (
-        <PageSkeleton label={t("loadingClasses")} />
-      ) : classesState.status === "error" ? (
-        <LoadError what={t("classesWhat")} onRetry={() => setClassesAttempt((n) => n + 1)} />
-      ) : classesState.status === "no-skill" ? (
-        <PanelMessage tone="error">{t("noSkill")}</PanelMessage>
-      ) : classesState.status === "empty" ? (
-        <PanelMessage>
-          {t.rich("noClass", {
-            link: (chunks) => (
-              <Link href="/teacher/classes" className="font-medium text-primary hover:underline">
-                {chunks}
-              </Link>
-            ),
-          })}
-        </PanelMessage>
-      ) : (
-        <form onSubmit={handleSave} className="flex flex-col gap-5">
-          <ActivityBuilderBody
-            builder={builder}
-            templateSlot={
-              <StartChoice
-                start={start}
-                onChoose={(mode) => (mode === "blank" ? void startBlank() : setStart({ mode: "picking" }))}
-                onPick={(tpl) => void pickTemplate(tpl)}
-                onReopen={() =>
-                  setStart(start.mode === "template" ? { mode: "picking", appliedId: start.id } : { mode: "choose" })
-                }
-              />
-            }
-            activityId={classesState.conceptSkillId}
-            classControl={
-              <label htmlFor="activity-class" className="flex flex-col gap-1">
-                <span className="text-sm font-medium text-foreground">{t("class")}</span>
-                <select
-                  id="activity-class"
-                  value={classId}
-                  onChange={(e) => setClassId(e.target.value)}
-                  className="w-full rounded-md border border-border px-3 py-2 text-sm"
-                >
-                  {classesState.classes.map((c) => (
-                    <option key={c.classId} value={c.classId}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            }
-            tutorSummary={<ClassTutorSummary classes={tutorClasses} showClassNames={false} />}
-            tutorChangeHref={tutorSettingsHref(tutorClasses)}
-            lintContext={{ classId }}
-            error={
-              saveError ? (
-                <p role="alert" className="text-sm text-destructive">
-                  {saveError}
-                </p>
-              ) : null
-            }
-            footer={
-              <div>
-                <Button type="submit" variant="primary" disabled={!canSubmit} pending={isSaving} pendingLabel={t("creating")}>
-                  <Save className="h-4 w-4" aria-hidden="true" />
-                  {t("create")}
-                </Button>
-              </div>
-            }
-          />
-        </form>
-      )}
-      {/* COPILOT-1/2: the authoring co-pilot on the CREATE page. Dark-flagged
-          (renders null when NEXT_PUBLIC_AUTHORING_COPILOT !== "1"). No activity_id
-          yet — it proposes into the draft (the Save is owner-scoped). */}
-      {classesState.status === "ready" ? (
-        <AuthoringCopilot
-          activityId=""
-          draft={builder.toSavePayload()}
-          onApplyProposal={(p) => {
-            applyCopilotProposal(p, builder);
-            // 1.1.141 M3 — the co-pilot's drafted goal: how-to-teach lines move
-            // into tutor notes, visibly and with Undo.
-            if (p.kind === "set_lesson_prompt") {
-              void runGoalLint(builder.setGoalLint, p.value, { classId }, "move");
-            }
-          }}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-/**
- * "Start from a template" / "Start from scratch" (UI sweep 2026-11-11). The
- * 23-card strip opens only on the first choice, and an applied template
- * collapses to one line with Change.
- */
-function StartChoice({
-  start,
-  onChoose,
-  onPick,
-  onReopen,
-}: {
-  start: Start;
-  onChoose: (mode: "template" | "blank") => void;
-  onPick: (tpl: ActivityTemplate) => void;
-  onReopen: () => void;
-}) {
-  const t = useT("NewActivityPage");
-  if (start.mode === "picking") {
-    return <TemplatePicker onPick={onPick} onStartBlank={() => onChoose("blank")} appliedId={start.appliedId} />;
-  }
-  if (start.mode === "template" || start.mode === "blank") {
+  if (classesState.status !== "ready") {
     return (
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-border px-3 py-2 text-sm">
-        <span className="font-medium text-foreground">
-          {start.mode === "template" ? t("templateApplied", { name: start.name }) : t("blankChosen")}
-        </span>
-        <button type="button" onClick={onReopen} className="font-medium text-primary hover:underline">
-          {t("changeStart")}
-        </button>
+      <div className="flex flex-col gap-6">
+        <WizardHeader stepper={stepper} />
+        {classesState.status === "loading" ? (
+          <PageSkeleton label={t("loadingClasses")} />
+        ) : classesState.status === "error" ? (
+          <LoadError what={t("classesWhat")} onRetry={() => setClassesAttempt((n) => n + 1)} />
+        ) : classesState.status === "no-skill" ? (
+          <PanelMessage tone="error">{t("noSkill")}</PanelMessage>
+        ) : (
+          <PanelMessage>
+            {t.rich("noClass", {
+              link: (chunks) => (
+                <Link href="/teacher/classes" className="font-medium text-primary hover:underline">
+                  {chunks}
+                </Link>
+              ),
+            })}
+          </PanelMessage>
+        )}
       </div>
     );
   }
+
+  const previewActivityId = classesState.conceptSkillId;
+  const preview = <WizardPreview builder={builder} activityId={previewActivityId} />;
+
+  const secondary =
+    step === 1 ? (
+      <Button variant="secondary" onClick={() => void cancel()}>
+        {tw("cancel")}
+      </Button>
+    ) : (
+      <Button variant="secondary" onClick={() => goTo((step - 1) as WizardStep)}>
+        <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+        {tw("back")}
+      </Button>
+    );
+
+  const blocked = step === 1 && !goalReady;
+  const primary =
+    step === 1 ? (
+      <Button type="submit" variant="primary" disabled={blocked} aria-describedby={blocked ? "wizard-blocked" : undefined}>
+        {tw("nextTools")}
+        <ArrowRight className="h-4 w-4" aria-hidden="true" />
+      </Button>
+    ) : step === 2 ? (
+      <Button variant="primary" onClick={() => goTo(3)}>
+        {tw("nextReview")}
+        <ArrowRight className="h-4 w-4" aria-hidden="true" />
+      </Button>
+    ) : (
+      <Button
+        variant="primary"
+        onClick={() => void create()}
+        disabled={!canCreate}
+        pending={isSaving}
+        pendingLabel={tw("creating")}
+        className="h-auto min-h-9 whitespace-normal py-2 text-left"
+      >
+        <Rocket className="h-4 w-4" aria-hidden="true" />
+        {tw("create", { className: selectedClass?.name ?? "" })}
+      </Button>
+    );
+
   return (
-    <div role="group" aria-label={t("startAria")} className="grid gap-3 sm:grid-cols-2">
-      <ChoiceCard
-        icon={<LayoutTemplate className="h-5 w-5" aria-hidden="true" />}
-        title={t("startTemplate")}
-        help={t("startTemplateHelp", { count: ACTIVITY_TEMPLATES.length })}
-        onClick={() => onChoose("template")}
-      />
-      <ChoiceCard
-        icon={<FilePlus2 className="h-5 w-5" aria-hidden="true" />}
-        title={t("startBlank")}
-        help={t("startBlankHelp")}
-        onClick={() => onChoose("blank")}
+    <div className="flex flex-col gap-6">
+      <WizardHeader stepper={stepper} />
+      <form
+        className="flex flex-col gap-6"
+        onSubmit={(ev) => {
+          ev.preventDefault();
+          // Enter in the name field moves on from step 1. Later steps hold the
+          // element editors, where Enter must not leave (or create) — those
+          // steps act only on their button.
+          if (step === 1 && goalReady) goTo(2);
+        }}
+      >
+        {step === 1 ? (
+          <WizardColumns
+            main={
+              <GoalStep
+                builder={builder}
+                classes={classes}
+                classId={classId}
+                onClassChange={setClassId}
+                goalRef={goalRef}
+                onGoalChange={changeGoal}
+                onNameChange={changeName}
+                nameSuggested={nameSuggested}
+                appliedTemplateId={appliedTemplateId}
+                onPickTemplate={(tpl) => void pickTemplate(tpl)}
+                onStartBlank={() => void startBlank()}
+              />
+            }
+            preview={preview}
+          />
+        ) : step === 2 ? (
+          <WizardColumns
+            main={
+              <>
+                <div className="flex flex-col gap-1">
+                  <h1
+                    ref={headingRef}
+                    tabIndex={-1}
+                    className="text-xl font-semibold text-foreground outline-none sm:text-2xl"
+                  >
+                    {tw("toolsHeading")}
+                  </h1>
+                  <p className="text-sm text-muted-foreground">{tw("toolsHelp")}</p>
+                </div>
+                <WorkspaceSection
+                  builder={builder}
+                  activityId={previewActivityId}
+                  onProposeConceptMap={proposeConceptMap}
+                  variant="tiles"
+                />
+              </>
+            }
+            preview={preview}
+          />
+        ) : (
+          <WizardColumns
+            big
+            main={
+              <ReviewStep
+                builder={builder}
+                selectedClass={selectedClass}
+                activityId={previewActivityId}
+                headingRef={headingRef}
+                onEditStep={goTo}
+                onLanguageChange={(language: Language) => {
+                  languageChosen.current = true;
+                  builder.setLanguage(language);
+                }}
+                share={share}
+                onShareChange={setShare}
+                error={
+                  saveError ? (
+                    <p role="alert" className="text-sm text-destructive">
+                      {saveError}
+                    </p>
+                  ) : null
+                }
+              />
+            }
+            preview={preview}
+          />
+        )}
+
+        <WizardFooter
+          step={step}
+          secondary={secondary}
+          primary={primary}
+          hint={blocked ? tw("blocked") : null}
+          hintId="wizard-blocked"
+        />
+      </form>
+
+      {/* COPILOT-1/2: the authoring co-pilot on the CREATE page. Dark-flagged
+          (renders null when NEXT_PUBLIC_AUTHORING_COPILOT !== "1"). No activity_id
+          yet — it proposes into the draft (the Save is owner-scoped). Mounted
+          across all three steps, reached from the header's Help menu. */}
+      <AuthoringCopilot
+        activityId=""
+        draft={builder.toSavePayload()}
+        onApplyProposal={(p) => {
+          applyCopilotProposal(p, builder);
+          // 1.1.141 M3 — the co-pilot's drafted goal: how-to-teach lines move
+          // into tutor notes, visibly and with Undo.
+          if (p.kind === "set_lesson_prompt") {
+            void runGoalLint(builder.setGoalLint, p.value, { classId }, "move");
+          }
+        }}
       />
     </div>
-  );
-}
-
-function ChoiceCard({
-  icon,
-  title,
-  help,
-  onClick,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  help: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex items-start gap-3 rounded-lg border border-border bg-background p-4 text-left transition-colors hover:border-primary/40 hover:bg-primary/5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring"
-    >
-      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-        {icon}
-      </span>
-      <span className="flex flex-col gap-0.5">
-        <span className="text-sm font-semibold text-foreground">{title}</span>
-        <span className="text-xs text-muted-foreground">{help}</span>
-      </span>
-    </button>
   );
 }
 

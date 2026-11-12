@@ -4,6 +4,7 @@ import * as Dialog from "@radix-ui/react-dialog";
 import type { LucideIcon } from "lucide-react";
 import {
   Calculator,
+  Check,
   CheckCircle2,
   FileUp,
   FlaskConical,
@@ -216,10 +217,16 @@ export function WorkspaceSection({
   builder: b,
   activityId,
   onProposeConceptMap,
+  variant = "menu",
 }: {
   builder: ActivityBuilder;
   activityId?: string;
   onProposeConceptMap?: () => void;
+  /** `menu` (the editor): the added cards, then one "Add" button opening the
+   *  grid in a dialog. `tiles` (the new-activity wizard, 2026-11-12): the grid
+   *  itself, as toggle tiles, with the added cards under "Selected". Both read
+   *  the same `WORKSPACE_KINDS`, so a kind added later appears in both. */
+  variant?: "menu" | "tiles";
 }) {
   const t = useT("WorkspaceAdd");
   const tBody = useT("ActivityBuilderBody");
@@ -317,6 +324,139 @@ export function WorkspaceSection({
     }
   }
 
+  const cards = (
+    <ul className="flex flex-col gap-2">
+      {added.map(({ kind, icon: Icon }) => {
+        const isOpen = open.has(kind);
+        const panelId = `workspace-${kind}-editor`;
+        return (
+          <li
+            key={kind}
+            data-testid={`workspace-card-${kind}`}
+            className="rounded-lg border border-border bg-background"
+          >
+            <div className="flex items-center gap-3 px-3 py-2">
+              <span
+                aria-hidden="true"
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground"
+              >
+                <Icon className="h-4 w-4" />
+              </span>
+              <span className="flex min-w-0 flex-1 flex-col">
+                <span className="text-sm font-medium text-foreground">{name(kind)}</span>
+                <span className="truncate text-xs text-muted-foreground">{summary(kind)}</span>
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-expanded={isOpen}
+                aria-controls={panelId}
+                aria-label={isOpen ? t("closeAria", { name: name(kind) }) : t("editAria", { name: name(kind) })}
+                onClick={() => toggle(kind)}
+              >
+                {isOpen ? t("close") : t("edit")}
+              </Button>
+              <RowMenu
+                label={t("more", { name: name(kind) })}
+                items={[
+                  ...(kind === "sim"
+                    ? [{ id: `change-${kind}`, label: t("changeSim"), onSelect: () => setPickingSim(true) }]
+                    : []),
+                  { id: `remove-${kind}`, label: t("remove"), danger: true, onSelect: () => remove(kind) },
+                ]}
+              />
+            </div>
+            {isOpen ? (
+              <div id={panelId} className="border-t border-border px-3 py-3">
+                {editor(kind)}
+              </div>
+            ) : null}
+          </li>
+        );
+      })}
+    </ul>
+  );
+
+  // 1.1.139 M3 — the before-lesson nudge: the lesson overview is only as good
+  // as this activity's list of concepts.
+  const nudge = CONCEPT_MAP_ENABLED ? (
+    <ConceptListNudge
+      activityId={activityId}
+      hasConcepts={(b.conceptMap?.nodes.length ?? 0) > 0}
+      onPropose={onProposeConceptMap}
+    />
+  ) : null;
+
+  const simDialog = (
+    <BuilderDialog open={pickingSim} onOpenChange={setPickingSim} title={t("simDialogTitle")} wide>
+      <SimPicker
+        mode="browse"
+        value={b.artefactId}
+        onChange={(id) => {
+          b.setArtefactId(id);
+          setPickingSim(false);
+        }}
+      />
+    </BuilderDialog>
+  );
+
+  if (variant === "tiles") {
+    return (
+      <div className="flex flex-col gap-5" data-testid="workspace-section">
+        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+          {kinds.map(({ kind, icon: Icon }) => {
+            const on = kindCount(b, kind) > 0;
+            return (
+              <li key={kind}>
+                <button
+                  type="button"
+                  data-testid={`workspace-tile-${kind}`}
+                  aria-pressed={on}
+                  onClick={() => (on ? remove(kind) : choose(kind))}
+                  className={cn(
+                    "relative flex h-full w-full items-start gap-3 rounded-lg border bg-background p-3 text-left transition-colors",
+                    "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring",
+                    on ? "border-primary ring-1 ring-primary" : "border-border hover:border-primary/40 hover:bg-primary/5",
+                  )}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "flex h-9 w-9 shrink-0 items-center justify-center rounded-md",
+                      on ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+                    )}
+                  >
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <span className="flex min-w-0 flex-1 flex-col gap-0.5 pr-5">
+                    <span className="text-sm font-semibold text-foreground">{name(kind)}</span>
+                    <span className="text-xs text-muted-foreground">
+                      <KindHelp kind={kind} simCount={catalogue?.size ?? 0} />
+                    </span>
+                  </span>
+                  {on ? (
+                    <Check aria-hidden="true" className="absolute right-2.5 top-2.5 h-4 w-4 text-primary" />
+                  ) : null}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+
+        {added.length > 0 ? (
+          <section aria-labelledby="workspace-selected" className="flex flex-col gap-2">
+            <h2 id="workspace-selected" className="text-sm font-semibold text-foreground">
+              {t("selected")}
+            </h2>
+            {cards}
+          </section>
+        ) : null}
+        {nudge}
+        {simDialog}
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-3" data-testid="workspace-section">
       {added.length === 0 ? (
@@ -324,67 +464,10 @@ export function WorkspaceSection({
           {tBody("workspaceIntro")}
         </p>
       ) : (
-        <ul className="flex flex-col gap-2">
-          {added.map(({ kind, icon: Icon }) => {
-            const isOpen = open.has(kind);
-            const panelId = `workspace-${kind}-editor`;
-            return (
-              <li
-                key={kind}
-                data-testid={`workspace-card-${kind}`}
-                className="rounded-lg border border-border bg-background"
-              >
-                <div className="flex items-center gap-3 px-3 py-2">
-                  <span
-                    aria-hidden="true"
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground"
-                  >
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="text-sm font-medium text-foreground">{name(kind)}</span>
-                    <span className="truncate text-xs text-muted-foreground">{summary(kind)}</span>
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    aria-expanded={isOpen}
-                    aria-controls={panelId}
-                    aria-label={isOpen ? t("closeAria", { name: name(kind) }) : t("editAria", { name: name(kind) })}
-                    onClick={() => toggle(kind)}
-                  >
-                    {isOpen ? t("close") : t("edit")}
-                  </Button>
-                  <RowMenu
-                    label={t("more", { name: name(kind) })}
-                    items={[
-                      ...(kind === "sim"
-                        ? [{ id: `change-${kind}`, label: t("changeSim"), onSelect: () => setPickingSim(true) }]
-                        : []),
-                      { id: `remove-${kind}`, label: t("remove"), danger: true, onSelect: () => remove(kind) },
-                    ]}
-                  />
-                </div>
-                {isOpen ? (
-                  <div id={panelId} className="border-t border-border px-3 py-3">
-                    {editor(kind)}
-                  </div>
-                ) : null}
-              </li>
-            );
-          })}
-        </ul>
+        cards
       )}
 
-      {/* 1.1.139 M3 — the before-lesson nudge: the lesson overview is only as
-          good as this activity's list of concepts. */}
-      {CONCEPT_MAP_ENABLED && (
-        <ConceptListNudge
-          activityId={activityId}
-          hasConcepts={(b.conceptMap?.nodes.length ?? 0) > 0}
-          onPropose={onProposeConceptMap}
-        />
-      )}
+      {nudge}
 
       <div>
         <Button variant="secondary" onClick={() => setAdding(true)}>
@@ -427,7 +510,7 @@ export function WorkspaceSection({
                       ) : null}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      <KindHelp kind={kind} />
+                      <KindHelp kind={kind} simCount={catalogue?.size ?? 0} />
                     </span>
                   </span>
                 </button>
@@ -437,54 +520,16 @@ export function WorkspaceSection({
         </ul>
       </BuilderDialog>
 
-      <BuilderDialog open={pickingSim} onOpenChange={setPickingSim} title={t("simDialogTitle")} wide>
-        <SimPicker
-          mode="browse"
-          value={b.artefactId}
-          onChange={(id) => {
-            b.setArtefactId(id);
-            setPickingSim(false);
-          }}
-        />
-      </BuilderDialog>
+      {simDialog}
     </div>
   );
 }
 
-/** Each element's existing help line (the copy its empty state used to show). */
-function KindHelp({ kind }: { kind: WorkspaceKind }) {
-  const tSim = useT("SimPicker");
-  const tBody = useT("ActivityBuilderBody");
-  const tTable = useT("TableEditor");
-  const tChart = useT("ChartEditor");
-  const tCalc = useT("CalculatorEditor");
-  const tNote = useT("NoteEditor");
-  const tWriting = useT("WritingEditor");
-  const tSolution = useT("SolutionEditor");
-  const tDocument = useT("DocumentEditor");
-  const tConcept = useT("ConceptMapEditor");
-  switch (kind) {
-    case "sim":
-      return <>{tSim("help")}</>;
-    case "checklist":
-      return <>{tBody("checklistHelp")}</>;
-    case "table":
-      return <>{tTable("help")}</>;
-    case "chart":
-      return <>{tChart("help")}</>;
-    case "calculator":
-      return <>{tCalc.rich("intro", { code: (chunks) => <code>{chunks}</code> })}</>;
-    case "note":
-      return <>{tNote("help")}</>;
-    case "writing":
-      return <>{tWriting("help")}</>;
-    case "solution":
-      return <>{tSolution("help")}</>;
-    case "document":
-      return <>{tDocument("help")}</>;
-    case "conceptMap":
-      return <>{tConcept("help")}</>;
-  }
+/** Each element's help line: at most ~8 words, no formulas (UI sweep
+ *  2026-11-12). Shared by the editor's Add dialog and the wizard's tiles. */
+function KindHelp({ kind, simCount }: { kind: WorkspaceKind; simCount: number }) {
+  const t = useT("WorkspaceAdd");
+  return <>{t(`help_${kind}`, { count: simCount })}</>;
 }
 
 /** The checklist editor — was inline in ActivityBuilderBody; same controls. */
