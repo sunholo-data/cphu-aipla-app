@@ -17,6 +17,7 @@ export function ClassAnalyticsCopilot({ classId, className }: { classId: string;
     <TeacherCopilot
       skillName="analytics-chat"
       title={t("title")}
+      nudge={t("nudge")}
       // Per-class thread — each class resumes its own analytics conversation.
       persistKey={`analytics-chat:${classId}`}
       scopePrefix={`[class_id=${classId} time_scope="this week"] `}

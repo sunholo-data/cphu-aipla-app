@@ -431,7 +431,8 @@
   "TutorCopilot": {
     "title": "Tutor-co-pilot",
     "placeholder": "Beskriv en pædagogik, eller spørg hvad en tutor faktisk får at vide…",
-    "empty": "Jeg hjælper dig med at skrive en undervisningstilgang. Beskriv en pædagogik, så foreslår jeg dens træk; spørg hvad en tutor får at vide, så viser jeg den rigtige genererede prompt; bed mig vurdere en tilgang, så siger jeg, hvor den ikke gør det, den påstår. Jeg kan søge i de artikler, vi har — men jeg kan ikke skrive en kildehenvisning, så det er op til dig at stå inde for kilderne."
+    "empty": "Jeg hjælper dig med at skrive en undervisningstilgang. Beskriv en pædagogik, så foreslår jeg dens træk; spørg hvad en tutor får at vide, så viser jeg den rigtige genererede prompt; bed mig vurdere en tilgang, så siger jeg, hvor den ikke gør det, den påstår. Jeg kan søge i de artikler, vi har — men jeg kan ikke skrive en kildehenvisning, så det er op til dig at stå inde for kilderne.",
+    "nudge": "Jeg kan foreslå en undervisningstilgang og vise, hvad en tutor får at vide."
   },
   "TeacherInsightsPage": {
     "since_7d": "Seneste 7 dage",

@@ -127,7 +127,8 @@
     "close": "Close",
     "openChat": "Open the chat",
     "backToPage": "Back to the page",
-    "working": "Working…"
+    "working": "Working…",
+    "nudgeDismiss": "Dismiss tip"
   },
   "TeacherCopilot": {
     "apply": "Apply",

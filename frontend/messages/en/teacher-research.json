@@ -431,7 +431,8 @@
   "TutorCopilot": {
     "title": "Tutor co-pilot",
     "placeholder": "Describe a pedagogy, or ask what a tutor is actually told…",
-    "empty": "I help you author a teaching approach. Describe a pedagogy and I'll propose its constructs; ask what a tutor is told and I'll show the real generated prompt; ask me to critique an approach and I'll say where it doesn't do what it claims. I can search the papers we hold — but I cannot write a citation, so sources are yours to vouch for."
+    "empty": "I help you author a teaching approach. Describe a pedagogy and I'll propose its constructs; ask what a tutor is told and I'll show the real generated prompt; ask me to critique an approach and I'll say where it doesn't do what it claims. I can search the papers we hold — but I cannot write a citation, so sources are yours to vouch for.",
+    "nudge": "I can suggest a teaching approach and show what a tutor is told."
   },
   "TeacherInsightsPage": {
     "since_7d": "Last 7 days",

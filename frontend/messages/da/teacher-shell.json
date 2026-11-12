@@ -127,7 +127,8 @@
     "close": "Luk",
     "openChat": "Åbn samtalen",
     "backToPage": "Tilbage til siden",
-    "working": "Arbejder…"
+    "working": "Arbejder…",
+    "nudgeDismiss": "Luk tippet"
   },
   "TeacherCopilot": {
     "apply": "Anvend",

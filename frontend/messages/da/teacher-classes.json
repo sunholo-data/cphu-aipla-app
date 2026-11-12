@@ -197,13 +197,15 @@
   "ManageClassCopilot": {
     "title": "Klasse-co-pilot",
     "placeholder": "Opret en klasse, lav gruppekoder, eller spørg, hvordan det går i en klasse…",
-    "empty": "Fortæl mig, hvad du vil — oprette en klasse, lave gruppekoder, eleverne kan tilslutte sig med, eller se, hvordan det går i en klasse. Jeg foreslår ændringer, som du godkender med Anvend, og så dukker de op på din liste."
+    "empty": "Fortæl mig, hvad du vil — oprette en klasse, lave gruppekoder, eleverne kan tilslutte sig med, eller se, hvordan det går i en klasse. Jeg foreslår ændringer, som du godkender med Anvend, og så dukker de op på din liste.",
+    "nudge": "Jeg kan oprette en klasse og lave gruppekoder til eleverne."
   },
   "ClassAnalyticsCopilot": {
     "title": "Analyse-co-pilot",
     "placeholder": "Spørg om {className}…",
     "thisClass": "denne klasse",
-    "empty": "Spørg om klassen — beskeder i denne uge, de mest aktive grupper, tid brugt på opgaver, typiske misforståelser. Jeg svarer her; jeg ændrer ikke noget."
+    "empty": "Spørg om klassen — beskeder i denne uge, de mest aktive grupper, tid brugt på opgaver, typiske misforståelser. Jeg svarer her; jeg ændrer ikke noget.",
+    "nudge": "Jeg kan fortælle, hvordan det går i klassen — fx hvilke grupper der er mest aktive."
   },
   "GettingStartedCard": {
     "title": "Kom i gang",

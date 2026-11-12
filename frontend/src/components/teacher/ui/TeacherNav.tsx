@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useCopilotBottomInset } from "@/components/teacher/copilot/CopilotEntryContext";
 import { useIsProgrammeAdmin } from "@/hooks/useIsProgrammeAdmin";
 import { useIsResearcher } from "@/hooks/useIsResearcher";
 import { useMyFeature } from "@/hooks/useMyFeature";
@@ -124,6 +125,9 @@ export function TeacherNav() {
   const simsEnabled = useTeacherFeature("simWorkshop", process.env.NEXT_PUBLIC_SIM_WORKSHOP);
   // Released to everyone in the menu; per-teacher access decides greyed or not.
   const simsAccess = useMyFeature("simWorkshop");
+  // The phone bottom bar lifts the page's co-pilot pill above it (it measures
+  // 0 from `md` up, where the bar is hidden).
+  const bottomBarRef = useCopilotBottomInset<HTMLElement>();
   const destinations: Destination[] = [
     ...DESTINATIONS.slice(0, 3),
     ...(simsEnabled ? [{ ...SIMS_DESTINATION, locked: simsAccess === "off" }] : []),
@@ -211,6 +215,7 @@ export function TeacherNav() {
 
       {/* Mobile: bottom bar */}
       <nav
+        ref={bottomBarRef}
         aria-label={t("sections")}
         className="fixed inset-x-0 bottom-0 z-20 flex items-stretch border-t border-border bg-background pb-[env(safe-area-inset-bottom)] md:hidden"
       >

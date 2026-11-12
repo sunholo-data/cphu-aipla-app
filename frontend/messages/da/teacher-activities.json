@@ -545,7 +545,8 @@
     "loading": "Henter hjælpen…",
     "minimize": "Skjul hjælpen",
     "titleStudentOpening": "Forslag til elevintroduktion",
-    "titleStarterPrompts": "Forslag eleverne kan trykke på (ét pr. linje)"
+    "titleStarterPrompts": "Forslag eleverne kan trykke på (ét pr. linje)",
+    "nudge": "Jeg kan foreslå et mål, værktøjer og et begrebskort."
   },
   "ElementKinds": {
     "checklist": "Fremgang",

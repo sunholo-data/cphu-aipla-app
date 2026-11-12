@@ -4,6 +4,7 @@ import { Check, ChevronRight, ClipboardCheck, LayoutGrid, Target, type LucideIco
 import type { ReactNode } from "react";
 
 import { ActivityPreview } from "@/components/teacher/ActivityPreview";
+import { useCopilotBottomInset } from "@/components/teacher/copilot/CopilotEntryContext";
 import type { ActivityBuilder } from "@/hooks/useActivityBuilder";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
@@ -163,6 +164,8 @@ export function WizardFooter({
   const t = useT("ActivityWizard");
   return (
     <div
+      // Lifts the co-pilot's pill and panel above this footer's primary action.
+      ref={useCopilotBottomInset<HTMLDivElement>()}
       data-testid="wizard-footer"
       className="sticky bottom-0 z-10 mt-2 border-t border-border bg-background/95 py-3 backdrop-blur pb-[max(0.75rem,env(safe-area-inset-bottom))]"
     >

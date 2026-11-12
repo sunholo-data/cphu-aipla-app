@@ -43,6 +43,8 @@ function withCopilot(registered: boolean) {
       asked.push(text);
       return registered;
     },
+    bottomInset: 0,
+    setInset: () => {},
   };
   render(
     <CopilotEntryContext.Provider value={value}>
