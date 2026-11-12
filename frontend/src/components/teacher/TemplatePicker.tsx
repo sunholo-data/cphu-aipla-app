@@ -9,6 +9,8 @@ import {
   ChevronRight,
   FileUp,
   FlaskConical,
+  Languages,
+  LayoutGrid,
   LineChart,
   ListChecks,
   MessageCircle,
@@ -165,6 +167,7 @@ export function TemplatePicker({ onPick, onStartBlank, appliedId = null }: Templ
         </span>
         <div className="flex flex-wrap gap-1" role="group" aria-label={t("filter")}>
           <FilterChip active={family === null} onClick={() => setFamily(null)}>
+            <LayoutGrid className="h-3 w-3" aria-hidden="true" />
             {t("chipCount", { label: t("all"), count: ACTIVITY_TEMPLATES.length })}
           </FilterChip>
           {FAMILY_ORDER.map((id) => {
@@ -273,7 +276,9 @@ function TemplateCard({
           )}
           <span className="flex min-w-0 flex-1 flex-col">
             <span className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{t(`family_${fam.id}`)}</span>
-            <span className="line-clamp-2 text-sm font-medium leading-snug text-slate-800">{tpl.name}</span>
+            <span lang={tpl.language} className="line-clamp-2 text-sm font-medium leading-snug text-slate-800">
+              {tpl.name}
+            </span>
           </span>
           {applied ? (
             <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full bg-primary px-1.5 py-0.5 text-[11px] font-medium text-primary-foreground">
@@ -281,8 +286,11 @@ function TemplateCard({
             </span>
           ) : null}
         </span>
-        <span className="line-clamp-2 text-xs text-slate-500">{tpl.summary}</span>
+        <span lang={tpl.language} className="line-clamp-2 text-xs text-slate-500">
+          {tpl.summary}
+        </span>
         <span className="mt-auto flex flex-wrap gap-1">
+          <TemplateLanguageBadge language={tpl.language} />
           {features.map((feat) => {
             const Icon = feat.icon;
             return (
@@ -298,6 +306,31 @@ function TemplateCard({
         </span>
       </button>
     </div>
+  );
+}
+
+/** The template's own language — an endonym, never translated, like the
+ *  students'-language picker. Templates are authored teaching material and are
+ *  NOT translated with the teacher's DA | EN switch (22 of 23 are Danish), so
+ *  the badge is what tells an English-reading teacher why a card is Danish. */
+const TEMPLATE_LANGUAGE_NAME: Record<ActivityTemplate["language"], string> = {
+  da: "Dansk",
+  en: "English",
+};
+
+function TemplateLanguageBadge({ language }: { language: ActivityTemplate["language"] }) {
+  const t = useT("TemplatePicker");
+  return (
+    <span
+      title={t("languageLabel")}
+      className="inline-flex items-center gap-1 rounded border border-slate-200 px-1.5 py-0.5 text-[11px] font-medium text-slate-600"
+    >
+      <Languages className="h-3 w-3" aria-hidden="true" />
+      <span className="sr-only">{t("languageLabel")}: </span>
+      <span lang={language} translate="no">
+        {TEMPLATE_LANGUAGE_NAME[language]}
+      </span>
+    </span>
   );
 }
 

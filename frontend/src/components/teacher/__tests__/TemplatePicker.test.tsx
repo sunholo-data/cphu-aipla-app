@@ -61,6 +61,37 @@ describe("TemplatePicker", () => {
     expect(blank).toHaveAttribute("aria-pressed", "true");
   });
 
+  it("shows each template's own language as an untranslated badge, in the teacher's chrome", () => {
+    // UI sweep 2026-11-12: the content is authored teaching material and stays
+    // as written; the badge tells an English-reading teacher why a card is Danish.
+    render(<TemplatePicker onPick={vi.fn()} />);
+    const cards = within(screen.getByRole("list", { name: "Activity templates" })).getAllByRole("listitem");
+    ACTIVITY_TEMPLATES.forEach((tpl, i) => {
+      const card = cards[i];
+      expect(card).toHaveTextContent(tpl.name);
+      const name = tpl.language === "da" ? "Dansk" : "English";
+      const badge = within(card).getByText(name);
+      expect(badge).toHaveAttribute("lang", tpl.language);
+      expect(card).toHaveTextContent(`Template language: ${name}`);
+    });
+    // The picker's own chrome is in the teacher's language (English here).
+    expect(screen.getByText("Start from a template")).toBeInTheDocument();
+  });
+
+  it("Danish chrome for a Danish teacher, with the badge unchanged", () => {
+    rtlRender(
+      <LocaleProvider locale="da">
+        <TemplatePicker onPick={vi.fn()} />
+      </LocaleProvider>,
+    );
+    expect(screen.getByText("Start fra en skabelon")).toBeInTheDocument();
+    const cards = within(screen.getByRole("list", { name: "Aktivitetsskabeloner" })).getAllByRole("listitem");
+    const i = ACTIVITY_TEMPLATES.findIndex((tpl) => tpl.language === "en");
+    expect(i).toBeGreaterThanOrEqual(0);
+    expect(within(cards[i]).getByText("English")).toBeInTheDocument();
+    expect(cards[i]).toHaveTextContent("Skabelonens sprog: English");
+  });
+
   it("derives a family for every template so the filter can never hide one", () => {
     const covered = new Set(ACTIVITY_TEMPLATES.map((t) => templateFamily(t).id));
     expect([...covered].sort()).toEqual(["dialogue", "lab", "sim", "writing"]);

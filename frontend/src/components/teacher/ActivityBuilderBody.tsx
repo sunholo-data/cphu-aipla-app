@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowUpRight, ChevronUp, Pencil } from "lucide-react";
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 
@@ -39,8 +40,8 @@ interface ActivityBuilderBodyProps {
   /** 1.1.141 M2 — the class (and activity) the teaching goal is linted
    *  against: its tutor's approach decides which lines would conflict. */
   lintContext?: GoalLintContext;
-  /** Actions row under the config column (optional: both pages now put their
-   *  Save / Create in the page header). */
+  /** Actions row under the config column (optional). The edit page puts its one
+   *  Save here, as a sticky bar (UI sweep 2026-11-12). */
   footer?: ReactNode;
   /** Optional error/alert node rendered above the footer. */
   error?: ReactNode;
@@ -243,7 +244,11 @@ function SummaryBlock({
           label={t("tutor")}
           value={tutorSummary}
           action={
-            <Link href={tutorChangeHref} className="text-sm font-medium text-primary hover:underline">
+            <Link
+              href={tutorChangeHref}
+              className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+            >
+              <ArrowUpRight className="h-4 w-4" aria-hidden="true" />
               {t("changeInClass")}
             </Link>
           }
@@ -338,8 +343,13 @@ function ToggleLink({
       aria-expanded={open}
       aria-controls={controls}
       aria-label={open ? t("closeAria", { label }) : t("changeAria", { label })}
-      className="text-sm font-medium text-primary hover:underline"
+      className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
     >
+      {open ? (
+        <ChevronUp className="h-4 w-4" aria-hidden="true" />
+      ) : (
+        <Pencil className="h-4 w-4" aria-hidden="true" />
+      )}
       {open ? t("close") : t("change")}
     </button>
   );

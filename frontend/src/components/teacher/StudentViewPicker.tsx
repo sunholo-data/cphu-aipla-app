@@ -22,8 +22,11 @@ export function StudentViewPicker({ value, onChange }: StudentViewPickerProps) {
   const t = useT("StudentViewPicker");
   return (
     <fieldset className="flex flex-col gap-2">
-      <legend className="mb-1 text-sm font-medium text-slate-700">{t("legend")}</legend>
-      <p className="-mt-1 text-xs text-slate-500">{t("help")}</p>
+      {/* Shown inside the "Student view" summary row, which already titles it:
+          the legend is for screen readers; the help answers the one real
+          question (does the view change the content?). */}
+      <legend className="sr-only">{t("legend")}</legend>
+      <p className="text-xs text-slate-500">{t("help")}</p>
       <div className="grid gap-2 sm:grid-cols-3">
         {STUDENT_VIEWS.map((view) => {
           const checked = value === view;

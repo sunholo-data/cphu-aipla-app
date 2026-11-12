@@ -88,6 +88,9 @@ export function ActivityPreview({
   }, [artefactId]);
 
   const t = useT("ActivityPreview");
+  // The empty state names the section to go to by its own heading, so the two
+  // can never drift apart.
+  const tLayout = useT("BuilderLayout");
   const sim = artefactId
     ? (catalogue.find((a) => a.id === artefactId) ?? null)
     : null;
@@ -103,9 +106,10 @@ export function ActivityPreview({
           aria-expanded={open}
           className="flex flex-1 items-center gap-1.5 text-sm font-medium text-slate-700"
         >
-          <Eye className="h-4 w-4 text-slate-500" /> {t("title")}
+          <Eye className="h-4 w-4 text-slate-500" aria-hidden="true" /> {t("title")}
           <ChevronDown
             className={`h-4 w-4 transition-transform ${open ? "" : "-rotate-90"}`}
+            aria-hidden="true"
           />
         </button>
         {hasContent ? (
@@ -116,15 +120,15 @@ export function ActivityPreview({
             title={t("expand")}
             className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
           >
-            <Maximize2 className="h-4 w-4" />
+            <Maximize2 className="h-4 w-4" aria-hidden="true" />
           </button>
         ) : null}
       </div>
       {open && (
         <div className="border-t border-slate-200 bg-slate-50">
           {!hasContent ? (
-            <p className="px-4 py-6 text-center text-xs text-slate-400">
-              {t("empty")}
+            <p className="px-4 py-6 text-center text-xs text-slate-500">
+              {t("empty", { section: tLayout("workspaceLabel") })}
             </p>
           ) : expanded ? (
             <p className="px-4 py-6 text-center text-xs text-slate-400">
@@ -261,13 +265,13 @@ function PreviewModal({
         >
           <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2.5">
             <Dialog.Title className="flex items-center gap-1.5 text-sm font-medium text-slate-700">
-              <Eye className="h-4 w-4 text-slate-500" /> {t("title")}
+              <Eye className="h-4 w-4 text-slate-500" aria-hidden="true" /> {t("title")}
             </Dialog.Title>
             <Dialog.Close
               aria-label={t("close")}
               className="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
             >
-              <X className="h-4 w-4" />
+              <X className="h-4 w-4" aria-hidden="true" />
             </Dialog.Close>
           </div>
           <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50">

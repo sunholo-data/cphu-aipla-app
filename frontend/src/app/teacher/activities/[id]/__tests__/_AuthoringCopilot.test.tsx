@@ -249,7 +249,7 @@ describe("AuthoringCopilot — auth corner + panel", () => {
     fireEvent.click(screen.getByTestId("copilot-fab"));
     expect(screen.queryByTestId("copilot-fab")).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /skjul medbygger/i }));
+    fireEvent.click(screen.getByRole("button", { name: /skjul hjælpen/i }));
     expect(screen.getByTestId("copilot-fab")).toBeInTheDocument();
   });
 });

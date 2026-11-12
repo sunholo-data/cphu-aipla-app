@@ -99,11 +99,11 @@ describe("pure helpers", () => {
 });
 
 describe("the warning beside the teaching goal", () => {
-  it("names the tutor and the approach that takes precedence, and the line", () => {
+  it("says in plain words that the tutor's approach decides how to teach, and shows the line", () => {
     const { hook, rerender } = setup();
     act(() => hook.result.current.setGoalLint({ text: GOAL, result: result(), mode: "warn", kept: [], moved: [] }));
     rerender();
-    expect(screen.getByText(/Mikkel teaches with ESRU, which will take precedence/)).toBeInTheDocument();
+    expect(screen.getByText(/These lines say how to teach — Mikkel's approach decides that\. Move them to notes for the tutor\?/)).toBeInTheDocument();
     expect(screen.getByText(SPAN)).toBeInTheDocument();
     expect(screen.getByText(/competes with Elicit/)).toBeInTheDocument();
   });
@@ -120,21 +120,36 @@ describe("the warning beside the teaching goal", () => {
       }),
     );
     rerender();
-    expect(screen.getByText(/has no teaching approach/)).toBeInTheDocument();
+    expect(screen.getByText(/has no set approach, so the tutor will follow them/)).toBeInTheDocument();
   });
 
-  it("Move to tutor notes moves the line into a visible, editable field", async () => {
+  it("says 'the tutor's approach' when the tutor has an approach but no name", () => {
+    const { hook, rerender } = setup();
+    act(() =>
+      hook.result.current.setGoalLint({
+        text: GOAL,
+        result: result({ tutorName: null }),
+        mode: "warn",
+        kept: [],
+        moved: [],
+      }),
+    );
+    rerender();
+    expect(screen.getByText(/— the tutor's approach decides that\./)).toBeInTheDocument();
+  });
+
+  it("Move to notes for the tutor moves the line into a visible, editable field", async () => {
     const { hook, rerender } = setup();
     act(() => hook.result.current.setGoalLint({ text: GOAL, result: result(), mode: "warn", kept: [], moved: [] }));
     rerender();
-    await userEvent.click(screen.getByRole("button", { name: /Move to tutor notes/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Move to notes for the tutor/ }));
     rerender();
     expect(hook.result.current.teachingGoal).toBe("Students measure the pendulum's period.");
     expect(hook.result.current.tutorNotes).toBe(SPAN);
-    expect(screen.getByLabelText("Tutor notes")).toHaveValue(SPAN);
-    expect(screen.queryByRole("button", { name: /Move to tutor notes/ })).toBeNull();
+    expect(screen.getByLabelText("Notes for the tutor")).toHaveValue(SPAN);
+    expect(screen.queryByRole("button", { name: /Move to notes for the tutor/ })).toBeNull();
     // Reversible.
-    await userEvent.click(screen.getByRole("button", { name: /Move back to the teaching goal/ }));
+    await userEvent.click(screen.getByRole("button", { name: /Move back to the goal/ }));
     rerender();
     expect(hook.result.current.teachingGoal).toBe(GOAL);
     expect(hook.result.current.tutorNotes).toBe("");
@@ -159,7 +174,7 @@ describe("M3 — a co-pilot draft is cleaned on import", () => {
     rerender();
     expect(hook.result.current.teachingGoal).toBe("Students measure the pendulum's period.");
     expect(hook.result.current.tutorNotes).toBe(SPAN);
-    expect(screen.getByRole("status")).toHaveTextContent(/1 line that told the tutor how to teach was moved/);
+    expect(screen.getByRole("status")).toHaveTextContent(/1 line about how to teach was moved to notes for the tutor/);
     await userEvent.click(screen.getByRole("button", { name: "Undo" }));
     rerender();
     expect(hook.result.current.teachingGoal).toBe(GOAL);
@@ -190,7 +205,7 @@ describe("M3 — a co-pilot draft is cleaned on import", () => {
       hook.result.current.setGoalLint({ text: GOAL, result: result(), mode: "warn", kept: [], moved: [] });
     });
     rtlRender(<Harness hook={hook.result} />, { wrapper: lang("da") });
-    expect(screen.getByText(/Mikkel underviser med ESRU, som vil have forrang/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /Flyt til tutornoter/ })).toBeInTheDocument();
+    expect(screen.getByText(/Disse linjer siger, hvordan der skal undervises — det bestemmer Mikkels tilgang/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Flyt til noter til tutoren/ })).toBeInTheDocument();
   });
 });

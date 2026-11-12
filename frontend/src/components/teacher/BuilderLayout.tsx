@@ -45,8 +45,12 @@ const ACCENT: Record<Accent, { bar: string; tile: string; chipOn: string; count:
 
 export interface BuilderSectionMeta {
   id: string;
-  /** Message-key stem: renders `<key>Label` / `<key>Hint` (1.1.108 M2). */
+  /** Message-key stem: renders `<key>Label` (1.1.108 M2). */
   key: "setup" | "lesson" | "workspace" | "materials";
+  /** A one-line hint, only where the title alone does not say what goes there.
+   *  Setup and Lesson have none: their fields name themselves (UI sweep
+   *  2026-11-12 — a hint that restates the heading is noise). */
+  hint?: "workspaceHint" | "materialsHint";
   icon: LucideIcon;
   accent: Accent;
 }
@@ -69,12 +73,14 @@ export const SECTION = {
     key: "workspace",
     icon: LayoutGrid,
     accent: "emerald",
+    hint: "workspaceHint",
   },
   materials: {
     id: "builder-materials",
     key: "materials",
     icon: BookOpen,
     accent: "amber",
+    hint: "materialsHint",
   },
 } satisfies Record<string, BuilderSectionMeta>;
 
@@ -87,7 +93,8 @@ export const BUILDER_SECTIONS: BuilderSectionMeta[] = [
 
 /**
  * A colour-accented builder section: a thin accent rule, an icon tile, a title
- * and a one-line hint, then the fields. The accent is the same colour the nav
+ * and (where it says something the title does not) a one-line hint, then the
+ * fields. The accent is the same colour the nav
  * chip uses, so the teacher can map "I'm in the green Workspace section".
  */
 export function BuilderSection({
@@ -113,9 +120,9 @@ export function BuilderSection({
         >
           <Icon className="h-4 w-4" />
         </span>
-        <div className="flex flex-col gap-0.5">
+        <div className="flex min-h-8 flex-col justify-center gap-0.5">
           <h2 className="text-base font-semibold leading-none text-slate-900">{t(`${section.key}Label`)}</h2>
-          <p className="text-xs text-slate-500">{t(`${section.key}Hint`)}</p>
+          {section.hint ? <p className="text-xs text-slate-500">{t(section.hint)}</p> : null}
         </div>
       </div>
       <div className="flex flex-col gap-5 px-4 pb-4 pt-4">{children}</div>
