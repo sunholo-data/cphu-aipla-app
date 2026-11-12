@@ -1,4 +1,5 @@
 import { fireEvent, render as rtlRender, screen, waitFor, within, type RenderOptions } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const browseCurriculum = vi.fn();
@@ -111,18 +112,77 @@ beforeEach(() => {
 });
 afterEach(() => vi.clearAllMocks());
 
+// 2026-11 UI sweep — the builder shows the CHOSEN documents first; the library
+// (search, filters, upload) lives behind "Add document", and the rarer actions
+// behind each row's ⋯. These helpers open each layer the way a teacher does.
+async function openPicker() {
+  fireEvent.click(await screen.findByRole("button", { name: /Add document/i }));
+  return screen.findByRole("region", { name: /Pick from the library/i });
+}
+
+async function openFilters() {
+  fireEvent.click(await screen.findByRole("button", { name: /^Filter/ }));
+}
+
+/** Open a row's ⋯ (by its accessible name) from the keyboard and pick an item. */
+async function chooseFromMenu(menu: string | RegExp, item: string | RegExp, scope?: HTMLElement) {
+  const q = scope ? within(scope) : screen;
+  const trigger = await q.findByRole("button", { name: menu });
+  trigger.focus();
+  await userEvent.keyboard("{Enter}");
+  await userEvent.click(await screen.findByRole("menuitem", { name: item }));
+}
+
+/** The menu's items as their visible labels (first line only). */
+async function menuLabels(menu: string | RegExp): Promise<string[]> {
+  const trigger = await screen.findByRole("button", { name: menu });
+  trigger.focus();
+  await userEvent.keyboard("{Enter}");
+  const items = await screen.findAllByRole("menuitem");
+  return items.map((i) => i.querySelector("span")?.textContent ?? "");
+}
+
+function chosenRows() {
+  return within(screen.getByRole("list", { name: "Chosen for this activity" })).getAllByRole("listitem");
+}
+
 describe("MaterialsSection", () => {
+  it("says what goes here, and fetches nothing until the picker opens", async () => {
+    browseCurriculum.mockResolvedValue(page([]));
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    expect(screen.getByText(/No documents yet\. Add a textbook/i)).toBeInTheDocument();
+    // The old 95-word intro is gone; the heading carries the one line.
+    expect(screen.getByRole("heading", { name: /^Materials · texts the tutor can use$/i })).toBeInTheDocument();
+    expect(browseCurriculum).not.toHaveBeenCalled();
+    expect(listCurriculumFacets).not.toHaveBeenCalled();
+    await openPicker();
+    await waitFor(() => expect(browseCurriculum).toHaveBeenCalled());
+  });
+
   it("renders the empty state when the library has no docs", async () => {
     browseCurriculum.mockResolvedValue(page([]));
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
     await waitFor(() =>
       expect(screen.getByText(/Browse the shared A\/B\/C library/i)).toBeInTheDocument(),
     );
   });
 
+  it("a failed library read is a LoadError with Try again, never the empty state", async () => {
+    browseCurriculum.mockRejectedValueOnce(new Error("boom")).mockResolvedValue(page([makeDoc()]));
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("The materials library could not be loaded");
+    expect(screen.queryByText(/Browse the shared A\/B\/C library/i)).not.toBeInTheDocument();
+    fireEvent.click(within(alert).getByRole("button", { name: "Try again" }));
+    expect(await screen.findByText("Energi og arbejde")).toBeInTheDocument();
+  });
+
   it("lists library docs with origin + level", async () => {
     browseCurriculum.mockResolvedValue(page([makeDoc()]));
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
     await waitFor(() => expect(screen.getByText("Energi og arbejde")).toBeInTheDocument());
     expect(screen.getByText(/uvm\.dk · Level B · mechanics/)).toBeInTheDocument();
   });
@@ -130,14 +190,16 @@ describe("MaterialsSection", () => {
   it("shows a doc's catalogue summary when present (1.1.52)", async () => {
     browseCurriculum.mockResolvedValue(page([makeDoc({ summary: "Covers energy conservation for B-level." })]));
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
     expect(await screen.findByText("Covers energy conservation for B-level.")).toBeInTheDocument();
   });
 
-  it("citing a doc calls onChange with a MaterialRef (default not student-visible)", async () => {
+  it("'Use in activity' calls onChange with a MaterialRef (default not student-visible)", async () => {
     browseCurriculum.mockResolvedValue(page([makeDoc()]));
     const onChange = vi.fn();
     render(<MaterialsSection materials={[]} onChange={onChange} />);
-    fireEvent.click(await screen.findByRole("button", { name: /Cite Energi og arbejde/i }));
+    await openPicker();
+    fireEvent.click(await screen.findByRole("button", { name: /Use in activity: Energi og arbejde/i }));
     // 1.1.63 M1 — the TITLE is cached here alongside the origin. `origin` is
     // provenance ("uvm.dk"), and while it was the only label cached at citation
     // time the tutor had nothing but a domain to cite at students. This
@@ -148,8 +210,7 @@ describe("MaterialsSection", () => {
     ]);
   });
 
-  it("toggling a cited material flips studentVisible (1.1.33 M2a)", async () => {
-    browseCurriculum.mockResolvedValue(page([]));
+  it("the 'Students can open it' checkbox flips studentVisible (1.1.33 M2a)", async () => {
     const onChange = vi.fn();
     render(
       <MaterialsSection
@@ -157,10 +218,9 @@ describe("MaterialsSection", () => {
         onChange={onChange}
       />,
     );
-    // Hidden by default → the toggle offers to "Show … to students".
-    fireEvent.click(
-      await screen.findByRole("button", { name: /Show Haka Fysik to students/i }),
-    );
+    const box = within(chosenRows()[0]).getByRole("checkbox", { name: "Students can open it" });
+    expect(box).not.toBeChecked();
+    fireEvent.click(box);
     expect(onChange).toHaveBeenCalledWith([
       { docId: "d1", origin: "Haka Fysik", studentVisible: true },
     ]);
@@ -170,7 +230,6 @@ describe("MaterialsSection", () => {
   // nothing on screen said so. The state is words on every row, and the
   // document students land on is marked.
   it("says in words whether students can open each material, and which opens first", async () => {
-    browseCurriculum.mockResolvedValue(page([]));
     render(
       <MaterialsSection
         materials={[
@@ -181,36 +240,67 @@ describe("MaterialsSection", () => {
         onChange={vi.fn()}
       />,
     );
-    const cited = await screen.findByRole("list", { name: /cited/i });
-    const rows = within(cited).getAllByRole("listitem");
-    expect(rows[0]).toHaveTextContent("Tutor only");
-    expect(rows[1]).toHaveTextContent("Students can open it");
-    expect(rows[2]).toHaveTextContent("Students can open it");
+    const rows = chosenRows();
+    expect(rows[0]).toHaveTextContent("only the tutor uses it");
+    expect(within(rows[0]).getByRole("checkbox", { name: "Students can open it" })).not.toBeChecked();
+    expect(within(rows[1]).getByRole("checkbox", { name: "Students can open it" })).toBeChecked();
+    expect(within(rows[2]).getByRole("checkbox", { name: "Students can open it" })).toBeChecked();
+    expect(rows[1]).not.toHaveTextContent("only the tutor uses it");
     // The FIRST shared one, in the order added — not the first row.
-    expect(within(rows[1]).getByText("Opens first for students")).toBeInTheDocument();
-    expect(within(rows[0]).queryByText("Opens first for students")).toBeNull();
-    expect(within(rows[2]).queryByText("Opens first for students")).toBeNull();
+    expect(rows[1]).toHaveTextContent("opens first for students");
+    expect(rows[0]).not.toHaveTextContent("opens first for students");
+    expect(rows[2]).not.toHaveTextContent("opens first for students");
+  });
+
+  it("a row's meta names the file type", async () => {
+    render(
+      <MaterialsSection
+        materials={[{ docId: "d1", origin: "opgave-3.pdf", title: "Opgave 3", studentVisible: true }]}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(chosenRows()[0]).toHaveTextContent("PDF");
+  });
+
+  it("'Open this first for students' moves it to the front and shares it", async () => {
+    const onChange = vi.fn();
+    render(
+      <MaterialsSection
+        materials={[
+          { docId: "d1", origin: "Haka Fysik", studentVisible: true },
+          { docId: "d2", origin: "Opgave", studentVisible: false },
+        ]}
+        onChange={onChange}
+      />,
+    );
+    // The one that already opens first does not offer it.
+    expect(await menuLabels("More actions for Haka Fysik")).not.toContain("Open this first for students");
+    await userEvent.keyboard("{Escape}");
+    await chooseFromMenu("More actions for Opgave", /Open this first for students/);
+    expect(onChange).toHaveBeenCalledWith([
+      { docId: "d2", origin: "Opgave", studentVisible: true },
+      { docId: "d1", origin: "Haka Fysik", studentVisible: true },
+    ]);
   });
 
   // 1.1.87 — reference ⟷ context. The half that makes the 21-August failure
   // impossible to repeat SILENTLY: before this, a teacher had no way to know
   // which mechanism their upload got, because there was only one and it was
-  // invisible.
+  // invisible. The choice stays deliberate (never automatic, 2026-11 sweep).
   it("a cited material defaults to Reference (the cheaper mechanism)", async () => {
-    browseCurriculum.mockResolvedValue(page([]));
     render(
       <MaterialsSection
         materials={[{ docId: "d1", origin: "Haka Fysik" }]}
         onChange={() => {}}
       />,
     );
-    const chips = await screen.findByLabelText("Cited materials");
-    expect(chips).toHaveTextContent("Reference");
-    expect(chips).not.toHaveTextContent("In context");
+    expect(chosenRows()[0]).not.toHaveTextContent("the tutor reads the whole text");
+    const labels = await menuLabels("More actions for Haka Fysik");
+    expect(labels).toContain("Let the tutor read the whole text every time");
+    expect(labels).not.toContain("Let the tutor look it up when relevant");
   });
 
-  it("flipping a material to In context sets kind=context (1.1.87)", async () => {
-    browseCurriculum.mockResolvedValue(page([]));
+  it("choosing 'read the whole text' sets kind=context (1.1.87)", async () => {
     const onChange = vi.fn();
     render(
       <MaterialsSection
@@ -218,16 +308,13 @@ describe("MaterialsSection", () => {
         onChange={onChange}
       />,
     );
-    fireEvent.click(
-      await screen.findByRole("button", { name: /Always give Haka Fysik to the tutor/i }),
-    );
+    await chooseFromMenu("More actions for Haka Fysik", /Let the tutor read the whole text/);
     expect(onChange).toHaveBeenCalledWith([
       { docId: "d1", origin: "Haka Fysik", studentVisible: false, kind: "context" },
     ]);
   });
 
   it("flipping a context material back makes it a curriculum material again", async () => {
-    browseCurriculum.mockResolvedValue(page([]));
     const onChange = vi.fn();
     render(
       <MaterialsSection
@@ -235,18 +322,14 @@ describe("MaterialsSection", () => {
         onChange={onChange}
       />,
     );
-    const chips = await screen.findByLabelText("Cited materials");
-    expect(chips).toHaveTextContent("In context");
-    fireEvent.click(
-      await screen.findByRole("button", { name: /Stop always giving Haka Fysik to the tutor/i }),
-    );
+    expect(chosenRows()[0]).toHaveTextContent("the tutor reads the whole text");
+    await chooseFromMenu("More actions for Haka Fysik", /Let the tutor look it up when relevant/);
     expect(onChange).toHaveBeenCalledWith([
       { docId: "d1", origin: "Haka Fysik", kind: "curriculum" },
     ]);
   });
 
-  it("the context toggle leaves image materials alone", async () => {
-    browseCurriculum.mockResolvedValue(page([]));
+  it("the context choice leaves image materials alone", async () => {
     const onChange = vi.fn();
     render(
       <MaterialsSection
@@ -258,40 +341,79 @@ describe("MaterialsSection", () => {
         activityId="act-1"
       />,
     );
-    fireEvent.click(
-      await screen.findByRole("button", { name: /Always give Haka Fysik to the tutor/i }),
-    );
+    await chooseFromMenu("More actions for Haka Fysik", /Let the tutor read the whole text/);
     const next = onChange.mock.calls[0][0];
     expect(next[0]).toEqual({ docId: "", origin: "", kind: "image", materialId: "img-1", alt: "diagram" });
     expect(next[1].kind).toBe("context");
   });
 
-  it("un-citing an already-cited doc removes it", async () => {
+  it("an image row offers only what applies to an image", async () => {
+    render(
+      <MaterialsSection
+        materials={[{ docId: "", origin: "", kind: "image", materialId: "img-1", alt: "diagram" }]}
+        onChange={vi.fn()}
+        activityId="act-1"
+      />,
+    );
+    expect(await menuLabels("More actions for diagram")).toEqual(["Remove from this activity"]);
+  });
+
+  it("un-citing from the library row removes it", async () => {
     browseCurriculum.mockResolvedValue(page([makeDoc()]));
     const cited: MaterialRef[] = [{ docId: "d1", origin: "uvm.dk" }];
     const onChange = vi.fn();
     render(<MaterialsSection materials={cited} onChange={onChange} />);
-    // The list row shows "Cited"; clicking removes it.
-    fireEvent.click(await screen.findByRole("button", { name: /Remove Energi og arbejde/i }));
+    await openPicker();
+    const button = await screen.findByRole("button", { name: /Added: Energi og arbejde/i });
+    expect(button).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(button);
     expect(onChange).toHaveBeenCalledWith([]);
   });
 
-  it("shows cited materials as chips", async () => {
-    browseCurriculum.mockResolvedValue(page([]));
+  it("'Remove from this activity' in the row's ⋯ removes it", async () => {
+    const onChange = vi.fn();
+    render(<MaterialsSection materials={[{ docId: "d1", origin: "Haka Fysik" }]} onChange={onChange} />);
+    await chooseFromMenu("More actions for Haka Fysik", /Remove from this activity/);
+    expect(onChange).toHaveBeenCalledWith([]);
+  });
+
+  it("shows chosen materials as rows", async () => {
     render(
       <MaterialsSection
         materials={[{ docId: "d1", origin: "Haka Fysik" }]}
         onChange={() => {}}
       />,
     );
-    const chips = await screen.findByLabelText("Cited materials");
-    expect(chips).toHaveTextContent("Haka Fysik");
+    expect(screen.getByLabelText("Chosen for this activity")).toHaveTextContent("Haka Fysik");
+  });
+
+  it("the filters sit behind one Filter button that counts what is active", async () => {
+    browseCurriculum.mockResolvedValue(page([]));
+    listCurriculumFacets.mockResolvedValue(facets({ levels: opts({ A: 3 }), tags: opts({ lab: 1 }) }));
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
+    expect(screen.queryByRole("button", { name: "A (3)" })).not.toBeInTheDocument();
+    await openFilters();
+    fireEvent.click(await screen.findByRole("button", { name: "A (3)" }));
+    fireEvent.click(await screen.findByRole("button", { name: "lab (1)" }));
+    expect(await screen.findByRole("button", { name: /^Filter · 2/ })).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("facets that fail to load show a LoadError in the filter panel", async () => {
+    browseCurriculum.mockResolvedValue(page([]));
+    listCurriculumFacets.mockRejectedValue(new Error("down"));
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
+    await openFilters();
+    expect(await screen.findByText("The filters could not be loaded")).toBeInTheDocument();
   });
 
   it("filtering by level re-queries with that level (1.1.60: a chip, not a select)", async () => {
     browseCurriculum.mockResolvedValue(page([]));
     listCurriculumFacets.mockResolvedValue(facets({ levels: opts({ A: 3, B: 1 }) }));
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
+    await openFilters();
     fireEvent.click(await screen.findByRole("button", { name: "A (3)" }));
     await waitFor(() =>
       expect(browseCurriculum).toHaveBeenLastCalledWith({
@@ -314,6 +436,8 @@ describe("MaterialsSection", () => {
       facets({ levels: opts({ A: 1, __unlevelled__: 7 }, { __unlevelled__: "No level" }) }),
     );
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
+    await openFilters();
     fireEvent.click(await screen.findByRole("button", { name: "No level (7)" }));
     await waitFor(() =>
       expect(browseCurriculum).toHaveBeenLastCalledWith(
@@ -326,6 +450,8 @@ describe("MaterialsSection", () => {
     browseCurriculum.mockResolvedValue(page([]));
     listCurriculumFacets.mockResolvedValue(facets({ tags: opts({ exam: 2, lab: 1 }) }));
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
+    await openFilters();
     fireEvent.click(await screen.findByRole("button", { name: "lab (1)" }));
     await waitFor(() =>
       expect(browseCurriculum).toHaveBeenLastCalledWith({
@@ -344,6 +470,8 @@ describe("MaterialsSection", () => {
     browseCurriculum.mockResolvedValue(page([makeDoc()]));
     listCurriculumFacets.mockResolvedValue(facets());
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
+    await openFilters();
     await screen.findByText("Energi og arbejde");
     expect(screen.queryByLabelText("Filter by tags")).not.toBeInTheDocument();
   });
@@ -352,6 +480,8 @@ describe("MaterialsSection", () => {
     browseCurriculum.mockResolvedValue(page([]));
     listCurriculumFacets.mockResolvedValue(facets({ subjects: opts({ Fysik: 4, Matematik: 2 }) }));
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
+    await openFilters();
     fireEvent.click(await screen.findByRole("button", { name: "Fysik (4)" }));
     await waitFor(() =>
       expect(browseCurriculum).toHaveBeenLastCalledWith(expect.objectContaining({ subject: "Fysik", offset: 0 })),
@@ -362,6 +492,8 @@ describe("MaterialsSection", () => {
     browseCurriculum.mockResolvedValue(page([]));
     listCurriculumFacets.mockResolvedValue(facets({ subjects: opts({ Fysik: 4, Matematik: 2 }) }));
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
+    await openFilters();
     fireEvent.click(await screen.findByRole("button", { name: "Matematik (2)" }));
     // The facets call carries the SAME filter as the browse — otherwise the chips
     // would describe a different query than the list below them.
@@ -378,6 +510,8 @@ describe("MaterialsSection", () => {
     browseCurriculum.mockResolvedValue(page([]));
     listCurriculumFacets.mockResolvedValue(facets({ subjects: opts({ Fysik: 0, Matematik: 2 }) }));
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
+    await openFilters();
     fireEvent.click(await screen.findByRole("button", { name: "Fysik (0)" }));
     await waitFor(() =>
       expect(browseCurriculum).toHaveBeenLastCalledWith(expect.objectContaining({ subject: "Fysik" })),
@@ -387,15 +521,28 @@ describe("MaterialsSection", () => {
   it("shows a doc's subject in the row meta (1.1.58 M2)", async () => {
     browseCurriculum.mockResolvedValue(page([makeDoc({ subject: "Kvantefysik" })]));
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
     expect(await screen.findByText(/· Kvantefysik/)).toBeInTheDocument();
   });
 
-  it("setting a subject inline calls patchCurriculumTags with the subject", async () => {
+  it("a library row's ⋯ holds what was extracted, organise and delete", async () => {
+    browseCurriculum.mockResolvedValue(page([makeDoc()]));
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
+    expect(await menuLabels("More actions for Energi og arbejde")).toEqual([
+      "See what was extracted",
+      "Organise (subject, folder, tags)",
+      "Delete from the library…",
+    ]);
+  });
+
+  it("setting a subject from Organise calls patchCurriculumTags with the subject", async () => {
     browseCurriculum.mockResolvedValue(page([makeDoc({ subject: null })]));
     patchCurriculumTags.mockResolvedValue(makeDoc({ subject: "Fysik" }));
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
-    // Open the row editor, then pick a subject.
-    fireEvent.click(await screen.findByRole("button", { name: /Add tags for Energi og arbejde/i }));
+    await openPicker();
+    // Open the row editor from the ⋯, then pick a subject.
+    await chooseFromMenu("More actions for Energi og arbejde", /Organise/);
     fireEvent.change(screen.getByLabelText("Set subject for Energi og arbejde"), {
       target: { value: "Fysik" },
     });
@@ -413,6 +560,8 @@ describe("MaterialsSection", () => {
       { folderId: "f1", name: "Kapitel 4", ownerScope: "shared", docCount: 3 },
     ]);
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
+    await openFilters();
     fireEvent.click(await screen.findByRole("button", { name: /Kapitel 4 \(3\)/ }));
     await waitFor(() =>
       expect(browseCurriculum).toHaveBeenLastCalledWith(expect.objectContaining({ folder: "f1", offset: 0 })),
@@ -428,6 +577,8 @@ describe("MaterialsSection", () => {
     deleteCurriculumFolder.mockResolvedValue({ deleted: "f1", unfiled: 2 });
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
+    await openFilters();
     fireEvent.click(await screen.findByRole("button", { name: /Delete folder Kapitel 4/i }));
     await waitFor(() => expect(deleteCurriculumFolder).toHaveBeenCalledWith("f1"));
     confirmSpy.mockRestore();
@@ -443,12 +594,14 @@ describe("MaterialsSection", () => {
     ]);
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
+    await openFilters();
     fireEvent.click(await screen.findByRole("button", { name: /Delete folder Kapitel 4/i }));
     expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("5 document(s)"));
     confirmSpy.mockRestore();
   });
 
-  it("cancelling the delete confirm does NOT call the API", async () => {
+  it("cancelling the folder delete confirm does NOT call the API", async () => {
     browseCurriculum.mockResolvedValue(page([]));
     listCurriculumFacets.mockResolvedValue(facets({ folders: opts({ f1: 0 }, { f1: "Kapitel 4" }) }));
     listCurriculumFolders.mockResolvedValue([
@@ -456,9 +609,36 @@ describe("MaterialsSection", () => {
     ]);
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
+    await openFilters();
     fireEvent.click(await screen.findByRole("button", { name: /Delete folder Kapitel 4/i }));
     expect(deleteCurriculumFolder).not.toHaveBeenCalled();
     confirmSpy.mockRestore();
+  });
+
+  it("'New folder' still lives on the folder row of the filters", async () => {
+    browseCurriculum.mockResolvedValue(page([]));
+    createCurriculumFolder.mockResolvedValue({ folderId: "fNew", name: "Optik", ownerScope: "teacher-1", docCount: 0 });
+    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("Optik");
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
+    await openFilters();
+    fireEvent.click(await screen.findByRole("button", { name: "New folder" }));
+    await waitFor(() => expect(createCurriculumFolder).toHaveBeenCalledWith("Optik"));
+    promptSpy.mockRestore();
+  });
+
+  it("'Put in a new folder' on your own doc creates the folder and files the doc", async () => {
+    browseCurriculum.mockResolvedValue(page([makeDoc({ ownerScope: "teacher-1", source: "teacher_upload" })]));
+    createCurriculumFolder.mockResolvedValue({ folderId: "fNew", name: "Optik", ownerScope: "teacher-1", docCount: 0 });
+    patchCurriculumTags.mockResolvedValue(makeDoc({ ownerScope: "teacher-1", folderId: "fNew", folderName: "Optik" }));
+    const promptSpy = vi.spyOn(window, "prompt").mockReturnValue("Optik");
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
+    await chooseFromMenu("More actions for Energi og arbejde", /Put in a new folder/);
+    await waitFor(() => expect(createCurriculumFolder).toHaveBeenCalledWith("Optik"));
+    await waitFor(() => expect(patchCurriculumTags).toHaveBeenCalledWith("d1", { folderId: "fNew" }));
+    promptSpy.mockRestore();
   });
 
   // --- M6: deleting a document ---
@@ -468,7 +648,8 @@ describe("MaterialsSection", () => {
     deleteCurriculumDoc.mockResolvedValue(undefined);
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Delete Energi og arbejde" }));
+    await openPicker();
+    await chooseFromMenu("More actions for Energi og arbejde", /Delete from the library/);
     await waitFor(() => expect(deleteCurriculumDoc).toHaveBeenCalledWith("d1"));
     await waitFor(() => expect(screen.queryByText("Energi og arbejde")).not.toBeInTheDocument());
     confirmSpy.mockRestore();
@@ -478,7 +659,9 @@ describe("MaterialsSection", () => {
     browseCurriculum.mockResolvedValue(page([makeDoc()]));
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Delete Energi og arbejde" }));
+    await openPicker();
+    await chooseFromMenu("More actions for Energi og arbejde", /Delete from the library/);
+    expect(confirmSpy).toHaveBeenCalled();
     expect(deleteCurriculumDoc).not.toHaveBeenCalled();
     expect(screen.getByText("Energi og arbejde")).toBeInTheDocument();
     confirmSpy.mockRestore();
@@ -488,7 +671,8 @@ describe("MaterialsSection", () => {
     browseCurriculum.mockResolvedValue(page([makeDoc({ source: "shared" })]));
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(false);
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Delete Energi og arbejde" }));
+    await openPicker();
+    await chooseFromMenu("More actions for Energi og arbejde", /Delete from the library/);
     expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("SHARED library"));
     confirmSpy.mockRestore();
   });
@@ -504,17 +688,19 @@ describe("MaterialsSection", () => {
         onChange={onChange}
       />,
     );
-    fireEvent.click(await screen.findByRole("button", { name: "Delete Energi og arbejde" }));
+    const picker = await openPicker();
+    await screen.findByRole("button", { name: /Added: Energi og arbejde/ });
+    await chooseFromMenu("More actions for Energi og arbejde", /Delete from the library/, picker);
     await waitFor(() => expect(onChange).toHaveBeenCalledWith([]));
     confirmSpy.mockRestore();
   });
 
-  it("deleting is available in library mode too (no Cite column there)", async () => {
+  it("deleting is available in library mode too (no 'Use in activity' there)", async () => {
     browseCurriculum.mockResolvedValue(page([makeDoc()]));
     deleteCurriculumDoc.mockResolvedValue(undefined);
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     render(<MaterialsSection mode="library" materials={[]} onChange={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Delete Energi og arbejde" }));
+    await chooseFromMenu("More actions for Energi og arbejde", /Delete from the library/);
     await waitFor(() => expect(deleteCurriculumDoc).toHaveBeenCalledWith("d1"));
     confirmSpy.mockRestore();
   });
@@ -525,6 +711,8 @@ describe("MaterialsSection", () => {
       facets({ folders: opts({ __unfiled__: 4 }, { __unfiled__: "Unfiled" }) }),
     );
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
+    await openFilters();
     fireEvent.click(await screen.findByRole("button", { name: "Unfiled (4)" }));
     await waitFor(() =>
       expect(browseCurriculum).toHaveBeenLastCalledWith(expect.objectContaining({ folder: "__unfiled__" })),
@@ -538,7 +726,8 @@ describe("MaterialsSection", () => {
     ]);
     patchCurriculumTags.mockResolvedValue(makeDoc({ folderId: "f1", folderName: "Kapitel 4" }));
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: /Add tags for Energi og arbejde/i }));
+    await openPicker();
+    await chooseFromMenu("More actions for Energi og arbejde", /Organise/);
     fireEvent.change(screen.getByLabelText("Set folder for Energi og arbejde"), {
       target: { value: "f1" },
     });
@@ -555,15 +744,19 @@ describe("MaterialsSection", () => {
       { folderId: "fShared", name: "Shared", ownerScope: "shared", docCount: 0 },
     ]);
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: /Add tags for Energi og arbejde/i }));
+    await openPicker();
+    // Folders arrive with the facets; wait for them before opening the editor.
+    await waitFor(() => expect(listCurriculumFolders).toHaveBeenCalled());
+    await chooseFromMenu("More actions for Energi og arbejde", /Organise/);
     const select = screen.getByLabelText("Set folder for Energi og arbejde");
-    expect(within(select).getByRole("option", { name: "Mine" })).toBeInTheDocument();
+    expect(await within(select).findByRole("option", { name: "Mine" })).toBeInTheDocument();
     expect(within(select).queryByRole("option", { name: "Shared" })).not.toBeInTheDocument();
   });
 
   it("renders a doc's tags as chips on its row (1.1.58 M1)", async () => {
     browseCurriculum.mockResolvedValue(page([makeDoc({ tags: ["lab", "exam"] })]));
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
     await screen.findByText("Energi og arbejde");
     expect(screen.getByText("lab")).toBeInTheDocument();
     expect(screen.getByText("exam")).toBeInTheDocument();
@@ -573,8 +766,9 @@ describe("MaterialsSection", () => {
     browseCurriculum.mockResolvedValue(page([makeDoc({ tags: [] })]));
     patchCurriculumTags.mockResolvedValue(makeDoc({ tags: ["mekanik"] }));
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
     // Open the inline editor for the row.
-    fireEvent.click(await screen.findByRole("button", { name: /Add tags for Energi og arbejde/i }));
+    await chooseFromMenu("More actions for Energi og arbejde", /Organise/);
     const input = screen.getByLabelText("Add a tag to Energi og arbejde");
     fireEvent.change(input, { target: { value: "mekanik" } });
     fireEvent.keyDown(input, { key: "Enter" });
@@ -583,11 +777,15 @@ describe("MaterialsSection", () => {
     );
     // Facets refresh after an edit so a new tag becomes filterable (mount + edit).
     await waitFor(() => expect(listCurriculumFacets.mock.calls.length).toBeGreaterThanOrEqual(2));
+    // Done closes the editor.
+    fireEvent.click(screen.getByRole("button", { name: "Done organising Energi og arbejde" }));
+    expect(screen.queryByLabelText("Add a tag to Energi og arbejde")).not.toBeInTheDocument();
   });
 
   it("surfaces a teacher-only 403 error", async () => {
     browseCurriculum.mockRejectedValue(new CurriculumApiError("forbidden", 403));
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
     await waitFor(() =>
       expect(screen.getByText(/teacher-only/i)).toBeInTheDocument(),
     );
@@ -609,6 +807,7 @@ describe("MaterialsSection", () => {
     });
     const onChange = vi.fn();
     render(<MaterialsSection materials={[]} onChange={onChange} />);
+    await openPicker();
     await waitFor(() => expect(browseCurriculum).toHaveBeenCalled());
 
     const file = new File(["content"], "my-notes.txt", { type: "text/plain" });
@@ -661,6 +860,8 @@ describe("MaterialsSection", () => {
       chars: 0,
     });
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
+    await openFilters();
 
     fireEvent.click(await screen.findByRole("button", { name: "Matematik (2)" }));
     fireEvent.click(await screen.findByRole("button", { name: /Algebra \(1\)/ }));
@@ -686,6 +887,7 @@ describe("MaterialsSection", () => {
     });
     fetchCurriculumContent.mockResolvedValue({ docId: "up3", title: "n", available: true, text: "", chars: 0 });
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
     await waitFor(() => expect(browseCurriculum).toHaveBeenCalled());
 
     const file = new File(["x"], "n.txt", { type: "text/plain" });
@@ -707,7 +909,8 @@ describe("MaterialsSection", () => {
     });
     fetchCurriculumContent.mockResolvedValue({ docId: "up4", title: "n", available: true, text: "", chars: 0 });
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
-    expect(screen.queryByText(/Share to the shared library/i)).not.toBeInTheDocument();
+    await openPicker();
+    expect(screen.queryByText(/Add to the shared library/i)).not.toBeInTheDocument();
 
     const file = new File(["x"], "n.txt", { type: "text/plain" });
     fireEvent.change(screen.getByLabelText("Upload document or image"), { target: { files: [file] } });
@@ -715,7 +918,7 @@ describe("MaterialsSection", () => {
     expect(ingestCurriculum.mock.calls[0][0]).toMatchObject({ shared: undefined });
   });
 
-  it("a researcher can check share-to-library, and ingest is called with shared=true", async () => {
+  it("a researcher can check share-to-library (a copyright assertion), and ingest is called with shared=true", async () => {
     researcherRef.current = true;
     browseCurriculum.mockResolvedValue(page([]));
     ingestCurriculum.mockResolvedValue({
@@ -725,8 +928,10 @@ describe("MaterialsSection", () => {
     });
     fetchCurriculumContent.mockResolvedValue({ docId: "up5", title: "n", available: true, text: "", chars: 0 });
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
 
-    fireEvent.click(await screen.findByLabelText(/Share to the shared library/i));
+    // The label keeps the legal meaning: checking it asserts copyright clearance.
+    fireEvent.click(await screen.findByLabelText(/Add to the shared library \(I confirm copyright is cleared\)/i));
     const file = new File(["x"], "n.txt", { type: "text/plain" });
     fireEvent.change(screen.getByLabelText("Upload document or image"), { target: { files: [file] } });
 
@@ -745,8 +950,9 @@ describe("MaterialsSection", () => {
     });
     fetchCurriculumContent.mockResolvedValue({ docId: "up6", title: "n", available: true, text: "", chars: 0 });
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
 
-    const checkbox = await screen.findByLabelText(/Share to the shared library/i);
+    const checkbox = await screen.findByLabelText(/Add to the shared library/i);
     fireEvent.click(checkbox);
     expect(checkbox).toBeChecked();
     const file = new File(["x"], "n.txt", { type: "text/plain" });
@@ -768,6 +974,7 @@ describe("MaterialsSection", () => {
     });
     const onChange = vi.fn();
     render(<MaterialsSection materials={[]} onChange={onChange} activityId="act-1" />);
+    await openPicker();
     await waitFor(() => expect(browseCurriculum).toHaveBeenCalled());
 
     const file = new File(["png"], "free-body.png", { type: "image/png" });
@@ -786,6 +993,7 @@ describe("MaterialsSection", () => {
   it("blocks image upload when there is no activityId yet", async () => {
     browseCurriculum.mockResolvedValue(page([]));
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
     await waitFor(() => expect(browseCurriculum).toHaveBeenCalled());
 
     const file = new File(["png"], "diagram.png", { type: "image/png" });
@@ -795,8 +1003,7 @@ describe("MaterialsSection", () => {
     expect(uploadActivityImage).not.toHaveBeenCalled();
   });
 
-  it("renders an image material as a chip and removes it via the API (1.1.44)", async () => {
-    browseCurriculum.mockResolvedValue(page([]));
+  it("renders an image material as a row, toggles it, and removes it via the API (1.1.44)", async () => {
     deleteActivityImage.mockResolvedValue(undefined);
     const onChange = vi.fn();
     const imageMat: MaterialRef = {
@@ -809,16 +1016,26 @@ describe("MaterialsSection", () => {
       studentVisible: false,
     };
     render(<MaterialsSection materials={[imageMat]} onChange={onChange} activityId="act-1" />);
-    const chips = await screen.findByLabelText("Cited materials");
-    expect(chips).toHaveTextContent("free-body diagram");
+    const row = chosenRows()[0];
+    expect(row).toHaveTextContent("free-body diagram");
+    expect(row).toHaveTextContent("Image");
 
-    fireEvent.click(screen.getByRole("button", { name: /Remove free-body diagram/i }));
-    expect(deleteActivityImage).toHaveBeenCalledWith("act-1", "img-1");
-    expect(onChange).toHaveBeenCalledWith([]);
+    fireEvent.click(within(row).getByRole("checkbox", { name: "Students can open it" }));
+    expect(onChange).toHaveBeenLastCalledWith([{ ...imageMat, studentVisible: true }]);
+
+    // The image's bytes go with it, so removing asks first — and No keeps it.
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValueOnce(false).mockReturnValueOnce(true);
+    await chooseFromMenu("More actions for free-body diagram", /Remove from this activity/);
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining("Remove the image “free-body diagram”?"));
+    expect(deleteActivityImage).not.toHaveBeenCalled();
+
+    await chooseFromMenu("More actions for free-body diagram", /Remove from this activity/);
+    await waitFor(() => expect(deleteActivityImage).toHaveBeenCalledWith("act-1", "img-1"));
+    expect(onChange).toHaveBeenLastCalledWith([]);
+    confirmSpy.mockRestore();
   });
 
-  it("clicking a cited material opens its content viewer", async () => {
-    browseCurriculum.mockResolvedValue(page([]));
+  it("'See what was extracted' on a chosen material opens its content viewer", async () => {
     fetchCurriculumContent.mockResolvedValue({
       docId: "d1",
       title: "Haka Fysik",
@@ -832,7 +1049,7 @@ describe("MaterialsSection", () => {
         onChange={() => {}}
       />,
     );
-    fireEvent.click(await screen.findByRole("button", { name: "Haka Fysik" }));
+    await chooseFromMenu("More actions for Haka Fysik", /See what was extracted/);
     expect(fetchCurriculumContent).toHaveBeenCalledWith("d1");
     await waitFor(() => expect(screen.getByText(/Energi bevares/)).toBeInTheDocument());
   });
@@ -845,6 +1062,7 @@ describe("MaterialsSection", () => {
     // Mount page (total 2, one shown) then the next page on Load more.
     browseCurriculum.mockResolvedValueOnce(page(first, 2)).mockResolvedValueOnce(page(second, 2));
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
     await screen.findByText("Doc 1");
     expect(screen.getByText("Showing 1 of 2")).toBeInTheDocument();
 
@@ -861,10 +1079,23 @@ describe("MaterialsSection", () => {
     expect(screen.queryByRole("button", { name: /Load more/i })).not.toBeInTheDocument();
   });
 
+  it("a failed Load more says so and keeps what was loaded", async () => {
+    browseCurriculum
+      .mockResolvedValueOnce(page([makeDoc({ docId: "d1", title: "Doc 1" })], 2))
+      .mockRejectedValueOnce(new Error("down"));
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
+    await screen.findByText("Doc 1");
+    fireEvent.click(screen.getByRole("button", { name: /Load more/i }));
+    expect(await screen.findByText(/Couldn't load more/)).toBeInTheDocument();
+    expect(screen.getByText("Doc 1")).toBeInTheDocument();
+  });
+
   it("debounces the search input — rapid typing coalesces to one browse with the final value", async () => {
     browseCurriculum.mockResolvedValue(page([]));
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
-    await waitFor(() => expect(browseCurriculum).toHaveBeenCalled()); // mount load
+    await openPicker();
+    await waitFor(() => expect(browseCurriculum).toHaveBeenCalled()); // first load
 
     const input = screen.getByLabelText("Search materials");
     // Two rapid keystrokes within the 250ms window — the intermediate "at" timer
@@ -887,7 +1118,11 @@ describe("MaterialsSection", () => {
     browseCurriculum.mockResolvedValue(page([]));
     listCurriculumFacets.mockResolvedValue(facets({ levels: opts({ A: 1 }) }));
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
+    await openFilters();
     fireEvent.click(await screen.findByRole("button", { name: "A (1)" }));
+    // Closing the panel must not hide that a filter is narrowing the list.
+    fireEvent.click(screen.getByRole("button", { name: /^Filter/ }));
 
     const active = await screen.findByLabelText("Active filters");
     expect(within(active).getByText("Level A")).toBeInTheDocument();
@@ -904,6 +1139,8 @@ describe("MaterialsSection", () => {
       facets({ tags: opts({ lab: 1 }), subjects: opts({ Fysik: 1 }), levels: opts({ B: 1 }) }),
     );
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
+    await openFilters();
     fireEvent.click(await screen.findByRole("button", { name: "B (1)" }));
     fireEvent.click(await screen.findByRole("button", { name: "lab (1)" }));
     fireEvent.click(await screen.findByRole("button", { name: "Fysik (1)" }));
@@ -922,7 +1159,9 @@ describe("MaterialsSection", () => {
     browseCurriculum.mockResolvedValueOnce(page([makeDoc()])).mockResolvedValue(page([]));
     listCurriculumFacets.mockResolvedValue(facets({ levels: opts({ A: 1 }) }));
     render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
     await screen.findByText("Energi og arbejde");
+    await openFilters();
     fireEvent.click(await screen.findByRole("button", { name: "A (1)" }));
     expect(await screen.findByText(/No materials match your filters/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /Clear all filters/i }));
@@ -931,17 +1170,35 @@ describe("MaterialsSection", () => {
     );
   });
 
+  it("Done closes the picker", async () => {
+    browseCurriculum.mockResolvedValue(page([]));
+    render(<MaterialsSection materials={[]} onChange={() => {}} />);
+    await openPicker();
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.queryByRole("region", { name: /Pick from the library/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Add document/i })).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("speaks Danish by default", async () => {
+    rtlRender(
+      <MaterialsSection materials={[{ docId: "d1", origin: "Haka Fysik" }]} onChange={() => {}} />,
+    );
+    expect(screen.getByRole("heading", { name: /^Materialer · tekster tutoren kan bruge$/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Tilføj dokument/ })).toBeInTheDocument();
+    expect(screen.getByRole("checkbox", { name: "Eleverne kan åbne den" })).toBeInTheDocument();
+    expect(screen.getByRole("list", { name: "Valgt til aktiviteten" })).toHaveTextContent("kun tutoren bruger den");
+  });
+
   // 1.1.61 — library mode: the standalone /teacher/materials mount. Curating the
   // corpus, not citing into an activity.
   describe("library mode", () => {
-    it("drops Cite (there is no activity to cite into) but keeps the organise editor", async () => {
+    it("is open from the start, drops 'Use in activity', and keeps the organise editor", async () => {
       browseCurriculum.mockResolvedValue(page([makeDoc()]));
       render(<MaterialsSection mode="library" materials={[]} onChange={() => {}} />);
       await screen.findByText("Energi og arbejde");
-      expect(screen.queryByRole("button", { name: /Cite Energi og arbejde/i })).not.toBeInTheDocument();
-      expect(
-        screen.getByRole("button", { name: /Organise Energi og arbejde/i }),
-      ).toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Add document/i })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /Use in activity/i })).not.toBeInTheDocument();
+      expect(await menuLabels("More actions for Energi og arbejde")).toContain("Organise (subject, folder, tags)");
     });
 
     it("files a doc into a folder — the edit the library exists to make", async () => {
@@ -952,10 +1209,11 @@ describe("MaterialsSection", () => {
       ]);
       patchCurriculumTags.mockResolvedValue({ ...doc, folderId: "f-mek", folderName: "Mekanik" });
       render(<MaterialsSection mode="library" materials={[]} onChange={() => {}} />);
-      fireEvent.click(await screen.findByRole("button", { name: /Organise Energi og arbejde/i }));
-      fireEvent.change(await screen.findByLabelText(/Set folder for Energi og arbejde/i), {
-        target: { value: "f-mek" },
-      });
+      await waitFor(() => expect(listCurriculumFolders).toHaveBeenCalled());
+      await chooseFromMenu("More actions for Energi og arbejde", /Organise/);
+      const select = await screen.findByLabelText(/Set folder for Energi og arbejde/i);
+      await within(select).findByRole("option", { name: "Mekanik" });
+      fireEvent.change(select, { target: { value: "f-mek" } });
       await waitFor(() =>
         expect(patchCurriculumTags).toHaveBeenCalledWith("d1", { folderId: "f-mek" }),
       );
