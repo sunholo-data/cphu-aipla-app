@@ -41,11 +41,12 @@ stay in control: the co-pilot never changes the activity on its own.
 
 ## Step 1 — Open the co-pilot
 
-Start a new activity or open one in the editor (guide *T2*). Open **Help** in
-the header and choose **Build helper** — the panel opens at the bottom-right of
-the page, ready for a description. (The same menu offers **Guides** and **Ask
-AIPLA Help** on every page; pages with a co-pilot of their own add it below
-them.)
+Start a new activity or open one in the editor (guide *T2*). Click the
+**✨ Build helper** button at the bottom-right of the page — the panel opens
+there, ready for a description. The first time you visit, a short tip beside
+the button says what it can do. You can also open it from **Help** in the
+header, which lists the page's own helper below **Guides** and **Ask AIPLA
+Help**.
 
 ![The co-pilot panel sits at the bottom-right of the activity page.](/guides/assets/t4-01-copilot-panel.png)
 

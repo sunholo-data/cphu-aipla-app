@@ -42,11 +42,11 @@ hånd.
 
 ## Trin 1 — Åbn co-piloten
 
-Start en ny aktivitet, eller åbn en i editoren (vejledning *T2*). Åbn
-**Hjælp** i toppen, og vælg **Hjælp til at bygge** — panelet åbner nederst til
-højre på siden, klar til en beskrivelse. (Samme menu giver **Vejledninger** og
-**Spørg AIPLA Hjælp** på alle sider; sider med deres egen co-pilot tilføjer
-den nedenunder.)
+Start en ny aktivitet, eller åbn en i editoren (vejledning *T2*). Klik på
+knappen **✨ Hjælp til at bygge** nederst til højre på siden — panelet åbner
+dér, klar til en beskrivelse. Første gang viser et lille tip ved siden af
+knappen, hvad den kan. Du kan også åbne den fra **Hjælp** i toppen, som viser
+sidens egen hjælper under **Vejledninger** og **Spørg AIPLA Hjælp**.
 
 ![Co-pilotens panel sidder nederst til højre på aktivitetssiden.](/guides/assets/t4-01-copilot-panel.png)
 
