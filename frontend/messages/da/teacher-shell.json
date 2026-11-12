@@ -2,7 +2,7 @@
   "AiplaHelpCopilot": {
     "title": "AIPLA Hjælp",
     "placeholder": "Spørg om hvordan du bruger AIPLA…",
-    "emptyText": "Spørg mig om hvordan du bruger AIPLA — opret en klasse, byg en aktivitet, tilføj materialer, brug medbyggeren, eller (for forskere) forskervisningerne. Jeg svarer på dansk eller engelsk. De fulde vejledninger ligger under Guides.",
+    "emptyText": "Spørg mig om hvordan du bruger AIPLA — opret en klasse, byg en aktivitet, tilføj materialer, brug hjælpen til at bygge, eller (for forskere) forskervisningerne. Jeg svarer på dansk eller engelsk. De fulde vejledninger ligger under Guides.",
     "reportBug": "Rapportér en fejl / send feedback"
   },
   "TeacherGroupGate": {
@@ -146,7 +146,7 @@
     "resendHint": "Din besked blev ikke sendt, fordi den forrige stadig kører. Den står i feltet igen: send den, når samtalen er opdateret."
   },
   "DefaultsCard": {
-    "flagAuthoringCopilot": "Aktivitets-medbygger (AI co-pilot i aktivitetsbyggeren)",
+    "flagAuthoringCopilot": "Hjælp til at bygge (AI-hjælper i aktivitetsbyggeren)",
     "flagConceptMap": "Begrebskort (levende begrebskort med tjekspørgsmål)",
     "saveFailed": "Kunne ikke gemme — prøv igen.",
     "title": "Standardindstillinger",

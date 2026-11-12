@@ -175,7 +175,7 @@ export function ActivityBuilderBody({
         </BuilderSection>
 
         <BuilderSection section={SECTION.materials}>
-          <MaterialsSection materials={b.materials} onChange={b.setMaterials} activityId={activityId} />
+          <MaterialsSection materials={b.materials} onChange={b.setMaterials} activityId={activityId} showHeading={false} />
         </BuilderSection>
 
         {/* 1.1.151 — soft hints; never blocking. */}

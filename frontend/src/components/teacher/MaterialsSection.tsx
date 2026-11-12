@@ -78,6 +78,9 @@ interface Props {
    *  Choosing is meaningless there, so there is no chosen list and the library
    *  is always open. */
   mode?: "cite" | "library";
+  /** The editor already titles this block with its own section heading, so it
+   *  passes `false` and the heading stays for screen readers only. */
+  showHeading?: boolean;
 }
 
 // 1.1.59 — page size for the paginated browse (server caps at 200).
@@ -120,7 +123,7 @@ function fileType(...names: (string | undefined)[]): string | null {
  * students never see the open corpus. Loading / failed / empty are kept apart
  * (a failed read is a LoadError, never an empty list).
  */
-export function MaterialsSection({ materials, onChange, activityId, mode = "cite" }: Props) {
+export function MaterialsSection({ materials, onChange, activityId, mode = "cite", showHeading = true }: Props) {
   const t = useT("MaterialsSection");
   const confirm = useConfirm();
   const isLibrary = mode === "library";
@@ -524,8 +527,8 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
 
   return (
     <section aria-labelledby={headingId} className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 id={headingId} className="flex items-center gap-1.5 text-sm font-medium">
+      <div className={showHeading ? "flex flex-wrap items-center justify-between gap-2" : "flex flex-wrap items-center justify-end gap-2"}>
+        <h3 id={headingId} className={showHeading ? "flex items-center gap-1.5 text-sm font-medium" : "sr-only"}>
           <BookOpen className="h-4 w-4" aria-hidden="true" />
           {t("legend")}
           {isLibrary ? null : (

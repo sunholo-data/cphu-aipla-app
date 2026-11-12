@@ -49,12 +49,12 @@
   "NoteEditor": {
     "optional": "Note (optional)",
     "add": "Add note",
-    "help": "A reference card shown in the workspace — instructions, a formula sheet, a definition. Supports Markdown.",
+    "help": "A reference card shown in the workspace — instructions, a formula sheet, a definition.",
     "title": "Note",
     "remove": "Remove note",
     "titleLabel": "Title (optional)",
     "titlePlaceholder": "e.g. Remember the formulas",
-    "text": "Text (Markdown)",
+    "text": "Text",
     "textAria": "Note text",
     "textPlaceholder": "e.g. **Speed:** v = s / t\n\nRemember to convert to SI units."
   },

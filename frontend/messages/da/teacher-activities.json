@@ -49,12 +49,12 @@
   "NoteEditor": {
     "optional": "Instruktion (valgfri)",
     "add": "Tilføj instruktion",
-    "help": "Et opslagskort i arbejdsområdet — en instruktion, en formelsamling, en definition. Understøtter Markdown.",
+    "help": "Et opslagskort i arbejdsområdet — en instruktion, en formelsamling, en definition.",
     "title": "Instruktion",
     "remove": "Fjern instruktion",
     "titleLabel": "Titel (valgfri)",
     "titlePlaceholder": "fx Husk formlerne",
-    "text": "Tekst (Markdown)",
+    "text": "Tekst",
     "textAria": "Instruktionstekst",
     "textPlaceholder": "fx **Fart:** v = s / t\n\nHusk at omregne til SI-enheder."
   },
