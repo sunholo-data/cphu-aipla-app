@@ -54,6 +54,10 @@ export interface TeacherCopilotConfig<P> {
   skillName: string;
   /** Panel title + minimized-pill label. */
   title: string;
+  /** One line on what THIS co-pilot can do, said once beside its pill the
+   *  first time a teacher meets it (per skill, remembered in this browser).
+   *  Keep it true to the skill's tools — it is a promise. Omit for no nudge. */
+  nudge?: string;
   /** Prefix prepended to the user's message so the agent scopes correctly,
    *  e.g. `[class_id=abc] ` — matches the analytics-chat contract. "" for none. */
   scopePrefix?: string;

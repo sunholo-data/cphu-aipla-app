@@ -545,7 +545,8 @@
     "loading": "Loading the build helper…",
     "minimize": "Hide the build helper",
     "titleStudentOpening": "Suggested student introduction",
-    "titleStarterPrompts": "Suggestions students can tap (one per line)"
+    "titleStarterPrompts": "Suggestions students can tap (one per line)",
+    "nudge": "I can suggest a goal, tools and a concept map."
   },
   "ElementKinds": {
     "checklist": "Progress",

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { SiteFooter } from "@/components/site/SiteFooter";
 import { PageLoading } from "@/components/ui/skeleton";
-import { AskAiplaButton, CopilotEntryProvider } from "@/components/teacher/copilot";
+import { AskAiplaButton, CopilotEntryProvider, CopilotLauncherClearance } from "@/components/teacher/copilot";
 import { AccountMenu } from "@/components/teacher/ui/AccountMenu";
 import { TeacherNav } from "@/components/teacher/ui/TeacherNav";
 import { VisitorAccessBanner } from "@/components/teacher/VisitorAccessBanner";
@@ -194,6 +194,9 @@ export function TeacherClientShell({ children }: { children: ReactNode }) {
             {children}
           </main>
           <SiteFooter />
+          {/* The page's co-pilot pill floats bottom-right; this lets the end
+              of every page scroll clear of it. Nothing when no co-pilot. */}
+          <CopilotLauncherClearance />
         </div>
       </div>
       {/* Help co-pilot — opened from the header "Hjælp" button, closed by

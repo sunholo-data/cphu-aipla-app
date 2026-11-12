@@ -118,7 +118,7 @@ describe("the one entry (AskAiplaButton + CopilotEntryProvider)", () => {
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
   });
 
-  it("a work copilot inside the shell has no pill; the menu offers it beside help; choosing it expands the panel", async () => {
+  it("a work copilot inside the shell shows its pill AND is in the menu beside help; choosing it expands the panel", async () => {
     const onOpenHelp = vi.fn();
     render(
       <CopilotEntryProvider>
@@ -128,8 +128,8 @@ describe("the one entry (AskAiplaButton + CopilotEntryProvider)", () => {
         </FloatingCopilot>
       </CopilotEntryProvider>,
     );
-    // No pill of its own; the panel starts hidden.
-    expect(screen.queryByTestId("copilot-fab")).not.toBeInTheDocument();
+    // Its pill is visible (2026-11-12: the menu alone hid it); the panel starts hidden.
+    expect(screen.getByTestId("copilot-fab")).toHaveTextContent("Class co-pilot");
     expect(screen.getByTestId("copilot-panel").classList.contains("hidden")).toBe(true);
 
     await userEvent.click(screen.getByTestId("ask-aipla"));
@@ -140,12 +140,13 @@ describe("the one entry (AskAiplaButton + CopilotEntryProvider)", () => {
     await userEvent.click(screen.getByRole("menuitem", { name: /Class co-pilot/ }));
     expect(screen.getByTestId("copilot-panel").classList.contains("hidden")).toBe(false);
     expect(onOpenHelp).not.toHaveBeenCalled();
+    // The pill hides while the panel is open: the panel is where it was.
+    expect(screen.queryByTestId("copilot-fab")).not.toBeInTheDocument();
 
-    // …and after minimising, the panel hides again with still no pill: the
-    // header menu is the way back in.
+    // …and after minimising, the panel hides and the pill is back.
     await userEvent.click(screen.getByRole("button", { name: /minimize/i }));
     expect(screen.getByTestId("copilot-panel").classList.contains("hidden")).toBe(true);
-    expect(screen.queryByTestId("copilot-fab")).not.toBeInTheDocument();
+    expect(screen.getByTestId("copilot-fab")).toBeInTheDocument();
   });
 
   it("with help off, the menu still offers the page's copilot (and the guides)", async () => {

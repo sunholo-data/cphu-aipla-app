@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { ChevronDown, Sparkles, SquarePen, X } from "lucide-react";
 
 import { useCopilotEntry } from "./CopilotEntryContext";
+import { CopilotLauncher } from "./CopilotLauncher";
 import { useT } from "@/i18n";
 
 /**
@@ -23,6 +24,8 @@ export function FloatingCopilot({
   onClose,
   align = "right",
   onAsk,
+  nudge,
+  nudgeKind,
   children,
 }: {
   title: string;
@@ -42,6 +45,11 @@ export function FloatingCopilot({
    *  `useCopilotEntry().ask`). The panel opens and hands the text on; the
    *  chat sends it as a turn. */
   onAsk?: (text: string) => void;
+  /** One line on what this helper can do, shown once per `nudgeKind` beside
+   *  the pill the first time a teacher meets it (inside the teacher shell). */
+  nudge?: string;
+  /** Which helper this is, for "once per kind" — the skill slug. */
+  nudgeKind?: string;
   children: ReactNode;
 }) {
   // START MINIMISED (2026-09-11, M's standing request for every co-pilot).
@@ -57,22 +65,23 @@ export function FloatingCopilot({
   // a pill would swallow the click.
   const t = useT("FloatingCopilot");
   const [minimized, setMinimized] = useState(true);
-  const pos = align === "left" ? "bottom-4 left-4" : "bottom-4 right-4";
   // On a phone the open panel is the whole screen (a sheet over the page and
   // its bottom bar): a 384px box in a corner left the chat a few lines tall,
   // under the bottom bar, and pushed off screen by the keyboard. From `sm` up
-  // it is the corner panel.
+  // it is the corner panel — lifted clear of anything the page keeps at its
+  // bottom edge (the wizard's sticky footer), via `--copilot-bottom-offset`.
   const panelPos =
     align === "left"
-      ? "inset-0 sm:inset-auto sm:bottom-4 sm:left-4"
-      : "inset-0 sm:inset-auto sm:bottom-4 sm:right-4";
+      ? "inset-0 sm:inset-auto sm:bottom-[calc(1rem+var(--copilot-bottom-offset,0px))] sm:left-4"
+      : "inset-0 sm:inset-auto sm:bottom-[calc(1rem+var(--copilot-bottom-offset,0px))] sm:right-4";
   const closable = Boolean(onClose);
-  // 1.1.125 M3 — inside the teacher shell the ENTRY is the header's one button,
-  // so a work copilot registers itself there and renders no pill of its own.
-  // Outside a provider (no shell) it keeps the pill: same component, same
-  // behaviour everywhere it was already used.
+  // 1.1.125 M3 — inside the teacher shell a work copilot registers itself with
+  // the header's Hjælp menu. Since 2026-11-12 it ALSO shows its pill there
+  // (teachers did not find the menu item), plus a one-time nudge saying what
+  // it can do. Outside a provider it is the plain pill, as it always was.
   const entry = useCopilotEntry();
   const registerWithShell = Boolean(entry) && !closable;
+  const bottomInset = entry?.bottomInset ?? 0;
   // Depend on the STABLE `register` callback, not the context value: the value
   // changes on every registration, and depending on it would re-register in a
   // loop (register → value changes → cleanup → register → …).
@@ -97,6 +106,7 @@ export function FloatingCopilot({
       <section
         data-testid="copilot-panel"
         aria-label={title}
+        style={{ "--copilot-bottom-offset": `${bottomInset}px` } as CSSProperties}
         className={`fixed ${panelPos} z-50 h-dvh w-full flex-col overflow-hidden border-border bg-background sm:h-auto sm:max-h-[70vh] sm:w-[min(384px,calc(100vw-2rem))] sm:rounded-xl sm:border sm:shadow-2xl ${
           minimized && !closable ? "hidden" : "flex"
         }`}
@@ -139,16 +149,17 @@ export function FloatingCopilot({
         </div>
         {children}
       </section>
-      {minimized && !closable && !registerWithShell ? (
-        <button
-          type="button"
-          onClick={() => setMinimized(false)}
-          data-testid="copilot-fab"
-          className={`fixed ${pos} z-50 inline-flex items-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-medium text-primary-foreground shadow-lg hover:bg-primary/90`}
-        >
-          <Sparkles className="h-4 w-4" aria-hidden="true" /> {title}
-        </button>
-      ) : null}
+      {closable ? null : (
+        <CopilotLauncher
+          title={title}
+          open={!minimized}
+          onOpen={() => setMinimized(false)}
+          align={align}
+          bottomInset={bottomInset}
+          nudge={registerWithShell ? nudge : undefined}
+          nudgeKind={nudgeKind}
+        />
+      )}
     </>
   );
 }

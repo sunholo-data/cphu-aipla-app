@@ -22,6 +22,7 @@ export function ManageClassCopilot({ onChanged }: { onChanged?: () => void }) {
     <TeacherCopilot
       skillName="manage-class"
       title={t("title")}
+      nudge={t("nudge")}
       placeholder={t("placeholder")}
       emptyText={t("empty")}
       parseProposal={parseClassProposal}

@@ -21,6 +21,7 @@ import { ClassTutorSummary, tutorSettingsHref } from "@/components/teacher/Inher
 import { ModelTierControl } from "@/components/teacher/ModelTierControl";
 import { TryAsStudentButton } from "@/components/teacher/TryAsStudentButton";
 import { ActivityBuilderBody } from "@/components/teacher/ActivityBuilderBody";
+import { useCopilotBottomInset } from "@/components/teacher/copilot/CopilotEntryContext";
 import { Button } from "@/components/ui/button";
 import { LoadError } from "@/components/ui/load-error";
 import { PageSkeleton } from "@/components/ui/skeleton";
@@ -133,6 +134,8 @@ export default function TeacherActivityConfigPage() {
   const [assigned, setAssigned] = useState<ClassPayload[] | null>(null);
   const [classesFailed, setClassesFailed] = useState(false);
   const [classesAttempt, setClassesAttempt] = useState(0);
+  // The sticky Save bar lifts the co-pilot's pill and panel above it.
+  const saveBarRef = useCopilotBottomInset<HTMLDivElement>();
   useEffect(() => {
     if (loadState !== "ready") return;
     let alive = true;
@@ -289,7 +292,7 @@ export default function TeacherActivityConfigPage() {
           // The one Save: sticky at the bottom of the form column, so it is in
           // reach at every scroll position (see the page comment).
           footer={
-            <div className="sticky bottom-0 z-10 -mx-1 border-t border-border bg-background/95 px-1 py-3 backdrop-blur">
+            <div ref={saveBarRef} className="sticky bottom-0 z-10 -mx-1 border-t border-border bg-background/95 px-1 py-3 backdrop-blur">
               {saveButton}
             </div>
           }

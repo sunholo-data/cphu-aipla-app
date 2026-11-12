@@ -197,13 +197,15 @@
   "ManageClassCopilot": {
     "title": "Class co-pilot",
     "placeholder": "Create a class, make group codes, or ask how a class is doing…",
-    "empty": "Tell me what you'd like to do — create a class, make group codes for students to join, or check how a class is doing. I propose changes you Apply, and they appear in your list."
+    "empty": "Tell me what you'd like to do — create a class, make group codes for students to join, or check how a class is doing. I propose changes you Apply, and they appear in your list.",
+    "nudge": "I can create a class and make group codes for your students."
   },
   "ClassAnalyticsCopilot": {
     "title": "Analytics co-pilot",
     "placeholder": "Ask about {className}…",
     "thisClass": "this class",
-    "empty": "Ask about this class — messages this week, most-active groups, time on task, common misconceptions. I answer here; I don't change anything."
+    "empty": "Ask about this class — messages this week, most-active groups, time on task, common misconceptions. I answer here; I don't change anything.",
+    "nudge": "I can tell you how this class is doing — for example, which groups are most active."
   },
   "GettingStartedCard": {
     "title": "Getting started",

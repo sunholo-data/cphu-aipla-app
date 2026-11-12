@@ -44,6 +44,7 @@ export function TutorCopilot({
     <TeacherCopilot<TutorProposal>
       skillName="tutor-authoring-assistant"
       title={t("title")}
+      nudge={t("nudge")}
       placeholder={t("placeholder")}
       emptyText={t("empty")}
       testId="tutor-copilot"

@@ -124,6 +124,8 @@ export function TeacherCopilot<P>(config: TeacherCopilotConfig<P>) {
       onClose={config.onClose}
       align={config.align}
       onAsk={setPendingAsk}
+      nudge={config.nudge}
+      nudgeKind={config.skillName}
     >
       <CopilotResolver
         config={config}

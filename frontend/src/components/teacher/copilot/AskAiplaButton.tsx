@@ -19,9 +19,9 @@ import { useT } from "@/i18n";
  *     material, not a place a teacher goes every session.
  *   - **Spørg AIPLA Hjælp** — the help co-pilot, only when `aiplaHelp` is on.
  *   - **the page's work co-pilot** (class list, class page, builder, tutors),
- *     when one registered with the `CopilotEntryProvider` (1.1.125 M3 — the
- *     work co-pilots float no pill of their own inside the shell, so this item
- *     is the way in).
+ *     when one registered with the `CopilotEntryProvider` (1.1.125 M3). Since
+ *     2026-11-12 the co-pilot's own pill shows in the shell as well — teachers
+ *     did not find it here alone — and this item stays as the second way in.
  *
  * Radix, not a hand-rolled list: the old `role="menu"` had no arrow keys, no
  * focus on open and did not return focus on Esc (audit, shell f).

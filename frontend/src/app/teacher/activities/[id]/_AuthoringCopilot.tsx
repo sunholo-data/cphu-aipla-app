@@ -481,6 +481,7 @@ export function AuthoringCopilot({ activityId, draft, onApplyProposal }: Authori
   const config: TeacherCopilotConfig<Proposal> = {
     skillName: SKILL_NAME,
     title: t("title"),
+    nudge: t("nudge"),
     testId: "authoring-copilot",
     placeholder: t("placeholder"),
     inputAriaLabel: t("inputAria"),
