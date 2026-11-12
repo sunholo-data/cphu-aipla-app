@@ -1,7 +1,9 @@
 "use client";
 
+import { Sparkles } from "lucide-react";
 import { useState, type Ref } from "react";
 
+import { useCopilotEntry } from "@/components/teacher/copilot";
 import { TeachingGoalLint } from "@/components/teacher/TeachingGoalLint";
 import { TemplatePicker, featuredTemplates, templateFamily, templateFeatures } from "@/components/teacher/TemplatePicker";
 import type { ActivityBuilder } from "@/hooks/useActivityBuilder";
@@ -10,6 +12,11 @@ import { ACTIVITY_TEMPLATES, type ActivityTemplate } from "@/lib/activityTemplat
 import type { ClassPayload } from "@/lib/teacherApi";
 import { runGoalLint } from "@/lib/teachingGoalLint";
 import { cn } from "@/lib/utils";
+
+import { ConceptMapCard, useConceptMapSuggestion } from "./ConceptMapSuggestion";
+
+// Living concept map — build-time flag, like the workspace grid's tile.
+const CONCEPT_MAP_ENABLED = process.env.NEXT_PUBLIC_CONCEPT_MAP === "1";
 
 /**
  * Wizard step 1 — "What should the students learn?" (2026-11-12). The goal is
@@ -29,6 +36,7 @@ export function GoalStep({
   appliedTemplateId,
   onPickTemplate,
   onStartBlank,
+  conceptMapAuto = true,
 }: {
   builder: ActivityBuilder;
   classes: ClassPayload[];
@@ -42,8 +50,14 @@ export function GoalStep({
   appliedTemplateId: string | null;
   onPickTemplate: (tpl: ActivityTemplate) => void;
   onStartBlank: () => void;
+  /** Suggest a concept map without being asked — the teacher's "start new
+   *  activities with a concept map" default. Off: only on the button. */
+  conceptMapAuto?: boolean;
 }) {
   const t = useT("ActivityWizard");
+  const suggestion = useConceptMapSuggestion(b, { enabled: CONCEPT_MAP_ENABLED, auto: conceptMapAuto });
+  // The page's work co-pilot, when one is mounted — no dead control otherwise.
+  const copilot = useCopilotEntry()?.registered ?? null;
   const [pickingClass, setPickingClass] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const cls = classes.find((c) => c.classId === classId);
@@ -108,6 +122,7 @@ export function GoalStep({
             if (b.goalLint?.text !== b.teachingGoal.trim()) {
               void runGoalLint(b.setGoalLint, b.teachingGoal, { classId });
             }
+            suggestion.flush();
           }}
           placeholder={t("goalPlaceholder")}
           rows={6}
@@ -118,6 +133,16 @@ export function GoalStep({
           {t("goalHelp")}
         </p>
         <TeachingGoalLint builder={b} />
+        {copilot ? (
+          <button
+            type="button"
+            onClick={() => copilot.open()}
+            className="flex items-center gap-1.5 self-start text-sm font-medium text-primary hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-ring"
+          >
+            <Sparkles aria-hidden="true" className="h-4 w-4" />
+            {t("aiHelp")}
+          </button>
+        ) : null}
       </div>
 
       <div className="flex max-w-xl flex-col gap-1">
@@ -141,6 +166,8 @@ export function GoalStep({
           </p>
         ) : null}
       </div>
+
+      {CONCEPT_MAP_ENABLED ? <ConceptMapCard builder={b} suggestion={suggestion} auto={conceptMapAuto} /> : null}
 
       <section aria-labelledby="wizard-examples" className="flex flex-col gap-3 border-t border-border pt-5">
         <div className="flex flex-wrap items-center justify-between gap-2">

@@ -9,6 +9,7 @@ import {
   LayoutPanelLeft,
   Library,
   MessageSquareText,
+  Network,
   NotebookPen,
   SlidersHorizontal,
   Target,
@@ -93,11 +94,15 @@ export function ReviewStep({
   const tWs = useT("WorkspaceAdd");
   const tView = useT("StudentViewPicker");
   const tLint = useT("TeachingGoalLint");
+  const tMap = useT("WizardConceptMap");
   const [moreOpen, setMoreOpen] = useState(false);
   const [openRow, setOpenRow] = useState<SettingRow | null>(null);
 
   const tutorClasses = selectedClass ? [selectedClass] : null;
-  const kinds = addedKinds(b);
+  // The concept map has its own row (it is chosen on step 1), so the tools
+  // row does not list it a second time.
+  const kinds = addedKinds(b).filter((k) => k !== "conceptMap");
+  const concepts = b.conceptMap?.nodes.filter((n) => n.label.trim()).length ?? 0;
   const prompts = b.starterPrompts.filter((p) => p.trim()).length;
   const opening = [
     b.openingByTeacher ? tSum("openingByTeacher") : b.studentOpening.trim() ? tSum("openingOwn") : tSum("openingDefault"),
@@ -129,6 +134,23 @@ export function ReviewStep({
             <EditButton label={t("edit")} aria={t("editAria", { what: t("goalWhat") })} onClick={() => onEditStep(1)} />
           }
         />
+        {CONCEPT_MAP_ENABLED ? (
+          <SummaryRow
+            icon={Network}
+            value={
+              <span className="text-foreground" data-testid="wizard-summary-concept-map">
+                {tMap("summary", { count: concepts })}
+              </span>
+            }
+            action={
+              <EditButton
+                label={t("edit")}
+                aria={t("editAria", { what: tMap("summaryWhat") })}
+                onClick={() => onEditStep(1)}
+              />
+            }
+          />
+        ) : null}
         <SummaryRow
           icon={LayoutGrid}
           value={
