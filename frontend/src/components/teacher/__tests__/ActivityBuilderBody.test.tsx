@@ -271,7 +271,7 @@ describe("ActivityBuilderBody — summary block (UI sweep 2026-11-11)", () => {
     act(() => result.current.setStarterPrompts(["What do I measure?"]));
     render(<ActivityBuilderBody builder={result.current} />);
     expect(screen.getByLabelText("Student introduction (optional)")).toBeInTheDocument();
-    expect(screen.getByText(/1 starter prompt/)).toBeInTheDocument();
+    expect(screen.getByText(/1 suggestion/)).toBeInTheDocument();
   });
 });
 
@@ -282,15 +282,15 @@ describe("ActivityBuilderBody — lesson section", () => {
     await user.click(screen.getByRole("button", { name: "Change: Students see first" }));
     await user.type(screen.getByLabelText("Student introduction (optional)"), "Start by measuring.");
     await user.click(screen.getByRole("checkbox", { name: "I’ll introduce this activity in class myself" }));
-    await user.click(screen.getByRole("button", { name: "Add starter prompt" }));
-    await user.type(screen.getByLabelText("Starter prompt 1"), "What should I measure?");
+    await user.click(screen.getByRole("button", { name: "Add suggestion" }));
+    await user.type(screen.getByLabelText("Suggestion 1"), "What should I measure?");
     expect(getBuilder().toSavePayload()).toMatchObject({ studentOpening: "Start by measuring.",
       openingByTeacher: true, starterPrompts: ["What should I measure?"] });
   });
   it("renders the teaching-goal textarea and updates it", async () => {
     const user = userEvent.setup();
     setup();
-    const ta = screen.getByLabelText(/Lesson prompt/);
+    const ta = screen.getByLabelText(/What should students learn/);
     await user.type(ta, "Discover independence");
     expect(ta).toHaveValue("Discover independence");
   });

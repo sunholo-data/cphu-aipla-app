@@ -122,7 +122,7 @@ describe("/teacher/activities/new — concept activity builder", () => {
     try {
       listClassesMock.mockResolvedValue(ONE_CLASS);
       render(<NewActivityPage />);
-      expect(await screen.findByLabelText(/lesson prompt/i)).toHaveValue("Start next lesson on frequency.");
+      expect(await screen.findByLabelText(/what should students learn/i)).toHaveValue("Start next lesson on frequency.");
     } finally {
       searchGet = () => null;
     }
@@ -132,7 +132,7 @@ describe("/teacher/activities/new — concept activity builder", () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);
     expect(await screen.findByLabelText(/activity name/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/lesson prompt/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/what should students learn/i)).toBeInTheDocument();
     expect(screen.getByLabelText(/^class$/i)).toBeInTheDocument();
   });
 
@@ -154,7 +154,7 @@ describe("/teacher/activities/new — concept activity builder", () => {
     fireEvent.change(await screen.findByLabelText(/activity name/i), {
       target: { value: "Energibevarelse" },
     });
-    fireEvent.change(screen.getByLabelText(/lesson prompt/i), {
+    fireEvent.change(screen.getByLabelText(/what should students learn/i), {
       target: { value: "Explore energy conservation Socratically." },
     });
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
@@ -186,7 +186,7 @@ describe("/teacher/activities/new — concept activity builder", () => {
     createActivityMock.mockResolvedValueOnce({ activityId: "act-aaa" });
     render(<NewActivityPage />);
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "First" } });
-    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "g1" } });
+    fireEvent.change(screen.getByLabelText(/what should students learn/i), { target: { value: "g1" } });
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
     // The editor link carries the minted act- id (the root-cause fix: never the
     // shared concept-dialogue skill id that used to collide) and the class.
@@ -200,7 +200,7 @@ describe("/teacher/activities/new — concept activity builder", () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "E" } });
-    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "g" } });
+    fireEvent.change(screen.getByLabelText(/what should students learn/i), { target: { value: "g" } });
 
     // The persona is shown read-only (resolved from the class default) — there
     // is NO co-equal picker and NO standalone teaching-style control anymore.
@@ -223,7 +223,7 @@ describe("/teacher/activities/new — concept activity builder", () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Energi" } });
-    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "Explore." } });
+    fireEvent.change(screen.getByLabelText(/what should students learn/i), { target: { value: "Explore." } });
     // Add a checklist (one step), then a second step.
     addToWorkspace("checklist");
     fireEvent.click(screen.getByRole("button", { name: /add step/i }));
@@ -242,7 +242,7 @@ describe("/teacher/activities/new — concept activity builder", () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "E" } });
-    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "g" } });
+    fireEvent.change(screen.getByLabelText(/what should students learn/i), { target: { value: "g" } });
     addToWorkspace("checklist");
     // leave it blank
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
@@ -254,7 +254,7 @@ describe("/teacher/activities/new — concept activity builder", () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Lab" } });
-    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "Measure." } });
+    fireEvent.change(screen.getByLabelText(/what should students learn/i), { target: { value: "Measure." } });
     // Add a data table + name its first (seeded) column.
     addToWorkspace("table");
     fireEvent.change(screen.getByLabelText(/column 1 label/i), { target: { value: "Tid" } });
@@ -282,7 +282,7 @@ describe("/teacher/activities/new — concept activity builder", () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "E" } });
-    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "g" } });
+    fireEvent.change(screen.getByLabelText(/what should students learn/i), { target: { value: "g" } });
     addToWorkspace("table");
     // leave the seeded column blank → the table is dropped
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
@@ -294,7 +294,7 @@ describe("/teacher/activities/new — concept activity builder", () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Lab" } });
-    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "Plot." } });
+    fireEvent.change(screen.getByLabelText(/what should students learn/i), { target: { value: "Plot." } });
     // 1.1.64 — the chart editor is a list (English here, via the render shim), and axis pickers only
     // appear once a table has two numeric columns (none here).
     addToWorkspace("chart");
@@ -311,7 +311,7 @@ describe("/teacher/activities/new — concept activity builder", () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Lab" } });
-    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "Compute." } });
+    fireEvent.change(screen.getByLabelText(/what should students learn/i), { target: { value: "Compute." } });
     addToWorkspace("calculator");
     fireEvent.change(screen.getByLabelText(/variable 1 name/i), { target: { value: "s" } });
     fireEvent.change(screen.getByLabelText(/variable 1 label/i), { target: { value: "Strækning" } });
@@ -328,7 +328,7 @@ describe("/teacher/activities/new — concept activity builder", () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Lab" } });
-    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "Read." } });
+    fireEvent.change(screen.getByLabelText(/what should students learn/i), { target: { value: "Read." } });
     addToWorkspace("note");
     fireEvent.change(screen.getByLabelText(/note text/i), { target: { value: "v = s / t" } });
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
@@ -349,7 +349,7 @@ describe("/teacher/activities/new — concept activity builder", () => {
     // The strip collapses to one line with Change.
     expect(screen.getByText("Template: Fart, tid og strækning")).toBeInTheDocument();
     expect((screen.getByLabelText(/activity name/i) as HTMLInputElement).value).toBe("Beregn fart");
-    expect((screen.getByLabelText(/lesson prompt/i) as HTMLTextAreaElement).value.length).toBeGreaterThan(0);
+    expect((screen.getByLabelText(/what should students learn/i) as HTMLTextAreaElement).value.length).toBeGreaterThan(0);
 
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
     await waitFor(() => expect(createActivityMock).toHaveBeenCalledTimes(1));
@@ -373,7 +373,7 @@ describe("/teacher/activities/new — concept activity builder", () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Lab" } });
-    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "Explore." } });
+    fireEvent.change(screen.getByLabelText(/what should students learn/i), { target: { value: "Explore." } });
     // Pick the Boldkast sim from the catalogue picker, in its dialog.
     addToWorkspace("sim");
     fireEvent.click(await screen.findByText("Boldkast"));
@@ -387,7 +387,7 @@ describe("/teacher/activities/new — concept activity builder", () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "E" } });
-    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "g" } });
+    fireEvent.change(screen.getByLabelText(/what should students learn/i), { target: { value: "g" } });
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));
     await waitFor(() => expect(createActivityMock).toHaveBeenCalledTimes(1));
     expect(createActivityMock.mock.calls[0][0].workbenchType).toBe("none");
@@ -397,7 +397,7 @@ describe("/teacher/activities/new — concept activity builder", () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Aflever opgave" } });
-    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "Give feedback." } });
+    fireEvent.change(screen.getByLabelText(/what should students learn/i), { target: { value: "Give feedback." } });
     addToWorkspace("document");
     fireEvent.change(screen.getByLabelText(/document prompt/i), { target: { value: "Upload dit arbejde" } });
     // It's an element, not a mode — the workspace tools are still available.
@@ -449,7 +449,7 @@ describe("/teacher/activities/new — concept activity builder", () => {
     listClassesMock.mockResolvedValue(ONE_CLASS);
     render(<NewActivityPage />);
     fireEvent.change(await screen.findByLabelText(/activity name/i), { target: { value: "Aflever" } });
-    fireEvent.change(screen.getByLabelText(/lesson prompt/i), { target: { value: "Feedback." } });
+    fireEvent.change(screen.getByLabelText(/what should students learn/i), { target: { value: "Feedback." } });
     addToWorkspace("solution");
     fireEvent.change(screen.getByLabelText(/solution prompt/i), { target: { value: "Skriv din løsning" } });
     fireEvent.click(screen.getByRole("button", { name: /create activity/i }));

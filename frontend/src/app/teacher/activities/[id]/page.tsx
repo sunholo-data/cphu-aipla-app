@@ -42,9 +42,14 @@ const FORM_ID = "activity-editor-form";
  * UI sweep 2026-11-11: no tabs. The "Code" tab was a roadmap mock showing
  * teachers fake Boldkast source and an internal note to M/JB (the design it
  * previews lives in docs/design/aipla/post-pilot/teacher-artefact-authoring.md);
- * History is one line under the title. The h1 is the activity's name, Save and
- * Try as student sit in the header, and the tutor row names the tutor in every
- * class that runs the activity instead of guessing from the URL.
+ * History is one line under the title. The h1 is the activity's name, Try as
+ * student sits in the header, and the tutor row names the tutor in every class
+ * that runs the activity instead of guessing from the URL.
+ *
+ * UI sweep 2026-11-12: ONE Save. It used to sit in the header and again at the
+ * end of the form, so the top of a short activity showed two identical red
+ * buttons. It is now a sticky bar at the bottom of the form column — on screen
+ * wherever the teacher has scrolled to, which is what the second copy was for.
  */
 export default function TeacherActivityConfigPage() {
   const t = useT("ActivityConfigPage");
@@ -189,13 +194,15 @@ export default function TeacherActivityConfigPage() {
   }
 
   const breadcrumb = (
-    <nav className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
+    <nav aria-label={t("breadcrumb")} className="flex flex-wrap items-center gap-1 text-sm text-muted-foreground">
       <Link href="/teacher/activities" className="flex items-center gap-1 hover:text-foreground">
         <ArrowLeft className="h-4 w-4" aria-hidden="true" />
         {t("activities")}
       </Link>
       <span aria-hidden="true">/</span>
-      <span className="text-foreground">{displayName}</span>
+      <span aria-current="page" className="text-foreground">
+        {displayName}
+      </span>
     </nav>
   );
 
@@ -214,7 +221,11 @@ export default function TeacherActivityConfigPage() {
       <div className="flex flex-col gap-4">
         {breadcrumb}
         <LoadError what={t("what")} onRetry={canRetry ? () => setLoadAttempt((n) => n + 1) : undefined} />
-        <Link href="/teacher/activities" className="text-sm font-medium text-primary hover:underline">
+        <Link
+          href="/teacher/activities"
+          className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           {t("backToActivities")}
         </Link>
       </div>
@@ -241,13 +252,14 @@ export default function TeacherActivityConfigPage() {
           </h1>
           <HistoryLine meta={meta} />
         </div>
-        <div className="flex flex-wrap items-start gap-2">
-          {/* 1.1.133 — the whole student view, tutor included, no code.
-              Activity-store ids only: the legacy composite config has no
-              activity to mint a preview group for. */}
-          {isActivityStore ? <TryAsStudentButton activityId={activityId} classId={previewClassId} /> : null}
-          {saveButton}
-        </div>
+        {/* 1.1.133 — the whole student view, tutor included, no code.
+            Activity-store ids only: the legacy composite config has no
+            activity to mint a preview group for. */}
+        {isActivityStore ? (
+          <div className="flex flex-wrap items-start gap-2">
+            <TryAsStudentButton activityId={activityId} classId={previewClassId} />
+          </div>
+        ) : null}
       </header>
 
       {/* 1.1.123 M0 — a researcher editing another teacher's activity is told
@@ -255,7 +267,13 @@ export default function TeacherActivityConfigPage() {
           not-yet-saved activity (no owner yet) shows no banner either. */}
       {meta ? <ActingForOwnerBanner resource={meta} kind="activity" /> : null}
 
-      <form id={FORM_ID} onSubmit={handleSave} className="flex flex-col gap-5">
+      {/* The scroll margin keeps a field the teacher tabs to clear of the
+          sticky Save bar instead of focusing it underneath. */}
+      <form
+        id={FORM_ID}
+        onSubmit={handleSave}
+        className="flex flex-col gap-5 [&_button]:scroll-mb-20 [&_input]:scroll-mb-20 [&_select]:scroll-mb-20 [&_textarea]:scroll-mb-20"
+      >
         <ActivityBuilderBody
           builder={builder}
           activityId={activityId}
@@ -268,9 +286,13 @@ export default function TeacherActivityConfigPage() {
           }
           tutorChangeHref={tutorSettingsHref(assigned)}
           lintContext={{ classId, activityId }}
-          // The header's Save is out of reach at the bottom of a long form, so
-          // the form ends with one too.
-          footer={<div>{saveButton}</div>}
+          // The one Save: sticky at the bottom of the form column, so it is in
+          // reach at every scroll position (see the page comment).
+          footer={
+            <div className="sticky bottom-0 z-10 -mx-1 border-t border-border bg-background/95 px-1 py-3 backdrop-blur">
+              {saveButton}
+            </div>
+          }
         />
       </form>
 

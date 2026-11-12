@@ -113,7 +113,7 @@ function EnglishUI({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** Save sits in the header AND at the end of the form; either submits. */
+/** The one Save: a sticky bar at the end of the form (UI sweep 2026-11-12). */
 const saveButton = () => screen.getAllByRole("button", { name: /^save$/i })[0];
 const render = (ui: React.ReactElement, options?: Omit<RenderOptions, "wrapper">) =>
   rtlRender(ui, { wrapper: EnglishUI, ...options });
@@ -164,7 +164,7 @@ describe("/teacher/activities/[id] — real activity editor", () => {
     expect(screen.getByRole("status", { name: /loading activity/i })).toBeInTheDocument();
 
     const textarea = (await screen.findByRole("textbox", {
-      name: /teaching goal/i,
+      name: /what should students learn/i,
     })) as HTMLTextAreaElement;
     expect(textarea.value).toBe("Discover component independence");
     expect(fetchMock).toHaveBeenCalledWith("act-real-123");
@@ -178,9 +178,20 @@ describe("/teacher/activities/[id] — real activity editor", () => {
     render(<TeacherActivityConfigPage />);
 
     const textarea = (await screen.findByRole("textbox", {
-      name: /teaching goal/i,
+      name: /what should students learn/i,
     })) as HTMLTextAreaElement;
     expect(textarea.value).toBe("");
+  });
+
+  // UI sweep 2026-11-12 — one Save, in the sticky bar at the end of the form;
+  // the header keeps Try as student only.
+  it("has exactly one Save, inside the form", async () => {
+    render(<TeacherActivityConfigPage />);
+    await screen.findByRole("textbox", { name: /what should students learn/i });
+    const saves = screen.getAllByRole("button", { name: /^save$/i });
+    expect(saves).toHaveLength(1);
+    expect(saves[0].closest("form")).not.toBeNull();
+    expect(screen.getByRole("navigation", { name: "You are here" })).toBeInTheDocument();
   });
 
   // UI sweep 2026-11-11 — the Code tab was a roadmap mock (fake Boldkast
@@ -188,7 +199,7 @@ describe("/teacher/activities/[id] — real activity editor", () => {
   // teacher. It is gone, and so is the tab bar.
   it("has no tab bar and no Code mock", async () => {
     render(<TeacherActivityConfigPage />);
-    await screen.findByRole("textbox", { name: /teaching goal/i });
+    await screen.findByRole("textbox", { name: /what should students learn/i });
     expect(screen.queryByRole("tablist")).toBeNull();
     expect(screen.queryByRole("tab")).toBeNull();
     expect(screen.queryByText(/open question/i)).toBeNull();
@@ -218,7 +229,7 @@ describe("/teacher/activities/[id] — real activity editor", () => {
       updatedAt: "2026-06-24T10:00:00Z",
     });
     render(<TeacherActivityConfigPage />);
-    await screen.findByRole("textbox", { name: /teaching goal/i });
+    await screen.findByRole("textbox", { name: /what should students learn/i });
 
     const line = screen.getByTestId("activity-history");
     expect(line).toHaveTextContent(/Created 22 Jun 2026/);
@@ -250,7 +261,7 @@ describe("/teacher/activities/[id] — real activity editor", () => {
     });
     try {
       render(<TeacherActivityConfigPage />);
-      await screen.findByRole("textbox", { name: /teaching goal/i });
+      await screen.findByRole("textbox", { name: /what should students learn/i });
       expect(screen.getByTestId("acting-for-owner-banner")).toHaveTextContent(
         "You are editing Bob Jensen’s activity as a researcher.",
       );
@@ -281,7 +292,7 @@ describe("/teacher/activities/[id] — real activity editor", () => {
       updatedAt: "2026-06-24T10:00:00Z",
     });
     render(<TeacherActivityConfigPage />);
-    await screen.findByRole("textbox", { name: /teaching goal/i });
+    await screen.findByRole("textbox", { name: /what should students learn/i });
     expect(screen.queryByTestId("acting-for-owner-banner")).not.toBeInTheDocument();
   });
 
@@ -305,7 +316,7 @@ describe("/teacher/activities/[id] — real activity editor", () => {
       updatedAt: "2026-06-24T10:00:00Z",
     });
     render(<TeacherActivityConfigPage />);
-    await screen.findByRole("textbox", { name: /teaching goal/i });
+    await screen.findByRole("textbox", { name: /what should students learn/i });
 
     const line = screen.getByTestId("activity-history");
     expect(line).not.toHaveTextContent(/adapted from/i);
@@ -316,7 +327,7 @@ describe("/teacher/activities/[id] — real activity editor", () => {
     render(<TeacherActivityConfigPage />);
 
     const textarea = (await screen.findByRole("textbox", {
-      name: /teaching goal/i,
+      name: /what should students learn/i,
     })) as HTMLTextAreaElement;
     fireEvent.change(textarea, { target: { value: "New goal" } });
     fireEvent.click(saveButton());
@@ -365,7 +376,7 @@ describe("/teacher/activities/[id] — real activity editor", () => {
 
     render(<TeacherActivityConfigPage />);
     const textarea = (await screen.findByRole("textbox", {
-      name: /teaching goal/i,
+      name: /what should students learn/i,
     })) as HTMLTextAreaElement;
     expect(textarea.value).toBe("Discover the optimal angle");
     fireEvent.change(textarea, { target: { value: "Discover the optimal launch angle" } });
@@ -418,7 +429,7 @@ describe("/teacher/activities/[id] — real activity editor", () => {
       updatedAt: "2026-06-20T10:00:00Z",
     });
     render(<TeacherActivityConfigPage />);
-    const textarea = (await screen.findByRole("textbox", { name: /teaching goal/i })) as HTMLTextAreaElement;
+    const textarea = (await screen.findByRole("textbox", { name: /what should students learn/i })) as HTMLTextAreaElement;
     expect(textarea.value).toBe("Old goal");
     expect(legacyFetchMock).toHaveBeenCalledWith("c-1", "legacy-skill-uuid");
     fireEvent.change(textarea, { target: { value: "Edited" } });
@@ -484,7 +495,7 @@ describe("/teacher/activities/[id] — real activity editor", () => {
   it("says the activity is in no class yet, rather than naming a default", async () => {
     nav.search = new Map();
     render(<TeacherActivityConfigPage />);
-    await screen.findByRole("textbox", { name: /teaching goal/i });
+    await screen.findByRole("textbox", { name: /what should students learn/i });
     expect(await screen.findByText(/not assigned to a class yet/i)).toBeInTheDocument();
   });
 
@@ -493,6 +504,6 @@ describe("/teacher/activities/[id] — real activity editor", () => {
     render(<TeacherActivityConfigPage />);
     expect(await screen.findByRole("alert")).toHaveTextContent(/the activity could not be loaded/i);
     fireEvent.click(screen.getByRole("button", { name: /try again/i }));
-    expect(await screen.findByRole("textbox", { name: /teaching goal/i })).toBeInTheDocument();
+    expect(await screen.findByRole("textbox", { name: /what should students learn/i })).toBeInTheDocument();
   });
 });

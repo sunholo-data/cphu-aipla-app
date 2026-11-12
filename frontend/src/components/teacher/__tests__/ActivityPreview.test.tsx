@@ -55,7 +55,7 @@ const WITH_CHECKLIST: BuilderElements = { ...EMPTY, checklist: [{ key: 1, label:
 describe("ActivityPreview", () => {
   it("shows an empty hint when there are no elements", () => {
     render(<ActivityPreview state={EMPTY} />);
-    expect(screen.getByText(/add elements/i)).toBeInTheDocument();
+    expect(screen.getByText(/add tools under “workspace”/i)).toBeInTheDocument();
     expect(screen.queryByTestId("workspace-elements")).not.toBeInTheDocument();
   });
 
@@ -86,7 +86,7 @@ describe("ActivityPreview", () => {
     ]);
     render(<ActivityPreview state={EMPTY} artefactId="boldkast" />);
     // The sim counts as workspace content, so the empty hint must NOT show.
-    expect(screen.queryByText(/add elements/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/add tools under/i)).not.toBeInTheDocument();
     // The sim is named in the preview (the labelled card when no sandbox origin
     // is configured in the test env; the live frame uses the same name).
     expect(await screen.findByText("Boldkast")).toBeInTheDocument();
@@ -158,7 +158,7 @@ describe("ActivityPreview", () => {
   it("collapses and expands the preview", () => {
     render(<ActivityPreview state={WITH_CHECKLIST} />);
     expect(screen.getByTestId("workspace-elements")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /preview/i }));
+    fireEvent.click(screen.getByRole("button", { name: /what students see/i }));
     expect(screen.queryByTestId("workspace-elements")).not.toBeInTheDocument();
   });
 });

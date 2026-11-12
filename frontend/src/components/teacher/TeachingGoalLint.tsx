@@ -10,8 +10,10 @@ import { moveBackToGoal, moveToNotes, visibleSpans } from "@/lib/teachingGoalLin
 /**
  * 1.1.141 M2 — the non-blocking warning beside the teaching goal.
  *
- * "These lines tell the tutor how to teach. Mikkel teaches with ESRU, which
- * will take precedence: [line]" — with **Move to tutor notes** and **Keep**.
+ * "These lines say how to teach — Mikkel's approach decides that. Move them to
+ * notes for the tutor?" [line] — with **Move** and **Keep** (plain words since
+ * the UI sweep of 2026-11-12; it used to say the approach "will take
+ * precedence").
  * Shows only lines still present in the current goal, so editing a line away
  * clears its warning without another lint.
  *
@@ -85,10 +87,11 @@ export function TeachingGoalLint({ builder }: { builder: ActivityBuilder }) {
           <p className="flex items-start gap-1.5 font-medium">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span>
-              {t("intro")}{" "}
-              {frameworkLabel
-                ? t("precedence", { tutor: tutorName ?? t("theTutor"), approach: frameworkLabel })
-                : t("noApproach")}
+              {!frameworkLabel
+                ? t("noApproach")
+                : tutorName
+                  ? t("precedence", { tutor: tutorName })
+                  : t("precedenceNoName")}
             </span>
           </p>
           <ul className="flex flex-col gap-2">
