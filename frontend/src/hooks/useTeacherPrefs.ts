@@ -52,10 +52,17 @@ export function languageSeed(
 export function studentLanguageDefault(
   classLanguage: string | null | undefined,
   prefs: TeacherPrefs,
+  uiLocale?: string | null,
 ): "da" | "en" {
   const tag = (classLanguage ?? "").trim().slice(0, 2).toLowerCase();
   if (tag === "da" || tag === "en") return tag;
-  return prefs.defaultLanguage ?? "da";
+  if (prefs.defaultLanguage) return prefs.defaultLanguage;
+  // 2026-11-12 (M): with no class language and no account default, follow the
+  // teacher's own DA | EN screen language rather than always Danish — an
+  // English-speaking teacher got a Danish concept-map suggestion for an English
+  // goal. Still a default: it changes under "More settings".
+  const ui = (uiLocale ?? "").trim().slice(0, 2).toLowerCase();
+  return ui === "en" ? "en" : "da";
 }
 
 export function useTeacherPrefs() {

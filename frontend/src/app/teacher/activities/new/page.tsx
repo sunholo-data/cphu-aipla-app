@@ -36,6 +36,7 @@ import { useT } from "@/i18n";
 import type { ActivityTemplate } from "@/lib/activityTemplates";
 import { suggestActivityTitle } from "@/lib/suggestActivityTitle";
 import { conceptMapDefault, studentLanguageDefault, useTeacherPrefs } from "@/hooks/useTeacherPrefs";
+import { useUserLocale } from "@/i18n/userLocale";
 import { AuthoringCopilot } from "../[id]/_AuthoringCopilot";
 import { applyCopilotProposal } from "../applyCopilotProposal";
 import { runGoalLint } from "@/lib/teachingGoalLint";
@@ -209,14 +210,15 @@ function NewActivityWizard() {
   // default (2026-11-12). It follows a class switch until the teacher picks a
   // language under "More settings"; a template never changes it.
   const languageChosen = useRef(false);
+  const { locale: uiLocale } = useUserLocale();
   const classLanguage = selectedClass?.voice?.language ?? null;
   useEffect(() => {
     if (!prefsLoaded || !selectedClass || languageChosen.current) return;
-    const next = studentLanguageDefault(classLanguage, prefs);
+    const next = studentLanguageDefault(classLanguage, prefs, uiLocale);
     if (next !== builder.language) builder.setLanguage(next);
     // Re-derived when the class or the prefs change — not on builder edits.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prefsLoaded, classId, classLanguage]);
+  }, [prefsLoaded, classId, classLanguage, uiLocale]);
 
   // ── Steps ────────────────────────────────────────────────────────────────
   const [stepParam, setStepParam] = useUrlTab<StepParam>("step", STEP_PARAMS, "1", { history: "push" });

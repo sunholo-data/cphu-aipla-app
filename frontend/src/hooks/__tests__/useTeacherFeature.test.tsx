@@ -52,6 +52,14 @@ describe("studentLanguageDefault (the class's language first, 2026-11-12)", () =
     expect(studentLanguageDefault("", {})).toBe("da");
     expect(studentLanguageDefault("sv", {})).toBe("da");
   });
+
+  it("with no class language and no account default, follows the teacher's screen language", () => {
+    expect(studentLanguageDefault(null, {}, "en")).toBe("en");
+    expect(studentLanguageDefault(null, {}, "da")).toBe("da");
+    // The class and the account default still win over the screen language.
+    expect(studentLanguageDefault("da", {}, "en")).toBe("da");
+    expect(studentLanguageDefault(null, { defaultLanguage: "da" }, "en")).toBe("da");
+  });
 });
 
 describe("languageSeed (the anti-fight rule)", () => {
