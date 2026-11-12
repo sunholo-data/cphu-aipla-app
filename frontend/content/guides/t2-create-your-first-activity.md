@@ -79,6 +79,14 @@ The rest of this step is filled in for you:
 
 ![The goal says what students should learn. Keep it specific.](/guides/assets/t2-03-goal.png)
 
+**Concept map.** Under the goal, the **Concept map** card suggests the concepts
+students must understand and what builds on what, once you have written a few
+sentences. Each concept says when it counts as understood; the tutor checks
+them during the activity. **Use the suggestion** adds it, **Edit** opens it to
+change, and **Make a new one** asks again. Nothing is added until you choose,
+and you can go on without one. **Get help from AI with the goal and tools** opens the
+build helper (guide *T4*).
+
 **Or start from an example.** Below the goal are a few ready-made activities;
 **See all** opens every template, including **Start from scratch**. An example
 fills in the goal, the name and the tools, and you can change everything

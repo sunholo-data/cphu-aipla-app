@@ -94,6 +94,8 @@ function mount({ auto = true, copilot }: { auto?: boolean; copilot?: { open: (p?
         registered: copilot ? { title: "Co-pilot", open: copilot.open } : null,
         register: () => () => {},
         ask: () => Boolean(copilot),
+        bottomInset: 0,
+        setInset: () => {},
       }}
     >
       {ui}

@@ -78,6 +78,14 @@ Resten af trinnet er udfyldt for dig:
 
 ![Målet siger, hvad eleverne skal lære. Hold det specifikt.](/guides/assets/t2-03-goal.png)
 
+**Begrebskort.** Under målet foreslår kortet **Begrebskort** de begreber,
+eleverne skal forstå, og hvad der bygger på hvad, når du har skrevet et par
+sætninger. Hvert begreb siger, hvornår det er forstået; tutoren tjekker dem
+undervejs. **Brug forslaget** tilføjer det, **Ret** åbner det, så du kan ændre
+det, og **Lav et nyt** spørger igen. Intet tilføjes, før du vælger, og du kan
+fortsætte uden. **Få hjælp af AI til mål og værktøjer** åbner hjælpen til at
+bygge (vejledning *T4*).
+
 **Eller start fra et eksempel.** Under målet står nogle færdige aktiviteter;
 **Se alle** viser alle skabelonerne, også **Start fra bunden**. Et eksempel
 udfylder målet, navnet og værktøjerne, og du kan rette alt bagefter. Har du
