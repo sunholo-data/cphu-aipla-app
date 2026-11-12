@@ -3,7 +3,7 @@ title: "Spørgsmål fra lærere"
 description: "Korte svar på de spørgsmål, lærerne har stillet om AIPLA indtil nu: aktiviteter, dokumenter, gruppekoder, sprog, tutorer, data og rettigheder."
 eyebrow: "Til lærere"
 owner: "AIPLA project team"
-reviewed: "2026-11-09"
+reviewed: "2026-11-12"
 reviewBy: "2026-12-09"
 status: "Provisional"
 order: "91"
@@ -21,30 +21,30 @@ Vejledningerne under */guides* findes på dansk. Projektsiderne under */project*
 
 ### Hvor nemt er det at lave en aktivitet?
 
-Det er nemt, og du skal ikke skrive kode. Ifølge vejledningen tager den første aktivitet omkring fem minutter. Du giver den et navn og et undervisningsmål (den instruks, tutoren arbejder efter), vælger elevernes sprog og kan tilføje et arbejdsområde: en simulering, en tjekliste, en tabel, en graf, en lommeregner eller et skrivefelt. Under **Det første eleverne ser** kan du skrive den introduktion og de startspørgsmål, eleverne får. **Prøv som elev** viser dig præcis det, eleverne ser.
+Det er nemt, og du skal ikke skrive kode. Ifølge vejledningen tager den første aktivitet omkring fem minutter. **Ny aktivitet** har tre trin. **Mål**: skriv, hvad eleverne skal lære; klassen er allerede valgt, og der bliver foreslået et navn ud fra målet, eller du starter fra et eksempel. **Værktøjer**: vælg, hvad eleverne skal arbejde med, fx en simulering, en tjekliste, en tabel, en graf, en beregner eller et skrivefelt, eller ingenting, så det er en samtale med tutoren. **Tjek og start**: se dine valg igennem, og vælg **Opret og giv til** din klasse. Elevernes sprog følger klassens, medmindre du ændrer det under **Flere indstillinger**, hvor du også kan skrive introduktionen og de forslag, eleverne kan trykke på. Når aktiviteten er oprettet, viser **Prøv som elev** i editoren dig præcis det, eleverne ser.
 
-Undervisningsmålet siger, hvad eleverne skal lære. Har klassens tutor en undervisningstilgang, er det tilgangen, der bestemmer, hvordan tutoren underviser, og byggeren gør dig opmærksom på linjer i målet, der fortæller tutoren, hvordan den skal undervise. Den tilbyder at flytte dem til **Tutornoter**, som tutoren kun følger, når den ikke har en undervisningstilgang.
+Målet siger, hvad eleverne skal lære. Har klassens tutor en undervisningstilgang, er det tilgangen, der bestemmer, hvordan tutoren underviser, og siden gør dig opmærksom på linjer i målet, der siger, hvordan der skal undervises. Den tilbyder at flytte dem til **Noter til tutoren**, som tutoren kun følger, når den ikke har en undervisningstilgang.
 
-Det går hurtigere, hvis du starter fra en skabelon. Du kan også hente en kollegas delte aktivitet i biblioteket og få din egen kopi, som du kan rette i. Eller du kan beskrive aktiviteten med dine egne ord og lade AI-medbyggeren lave et udkast. Du ser forslaget igennem, før du selv vælger at bruge det.
+Det går hurtigere, hvis du starter fra en skabelon. Du kan også hente en kollegas delte aktivitet i biblioteket og få din egen kopi, som du kan rette i. Eller du kan beskrive aktiviteten med dine egne ord og lade AI-co-piloten (**Hjælp** → **Hjælp til at bygge**) lave et udkast. Du ser forslaget igennem, før du selv vælger at bruge det.
 
-Læs mere: [T2 — Opret din første aktivitet](/guides/t2-create-your-first-activity.da), [T4 — Byg med AI-medbyggeren](/guides/t4-author-with-the-copilot.da).
+Læs mere: [T2 — Opret din første aktivitet](/guides/t2-create-your-first-activity.da), [T4 — Byg med AI-co-piloten](/guides/t4-author-with-the-copilot.da).
 
 ### Kan vi uploade dokumenter, som tutoren kan bruge?
 
-Ja. Under **Materialer** kan du uploade en PDF, en Word-fil, slides, et regneark, ren tekst eller et billede. Du kan også henvise til et dokument i det fælles bibliotek. AIPLA viser dig den tekst, der er trukket ud af filen, så du kan se, om den er læst rigtigt.
+Ja. Under **Materialer** kan du med **Tilføj dokument** uploade en PDF, en Word-fil, slides, et regneark, ren tekst eller et billede. Du kan også vælge et dokument i det fælles bibliotek med **Brug i aktiviteten**. AIPLA viser dig den tekst, der er trukket ud af filen, så du kan se, om den er læst rigtigt.
 
 For hvert dokument i en aktivitet vælger du to ting:
 
-- **Eleverne kan åbne den / Kun tutoren.** Nye dokumenter starter som **Kun tutoren**. Tutoren bruger dem, men eleverne kan ikke åbne dem.
-- **Opslag / Altid med.** Vælger du Opslag, slår tutoren op i dokumentet, når det er relevant. Vælger du Altid med, har tutoren hele teksten med ved hver besked. Brug Altid med til den opgave, eleverne arbejder med.
+- **Eleverne kan åbne den.** Ét afkrydsningsfelt på dokumentets række. Nye dokumenter starter uden flueben. Tutoren bruger dem, men eleverne kan ikke åbne dem.
+- **Hvordan tutoren læser det.** I rækkens **⋯**-menu. Som standard slår tutoren op i dokumentet, når det er relevant. Vælger du **Lad tutoren læse hele teksten hver gang**, har tutoren hele teksten med ved hver besked. Brug det til den opgave, eleverne arbejder med.
 
 Læs mere: [T3 — Tilføj og organiser pensummaterialer](/guides/t3-add-curriculum-materials.da).
 
 ### Hvorfor kan mine elever ikke åbne et dokument?
 
-Fordi det ikke er delt med dem. Et dokument er **Kun tutoren**, indtil du klikker på knappen ud for det i aktivitetens materialer, så der står **Eleverne kan åbne den**. Eleverne kan se navnene på de dokumenter, de ikke har adgang til, med en besked om, at læreren ikke har delt indholdet.
+Fordi det ikke er delt med dem. Eleverne kan ikke åbne et dokument, før du sætter flueben ved **Eleverne kan åbne den** på dets række i aktivitetens materialer. Indtil da står der *kun tutoren bruger den*. Eleverne kan se navnene på de dokumenter, de ikke har adgang til, med en besked om, at læreren ikke har delt indholdet.
 
-Når du har delt dokumenter, er det første allerede åbent, når eleverne starter aktiviteten. Rækkefølgen er den, du har tilføjet dokumenterne i, og i byggeren står der **Åbnes først for eleverne** ved det dokument. Har du delt flere, skifter eleverne mellem dem med faneblade. Når tutoren nævner et delt dokument, linker den til det, så eleven kan åbne det med ét klik. Den linker aldrig til et dokument, du ikke har delt.
+Når du har delt dokumenter, er det første allerede åbent, når eleverne starter aktiviteten. Rækkefølgen er den, du har tilføjet dokumenterne i, og på det dokuments række står der *åbner først for eleverne*. Vil du have et andet først, vælger du **Lad den åbne først for eleverne** i dets **⋯**-menu. Har du delt flere, skifter eleverne mellem dem med faneblade. Når tutoren nævner et delt dokument, linker den til det, så eleven kan åbne det med ét klik. Den linker aldrig til et dokument, du ikke har delt.
 
 ### Hvad sker der, hvis upload af et dokument fejler?
 
@@ -150,11 +150,11 @@ Læs mere: [Data, privacy, and hosting](/project/data-and-hosting), [Capability 
 Projektet har endnu ikke offentliggjort, hvilket udgivet materiale der må uploades. Sådan behandler platformen en upload i dag:
 
 - Den ligger i **dit eget bibliotek**. Andre lærere kan ikke se den, men forskergruppen kan.
-- Den starter som **Kun tutoren**. Eleverne kan kun åbne den, hvis du deler den i en aktivitet.
+- Først er det kun tutoren, der bruger den. Eleverne kan kun åbne den, hvis du sætter flueben ved **Eleverne kan åbne den** i en aktivitet.
 - Det **fælles bibliotek** indeholder kun materiale, som forskergruppen har markeret som rettighedsafklaret. Lærere kan ikke lægge noget derind.
 - For at tutoren kan læse filen, bliver den lavet om til tekst af AILANG Parse (drevet af Sunholo) i Belgien. Teksten bliver gemt og gjort søgbar i Belgien, og selve filen bliver gemt i Finland. AIPLA gemmer også et AI-skrevet resumé af hvert dokument.
 - Google må ikke bruge materialet til at træne sine modeller.
-- Du kan slette et dokument fra dit bibliotek med skraldespandsikonet.
+- Du kan slette et dokument fra dit bibliotek: **Slet fra biblioteket…** i dets **⋯**-menu.
 
 Er du i tvivl om et dokument, så spørg projektet, før du uploader det.
 

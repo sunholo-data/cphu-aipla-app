@@ -1,13 +1,13 @@
 ---
 title: "Opret din første aktivitet"
-description: "Byg en guidet aktivitet: undervisningsmål, arbejdsområde og live-forhåndsvisning."
+description: "Opret en guidet aktivitet i tre trin: målet, værktøjerne, og så tjek og start."
 tag: "T2"
 audience: "teacher"
 order: "2"
 lang: "da"
 status: "Current"
 owner: "AIPLA project team"
-reviewed: "2026-11-11"
+reviewed: "2026-11-12"
 reviewBy: "2027-01-05"
 ---
 ::: callout-note
@@ -27,10 +27,10 @@ tilbage hertil, når du vil lave din egen.
 ## Hvad en aktivitet er
 
 En **aktivitet** er en enkelt guidet opgave, som dine elever åbner i tutoren.
-Du sætter undervisningsmålet og eventuelt et arbejdsområde — en simulation, en
-tabel, en graf, en beregner eller vejledende noter. Elever tilslutter sig med
-klassens gruppekode og arbejder sig gennem aktiviteten i samtale med
-AI-fysiktutoren, som følger det mål, du har sat.
+Du skriver, hvad eleverne skal lære, og eventuelt hvad de skal arbejde med —
+en simulation, en tabel, en graf, en beregner, en instruktion og mere. Elever
+tilslutter sig med klassens gruppekode og arbejder sig gennem aktiviteten i
+samtale med AI-fysiktutoren, som arbejder hen mod det mål, du har sat.
 
 Du behøver ikke skrive nogen kode, og du behøver ikke en udvikler. Alt på denne
 side gøres i din browser.
@@ -38,69 +38,65 @@ side gøres i din browser.
 ::: callout-tip
 ## Vil du hellere beskrive det i ord?
 
-Byggeren har en AI-**medbygger** (**Hjælp** → **Medbygger**). Fortæl den, hvad du vil
-undervise i, og den udkaster et undervisningsmål og elementer til
-arbejdsområdet, som du kan redigere og anvende — se *T4 — Byg med
-AI-medbyggeren*. Hvert trin nedenfor kan også gøres af medbyggeren, ikke kun i
-hånden.
+Aktivitetssiderne har en AI-hjælper (**Hjælp** → **Hjælp til at bygge**).
+Fortæl den, hvad du vil undervise i, så foreslår den et mål og værktøjer, som
+du kan rette og bruge — se *T4 — Byg med AI-co-piloten*. Hvert trin nedenfor
+kan også gøres af hjælperen, ikke kun i hånden.
 :::
 
-## Trin 1 — Åbn aktivitetsbyggeren
+## Trin 1 — Start en ny aktivitet
 
 Fra dit lærerområde åbner du **Aktiviteter** og vælger **Ny aktivitet**. (Du
 kan også starte fra en klasse: på klassesidens fane **Opsætning** åbner du
-**Tilføj aktivitet** og vælger **Opret ny aktivitet…**, som forvælger den
-klasse for dig.)
+**Tilføj aktivitet** og vælger **Opret ny aktivitet…**, som vælger den klasse
+for dig.)
 
-![Aktivitetsbyggeren åbner med en skabelonvælger øverst og en live-forhåndsvisning til højre.](/guides/assets/t2-01-new-activity.png)
+En ny aktivitet laves i tre trin — **Mål**, **Værktøjer** og **Tjek og
+start** — som står øverst på siden. Forhåndsvisningen ved siden af hvert trin
+viser, hvad eleverne vil se. **Tilbage** går et trin tilbage, og **Annullér**
+spørger, før det, du har skrevet, bliver kasseret.
 
-## Trin 2 — Vælg et udgangspunkt
+![En ny aktivitet startes.](/guides/assets/t2-01-new-activity.png)
 
-Øverst i byggeren vælger du, hvordan du vil starte: **Start fra en skabelon**
-eller **Start helt forfra**. En skabelon åbner en række færdige aktiviteter;
-klik på en tæt på det, du vil have — den udfylder en fornuftig
-startkonfiguration, og forhåndsvisningen ved siden af viser, hvad eleverne vil
-se. Valget skrumper derefter til én linje (*Skabelon: …*) med **Skift**, hvis
-du vil have en anden. Du kan ændre alt bagefter, så valget er ikke bindende.
+## Trin 2 — Mål: hvad skal eleverne lære?
 
-## Trin 3 — Sæt undervisningsmålet
+Første trin stiller ét spørgsmål: **Hvad skal eleverne lære?** Skriv målet,
+ikke svaret — for eksempel *"Forstå, hvorfor den vandrette og den lodrette del
+af et kast er uafhængige af hinanden."* Tutoren giver aldrig svaret væk.
 
-Byggeren har fire afsnit: **Opsætning**, **Lektion**, **Arbejdsområde** og
-**Materialer**. Under **Opsætning** skriver du et navn i feltet **Aktivitetens
-navn**. Under **Lektion** udfylder du **Lektionens mål (undervisningsmålet)**.
-Målet er det vigtigste felt: det er den instruktion, tutoren følger,
-når den taler med dine elever. Skriv det, som du ville briefe en
-undervisningsassistent — for eksempel *"Hjælp eleven med at ræsonnere om
-energibevarelse på en friktionsfri rampe; giv ikke det endelige svar, stil
-vejledende spørgsmål."*
+Skriv, *hvad* eleverne skal lære, ikke *hvordan* tutoren skal undervise.
+Hvordan den underviser, kommer fra klassens tutor (vejledning *T1*). Står der
+linjer i målet om tone, hints eller om svaret må gives, gør siden dig
+opmærksom på dem og tilbyder **Flyt til noter til tutoren**.
 
-Under **Opsætning** sætter du også **Elevernes sprog** — det sprog, eleverne ser
-aktiviteten på, og som tutoren svarer på. (En elev kan stadig selv skifte
-DA | EN.) Selve tutoren kommer fra klassen (vejledning *T1*); rækken **Tutor**
-i oversigten øverst i byggeren viser, hvilken tutor der underviser, med **Skift
-i klassen** for at skifte den dér.
+Resten af trinnet er udfyldt for dig:
 
-![Undervisningsmålet er den instruktion, tutoren følger. Hold det specifikt.](/guides/assets/t2-03-goal.png)
+- **Klassen.** Linjen over spørgsmålet viser, hvilken klasse aktiviteten er
+  til. Har du flere klasser, vælger du en anden med **Skift klasse**.
+- **Navn.** Når du har skrevet målet, bliver der foreslået et navn ud fra det.
+  Du kan rette det.
 
-Samme oversigt har rækken **Eleverne ser først**. Dens **Skift** åbner **Det
-første eleverne ser**, hvor du kan skrive en elevintroduktion, vælge selv at
-introducere aktiviteten i klassen og skrive startspørgsmål. Lad felterne være
-tomme for at bruge de aktivitetsspecifikke standarder. Forhåndsvisningen
-opdateres, mens du redigerer. Se [T5 — Introducer tutoren](t5-introduce-the-tutor.da).
-(Rækken **Elevvisning** ved siden af bestemmer, hvordan elevernes skærm er
-stillet op.)
+![Målet siger, hvad eleverne skal lære. Hold det specifikt.](/guides/assets/t2-03-goal.png)
 
-## Trin 4 — Tilføj et arbejdsområde (valgfrit)
+**Eller start fra et eksempel.** Under målet står nogle færdige aktiviteter;
+**Se alle** viser alle skabelonerne, også **Start fra bunden**. Et eksempel
+udfylder målet, navnet og værktøjerne, og du kan rette alt bagefter. Har du
+allerede skrevet noget, bliver du spurgt, før det erstattes. Et eksempel
+ændrer ikke elevernes sprog.
 
-Afsnittet **Arbejdsområde** starter tomt og viser kun det, du tilføjer. Vælg
-**Tilføj til arbejdsområdet**, og vælg i oversigten over elementtyper — en
-simulation, en tjekliste, en tabel at udfylde, en graf, en beregner, noter og
-mere. Vælger du **Simulation**, åbner en vælger med de tilgængelige
-simulationer. Hvert element, du tilføjer, vises som et kort med **Redigér**;
-dets **⋯**-menu fjerner det. Du kan også lade arbejdsområdet stå tomt for en
-ren chat-baseret begrebsdialog. **Live-forhåndsvisningen** til højre
-opdateres, efterhånden som du tilføjer hvert element, så du ser præcis, hvad
-eleven vil se.
+Vælg **Næste: Værktøjer**, når målet og navnet er udfyldt.
+
+## Trin 3 — Værktøjer: hvad skal eleverne arbejde med?
+
+Vælg så mange værktøjer, du vil — en simulation, en tjekliste, en datatabel, en
+graf, en beregner, en instruktion, et skrivefelt og mere. Hver flise siger med
+få ord, hvad den er til. Vælger du **Simulation**, åbner en vælger med de
+tilgængelige simulationer. Det, du har valgt, står under **Valgt** som et kort
+med **Redigér**; dets **⋯**-menu fjerner det, og **Fortryd** henter det
+tilbage.
+
+Uden værktøjer er aktiviteten en samtale med tutoren. Det er et godt valg til
+en begrebsdialog.
 
 ::: callout-tip
 Alt, hvad eleven gør i arbejdsområdet — værdier de indtaster, en simulation de
@@ -122,31 +118,59 @@ kan sagtens fungere godt og alligevel mangle begge dele.
 
 ![Live-forhåndsvisningen viser elevens visning, mens du bygger.](/guides/assets/t2-04-elements.png)
 
-## Trin 5 — Opret aktiviteten
+Vælg **Næste: Tjek og start**.
 
-Når du er tilfreds med forhåndsvisningen, vælger du **Opret aktivitet**. En kort
-besked bekræfter, at aktiviteten er oprettet og tilgængelig for din klasse — den
-tilbyder også **Opret en til**, så du kan starte en ny aktivitet til den samme
-klasse — og aktiviteten åbner i editoren.
+## Trin 4 — Tjek og start
+
+Sidste trin viser, hvad du har valgt, én række for hver: navn og mål,
+værktøjerne og **Klassens tutor**. **Ret** på en række fører dig tilbage til
+det trin; **Skift i klassen** skifter tutoren på klassesiden.
+
+**Flere indstillinger** rummer resten. Alle har en standard, så du kan lade
+dem være:
+
+- **Elevvisning** — hvordan elevernes skærm er stillet op.
+- **Eleverne ser først** — introduktionen og de forslag, eleverne kan trykke
+  på. Se [T5 — Introducer tutoren](t5-introduce-the-tutor.da).
+- **Materialer** — dokumenter, tutoren kan bruge. Se *T3 — Tilføj og
+  organiser pensummaterialer*.
+- **Sprog** — det sprog, eleverne og tutoren bruger. Det følger klassens sprog,
+  til du selv vælger her. (En elev kan stadig selv skifte DA | EN.)
+- **Noter til tutoren** — bruges kun, hvis klassens tutor ikke har en fast
+  tilgang.
+
+Sæt flueben ved **Del også med kolleger (de kan kopiere den)**, hvis andre
+lærere skal kunne kopiere aktiviteten. Vælg så **Opret og giv til** *din
+klasse*. En kort besked bekræfter, at aktiviteten er oprettet og tilgængelig
+for din klasse — den tilbyder også **Opret en til**, så du kan starte en ny
+aktivitet til den samme klasse — og aktiviteten åbner i editoren.
 
 ![Aktiviteten er nu live; elever, der tilslutter sig med klassens gruppekode, kan åbne den.](/guides/assets/t2-05-success.png)
 
-I editoren kan du tilføje pensummaterialer eller finjustere målet (se *T3 —
-Tilføj og organiser pensummaterialer*) og vælge **Gem**. En linje under titlen
-viser, hvornår aktiviteten blev oprettet og sidst redigeret. **Prøv som elev**
-øverst åbner den rigtige elevvisning i en ny fane, med tutor og uden
-gruppekode.
+## Ret den senere: editoren
+
+Editoren viser hele aktiviteten på én side, i fire afsnit: **Opsætning**
+(**Aktivitetens navn** og **Elevernes sprog**), **Lektion** (**Hvad skal
+eleverne lære?**, med eventuelle **Noter til tutoren** nedenunder),
+**Arbejdsområde** (**Tilføj til arbejdsområdet**) og **Materialer**. En
+oversigt øverst viser **Tutor**, **Elevvisning** og hvad **Eleverne ser
+først**, hver med **Skift**. En linje under titlen viser, hvornår aktiviteten
+blev oprettet og sidst redigeret.
+
+Der er én **Gem**, nederst i formularen; den bliver på skærmen, mens du
+ruller. **Prøv som elev** øverst åbner den rigtige elevvisning i en ny fane,
+med tutor og uden gruppekode.
 
 ## Hvad elever ser
 
 Elever åbner aktiviteten fra klassens gruppekode (intet login, ingen personlig
 konto — se *S1 — Tilslut dig og brug din tutor*). De får tutoren og, hvis du
-tilføjede et, arbejdsområdet. Tutoren følger det mål, du har sat, og kan se det
-arbejde, eleven laver i arbejdsområdet.
+har tilføjet nogen, værktøjerne. Tutoren arbejder hen mod det mål, du har sat,
+og kan se det arbejde, eleven laver i arbejdsområdet.
 
 ## Næste skridt
 
 - Tilføj pensummaterialer, så tutoren kan forankre sine svar i dine
   materialer — *T3*.
-- Lad AI-medbyggeren udkaste en aktivitet ud fra en beskrivelse i almindeligt
-  sprog — *T4 — Byg med AI-medbyggeren*.
+- Lad AI-hjælperen lave et udkast til en aktivitet ud fra en beskrivelse i
+  almindeligt sprog — *T4 — Byg med AI-co-piloten*.
