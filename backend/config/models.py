@@ -30,6 +30,7 @@ PURPOSES: dict[str, str] = {
     "document_extract": "text from an uploaded PDF or image (must read PDFs)",
     "curriculum_summary": "the short summary stored with a curriculum document",
     "structured_extract": "JSON extracted from parsed document blocks",
+    "concept_map_suggest": "a concept map suggested from a teaching goal (new-activity wizard, teacher waits)",
 }
 
 #: Env vars that predate the ``<PURPOSE>_MODEL`` convention and still work.

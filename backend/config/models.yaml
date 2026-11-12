@@ -199,6 +199,9 @@ purposes:
   document_extract: "gemini-3-5-flash-lite"
   curriculum_summary: "gemini-3-5-flash-lite"
   structured_extract: "gemini-3-5-flash-lite"
+  # The teacher waits on it in the wizard: the authoring co-pilot's model
+  # (activity-authoring-assistant pins gemini-3.5-flash-lite), not the smart tier.
+  concept_map_suggest: "gemini-3-5-flash-lite"
 
 # ─── Compaction ───────────────────────────────────────────────────────────
 # EventsCompactionConfig on App (not Agent/Runner). DOCUMENTATION ONLY —
