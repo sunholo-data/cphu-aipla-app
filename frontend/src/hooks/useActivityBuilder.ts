@@ -287,7 +287,10 @@ export function useActivityBuilder(): ActivityBuilder {
     setStudentOpening("");
     setStarterPrompts([]);
     setOpeningByTeacher(false);
-    setLanguage(t.language);
+    // The students' language is NOT the template's (2026-11-12): it follows the
+    // class (or the account default), and the template's text stays as written.
+    // A mismatch shows as the builder's language hint, never as a silent switch
+    // that left a Danish class with an English tutor.
     setStudentView("chat");
     setChecklist(t.checklist.map((label) => ({ key: nextKeyRef.current++, label })));
     setTable(

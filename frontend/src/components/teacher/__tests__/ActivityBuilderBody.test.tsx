@@ -316,8 +316,9 @@ describe("ActivityBuilderBody — workspace: add on demand (UI sweep 2026-11-11)
     for (const kind of ["sim", "checklist", "table", "chart", "calculator", "note", "writing", "solution", "document"]) {
       expect(within(dialog).getByTestId(`workspace-add-${kind}`)).toBeInTheDocument();
     }
-    // The help line is the element's existing `help` copy.
-    expect(within(dialog).getByTestId("workspace-add-checklist")).toHaveTextContent(/Sub-steps students tick off/);
+    // The help line is the short tile copy shared with the new-activity wizard
+    // (WorkspaceAdd.help_<kind>, 2026-11-12).
+    expect(within(dialog).getByTestId("workspace-add-checklist")).toHaveTextContent(/Steps students tick off/);
     // Concept map only behind NEXT_PUBLIC_CONCEPT_MAP (off in tests).
     expect(within(dialog).queryByTestId("workspace-add-conceptMap")).toBeNull();
   });
