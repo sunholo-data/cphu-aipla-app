@@ -1,15 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import * as Dialog from "@radix-ui/react-dialog";
-import { BookOpen, Check, Eye, EyeOff, FileText, FileUp, Folder, FolderPlus, Image as ImageIcon, Loader2, Pin, Plus, Search, Tag, Trash2, X } from "lucide-react";
+import {
+  BookOpen,
+  Check,
+  ChevronDown,
+  FileText,
+  FileUp,
+  Folder,
+  FolderPlus,
+  Image as ImageIcon,
+  Plus,
+  Search,
+  SlidersHorizontal,
+  Tag,
+  X,
+} from "lucide-react";
 
 import {
   type CurriculumDoc,
   type CurriculumFacets,
   type CurriculumFolder,
   type DocContent,
-  type FacetOption,
   type LevelFilter,
   CurriculumApiError,
   UNLEVELLED,
@@ -28,9 +41,15 @@ import { useIsResearcher } from "@/hooks/useIsResearcher";
 import type { MaterialRef } from "@/lib/teacherApi";
 // 1.1.61 — the chip idiom moved out so the activity library shares it verbatim
 // rather than growing a lookalike. Behaviour here is unchanged.
-import { ALL, ActiveChip, FacetRow } from "@/components/teacher/ui/FacetRow";
+import { ActiveChip, FacetRow } from "@/components/teacher/ui/FacetRow";
 import { SpendDeniedNotice } from "@/components/teacher/SpendDeniedNotice";
 import { RagStatusLine } from "@/components/teacher/RagStatusLine";
+import { Button } from "@/components/ui/button";
+import { useConfirm } from "@/components/ui/confirm";
+import { LoadError } from "@/components/ui/load-error";
+import { RowMenu, type RowMenuItem } from "@/components/ui/row-menu";
+import { Spinner } from "@/components/ui/spinner";
+import { notify } from "@/components/ui/toast";
 import { useT } from "@/i18n";
 import { isSpendDenied } from "@/lib/accessTier";
 
@@ -50,14 +69,14 @@ interface Props {
   activityId?: string;
   /** 1.1.61 — which job this mount is doing.
    *
-   *  `"cite"` (default) is the activity-builder mount: browse the corpus and
-   *  pick documents for THIS activity, so every row carries a Cite button and
-   *  the cited set renders above the filters.
+   *  `"cite"` (default) is the activity-builder mount: the activity's chosen
+   *  documents come first, and "Tilføj dokument" opens the library picker
+   *  (search, filters, upload) to choose more.
    *
    *  `"library"` is the standalone `/teacher/materials` mount: curate the
    *  corpus itself — subject, folder, tags, upload — with no activity in scope.
-   *  Citing is meaningless there, so the Cite column and the cited-set header
-   *  are dropped and the organise editor is the primary affordance. */
+   *  Choosing is meaningless there, so there is no chosen list and the library
+   *  is always open. */
   mode?: "cite" | "library";
 }
 
@@ -65,7 +84,6 @@ interface Props {
 const PAGE_SIZE = 50;
 // 1.1.58 M3 — sentinel folder filter → docs with no folder (mirrors backend).
 const UNFILED = "__unfiled__";
-// The empty-string value every single-select facet uses for "no filter".
 // 1.1.60 — subject is the BROAD class (mirrors backend SUBJECTS in
 // db/models/curriculum.py). It used to be the nine Danish stx *physics* areas,
 // which left the maths corpus homeless and "AIPLA guides" posing as a physics
@@ -74,31 +92,54 @@ const UNFILED = "__unfiled__";
 // preserved by prepending it below.
 const SUBJECTS = ["Fysik", "Matematik", "Kemi", "AIPLA guides"];
 
+/** "PDF", "DOCX"… from a filename, or null when it carries no extension (a
+ *  shared doc's origin is a provenance like "uvm.dk", not a file). */
+function fileType(...names: (string | undefined)[]): string | null {
+  for (const n of names) {
+    const m = n?.match(/\.(pdf|txt|md|docx|pptx|xlsx|odt|odp|ods|epub|html?|csv)$/i);
+    if (m) return m[1].toUpperCase();
+  }
+  return null;
+}
+
 /**
- * Materials section (1.1.25 M4). Mounted twice, switched by `mode`:
- * inside the activity builder (`"cite"`) and as the standalone
- * `/teacher/materials` library (`"library"`, 1.1.61).
+ * Materials section (1.1.25 M4; simplified in the 2026-11 UI sweep). Mounted
+ * twice, switched by `mode`: inside the activity builder (`"cite"`) and as the
+ * standalone `/teacher/materials` library (`"library"`, 1.1.61).
  *
- * Affordances:
- *   - Browse the curriculum library (subject / folder / level / tag facets)
- *   - Organise a doc — subject, folder, tags (both modes; the library's point)
- *   - Cite a library doc → adds a MaterialRef to the activity (cite mode only)
- *   - Upload your own doc → ingests (teacher_owned), and cites it in cite mode
+ * Cite mode, as the teacher meets it:
+ *   - the documents chosen for this activity, one row each, with ONE visible
+ *     control ("Eleverne kan åbne den") and a ⋯ for the rarer ones (opens
+ *     first, whole text vs look-up, what was extracted, remove);
+ *   - "Tilføj dokument" opens the picker: search + the library + Upload, with
+ *     subject/folder/level/tag filters behind one "Filtrér" button and each
+ *     library row's organise/new-folder/delete behind its own ⋯.
  *
- * The tutor's curriculum-retrieval tool (M3) is scoped to exactly these
- * cited docs — students never see the open corpus. Empty / loading / error
- * states are designed (Axiom 11).
+ * Nothing that used to be on screen was removed — it moved. The tutor's
+ * curriculum-retrieval tool (M3) is scoped to exactly these chosen docs —
+ * students never see the open corpus. Loading / failed / empty are kept apart
+ * (a failed read is a LoadError, never an empty list).
  */
 export function MaterialsSection({ materials, onChange, activityId, mode = "cite" }: Props) {
   const t = useT("MaterialsSection");
+  const confirm = useConfirm();
   const isLibrary = mode === "library";
+  const headingId = useId();
+  const pickerId = useId();
+  const filterPanelId = useId();
   // Gates the "share to the shared library" upload option (curriculum-library.md
   // recommendation, enforced 2026-08-14): only researchers may add to the
   // institutional shared corpus, so an ordinary teacher never sees the checkbox.
   const isResearcher = useIsResearcher();
+  // The library is always open where curating it IS the job; in the builder it
+  // opens on "Tilføj dokument", and nothing is fetched until it does.
+  const [pickerOpen, setPickerOpen] = useState(isLibrary);
+  // Filters are navigation in the library and an occasional narrowing in the
+  // builder, so they start open only in the library.
+  const [filtersOpen, setFiltersOpen] = useState(isLibrary);
   const [docs, setDocs] = useState<CurriculumDoc[] | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<{ kind: "forbidden" | "failed" } | null>(null);
   // 1.1.60 — level is a chip row like the others, and can select the
   // "no level assigned" bucket where most teacher uploads actually live.
   const [levelFilter, setLevelFilter] = useState<LevelFilter | "">("");
@@ -108,6 +149,7 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
   const [debouncedTopic, setDebouncedTopic] = useState("");
   const [total, setTotal] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [loadMoreFailed, setLoadMoreFailed] = useState(false);
   // 1.1.60 — every facet's options + narrowed counts, from one endpoint.
   const [facets, setFacets] = useState<CurriculumFacets>({
     subjects: [],
@@ -115,8 +157,9 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
     folders: [],
     tags: [],
   });
+  const [facetsFailed, setFacetsFailed] = useState(false);
   // 1.1.58 M1 — tags are the one AND-combinable facet. `editTagsFor` holds the
-  // docId whose inline tag editor is open.
+  // docId whose inline organise editor is open.
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [editTagsFor, setEditTagsFor] = useState<string | null>(null);
   // 1.1.58 M2 — subject facet (single-select).
@@ -156,37 +199,36 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setLoadMoreFailed(false);
     try {
       const page = await browseCurriculum(browseParams(0));
       setDocs(page.docs);
       setTotal(page.total);
     } catch (e) {
-      if (e instanceof CurriculumApiError && e.status === 403) {
-        setError(t("teacherOnly"));
-      } else {
-        setError(e instanceof Error ? e.message : t("loadFailed"));
-      }
+      setError({ kind: e instanceof CurriculumApiError && e.status === 403 ? "forbidden" : "failed" });
       setDocs(null);
       setTotal(0);
     } finally {
       setLoading(false);
     }
-  }, [browseParams, t]);
+  }, [browseParams]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (pickerOpen) void load();
+  }, [load, pickerOpen]);
 
   // Fetch the NEXT page and APPEND (never replace) — the large-list affordance.
   async function loadMore() {
     if (!docs) return;
     setLoadingMore(true);
+    setLoadMoreFailed(false);
     try {
       const page = await browseCurriculum(browseParams(docs.length));
       setDocs((prev) => (prev ? [...prev, ...page.docs] : page.docs));
       setTotal(page.total);
     } catch {
-      // Keep what we already have; the teacher can retry.
+      // Keep what we already have, and say so — the button stays to retry.
+      setLoadMoreFailed(true);
     } finally {
       setLoadingMore(false);
     }
@@ -204,18 +246,29 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
       ]);
       setFacets(next);
       setFolders(folderList);
+      setFacetsFailed(false);
     } catch {
-      // Facets are additive — a failure just means no chip row, never a blocker.
+      // Never a blocker for the list — but never an empty filter panel that
+      // reads as "nothing to filter by" either: the panel shows a LoadError.
       setFacets({ subjects: [], levels: [], folders: [], tags: [] });
       setFolders([]);
+      setFacetsFailed(true);
     }
   }, [browseParams]);
+
+  useEffect(() => {
+    if (pickerOpen) void loadFacets();
+  }, [loadFacets, pickerOpen]);
 
   // 1.1.58 M4 — active-filter summary + one-shot reset. The search term uses the
   // live `topicFilter` (not the debounced copy) so the chip clears instantly.
   const hasActiveFilters = Boolean(
     levelFilter || topicFilter.trim() || selectedTags.length || selectedSubject || selectedFolder,
   );
+  // What the "Filtrér" button counts: the facets hidden behind it (the search
+  // box is always on screen, so it doesn't count).
+  const facetCount =
+    (levelFilter ? 1 : 0) + (selectedSubject ? 1 : 0) + (selectedFolder ? 1 : 0) + selectedTags.length;
 
   function clearAllFilters() {
     setLevelFilter("");
@@ -234,14 +287,21 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
     );
   }
 
-  async function newFolder() {
+  /** Create a folder (yours). With `fileDoc`, also put that document in it —
+   *  offered only on your own documents, the only ones a personal folder can
+   *  hold (a shared doc in a personal folder is a 400). */
+  async function newFolder(fileDoc?: CurriculumDoc) {
     const name = window.prompt(t("newFolderPrompt"))?.trim();
     if (!name) return;
     try {
-      await createCurriculumFolder(name);
-      void loadFacets();
+      const folder = await createCurriculumFolder(name);
+      if (fileDoc && folder && folder.ownerScope === fileDoc.ownerScope) {
+        await applyTagEdit(fileDoc.docId, { folderId: folder.folderId });
+      } else {
+        void loadFacets();
+      }
     } catch {
-      // Non-fatal.
+      notify.error(t("actionFailed"));
     }
   }
 
@@ -252,16 +312,19 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
     const f = folders.find((x) => x.folderId === folderId);
     const name = f?.name ?? folderLabel(folderId);
     const count = f?.docCount ?? 0;
-    if (!window.confirm(t("deleteFolderConfirm", { name, count }))) {
-      return;
-    }
+    const ok = await confirm({
+      title: t("deleteFolderConfirm", { name, count }),
+      confirmLabel: t("deleteConfirmLabel"),
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await deleteCurriculumFolder(folderId);
       if (selectedFolder === folderId) setSelectedFolder("");
       void loadFacets();
       void load(); // a filed doc may now be unfiled — refresh the list
     } catch {
-      // Non-fatal.
+      notify.error(t("actionFailed"));
     }
   }
 
@@ -270,10 +333,13 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
   // also allowed to delete, so no separate permission check is needed here —
   // deleting a shared doc removes it for every teacher, which the confirm spells out.
   async function removeDoc(doc: CurriculumDoc) {
-    const scopeWarning = doc.source === "shared" ? t("sharedWarning") : t("ownWarning");
-    if (!window.confirm(t("deleteDocConfirm", { title: doc.title, warning: scopeWarning }))) {
-      return;
-    }
+    const ok = await confirm({
+      title: t("deleteDocConfirm", { title: doc.title }),
+      description: doc.source === "shared" ? t("sharedWarning") : t("ownWarning"),
+      confirmLabel: t("deleteConfirmLabel"),
+      destructive: true,
+    });
+    if (!ok) return;
     try {
       await deleteCurriculumDoc(doc.docId);
       setDocs((prev) => (prev ? prev.filter((d) => d.docId !== doc.docId) : prev));
@@ -287,13 +353,10 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
       }
       void loadFacets();
     } catch {
-      // Non-fatal: the row stays put and the teacher can retry.
+      // The row stays put and the teacher can retry.
+      notify.error(t("actionFailed"));
     }
   }
-
-  useEffect(() => {
-    void loadFacets();
-  }, [loadFacets]);
 
   function toggleTagFilter(tag: string) {
     setSelectedTags((prev) => (prev.includes(tag) ? prev.filter((x) => x !== tag) : [...prev, tag]));
@@ -310,7 +373,8 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
       setDocs((prev) => (prev ? prev.map((d) => (d.docId === docId ? updated : d)) : prev));
       void loadFacets();
     } catch {
-      // Non-fatal: the row keeps its prior facets; the teacher can retry.
+      // The row keeps its prior facets; the teacher can retry.
+      notify.error(t("actionFailed"));
     }
   }
 
@@ -328,8 +392,9 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
    *  turn, the tutor HAS it). The same document either way; only the mechanism
    *  changes. Reference stays the default because it is the cheaper one and the
    *  right one for a textbook — but a teacher who attaches the task their students
-   *  are working on needs the other, and until now had no way to ask for it or to
-   *  see which one they had got. */
+   *  are working on needs the other. The choice is deliberate, never automatic
+   *  (decided in the 2026-11 sweep); it sits in the row's ⋯ and the row's meta
+   *  line says when a document is read whole. */
   function toggleInContext(docId: string) {
     onChange(
       materials.map((m) =>
@@ -340,16 +405,46 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
     );
   }
 
-  function toggleStudentVisible(docId: string) {
+  function toggleStudentVisible(m: MaterialRef) {
     onChange(
-      materials.map((m) =>
-        m.docId === docId ? { ...m, studentVisible: !m.studentVisible } : m,
+      materials.map((x) =>
+        (m.kind === "image" ? x.kind === "image" && x.materialId === m.materialId : x.kind !== "image" && x.docId === m.docId)
+          ? { ...x, studentVisible: !x.studentVisible }
+          : x,
       ),
     );
   }
 
-  // 1.1.33 M4/M3 — "what we extracted" is per-document: click any cited or
-  // library doc to read exactly what was parsed from IT (not a generic panel).
+  /** 1.1.147 M3 — students land on the first shared document, in the order the
+   *  materials were added. "Åbner først" moves this one to the front, and
+   *  shares it: a document students cannot open cannot open first. */
+  function makeOpenFirst(docId: string) {
+    const target = materials.find((x) => x.kind !== "image" && x.docId === docId);
+    if (!target) return;
+    onChange([{ ...target, studentVisible: true }, ...materials.filter((x) => x !== target)]);
+  }
+
+  async function removeMaterial(m: MaterialRef) {
+    if (m.kind === "image") {
+      // An image's bytes are deleted with it — unlike a document, which stays
+      // in the library and can be added again — so this one asks first.
+      const ok = await confirm({
+        title: t("removeImageConfirm", { label: m.alt || t("image") }),
+        confirmLabel: t("removeConfirmLabel"),
+        destructive: true,
+      });
+      if (!ok) return;
+      if (activityId && m.materialId) {
+        void deleteActivityImage(activityId, m.materialId).catch(() => {});
+      }
+      onChange(materials.filter((x) => !(x.kind === "image" && x.materialId === m.materialId)));
+    } else {
+      onChange(materials.filter((x) => x.docId !== m.docId));
+    }
+  }
+
+  // 1.1.33 M4/M3 — "what we extracted" is per-document: open it from any
+  // chosen or library doc to read exactly what was parsed from IT.
   const [viewDoc, setViewDoc] = useState<{ docId: string; title: string } | null>(null);
   const [view, setView] = useState<ViewState | null>(null);
 
@@ -375,551 +470,356 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
   // shared one, in the order the materials were added).
   const firstSharedDocId = materials.find((x) => x.kind !== "image" && x.studentVisible)?.docId;
 
-  return (
-    <fieldset className="flex flex-col gap-4">
-      <legend className="flex items-center gap-1.5 text-sm font-medium">
-        <BookOpen className="h-4 w-4" aria-hidden="true" />
-        {t("legend")}
-      </legend>
-      <p className="text-xs text-muted-foreground">
-        {isLibrary ? (
-          t("libraryIntro")
-        ) : (
-          t.rich("citeIntro", { b: (chunks) => <span className="font-medium">{chunks}</span> })
-        )}
-      </p>
-
-      {/* Cited materials chips — each with a per-material student-visibility toggle (1.1.33 M2a).
-          Library mode has no activity to cite INTO, so this block never renders there. */}
-      {!isLibrary && materials.length > 0 ? (
-        <ul className="flex flex-wrap gap-2" aria-label={t("cited")}>
-          {materials.map((m) => {
-            // 1.1.44 — image materials: an icon chip (the tutor sees the image;
-            // there's no text-extraction viewer). Same visibility toggle + remove.
-            if (m.kind === "image") {
-              const imgLabel = m.alt || t("image");
-              const imgVisible = Boolean(m.studentVisible);
-              return (
-                <li
-                  key={`img:${m.materialId}`}
-                  className="flex items-center gap-1.5 rounded border border-primary/40 bg-primary/5 px-2 py-1 text-xs"
-                >
-                  <span className="flex items-center gap-1 font-medium">
-                    <ImageIcon className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
-                    {imgLabel}
-                  </span>
-                  <button
-                    type="button"
-                    aria-pressed={imgVisible}
-                    aria-label={imgVisible ? t("hideFromStudents", { label: imgLabel }) : t("showToStudents", { label: imgLabel })}
-                    title={imgVisible ? t("visibleTitle") : t("hiddenTitle")}
-                    onClick={() =>
-                      onChange(
-                        materials.map((x) =>
-                          x.kind === "image" && x.materialId === m.materialId
-                            ? { ...x, studentVisible: !x.studentVisible }
-                            : x,
-                        ),
-                      )
-                    }
-                    className={
-                      imgVisible
-                        ? "flex items-center gap-1 rounded px-1 text-emerald-700 hover:text-emerald-800"
-                        : "flex items-center gap-1 rounded px-1 text-muted-foreground hover:text-foreground"
-                    }
-                  >
-                    {imgVisible ? (
-                      <Eye className="h-3.5 w-3.5" aria-hidden="true" />
-                    ) : (
-                      <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
-                    )}
-                    <span>{imgVisible ? t("visible") : t("hidden")}</span>
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={t("removeAria", { label: imgLabel })}
-                    onClick={() => {
-                      if (activityId && m.materialId) {
-                        void deleteActivityImage(activityId, m.materialId).catch(() => {});
-                      }
-                      onChange(materials.filter((x) => !(x.kind === "image" && x.materialId === m.materialId)));
-                    }}
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="h-3.5 w-3.5" aria-hidden="true" />
-                  </button>
-                </li>
-              );
-            }
-            const label = m.title || m.origin || m.docId;
-            const visible = Boolean(m.studentVisible);
-            const inContext = m.kind === "context";
-            // 1.1.147 M3 — students land on the first shared document, in the
-            // order materials were added; say so where the teacher sets it.
-            const opensFirst = visible && m.docId === firstSharedDocId;
-            return (
-              <li
-                key={m.docId}
-                className="flex items-center gap-1.5 rounded border border-primary/40 bg-primary/5 px-2 py-1 text-xs"
-              >
-                <button
-                  type="button"
-                  onClick={() => openContent(m.docId, label)}
-                  title={t("viewExtracted")}
-                  className="font-medium underline-offset-2 hover:underline"
-                >
-                  {label}
-                </button>
-                {opensFirst ? (
-                  <span
-                    title={t("opensFirstTitle")}
-                    className="rounded bg-emerald-50 px-1 text-emerald-800"
-                  >
-                    {t("opensFirst")}
-                  </span>
-                ) : null}
-                <button
-                  type="button"
-                  aria-pressed={inContext}
-                  aria-label={
-                    inContext ? t("stopContext", { label }) : t("startContext", { label })
-                  }
-                  title={
-                    inContext ? t("contextTitle") : t("referenceTitle")
-                  }
-                  onClick={() => toggleInContext(m.docId)}
-                  className={
-                    inContext
-                      ? "flex items-center gap-1 rounded px-1 text-primary hover:text-primary/80"
-                      : "flex items-center gap-1 rounded px-1 text-muted-foreground hover:text-foreground"
-                  }
-                >
-                  {inContext ? (
-                    <Pin className="h-3.5 w-3.5" aria-hidden="true" />
-                  ) : (
-                    <Search className="h-3.5 w-3.5" aria-hidden="true" />
-                  )}
-                  <span>{inContext ? t("inContext") : t("reference")}</span>
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={visible}
-                  aria-label={
-                    visible ? t("hideFromStudents", { label }) : t("showToStudents", { label })
-                  }
-                  title={visible ? t("visibleTitle") : t("hiddenTitle")}
-                  onClick={() => toggleStudentVisible(m.docId)}
-                  className={
-                    visible
-                      ? "flex items-center gap-1 rounded px-1 text-emerald-700 hover:text-emerald-800"
-                      : "flex items-center gap-1 rounded px-1 text-muted-foreground hover:text-foreground"
-                  }
-                >
-                  {visible ? (
-                    <Eye className="h-3.5 w-3.5" aria-hidden="true" />
-                  ) : (
-                    <EyeOff className="h-3.5 w-3.5" aria-hidden="true" />
-                  )}
-                  {/* State in words, not an icon: at the 10-05 seminar seven
-                      activities shared nothing and nothing on screen said so. */}
-                  <span>{visible ? t("studentsCanOpen") : t("tutorOnly")}</span>
-                </button>
-                <button
-                  type="button"
-                  aria-label={t("removeAria", { label })}
-                  onClick={() =>
-                    onChange(materials.filter((x) => x.docId !== m.docId))
-                  }
-                  className="text-muted-foreground hover:text-foreground"
-                >
-                  <X className="h-3.5 w-3.5" aria-hidden="true" />
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      ) : null}
-
-      {/* Filters. 1.1.60 — search + upload here; every FACET is a chip row in the
-          strip below, so Level no longer sits apart as a lone <select>. */}
-      <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-1 flex-col gap-1 text-xs font-medium">
-          {t("search")}
-          <input
-            type="text"
-            value={topicFilter}
-            onChange={(e) => setTopicFilter(e.target.value)}
-            placeholder={t("searchPlaceholder")}
-            aria-label={t("search")}
-            className="rounded border border-border bg-background px-2 py-1.5 text-sm"
-          />
-        </label>
-        <UploadButton
-          activityId={activityId}
-          isResearcher={isResearcher}
-          // 1.1.60 — an upload inherits whatever you're currently filtered to, so
-          // it lands categorised instead of Unfiled-and-subjectless. This is the
-          // capture gap that left every doc with subject=null: the field existed
-          // on the backend from 1.1.58 M2, but no upload path ever sent it.
-          subject={selectedSubject || undefined}
-          folderId={selectedFolder && selectedFolder !== UNFILED ? selectedFolder : undefined}
-          folderLabel={selectedFolder && selectedFolder !== UNFILED ? folderLabel(selectedFolder) : undefined}
-          onUploaded={(doc) => {
-            // Add the new doc to the visible list + cite it immediately. Default
-            // not student-visible (opt-in, 1.1.33 M2a) — same as toggleCite.
-            setDocs((prev) => (prev ? [doc, ...prev] : [doc]));
-            setTotal((n) => n + 1);
-            // Library mode has no activity to cite into — the upload just joins
-            // the corpus. Citing there would silently mutate a `materials` array
-            // nobody is saving.
-            if (!isLibrary) {
-              onChange([...materials, { docId: doc.docId, origin: doc.origin, title: doc.title, studentVisible: false }]);
-            }
-            // Show what was extracted FROM THIS doc immediately (per-document, M4).
-            void openContent(doc.docId, doc.title);
-          }}
-          onImageUploaded={(ref) => {
-            // 1.1.44 — an image material the tutor will SEE. Cite it immediately;
-            // no parse viewer (it isn't text-extracted).
-            onChange([...materials, ref]);
-          }}
-        />
-      </div>
-
-      {/* 1.1.60 — the facet strip. Subject (broad class) → Folder (the taxonomy
-          within it) → Level → Tags, all one chip idiom, all showing counts
-          narrowed by the other active facets. */}
-      <div className="flex flex-col gap-2 rounded border border-border/60 bg-muted/20 p-2.5">
-        <FacetRow
-          label={t("subject")}
-          icon={<BookOpen className="h-3.5 w-3.5" aria-hidden="true" />}
-          options={facets.subjects}
-          selected={selectedSubject}
-          onSelect={setSelectedSubject}
-        />
-        <FacetRow
-          label={t("folders")}
-          icon={<Folder className="h-3.5 w-3.5" aria-hidden="true" />}
-          options={facets.folders}
-          selected={selectedFolder}
-          onSelect={setSelectedFolder}
-          // Folders are the only user-created facet, so they carry a delete on
-          // each chip (docs get unfiled, never deleted) and a New at the end.
-          renderAction={(o) =>
-            o.value === UNFILED ? null : (
-              <button
-                type="button"
-                aria-label={t("deleteFolderAria", { label: o.label })}
-                onClick={() => void removeFolder(o.value)}
-                className="hover:text-destructive"
-              >
-                <X className="h-3 w-3" aria-hidden="true" />
-              </button>
-            )
-          }
-        >
-          <button
-            type="button"
-            onClick={() => void newFolder()}
-            className="flex items-center gap-1 rounded-full border border-dashed border-border px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted"
-          >
-            <FolderPlus className="h-3.5 w-3.5" aria-hidden="true" />
-            {t("newFolder")}
-          </button>
-        </FacetRow>
-        <FacetRow
-          label={t("level")}
-          options={facets.levels}
-          selected={levelFilter}
-          onSelect={(v) => setLevelFilter(v as LevelFilter | "")}
-        />
-        <FacetRow
-          label={t("tags")}
-          icon={<Tag className="h-3.5 w-3.5" aria-hidden="true" />}
-          options={facets.tags}
-          selected={selectedTags}
-          onSelect={toggleTagFilter}
-          multi
-        />
-      </div>
-
-      {/* Active-filter chips (1.1.58 M4) — echo every applied filter, each
-          removable, plus Clear all. Only shown when something is active. */}
-      {hasActiveFilters ? (
-        <div className="flex flex-wrap items-center gap-1.5" aria-label={t("activeFilters")}>
-          <span className="text-xs font-medium text-muted-foreground">{t("active")}</span>
-          {levelFilter ? (
-            <ActiveChip
-              label={levelFilter === UNLEVELLED ? t("noLevel") : t("levelChip", { level: levelFilter })}
-              onRemove={() => setLevelFilter("")}
-            />
-          ) : null}
-          {topicFilter.trim() ? (
-            <ActiveChip label={t("queryChip", { q: topicFilter.trim() })} onRemove={() => setTopicFilter("")} />
-          ) : null}
-          {selectedSubject ? (
-            <ActiveChip label={selectedSubject} onRemove={() => setSelectedSubject("")} />
-          ) : null}
-          {selectedFolder ? (
-            <ActiveChip label={folderLabel(selectedFolder)} onRemove={() => setSelectedFolder("")} />
-          ) : null}
-          {selectedTags.map((tag) => (
-            <ActiveChip
-              key={tag}
-              label={t("tagChip", { tag })}
-              onRemove={() => setSelectedTags((prev) => prev.filter((x) => x !== tag))}
-            />
-          ))}
-          <button
-            type="button"
-            onClick={clearAllFilters}
-            className="ml-1 text-xs font-medium text-muted-foreground underline-offset-2 hover:underline"
-          >
-            {t("clearAll")}
-          </button>
+  function chosenRow(m: MaterialRef) {
+    const isImage = m.kind === "image";
+    const label = isImage ? m.alt || t("image") : m.title || m.origin || m.docId;
+    const visible = Boolean(m.studentVisible);
+    const inContext = m.kind === "context";
+    const opensFirst = !isImage && visible && m.docId === firstSharedDocId;
+    const type = isImage ? t("image") : fileType(m.origin, m.title) ?? (m.origin && m.origin !== label ? m.origin : null);
+    const meta = [
+      type,
+      opensFirst ? t("metaOpensFirst") : null,
+      visible ? null : t("metaTutorOnly"),
+      inContext ? t("metaFullText") : null,
+    ].filter(Boolean);
+    const Icon = isImage ? ImageIcon : FileText;
+    const items: RowMenuItem[] = isImage
+      ? []
+      : [
+          ...(opensFirst
+            ? []
+            : [{ id: "opens-first", label: t("makeOpenFirst"), hint: t("makeOpenFirstHint"), onSelect: () => makeOpenFirst(m.docId) }]),
+          inContext
+            ? { id: "reference", label: t("useAsReference"), hint: t("useAsReferenceHint"), onSelect: () => toggleInContext(m.docId) }
+            : { id: "context", label: t("useInContext"), hint: t("useInContextHint"), onSelect: () => toggleInContext(m.docId) },
+          { id: "view", label: t("viewExtracted"), onSelect: () => void openContent(m.docId, label) },
+        ];
+    items.push({ id: "remove", label: t("removeFromActivity"), onSelect: () => void removeMaterial(m), danger: true });
+    return (
+      <li
+        key={isImage ? `img:${m.materialId}` : m.docId}
+        className="flex flex-wrap items-center gap-x-3 gap-y-1.5 px-3 py-2.5 text-sm"
+      >
+        <Icon className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate font-medium">{label}</span>
+          {meta.length > 0 ? <span className="text-xs text-muted-foreground">{meta.join(" · ")}</span> : null}
         </div>
-      ) : null}
+        {/* The one visible control. State in words: at the 10-05 seminar seven
+            activities shared nothing and nothing on screen said so. */}
+        <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs">
+          <input
+            type="checkbox"
+            checked={visible}
+            onChange={() => toggleStudentVisible(m)}
+            className="h-4 w-4 accent-primary"
+          />
+          {t("studentsCanOpen")}
+        </label>
+        <RowMenu label={t("rowMenu", { label })} items={items} />
+      </li>
+    );
+  }
 
-      {/* Library list */}
-      <div className="rounded border border-border">
-        {loading ? (
-          <div className="flex items-center gap-2 p-4 text-sm text-muted-foreground">
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            {t("loadingLibrary")}
-          </div>
-        ) : error ? (
-          <div className="flex flex-col gap-2 p-4 text-sm">
-            <span className="text-destructive">{error}</span>
-            <button
-              type="button"
-              onClick={() => void load()}
-              className="w-fit rounded border border-border px-2 py-1 text-xs font-medium hover:bg-muted"
+  return (
+    <section aria-labelledby={headingId} className="flex flex-col gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 id={headingId} className="flex items-center gap-1.5 text-sm font-medium">
+          <BookOpen className="h-4 w-4" aria-hidden="true" />
+          {t("legend")}
+          {isLibrary ? null : (
+            <>
+              {" "}
+              <span className="font-normal text-muted-foreground">· {t("legendHint")}</span>
+            </>
+          )}
+        </h3>
+        {isLibrary ? null : (
+          <Button
+            size="sm"
+            aria-expanded={pickerOpen}
+            aria-controls={pickerId}
+            onClick={() => setPickerOpen((o) => !o)}
+          >
+            <Plus className="h-4 w-4" aria-hidden="true" />
+            {t("addDocument")}
+          </Button>
+        )}
+      </div>
+      {isLibrary ? <p className="text-xs text-muted-foreground">{t("libraryIntro")}</p> : null}
+
+      {/* The activity's chosen documents, first. Library mode has no activity to
+          choose INTO, so this block never renders there. */}
+      {isLibrary ? null : materials.length > 0 ? (
+        <ul aria-label={t("chosen")} className="divide-y divide-border rounded-md border border-border">
+          {materials.map((m) => chosenRow(m))}
+        </ul>
+      ) : pickerOpen ? null : (
+        <p className="text-sm text-muted-foreground">{t("noneChosen")}</p>
+      )}
+
+      {pickerOpen ? (
+        <div
+          id={pickerId}
+          role={isLibrary ? undefined : "region"}
+          aria-label={isLibrary ? undefined : t("pickerTitle")}
+          className={isLibrary ? "flex flex-col gap-3" : "flex flex-col gap-3 rounded-lg border border-border bg-muted/20 p-3"}
+        >
+          {isLibrary ? null : (
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-medium">{t("pickerTitle")}</p>
+              <Button variant="ghost" size="sm" onClick={() => setPickerOpen(false)}>
+                <Check className="h-4 w-4" aria-hidden="true" />
+                {t("done")}
+              </Button>
+            </div>
+          )}
+
+          {/* Search + Filtrér. Every FACET sits behind Filtrér; the search box
+              is the one always-visible way to narrow. */}
+          <div className="flex items-center gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search
+                className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <input
+                type="search"
+                name="materials-search"
+                autoComplete="off"
+                value={topicFilter}
+                onChange={(e) => setTopicFilter(e.target.value)}
+                placeholder={t("searchPlaceholder")}
+                aria-label={t("search")}
+                className="w-full rounded-md border border-border bg-background py-1.5 pl-8 pr-2 text-sm"
+              />
+            </div>
+            <Button
+              size="sm"
+              aria-expanded={filtersOpen}
+              aria-controls={filterPanelId}
+              onClick={() => setFiltersOpen((o) => !o)}
             >
-              {t("retry")}
-            </button>
+              <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+              {facetCount > 0 ? t("filterCount", { count: facetCount }) : t("filter")}
+              <ChevronDown
+                className={`h-3.5 w-3.5 transition-transform ${filtersOpen ? "rotate-180" : ""}`}
+                aria-hidden="true"
+              />
+            </Button>
           </div>
-        ) : !docs || docs.length === 0 ? (
-          hasActiveFilters ? (
-            // No-match (filters active) — never a dead end: always a way back.
-            <div className="flex flex-col items-start gap-2 p-4 text-sm text-muted-foreground">
-              <span>{t("noMatch")}</span>
+
+          <UploadButton
+            activityId={activityId}
+            isResearcher={isResearcher}
+            // 1.1.60 — an upload inherits whatever you're currently filtered to, so
+            // it lands categorised instead of Unfiled-and-subjectless. This is the
+            // capture gap that left every doc with subject=null: the field existed
+            // on the backend from 1.1.58 M2, but no upload path ever sent it.
+            subject={selectedSubject || undefined}
+            folderId={selectedFolder && selectedFolder !== UNFILED ? selectedFolder : undefined}
+            folderLabel={selectedFolder && selectedFolder !== UNFILED ? folderLabel(selectedFolder) : undefined}
+            onUploaded={(doc) => {
+              // Add the new doc to the visible list + cite it immediately. Default
+              // not student-visible (opt-in, 1.1.33 M2a) — same as toggleCite.
+              setDocs((prev) => (prev ? [doc, ...prev] : [doc]));
+              setTotal((n) => n + 1);
+              // Library mode has no activity to cite into — the upload just joins
+              // the corpus. Citing there would silently mutate a `materials` array
+              // nobody is saving.
+              if (!isLibrary) {
+                onChange([...materials, { docId: doc.docId, origin: doc.origin, title: doc.title, studentVisible: false }]);
+              }
+              // Show what was extracted FROM THIS doc immediately (per-document, M4).
+              void openContent(doc.docId, doc.title);
+            }}
+            onImageUploaded={(ref) => {
+              // 1.1.44 — an image material the tutor will SEE. Cite it immediately;
+              // no parse viewer (it isn't text-extracted).
+              onChange([...materials, ref]);
+            }}
+          />
+
+          {/* 1.1.60 — the facet strip, behind Filtrér. Subject (broad class) →
+              Folder (the taxonomy within it) → Level → Tags, all one chip idiom,
+              all showing counts narrowed by the other active facets. */}
+          {filtersOpen ? (
+            <div
+              id={filterPanelId}
+              className="flex flex-col gap-2 rounded-md border border-border/60 bg-background p-2.5"
+            >
+              {facetsFailed ? (
+                <LoadError what={t("filtersWhat")} onRetry={() => void loadFacets()} />
+              ) : null}
+              <FacetRow
+                label={t("subject")}
+                icon={<BookOpen className="h-3.5 w-3.5" aria-hidden="true" />}
+                options={facets.subjects}
+                selected={selectedSubject}
+                onSelect={setSelectedSubject}
+              />
+              <FacetRow
+                label={t("folders")}
+                icon={<Folder className="h-3.5 w-3.5" aria-hidden="true" />}
+                options={facets.folders}
+                selected={selectedFolder}
+                onSelect={setSelectedFolder}
+                // Folders are the only user-created facet, so they carry a delete on
+                // each chip (docs get unfiled, never deleted) and a New at the end.
+                renderAction={(o) =>
+                  o.value === UNFILED ? null : (
+                    <button
+                      type="button"
+                      aria-label={t("deleteFolderAria", { label: o.label })}
+                      onClick={() => void removeFolder(o.value)}
+                      className="hover:text-destructive"
+                    >
+                      <X className="h-3 w-3" aria-hidden="true" />
+                    </button>
+                  )
+                }
+              >
+                <button
+                  type="button"
+                  onClick={() => void newFolder()}
+                  className="flex items-center gap-1 rounded-full border border-dashed border-border px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted"
+                >
+                  <FolderPlus className="h-3.5 w-3.5" aria-hidden="true" />
+                  {t("newFolder")}
+                </button>
+              </FacetRow>
+              <FacetRow
+                label={t("level")}
+                options={facets.levels}
+                selected={levelFilter}
+                onSelect={(v) => setLevelFilter(v as LevelFilter | "")}
+              />
+              <FacetRow
+                label={t("tags")}
+                icon={<Tag className="h-3.5 w-3.5" aria-hidden="true" />}
+                options={facets.tags}
+                selected={selectedTags}
+                onSelect={toggleTagFilter}
+                multi
+              />
+            </div>
+          ) : null}
+
+          {/* Active-filter chips (1.1.58 M4) — echo every applied filter, each
+              removable, plus Clear all, even while the panel is closed: a hidden
+              filter must never silently shrink the list. */}
+          {hasActiveFilters ? (
+            <div className="flex flex-wrap items-center gap-1.5" aria-label={t("activeFilters")}>
+              <span className="text-xs font-medium text-muted-foreground">{t("active")}</span>
+              {levelFilter ? (
+                <ActiveChip
+                  label={levelFilter === UNLEVELLED ? t("noLevel") : t("levelChip", { level: levelFilter })}
+                  onRemove={() => setLevelFilter("")}
+                />
+              ) : null}
+              {topicFilter.trim() ? (
+                <ActiveChip label={t("queryChip", { q: topicFilter.trim() })} onRemove={() => setTopicFilter("")} />
+              ) : null}
+              {selectedSubject ? (
+                <ActiveChip label={selectedSubject} onRemove={() => setSelectedSubject("")} />
+              ) : null}
+              {selectedFolder ? (
+                <ActiveChip label={folderLabel(selectedFolder)} onRemove={() => setSelectedFolder("")} />
+              ) : null}
+              {selectedTags.map((tag) => (
+                <ActiveChip
+                  key={tag}
+                  label={t("tagChip", { tag })}
+                  onRemove={() => setSelectedTags((prev) => prev.filter((x) => x !== tag))}
+                />
+              ))}
               <button
                 type="button"
                 onClick={clearAllFilters}
-                className="rounded border border-border px-2 py-1 text-xs font-medium hover:bg-muted"
+                className="ml-1 text-xs font-medium text-muted-foreground underline-offset-2 hover:underline"
               >
-                {t("clearAllFilters")}
+                {t("clearAll")}
               </button>
             </div>
+          ) : null}
+
+          {/* Library list */}
+          {loading ? (
+            <div className="flex items-center gap-2 rounded-md border border-border bg-background p-4 text-sm text-muted-foreground">
+              <Spinner size="sm" />
+              {t("loadingLibrary")}
+            </div>
+          ) : error?.kind === "forbidden" ? (
+            <p role="alert" className="rounded-md border border-border bg-background p-4 text-sm text-destructive">
+              {t("teacherOnly")}
+            </p>
+          ) : error ? (
+            <LoadError what={t("libraryWhat")} onRetry={() => void load()} />
           ) : (
-            <div className="p-4 text-sm text-muted-foreground">
-              {t("emptyLibrary")}
-            </div>
-          )
-        ) : (
-          <ul className="divide-y divide-border">
-            {docs.map((doc) => {
-              const cited = citedIds.has(doc.docId);
-              return (
-                <li
-                  key={doc.docId}
-                  className="flex items-center justify-between gap-3 p-3 text-sm"
-                >
-                  <div className="flex min-w-0 flex-col gap-0.5">
-                    <button
-                      type="button"
-                      onClick={() => openContent(doc.docId, doc.title)}
-                      title={t("viewExtracted")}
-                      className="truncate text-left font-medium underline-offset-2 hover:underline"
-                    >
-                      {doc.title}
-                    </button>
-                    <span className="text-xs text-muted-foreground">
-                      {doc.origin}
-                      {doc.level ? t("levelMeta", { level: doc.level }) : ""}
-                      {doc.subject ? ` · ${doc.subject}` : ""}
-                      {doc.topic ? ` · ${doc.topic}` : ""}
-                    </span>
-                    {/* 1.1.151 F1c — can the tutor read it? Failed carries "Prøv igen". */}
-                    <RagStatusLine
+            <div className="rounded-md border border-border bg-background">
+              {!docs || docs.length === 0 ? (
+                hasActiveFilters ? (
+                  // No-match (filters active) — never a dead end: always a way back.
+                  <div className="flex flex-col items-start gap-2 p-4 text-sm text-muted-foreground">
+                    <span>{t("noMatch")}</span>
+                    <Button size="sm" onClick={clearAllFilters}>
+                      {t("clearAllFilters")}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="p-4 text-sm text-muted-foreground">{t("emptyLibrary")}</div>
+                )
+              ) : (
+                <ul className="divide-y divide-border">
+                  {docs.map((doc) => (
+                    <LibraryRow
+                      key={doc.docId}
                       doc={doc}
+                      isLibrary={isLibrary}
+                      cited={citedIds.has(doc.docId)}
+                      editing={editTagsFor === doc.docId}
+                      folders={folders}
                       canRetry={doc.ownerScope !== "shared" || isResearcher}
-                      onUpdated={(u) => setDocs((prev) => (prev ? prev.map((d) => (d.docId === u.docId ? u : d)) : prev))}
+                      onToggleCite={() => toggleCite(doc)}
+                      onView={() => void openContent(doc.docId, doc.title)}
+                      onToggleEdit={() => setEditTagsFor((cur) => (cur === doc.docId ? null : doc.docId))}
+                      onCloseEdit={() => setEditTagsFor(null)}
+                      onNewFolder={() => void newFolder(doc)}
+                      onDelete={() => void removeDoc(doc)}
+                      onEdit={(body) => void applyTagEdit(doc.docId, body)}
+                      onUpdated={(u) =>
+                        setDocs((prev) => (prev ? prev.map((d) => (d.docId === u.docId ? u : d)) : prev))
+                      }
                     />
-                    {doc.summary ? (
-                      <span className="line-clamp-2 text-xs text-muted-foreground/80">{doc.summary}</span>
-                    ) : null}
-                    {/* Tags (1.1.58 M1) — chips with remove; an inline add editor.
-                        Subject (1.1.58 M2) — a picker shown while editing. */}
-                    <div className="mt-0.5 flex flex-wrap items-center gap-1">
-                      {editTagsFor === doc.docId ? (
-                        <select
-                          value={doc.subject ?? ""}
-                          aria-label={t("setSubject", { title: doc.title })}
-                          onChange={(e) => void applyTagEdit(doc.docId, { subject: e.target.value || null })}
-                          className="rounded border border-border bg-background px-1 py-0.5 text-[11px]"
-                        >
-                          <option value="">{t("noSubject")}</option>
-                          {(doc.subject && !SUBJECTS.includes(doc.subject) ? [doc.subject, ...SUBJECTS] : SUBJECTS).map(
-                            (s) => (
-                              <option key={s} value={s}>
-                                {s}
-                              </option>
-                            ),
-                          )}
-                        </select>
-                      ) : null}
-                      {/* Move to folder — only folders of the SAME scope are assignable. */}
-                      {editTagsFor === doc.docId ? (
-                        <select
-                          value={doc.folderId ?? ""}
-                          aria-label={t("setFolder", { title: doc.title })}
-                          onChange={(e) => void applyTagEdit(doc.docId, { folderId: e.target.value || null })}
-                          className="rounded border border-border bg-background px-1 py-0.5 text-[11px]"
-                        >
-                          <option value="">{t("noFolder")}</option>
-                          {folders
-                            .filter((f) => f.ownerScope === doc.ownerScope)
-                            .map((f) => (
-                              <option key={f.folderId} value={f.folderId}>
-                                {f.name}
-                              </option>
-                            ))}
-                        </select>
-                      ) : null}
-                      {doc.tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="inline-flex items-center gap-0.5 rounded-full bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
-                        >
-                          {tag}
-                          {editTagsFor === doc.docId ? (
-                            <button
-                              type="button"
-                              aria-label={t("removeTagFrom", { tag, title: doc.title })}
-                              onClick={() => void applyTagEdit(doc.docId, { removeTags: [tag] })}
-                              className="hover:text-foreground"
-                            >
-                              <X className="h-3 w-3" aria-hidden="true" />
-                            </button>
-                          ) : null}
-                        </span>
-                      ))}
-                      {editTagsFor === doc.docId ? (
-                        <input
-                          type="text"
-                          autoFocus
-                          placeholder={t("addTagPlaceholder")}
-                          aria-label={t("addTagTo", { title: doc.title })}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") {
-                              e.preventDefault();
-                              const val = e.currentTarget.value.trim();
-                              if (val) void applyTagEdit(doc.docId, { addTags: [val] });
-                              e.currentTarget.value = "";
-                            } else if (e.key === "Escape") {
-                              setEditTagsFor(null);
-                            }
-                          }}
-                          className="w-28 rounded border border-border bg-background px-1.5 py-0.5 text-[11px]"
-                        />
-                      ) : null}
-                      {/* The editor behind this button covers subject, folder AND
-                          tags. In the builder it stays labelled by tags (the
-                          incidental edit you make while citing); in the library
-                          filing IS the job, so it reads "Organise". */}
-                      <button
-                        type="button"
-                        aria-label={
-                          editTagsFor === doc.docId
-                            ? isLibrary
-                              ? t("doneOrganising", { title: doc.title })
-                              : t("doneEditingTags", { title: doc.title })
-                            : isLibrary
-                              ? t("organiseAria", { title: doc.title })
-                              : doc.tags.length === 0
-                                ? t("addTagsAria", { title: doc.title })
-                                : t("editTagsAria", { title: doc.title })
-                        }
-                        onClick={() => setEditTagsFor((cur) => (cur === doc.docId ? null : doc.docId))}
-                        className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[11px] text-muted-foreground hover:text-foreground"
-                      >
-                        {editTagsFor === doc.docId ? (
-                          <>
-                            <Check className="h-3 w-3" aria-hidden="true" />
-                            {t("done")}
-                          </>
-                        ) : (
-                          <>
-                            <Tag className="h-3 w-3" aria-hidden="true" />
-                            {isLibrary ? t("organise") : doc.tags.length === 0 ? t("addTags") : t("edit")}
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-1.5">
-                    {/* Cite belongs to an activity. The library has none, so the
-                        column is dropped rather than rendered inert. */}
-                    {isLibrary ? null : (
-                      <button
-                        type="button"
-                        onClick={() => toggleCite(doc)}
-                        aria-pressed={cited}
-                        aria-label={cited ? t("uncite", { title: doc.title }) : t("cite", { title: doc.title })}
-                        className={`flex items-center gap-1 rounded border px-2 py-1 text-xs font-medium transition-colors ${
-                          cited
-                            ? "border-primary bg-primary/10 text-foreground"
-                            : "border-border hover:bg-muted"
-                        }`}
-                      >
-                        {cited ? (
-                          <>
-                            <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                            {t("citedLabel")}
-                          </>
-                        ) : (
-                          <>
-                            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
-                            {t("citeLabel")}
-                          </>
-                        )}
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      aria-label={t("deleteDocAria", { title: doc.title })}
-                      title={t("deleteDocTitle")}
-                      onClick={() => void removeDoc(doc)}
-                      className="rounded p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                  ))}
+                </ul>
+              )}
+              {/* 1.1.59 — large-list footer: honest count + load-more (never an
+                  unbounded dump). Shown only once a page is loaded. */}
+              {docs && docs.length > 0 ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border p-2 text-xs text-muted-foreground">
+                  <span>{t("showing", { shown: docs.length, total })}</span>
+                  {loadMoreFailed ? (
+                    <span role="alert" className="text-destructive">
+                      {t("loadMoreFailed")}
+                    </span>
+                  ) : null}
+                  {docs.length < total ? (
+                    <Button
+                      size="sm"
+                      onClick={() => void loadMore()}
+                      pending={loadingMore}
                     >
-                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
-                    </button>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-        {/* 1.1.59 — large-list footer: honest count + load-more (never an
-            unbounded dump). Shown only once a page is loaded. */}
-        {docs && docs.length > 0 ? (
-          <div className="flex items-center justify-between gap-3 border-t border-border p-2 text-xs text-muted-foreground">
-            <span>{t("showing", { shown: docs.length, total })}</span>
-            {docs.length < total ? (
-              <button
-                type="button"
-                onClick={() => void loadMore()}
-                disabled={loadingMore}
-                className="flex items-center gap-1 rounded border border-border px-2 py-1 font-medium hover:bg-muted disabled:opacity-60"
-              >
-                {loadingMore ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : null}
-                {t("loadMore")}
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-      </div>
+                      {t("loadMore")}
+                    </Button>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>
+      ) : null}
 
       {/* Per-document "what we extracted" viewer (M4/M3). */}
       <Dialog.Root
@@ -949,7 +849,7 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
             <div className="min-h-0 flex-1 overflow-auto px-4 py-3 text-sm">
               {view?.kind === "loading" ? (
                 <p className="flex items-center gap-2 text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  <Spinner size="sm" />
                   {t("loading")}
                 </p>
               ) : view?.kind === "error" ? (
@@ -978,7 +878,180 @@ export function MaterialsSection({ materials, onChange, activityId, mode = "cite
           </Dialog.Content>
         </Dialog.Portal>
       </Dialog.Root>
-    </fieldset>
+    </section>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// One library document: title + meta, one visible action ("Brug i aktiviteten"
+// in the builder), everything else in its ⋯. The organise editor (subject,
+// folder, tags) opens inline under the row from that menu.
+// -----------------------------------------------------------------------------
+
+function LibraryRow({
+  doc,
+  isLibrary,
+  cited,
+  editing,
+  folders,
+  canRetry,
+  onToggleCite,
+  onView,
+  onToggleEdit,
+  onCloseEdit,
+  onNewFolder,
+  onDelete,
+  onEdit,
+  onUpdated,
+}: {
+  doc: CurriculumDoc;
+  isLibrary: boolean;
+  cited: boolean;
+  editing: boolean;
+  folders: CurriculumFolder[];
+  canRetry: boolean;
+  onToggleCite: () => void;
+  onView: () => void;
+  onToggleEdit: () => void;
+  onCloseEdit: () => void;
+  onNewFolder: () => void;
+  onDelete: () => void;
+  onEdit: (body: { addTags?: string[]; removeTags?: string[]; subject?: string | null; folderId?: string | null }) => void;
+  onUpdated: (doc: CurriculumDoc) => void;
+}) {
+  const t = useT("MaterialsSection");
+  const items: RowMenuItem[] = [
+    { id: "view", label: t("viewExtracted"), onSelect: onView },
+    { id: "organise", label: t("organise"), onSelect: onToggleEdit },
+    // A personal folder can hold only your own documents.
+    ...(doc.ownerScope !== "shared"
+      ? [{ id: "new-folder", label: t("moveToNewFolder"), onSelect: onNewFolder }]
+      : []),
+    { id: "delete", label: t("deleteFromLibrary"), onSelect: onDelete, danger: true },
+  ];
+  return (
+    <li className="flex items-start gap-3 p-3 text-sm">
+      <FileText className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="font-medium">{doc.title}</span>
+        <span className="text-xs text-muted-foreground">
+          {doc.origin}
+          {doc.level ? t("levelMeta", { level: doc.level }) : ""}
+          {doc.subject ? ` · ${doc.subject}` : ""}
+          {doc.topic ? ` · ${doc.topic}` : ""}
+        </span>
+        {/* 1.1.151 F1c — can the tutor read it? Failed carries "Prøv igen". */}
+        <RagStatusLine doc={doc} canRetry={canRetry} onUpdated={onUpdated} />
+        {doc.summary ? (
+          <span className="line-clamp-2 text-xs text-muted-foreground/80">{doc.summary}</span>
+        ) : null}
+        {/* Tags (1.1.58 M1) — chips; while organising each gets a remove, plus
+            subject (M2) and folder (M3) pickers and an add-tag input. */}
+        {doc.tags.length > 0 || editing ? (
+          <div className="mt-0.5 flex flex-wrap items-center gap-1">
+            {editing ? (
+              <select
+                value={doc.subject ?? ""}
+                aria-label={t("setSubject", { title: doc.title })}
+                onChange={(e) => onEdit({ subject: e.target.value || null })}
+                className="rounded border border-border bg-background px-1 py-0.5 text-[11px]"
+              >
+                <option value="">{t("noSubject")}</option>
+                {(doc.subject && !SUBJECTS.includes(doc.subject) ? [doc.subject, ...SUBJECTS] : SUBJECTS).map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            ) : null}
+            {/* Move to folder — only folders of the SAME scope are assignable. */}
+            {editing ? (
+              <select
+                value={doc.folderId ?? ""}
+                aria-label={t("setFolder", { title: doc.title })}
+                onChange={(e) => onEdit({ folderId: e.target.value || null })}
+                className="rounded border border-border bg-background px-1 py-0.5 text-[11px]"
+              >
+                <option value="">{t("noFolder")}</option>
+                {folders
+                  .filter((f) => f.ownerScope === doc.ownerScope)
+                  .map((f) => (
+                    <option key={f.folderId} value={f.folderId}>
+                      {f.name}
+                    </option>
+                  ))}
+              </select>
+            ) : null}
+            {doc.tags.map((tag) => (
+              <span
+                key={tag}
+                className="inline-flex items-center gap-0.5 rounded-full bg-muted px-1.5 py-0.5 text-[11px] text-muted-foreground"
+              >
+                {tag}
+                {editing ? (
+                  <button
+                    type="button"
+                    aria-label={t("removeTagFrom", { tag, title: doc.title })}
+                    onClick={() => onEdit({ removeTags: [tag] })}
+                    className="hover:text-foreground"
+                  >
+                    <X className="h-3 w-3" aria-hidden="true" />
+                  </button>
+                ) : null}
+              </span>
+            ))}
+            {editing ? (
+              <>
+                <input
+                  type="text"
+                  autoFocus
+                  name="add-tag"
+                  autoComplete="off"
+                  placeholder={t("addTagPlaceholder")}
+                  aria-label={t("addTagTo", { title: doc.title })}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      const val = e.currentTarget.value.trim();
+                      if (val) onEdit({ addTags: [val] });
+                      e.currentTarget.value = "";
+                    } else if (e.key === "Escape") {
+                      onCloseEdit();
+                    }
+                  }}
+                  className="w-28 rounded border border-border bg-background px-1.5 py-0.5 text-[11px]"
+                />
+                <button
+                  type="button"
+                  aria-label={t("doneOrganising", { title: doc.title })}
+                  onClick={onCloseEdit}
+                  className="inline-flex items-center gap-0.5 rounded px-1 py-0.5 text-[11px] text-muted-foreground hover:text-foreground"
+                >
+                  <Check className="h-3 w-3" aria-hidden="true" />
+                  {t("done")}
+                </button>
+              </>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
+      <div className="flex shrink-0 items-center gap-1.5">
+        {/* Choosing belongs to an activity. The library has none, so the button
+            is dropped rather than rendered inert. */}
+        {isLibrary ? null : (
+          <Button size="sm" variant={cited ? "ghost" : "secondary"} aria-pressed={cited} onClick={onToggleCite}>
+            {cited ? (
+              <Check className="h-3.5 w-3.5" aria-hidden="true" />
+            ) : (
+              <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+            )}
+            {cited ? t("inActivity") : t("useInActivity")}
+            <span className="sr-only">: {doc.title}</span>
+          </Button>
+        )}
+        <RowMenu label={t("rowMenu", { label: doc.title })} items={items} />
+      </div>
+    </li>
   );
 }
 
@@ -1075,20 +1148,16 @@ function UploadButton({
   }
 
   return (
-    <div className="flex flex-col gap-1">
-      <button
-        type="button"
-        disabled={busy}
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <Button
+        size="sm"
+        pending={busy}
+        pendingLabel={t("uploading")}
         onClick={() => inputRef.current?.click()}
-        className="flex items-center gap-1.5 rounded border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted disabled:opacity-60"
       >
-        {busy ? (
-          <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-        ) : (
-          <FileUp className="h-4 w-4" aria-hidden="true" />
-        )}
-        {busy ? t("uploading") : t("upload")}
-      </button>
+        <FileUp className="h-4 w-4" aria-hidden="true" />
+        {t("upload")}
+      </Button>
       <input
         ref={inputRef}
         type="file"
@@ -1098,8 +1167,9 @@ function UploadButton({
         aria-label={t("uploadAria")}
       />
       {/* Researcher-only: mark the next upload as cleared for the shared
-          library instead of your own private one. Backend-enforced (403 for
-          anyone else) — this checkbox only ever appears where it will work. */}
+          library instead of your own private one. Checking it is a legal
+          assertion (copyright is cleared), so the label says so. Backend-
+          enforced (403 for anyone else) — it only ever appears where it works. */}
       {isResearcher ? (
         <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
           <input
@@ -1117,9 +1187,11 @@ function UploadButton({
           {t("filesInto", { where: [subject, folderLabel].filter(Boolean).join(" · ") })}
         </span>
       ) : null}
-      {err ? <span className="text-xs text-destructive">{err}</span> : null}
+      {err ? <span role="alert" className="basis-full text-xs text-destructive">{err}</span> : null}
       {spendDenied !== null ? (
-        <SpendDeniedNotice message={spendDenied || undefined} />
+        <div className="basis-full">
+          <SpendDeniedNotice message={spendDenied || undefined} />
+        </div>
       ) : null}
     </div>
   );
