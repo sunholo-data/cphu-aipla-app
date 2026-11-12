@@ -155,6 +155,10 @@ describe("/teacher/activities/new — the three-step wizard", () => {
     // Four examples, one per lesson shape, and the full picker behind "See all".
     expect(within(screen.getByRole("list", { name: /examples/i })).getAllByRole("button")).toHaveLength(4);
     expect(screen.getByRole("button", { name: /see all \d+/i })).toBeInTheDocument();
+    // The concept map is behind NEXT_PUBLIC_CONCEPT_MAP (off here): no card, so
+    // no suggestion is ever asked for. No co-pilot mounted: no AI-help link.
+    expect(screen.queryByTestId("wizard-concept-map")).toBeNull();
+    expect(screen.queryByRole("button", { name: /get help from ai/i })).toBeNull();
   });
 
   it("pre-selects ?classId and lets the teacher change the class", async () => {

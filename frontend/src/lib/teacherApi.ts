@@ -734,6 +734,38 @@ export async function lintTeachingGoal(body: {
   return readJson<GoalLintResult>(resp, "lint teaching goal");
 }
 
+/** A concept map suggested from a teaching goal — the backend's validated wire
+ *  shape (the same one `propose_concept_map` returns): ids minted, edges point
+ *  at ids (`from` is the prerequisite), a DAG. */
+export interface SuggestedConceptMap {
+  title: string;
+  nodes: {
+    id: string;
+    label: string;
+    doneWhen: string;
+    checkQuestions: { id?: string; prompt: string; expectedAnswer?: string }[];
+  }[];
+  edges: { from: string; to: string }[];
+}
+
+export type ConceptMapSuggestion = { ok: true; map: SuggestedConceptMap } | { ok: false; error: string };
+
+/** Ask for a concept map for a goal (wizard step 1). A suggestion only: nothing
+ *  is saved until the teacher uses it and creates the activity. `ok: false`
+ *  means the model's answer was unusable and was refused whole. */
+export async function suggestConceptMap(
+  body: { goal: string; language: Language; title?: string },
+  signal?: AbortSignal,
+): Promise<ConceptMapSuggestion> {
+  const resp = await fetchWithAuth(`/api/proxy/api/activities/concept-map/suggest`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ goal: body.goal, language: body.language, title: body.title || undefined }),
+    signal,
+  });
+  return readJson<ConceptMapSuggestion>(resp, "suggest concept map");
+}
+
 /** Load one activity for editing (owner-only). */
 export async function fetchActivity(activityId: string): Promise<ActivityPayload> {
   const resp = await fetchWithAuth(`/api/proxy/api/activities/${encodeURIComponent(activityId)}`);

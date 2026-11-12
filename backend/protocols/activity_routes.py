@@ -24,8 +24,9 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from opentelemetry import trace
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from adk.concept_map_suggest import suggest_concept_map
 from analytics.teaching_goal_lint import activity_class_id, authoring_teaching, clean_import, lint_teaching_goal
 from artefacts.loader import can_attach, is_known_artefact
 from auth import User, get_current_user
@@ -373,6 +374,44 @@ async def lint_teaching_goal_route(
         framework_id, tutor_name = None, None
     result = await lint_teaching_goal(body.text, framework_id=framework_id, tutor_name=tutor_name)
     return result.model_dump(by_alias=True, mode="json")
+
+
+class ConceptMapSuggestRequest(BaseModel):
+    """Body for ``POST /api/activities/concept-map/suggest`` (wizard step 1)."""
+
+    goal: str = Field(max_length=2000)
+    #: The students' language — the map's labels are written in it.
+    language: Literal["da", "en"] = "da"
+    title: str | None = Field(default=None, max_length=200)
+
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("goal")
+    @classmethod
+    def _goal_not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("goal must not be empty")
+        return v.strip()
+
+
+@router.post("/concept-map/suggest")
+async def suggest_concept_map_route(
+    body: ConceptMapSuggestRequest,
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> dict:
+    """Suggest a concept map for a teaching goal — the new-activity wizard's step 1.
+
+    One model call (purpose ``concept_map_suggest``); the answer is validated by
+    the same rules as the co-pilot's ``propose_concept_map`` and refused whole
+    when it fails them. Persists NOTHING: the teacher uses, edits or discards it,
+    and it is saved only as part of the activity.
+
+    Teacher-auth. Returns ``{"ok": true, "map": {title, nodes, edges}}`` or
+    ``{"ok": false, "error": ...}`` (a 200 either way: an unusable suggestion is
+    an expected outcome the wizard offers "try again" for, not a server fault).
+    """
+    _assert_teacher(user)
+    return await suggest_concept_map(body.goal, body.language, body.title)
 
 
 @router.get("/facets")

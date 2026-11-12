@@ -479,6 +479,7 @@ function NewActivityWizard() {
                 appliedTemplateId={appliedTemplateId}
                 onPickTemplate={(tpl) => void pickTemplate(tpl)}
                 onStartBlank={() => void startBlank()}
+                conceptMapAuto={conceptMapDefault(prefs)}
               />
             }
             preview={preview}

@@ -153,7 +153,7 @@ function addKind(b: ActivityBuilder, kind: Exclude<WorkspaceKind, "sim">): void 
 }
 
 /** Remove every `kind` from the builder; returns the Undo that puts it back. */
-function removeKind(b: ActivityBuilder, kind: WorkspaceKind): () => void {
+export function removeKind(b: ActivityBuilder, kind: WorkspaceKind): () => void {
   switch (kind) {
     case "sim": {
       const was = b.artefactId;

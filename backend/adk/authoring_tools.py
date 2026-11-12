@@ -605,8 +605,11 @@ def _current_concept_map(activity_id: str) -> tuple[list[dict[str, Any]], list[d
     return m.get("nodes", []), m.get("edges", []), m.get("title", "")
 
 
-def propose_concept_map(
-    activity_id: str = "",
+def apply_concept_map_diff(
+    nodes: list[dict[str, Any]],
+    edges: list[dict[str, Any]],
+    current_title: str,
+    *,
     title: str | None = None,
     add_nodes: list[dict[str, Any]] | None = None,
     add_edges: list[dict[str, Any]] | None = None,
@@ -614,55 +617,25 @@ def propose_concept_map(
     relabel: list[dict[str, Any]] | None = None,
     set_check_questions: list[dict[str, Any]] | None = None,
     set_done_when: list[dict[str, Any]] | None = None,
-    tool_context: ToolContext = None,
 ) -> dict[str, Any]:
-    """Propose a DIFF to the activity's living concept map (CONCEPT-1 M2).
+    """Apply a concept-map diff to a map and validate the result — no I/O, no auth.
 
-    Co-authoring, not one-shot: the diff applies to the map's CURRENT state, so
-    the map is built up over several conversational rounds. Owner-scoped +
-    propose-only — the teacher Applies on the frontend; never persists. The
-    RESULTING map is validated server-side (DAG cycle-guard, size bounds); an
-    invalid diff returns the current node ids so you can retry.
-
-    Args:
-        activity_id: the activity being authored (the teacher owns it).
-        title: optionally set the map's title.
-        add_nodes: concepts to add — each ``{"label", "id"?, "done_when"?,
-            "check_questions"?: [{"prompt", "expected_answer"?}]}``. The id is
-            minted from the label when omitted; check questions are what the
-            tutor asks IN CHAT at a checkpoint, judged against the expected
-            answer; ``done_when`` is the definition of done (below).
-        add_edges: prerequisite links — each ``{"from": <prereq id>, "to": <id>}``.
-        remove_nodes: node ids to remove (their edges go with them).
-        relabel: label fixes — each ``{"id", "label"}``.
-        set_check_questions: replace one node's questions — each ``{"node_id",
-            "questions": [{"prompt", "expected_answer"?}]}``.
-        set_done_when: set one node's DEFINITION OF DONE — each ``{"node_id",
-            "done_when"}``. One plain sentence saying what counts as having got
-            the concept ("can explain why the horizontal component is
-            unchanged"), written so a teacher would recognise their own bar in
-            it. It is not a question: it is what an answer is judged against,
-            and it is what the tutor must justify a mark against.
+    The ONE place the concept-map rules live (id minting, label aliases for
+    edges, the DAG cycle-guard and size bounds via ``ConceptMapElement``). Used
+    by ``propose_concept_map`` (a diff on the saved map) and by the wizard's
+    one-shot suggestion (``adk.concept_map_suggest``: a diff on an EMPTY map),
+    so the two cannot disagree about what a valid map is.
 
     Returns:
-        ``{"ok": True, "proposal": {"kind": "propose_concept_map", "diff": ...,
-        "result": <the validated resulting map>, "label": ...}}`` or
-        ``{"ok": False, "error": ..., "nodes": [current ids]}``.
+        ``{"ok": True, "result": ConceptMapElement, "diff": <normalised wire
+        diff>}`` or ``{"ok": False, "error": ...}``. The inputs are not mutated.
     """
-    uid = _caller_uid(tool_context)
-    if not uid:
-        return dict(_DENY)
-    if not any([title, add_nodes, add_edges, remove_nodes, relabel, set_check_questions, set_done_when]):
-        return {"ok": False, "error": "empty diff — propose at least one change"}
-    if not _can_author(activity_id, uid):
-        return dict(_DENY)
-
-    nodes, edges, current_title = _current_concept_map(activity_id)
+    nodes = [dict(n) for n in nodes]
+    edges = [dict(e) for e in edges]
     by_id = {n["id"]: n for n in nodes}
-    current_ids = sorted(by_id)
 
     def _fail(msg: str) -> dict[str, Any]:
-        return {"ok": False, "error": msg, "nodes": current_ids}
+        return {"ok": False, "error": msg}
 
     # remove → relabel → set questions → add nodes → add edges → title.
     removed = set(remove_nodes or [])
@@ -758,6 +731,80 @@ def propose_concept_map(
             for sd in set_done_when or []
         ],
     }
+    return {"ok": True, "result": result, "diff": diff}
+
+
+def propose_concept_map(
+    activity_id: str = "",
+    title: str | None = None,
+    add_nodes: list[dict[str, Any]] | None = None,
+    add_edges: list[dict[str, Any]] | None = None,
+    remove_nodes: list[str] | None = None,
+    relabel: list[dict[str, Any]] | None = None,
+    set_check_questions: list[dict[str, Any]] | None = None,
+    set_done_when: list[dict[str, Any]] | None = None,
+    tool_context: ToolContext = None,
+) -> dict[str, Any]:
+    """Propose a DIFF to the activity's living concept map (CONCEPT-1 M2).
+
+    Co-authoring, not one-shot: the diff applies to the map's CURRENT state, so
+    the map is built up over several conversational rounds. Owner-scoped +
+    propose-only — the teacher Applies on the frontend; never persists. The
+    RESULTING map is validated server-side (DAG cycle-guard, size bounds); an
+    invalid diff returns the current node ids so you can retry.
+
+    Args:
+        activity_id: the activity being authored (the teacher owns it).
+        title: optionally set the map's title.
+        add_nodes: concepts to add — each ``{"label", "id"?, "done_when"?,
+            "check_questions"?: [{"prompt", "expected_answer"?}]}``. The id is
+            minted from the label when omitted; check questions are what the
+            tutor asks IN CHAT at a checkpoint, judged against the expected
+            answer; ``done_when`` is the definition of done (below).
+        add_edges: prerequisite links — each ``{"from": <prereq id>, "to": <id>}``.
+        remove_nodes: node ids to remove (their edges go with them).
+        relabel: label fixes — each ``{"id", "label"}``.
+        set_check_questions: replace one node's questions — each ``{"node_id",
+            "questions": [{"prompt", "expected_answer"?}]}``.
+        set_done_when: set one node's DEFINITION OF DONE — each ``{"node_id",
+            "done_when"}``. One plain sentence saying what counts as having got
+            the concept ("can explain why the horizontal component is
+            unchanged"), written so a teacher would recognise their own bar in
+            it. It is not a question: it is what an answer is judged against,
+            and it is what the tutor must justify a mark against.
+
+    Returns:
+        ``{"ok": True, "proposal": {"kind": "propose_concept_map", "diff": ...,
+        "result": <the validated resulting map>, "label": ...}}`` or
+        ``{"ok": False, "error": ..., "nodes": [current ids]}``.
+    """
+    uid = _caller_uid(tool_context)
+    if not uid:
+        return dict(_DENY)
+    if not any([title, add_nodes, add_edges, remove_nodes, relabel, set_check_questions, set_done_when]):
+        return {"ok": False, "error": "empty diff — propose at least one change"}
+    if not _can_author(activity_id, uid):
+        return dict(_DENY)
+
+    nodes, edges, current_title = _current_concept_map(activity_id)
+    current_ids = sorted(n["id"] for n in nodes)
+    applied = apply_concept_map_diff(
+        nodes,
+        edges,
+        current_title,
+        title=title,
+        add_nodes=add_nodes,
+        add_edges=add_edges,
+        remove_nodes=remove_nodes,
+        relabel=relabel,
+        set_check_questions=set_check_questions,
+        set_done_when=set_done_when,
+    )
+    if not applied["ok"]:
+        return {"ok": False, "error": applied["error"], "nodes": current_ids}
+    result, diff = applied["result"], applied["diff"]
+    added_nodes, added_edges, removed = diff["addNodes"], diff["addEdges"], set(diff["removeNodes"])
+
     label = (
         f"{len(added_nodes)} nye begreber, {len(added_edges)} nye forbindelser"
         if added_nodes or added_edges

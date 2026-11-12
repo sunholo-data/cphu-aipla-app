@@ -698,6 +698,29 @@
     "materials": "Materials",
     "materialsCount": "{count, plural, =0 {None} one {# material} other {# materials}}",
     "share": "Also share with colleagues (they can copy it)",
-    "shareFailed": "The activity was created, but it could not be shared with colleagues. You can share it from Activities."
+    "shareFailed": "The activity was created, but it could not be shared with colleagues. You can share it from Activities.",
+    "aiHelp": "Get help from AI with the goal and tools"
+  },
+  "WizardConceptMap": {
+    "title": "Concept map",
+    "intro": "The concepts the students need to understand, and what builds on what. The tutor checks them along the way.",
+    "waiting": "Write a little more about the goal, and we will suggest the concepts.",
+    "suggestNow": "Suggest concepts from the goal",
+    "loading": "Making a suggestion from the goal…",
+    "suggested": "Suggestion",
+    "use": "Use the suggestion",
+    "edit": "Edit",
+    "editAria": "Edit the concept map",
+    "another": "Make a new one",
+    "failed": "The suggestion could not be made.",
+    "retry": "Try again",
+    "remove": "Remove",
+    "removeAria": "Remove the concept map",
+    "done": "Done",
+    "listAria": "The concepts, from the basics onwards",
+    "buildsOn": "builds on {list}",
+    "doneWhen": "Understood when: {text}",
+    "summary": "Concept map: {count, plural, =0 {none} one {# concept} other {# concepts}}",
+    "summaryWhat": "concept map"
   }
 }

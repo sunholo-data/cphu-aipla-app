@@ -698,6 +698,29 @@
     "materials": "Materialer",
     "materialsCount": "{count, plural, =0 {Ingen} one {# materiale} other {# materialer}}",
     "share": "Del også med kolleger (de kan kopiere den)",
-    "shareFailed": "Aktiviteten er oprettet, men den kunne ikke deles med kolleger. Du kan dele den fra Aktiviteter."
+    "shareFailed": "Aktiviteten er oprettet, men den kunne ikke deles med kolleger. Du kan dele den fra Aktiviteter.",
+    "aiHelp": "Få hjælp af AI til mål og værktøjer"
+  },
+  "WizardConceptMap": {
+    "title": "Begrebskort",
+    "intro": "De begreber, eleverne skal forstå, og hvad der bygger på hvad. Tutoren tjekker dem undervejs.",
+    "waiting": "Skriv lidt mere om målet, så foreslår vi begreberne.",
+    "suggestNow": "Foreslå begreber ud fra målet",
+    "loading": "Laver et forslag ud fra målet…",
+    "suggested": "Forslag",
+    "use": "Brug forslaget",
+    "edit": "Ret",
+    "editAria": "Ret begrebskortet",
+    "another": "Lav et nyt",
+    "failed": "Forslaget kunne ikke laves.",
+    "retry": "Prøv igen",
+    "remove": "Fjern",
+    "removeAria": "Fjern begrebskortet",
+    "done": "Færdig",
+    "listAria": "Begreberne, fra det grundlæggende og frem",
+    "buildsOn": "bygger på {list}",
+    "doneWhen": "Forstået, når: {text}",
+    "summary": "Begrebskort: {count, plural, =0 {intet} one {# begreb} other {# begreber}}",
+    "summaryWhat": "begrebskort"
   }
 }
