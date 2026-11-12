@@ -206,8 +206,10 @@ the last step.
 
 The activity pages (the new-activity steps and the editor) have an AI
 co-pilot, labelled **Build helper** in English and **Hjælp til at bygge** in
-Danish — open it from the **Help** / **Hjælp** menu in the header; the panel
-sits bottom-right. (It used to be called Co-builder / Medbygger.) Describe what
+Danish — open it from the **✨ Build helper** / **✨ Hjælp til at bygge** button
+at the bottom-right of the page (or from the **Help** / **Hjælp** menu in the
+header); the panel opens bottom-right. Every teacher page with its own helper
+shows such a button, and the first visit shows a short tip beside it. (It used to be called Co-builder / Medbygger.) Describe what
 you want to teach and it proposes a goal, tools or a simulation, a concept map,
 materials, what students see first and filing. For each proposal you can
 **Apply** / **Anvend** (into your draft), **Edit** / **Redigér** (adjust, then
