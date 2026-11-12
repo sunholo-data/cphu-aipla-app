@@ -3,7 +3,7 @@ title: "Teacher questions"
 description: "Short answers to the questions teachers have asked about AIPLA so far: building activities, documents, group codes, language, tutors, data and rights."
 eyebrow: "For teachers"
 owner: "AIPLA project team"
-reviewed: "2026-11-09"
+reviewed: "2026-11-12"
 reviewBy: "2026-12-09"
 status: "Provisional"
 order: "90"
@@ -21,30 +21,30 @@ A Danish version of this page is at [Spørgsmål fra lærere](/project/teacher-f
 
 ### How easy is it to add activities?
 
-Easy, and no code is needed. The guide puts a first activity at about five minutes. You give it a name and a teaching goal (the instruction the tutor follows), pick the students' language, and can add a workspace: a simulation, checklist, table, chart, calculator or writing area. Under **What students see first** you can write the introduction and starter questions students get. **Try as student** opens the real student view.
+Easy, and no code is needed. The guide puts a first activity at about five minutes. **New activity** takes three steps. **Goal**: write what the students should learn; the class is already chosen and a name is suggested from the goal, or you start from an example. **Tools**: pick what students work with, such as a simulation, checklist, table, chart, calculator or writing field, or none for a conversation with the tutor. **Check and start**: look over your choices and select **Create and give to** your class. The students' language follows the class's unless you change it there under **More settings**, which also holds the introduction and the suggestions students can tap. Once the activity is created, **Try as student** in the editor opens the real student view.
 
-The teaching goal says what the students should learn. If your class's tutor has a teaching approach, the approach decides how it teaches, and the builder points out lines in the goal that tell the tutor how to teach. It offers to move them to **Tutor notes**, which the tutor follows only when it has no teaching approach.
+The goal says what the students should learn. If your class's tutor has a teaching approach, the approach decides how it teaches, and the page points out lines in the goal that say how to teach. It offers to move them to **Notes for the tutor**, which the tutor follows only when it has no teaching approach.
 
-To go faster, start from a template, adopt a colleague's shared activity from the library (you get your own editable copy), or describe the activity in words and let the AI co-pilot draft it. You review the co-pilot's proposal and apply it yourself.
+To go faster, start from a template, adopt a colleague's shared activity from the library (you get your own editable copy), or describe the activity in words and let the AI co-pilot (**Help** → **Build helper**) draft it. You review the co-pilot's proposal and apply it yourself.
 
 More: [T2 — Create your first activity](/guides/t2-create-your-first-activity), [T4 — Author with the AI co-pilot](/guides/t4-author-with-the-copilot).
 
 ### Can we upload documents for the tutor to use?
 
-Yes. Under **Materials** you can upload a PDF, Word file, slides, a spreadsheet, plain text or an image, or cite a document from the shared library. AIPLA shows you the text it extracted, so you can check it was read correctly.
+Yes. Under **Materials**, **Add document** lets you upload a PDF, Word file, slides, a spreadsheet, plain text or an image, or pick a document from the shared library with **Use in activity**. AIPLA shows you the text it extracted, so you can check it was read correctly.
 
 For each document in an activity you choose two things:
 
-- **Students can open it / Tutor only.** New documents start as **Tutor only**: the tutor uses them, but students cannot open them.
-- **Reference / In context.** With Reference, the tutor looks the document up when it is relevant. With In context, it has the full text on every turn. Use In context for the task the students are working on.
+- **Students can open it.** One checkbox on the document's row. New documents start unticked: the tutor uses them, but students cannot open them.
+- **How the tutor reads it.** In the row's **⋯** menu. By default the tutor looks the document up when it is relevant. With **Let the tutor read the whole text every time**, it has the full text on every turn. Use that for the task the students are working on.
 
 More: [T3 — Add and organise curriculum materials](/guides/t3-add-curriculum-materials).
 
 ### Why can't my students open a document?
 
-Because it has not been shared with them. Documents are **Tutor only** until you click the toggle on the document's row in the activity's materials, so that it reads **Students can open it**. Students see the names of the documents they cannot open, with a note saying the teacher has not shared the content.
+Because it has not been shared with them. Students cannot open a document until you tick **Students can open it** on its row in the activity's materials. Until then the row says *only the tutor uses it*. Students see the names of the documents they cannot open, with a note saying the teacher has not shared the content.
 
-Once a document is shared, the first one is already open when students start the activity. The order is the order you added them in, and the builder marks that document **Opens first for students**. If you share several, students switch between them with tabs. When the tutor mentions a shared document, it links to it, and one click opens it. It never links to a document you have not shared.
+Once a document is shared, the first one is already open when students start the activity. The order is the order you added them in, and that document's row says *opens first for students*. To put another one first, choose **Open this first for students** in its **⋯** menu. If you share several, students switch between them with tabs. When the tutor mentions a shared document, it links to it, and one click opens it. It never links to a document you have not shared.
 
 ### What if a document upload fails?
 
@@ -150,11 +150,11 @@ More: [Data, privacy, and hosting](/project/data-and-hosting), [Capability floor
 There is no published project position yet on which published material may be uploaded. Here is what the platform does with an upload today:
 
 - It is stored in **your own library**. Other teachers cannot see it. The research team can.
-- It starts as **Tutor only**. Students can open it only if you share it in an activity.
+- Only the tutor uses it at first. Students can open it only if you tick **Students can open it** in an activity.
 - The **shared library** holds only material the research team has marked as cleared. Teachers cannot add to it.
 - To make it readable for the tutor, the file is converted to text by AILANG Parse (operated by Sunholo) in Belgium. The text is stored and indexed for search in Belgium, and the file itself is stored in Finland. AIPLA also keeps an AI-written summary of each document.
 - Google may not use it to train its models.
-- You can delete a document from your library with the bin icon.
+- You can delete a document from your library: **Delete from the library…** in its **⋯** menu.
 
 If you are unsure about a document, ask the project before uploading it.
 

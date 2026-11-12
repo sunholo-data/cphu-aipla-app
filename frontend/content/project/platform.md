@@ -67,7 +67,7 @@ The separation limits what an artefact can access and provides a common bridge f
 Teachers can prepare activities from templates or their own material. Configurable parts can include:
 
 - title and learning goal;
-- what students see first: an introduction and starter questions;
+- what students see first: an introduction and suggestions students can tap;
 - the class's tutor: a published or teacher-written teaching approach, with a persona, face, and voice;
 - the activity's language (Danish or English);
 - curriculum and uploaded source material;

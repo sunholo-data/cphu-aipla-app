@@ -37,12 +37,12 @@ I AIPLA er en **klasse** en beholder, som du ejer. Den har:
 Alt nedenfor gøres i din browser. Du behøver ikke en udvikler.
 
 ::: callout-tip
-## Medbyggeren kan gøre dette for dig
+## Co-piloten kan gøre dette for dig
 
 På *Klasser* åbner du **Hjælp** i toppen og vælger
 **Klasse-co-pilot**. Du kan oprette en klasse og udstede gruppekoder ved at bede
 den om det i almindeligt sprog, i stedet for at bruge formularerne nedenfor — se
-*T4 — Byg med AI-medbyggeren*.
+*T4 — Byg med AI-co-piloten*.
 :::
 
 ## Trin 1 — Opret klassen

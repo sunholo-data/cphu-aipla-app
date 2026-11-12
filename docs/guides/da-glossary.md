@@ -14,8 +14,8 @@ guide quotes the **Danish** label and an English guide the English one.
 Take labels from the message files, never from memory or from an old
 screenshot: `frontend/messages/da/*.json` for the Danish page,
 `frontend/messages/en/*.json` for the English one (e.g. `Materialer`,
-`Henvis`, `Synlig` / `Skjult`, `Tilslut`, the co-pilot `Medbygger` with
-`Anvend` / `Redigér` / `Afvis` / `Send`). A page renders one language at a
+`Brug i aktiviteten`, `Eleverne kan åbne den`, `Tilslut`, the activity
+co-pilot `Hjælp til at bygge` with `Anvend` / `Redigér` / `Afvis` / `Send`). A page renders one language at a
 time, so don't write combined labels like `Tilslut / Join`.
 
 > Before 2026-09-30 the rule here was the opposite — the teacher UI was English
@@ -38,14 +38,16 @@ time, so don't write combined labels like `Tilslut / Join`.
 | data table | datatabel |
 | chart | graf |
 | calculator | beregner |
-| note | note |
-| teaching goal / lesson prompt | undervisningsmål (feltet hedder `Lesson prompt`) |
-| co-pilot | medbygger (AI-medbygger) |
+| note | note (elementet hedder `Instruktion`) |
+| tutor notes | noter til tutoren (feltet hedder `Noter til tutoren`) |
+| starter prompts / suggestions | forslag (feltet hedder `Forslag eleverne kan trykke på`) |
+| teaching goal (the field "What should students learn?") | mål / undervisningsmål (feltet hedder `Hvad skal eleverne lære?`) |
+| co-pilot | co-pilot (AI-co-pilot); den på aktivitetssiderne hedder `Hjælp til at bygge` (hed tidligere `Medbygger`) |
 | tutor | tutor (kolonnen hedder `Tutor`) |
 | tone (of a tutor) | tone |
 | teaching approach | undervisningstilgang |
 | curriculum materials | pensummaterialer |
-| to cite (a document) | at citere / vedhæfte (knappen hedder `Cite`) |
+| to add / use (a document in an activity) | at tilføje / bruge (knappen hedder `Brug i aktiviteten`) |
 | shared corpus | det delte materialebibliotek |
 | group | gruppe |
 | researcher | forsker |

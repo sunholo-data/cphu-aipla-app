@@ -14,10 +14,16 @@
     "frontend/src/components/teacher/BuilderLayout.tsx",
     "frontend/src/hooks/useActivityBuilder.ts",
     "frontend/src/components/teacher/WorkspaceElements.tsx",
-    "frontend/src/app/teacher/activities/[id]/page.tsx"
+    "frontend/src/app/teacher/activities/[id]/page.tsx",
+    "frontend/src/components/teacher/activity-wizard",
+    "frontend/src/components/teacher/TemplatePicker.tsx",
+    "frontend/src/components/teacher/TeachingGoalLint.tsx",
+    "frontend/src/lib/suggestActivityTitle.ts"
   ],
   "t3-add-curriculum-materials": [
-    "frontend/src/components/teacher/MaterialsSection.tsx"
+    "frontend/src/components/teacher/MaterialsSection.tsx",
+    "frontend/src/app/teacher/materials",
+    "frontend/src/components/teacher/activity-wizard/ReviewStep.tsx"
   ],
   "t4-author-with-the-copilot": [
     "frontend/src/app/teacher/activities/[id]/_AuthoringCopilot.tsx",
@@ -45,6 +51,7 @@
     "frontend/src/components/teacher/ActivityOpeningEditor.tsx",
     "frontend/src/components/chat/PinnedWelcome.tsx",
     "backend/adk/proactive_greet.py",
-    "frontend/src/components/teacher/ActivityBuilderBody.tsx"
+    "frontend/src/components/teacher/ActivityBuilderBody.tsx",
+    "frontend/src/components/teacher/activity-wizard/ReviewStep.tsx"
   ]
 }
