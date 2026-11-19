@@ -749,7 +749,11 @@ ucloud-smoke: ## Check UCloud AI end to end from this laptop before any deploy u
 
 .PHONY: sim-author-local
 sim-author-local: ## Local backend for iterating on the Sim workshop: LOCAL_MODE store, real Gemini (Vertex eu), local browser check; then SIM_TOKEN=local-mode-stub-token SIM_API=http://localhost:1966 scripts/smoke-sim-author.sh (PORT=1966; 1956 is often another project)
-	@cd backend && env -u GOOGLE_API_KEY -u GEMINI_API_KEY LOCAL_MODE=1 GOOGLE_GENAI_USE_VERTEXAI=True GOOGLE_CLOUD_PROJECT=aipla-dev-2026 GOOGLE_CLOUD_LOCATION=eu PLATFORM_OWNER_UID=aipla-platform uv run uvicorn fast_api_app:app --port $(or $(PORT),1966)
+	@cd backend && env -u GOOGLE_API_KEY -u GEMINI_API_KEY LOCAL_MODE=1 LOCAL_MODE_RESEARCHER=1 GOOGLE_GENAI_USE_VERTEXAI=True GOOGLE_CLOUD_PROJECT=aipla-dev-2026 GOOGLE_CLOUD_LOCATION=eu PLATFORM_OWNER_UID=aipla-platform uv run uvicorn fast_api_app:app --port $(or $(PORT),1966)
+
+.PHONY: sim-import-replay
+sim-import-replay: ## Replay a sim made outside AIPLA against `make sim-author-local`: import + the workshop's check turn; prints wait times and token use (COSTS money; LABEL=cache-on to tag a run)
+	@cd backend && uv run python scripts/sim_import_replay.py --label $(or $(LABEL),run) $(ARGS)
 
 .PHONY: smoke-sim-author
 smoke-sim-author: ## End-to-end Sim workshop check on a deployed env: one real build as the test teacher (COSTS ~EUR 0.5)

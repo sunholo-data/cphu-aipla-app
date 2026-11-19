@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import shutil
 import tempfile
 from dataclasses import dataclass, field
@@ -29,6 +30,8 @@ from typing import Protocol
 
 import sim_gates
 from sim_gates.proactive import proactive_category
+
+logger = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -183,6 +186,7 @@ class LocalBrowserCheck:
     def __init__(self, repo_root: Path = REPO_ROOT, timeout_s: float = 120.0) -> None:
         self.repo_root = repo_root
         self.timeout_s = timeout_s
+        self.last_output = ""
         self.verify = repo_root / ".claude" / "skills" / "mcp-app-artefact" / "scripts" / "verify_sim.mjs"
         self.stamper = repo_root / "scripts" / "build-artefact-bridge.mjs"
         self.bridge = repo_root / "infrastructure" / "mcp-sandbox" / "bridge" / "aipla-mcp-bridge.js"
@@ -216,18 +220,29 @@ class LocalBrowserCheck:
                 str(json_path),
             )
             if not json_path.is_file():
+                # Say WHY: on 2026-11-19 a laptop without Playwright made every local
+                # check stop at level 1, and the script's own "Could not run:
+                # Playwright is not installed" went to /dev/null.
+                logger.warning("local browser check produced no result: %s", self.last_output or "(no output)")
                 return None
             return json.loads(json_path.read_text())
 
     async def _run(self, *cmd: str) -> int | None:
         proc = await asyncio.create_subprocess_exec(
-            *cmd, stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL, cwd=self.repo_root
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, cwd=self.repo_root
         )
         try:
-            return await asyncio.wait_for(proc.wait(), self.timeout_s)
+            out, _ = await asyncio.wait_for(proc.communicate(), self.timeout_s)
         except TimeoutError:
             proc.kill()
+            self.last_output = f"timed out after {self.timeout_s:.0f} s: {' '.join(cmd[:2])}"
+            logger.warning("local browser check: %s", self.last_output)
             return None
+        # The tail is where a script says what stopped it.
+        self.last_output = " | ".join((out or b"").decode("utf-8", "replace").strip().splitlines()[-6:])
+        if proc.returncode:
+            logger.warning("local browser check: %s exited %s: %s", cmd[1], proc.returncode, self.last_output)
+        return proc.returncode
 
 
 class ServiceBrowserCheck:

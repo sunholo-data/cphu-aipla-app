@@ -20,6 +20,7 @@ from collections.abc import Iterator
 from contextvars import ContextVar
 from typing import Any
 
+from google.adk.agents.context_cache_config import ContextCacheConfig
 from google.adk.apps.app import EventsCompactionConfig
 from google.adk.artifacts import GcsArtifactService, InMemoryArtifactService
 from google.adk.events import Event
@@ -696,3 +697,32 @@ def get_memory_service_uri() -> str | None:
         location = _session_location()
         return f"agentengine://projects/{project}/locations/{location}/reasoningEngines/{numeric}"
     return None
+
+
+# ---- explicit context caching (ADK ContextCacheConfig) --------------------------
+#
+# Off unless ``ADK_CONTEXT_CACHE=1``. A long tool loop (a sim build: 10+ model
+# calls a turn, each re-sending the same system prompt, tools and history) is
+# what it is for. ADK fingerprints the prompt prefix on one call, creates a
+# Gemini cache on the next that matches, and reuses it for ``cache_intervals``
+# calls or ``ttl_seconds``. Anything that changes the prefix (a before-model hook
+# that rewrites earlier contents or the system instruction) makes it start over,
+# which is why it is a flag to MEASURE before it is a default: on 2026-11-19 a
+# 39-call sim conversation sent 1.96M input tokens and nothing recorded how many
+# Gemini's own implicit caching already served (``sim usage:`` log lines and the
+# draft's ``tokensCached`` now do).
+_CONTEXT_CACHE_ENV = "ADK_CONTEXT_CACHE"
+_CONTEXT_CACHE_ON = frozenset({"1", "true", "on", "yes"})
+_CONTEXT_CACHE_OFF = frozenset({"", "0", "false", "off", "no"})
+
+
+def get_context_cache_config() -> ContextCacheConfig | None:
+    """The App's context-cache config: None (off) unless ``ADK_CONTEXT_CACHE`` is on."""
+    raw = os.environ.get(_CONTEXT_CACHE_ENV, "").strip().lower()
+    if raw in _CONTEXT_CACHE_OFF:
+        return None
+    if raw not in _CONTEXT_CACHE_ON:
+        logger.warning("%s=%r is not on/off; context caching stays OFF.", _CONTEXT_CACHE_ENV, raw)
+        return None
+    # 4096 is Gemini 3's floor for an explicit cache; below it creation fails anyway.
+    return ContextCacheConfig(cache_intervals=10, ttl_seconds=1800, min_tokens=4096)

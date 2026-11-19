@@ -21,7 +21,7 @@ from google.adk.models import Gemini
 from google.genai import types
 
 from adk.artifact_tools import retrieve_artifact
-from adk.session import get_compaction_config
+from adk.session import get_compaction_config, get_context_cache_config
 from config.gcp import resolve_gcp_project
 from config.models import default_model
 
@@ -62,4 +62,7 @@ app = App(
     root_agent=root_agent,
     name="aitana_platform",
     events_compaction_config=get_compaction_config(default_model()),
+    # Off unless ADK_CONTEXT_CACHE=1 (adk/session.py). Every skill's per-request
+    # App is a copy of this one (adk/agui.py), so it reaches them all.
+    context_cache_config=get_context_cache_config(),
 )
