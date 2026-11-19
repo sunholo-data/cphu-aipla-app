@@ -234,7 +234,21 @@ describe("useSessionMessages", () => {
 
     await waitFor(() => expect(result.current.isLoadingHistory).toBe(false));
     expect(result.current.sessionGone).toBe(false);
+    expect(result.current.sessionForbidden).toBe(false);
     expect(result.current.historyError).toContain("starting fresh");
+  });
+
+  it("403 (another account's session) sets sessionForbidden, so a caller can drop the remembered id", async () => {
+    // The teacher co-pilot remembered a thread from a different account in the
+    // same browser; every turn on it was refused (live demo, 2026-11-19).
+    mockError(403);
+
+    const { result } = renderHook(() => useSessionMessages("sess-other-user"));
+
+    await waitFor(() => expect(result.current.isLoadingHistory).toBe(false));
+    expect(result.current.sessionForbidden).toBe(true);
+    expect(result.current.sessionGone).toBe(false);
+    expect(result.current.initialMessages).toEqual([]);
   });
 
   it("stranded-session-prevention (1.23) Option 1: sessionGone resets when sessionId changes", async () => {

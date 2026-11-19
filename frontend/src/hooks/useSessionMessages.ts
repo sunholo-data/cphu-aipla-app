@@ -38,6 +38,11 @@ interface UseSessionMessagesReturn {
   isLoadingHistory: boolean;
   historyError: string | null;
   sessionGone: boolean;
+  /** The session exists but belongs to someone else (HTTP 403) — e.g. a thread
+   *  id remembered in this browser from a different account. A caller that
+   *  persists thread ids should drop it and start fresh: every turn sent on it
+   *  will be refused too. */
+  sessionForbidden: boolean;
   /** 1.1.145 M2 — how many history messages were already there when this
    *  session was first loaded on this mount. Messages at or after this index
    *  arrived by a live refetch (a groupmate's turn, or this device's own once
@@ -77,6 +82,13 @@ class SessionNotFoundError extends Error {
   }
 }
 
+class SessionForbiddenError extends Error {
+  constructor() {
+    super("session belongs to another user");
+    this.name = "SessionForbiddenError";
+  }
+}
+
 // 1.1.145 M2 — a history message's id is its POSITION in the session's
 // transcript (which is append-only), not a fresh counter per fetch. A live
 // refetch on every groupmate turn re-maps the whole list; position ids keep each
@@ -101,6 +113,7 @@ export function useSessionMessages(
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
   const [sessionGone, setSessionGone] = useState(false);
+  const [sessionForbidden, setSessionForbidden] = useState(false);
   const [syncedFrom, setSyncedFrom] = useState(0);
   const abortRef = useRef<AbortController | null>(null);
   const lastSessionId = useRef<string | null>(null);
@@ -118,12 +131,14 @@ export function useSessionMessages(
       if (!opts?.silent) setIsLoadingHistory(true);
       setHistoryError(null);
       setSessionGone(false);
+      setSessionForbidden(false);
 
       return fetchWithAuth(`/api/proxy/api/sessions/${encodeURIComponent(sid)}/messages`, {
         signal: controller.signal,
       })
         .then((res) => {
           if (res.status === 404) throw new SessionNotFoundError();
+          if (res.status === 403) throw new SessionForbiddenError();
           if (!res.ok) throw new Error(`HTTP ${res.status}`);
           return res.json() as Promise<GetSessionMessagesResponse>;
         })
@@ -155,6 +170,7 @@ export function useSessionMessages(
             setInteractionsTruncated(false);
             return;
           }
+          if (err instanceof SessionForbiddenError) setSessionForbidden(true);
           setHistoryError("Couldn't load previous messages — starting fresh.");
           setInitialMessages([]);
           setInitialInteractions(NO_INTERACTIONS);
@@ -174,6 +190,7 @@ export function useSessionMessages(
       setInteractionsTruncated(false);
       setHistoryError(null);
       setSessionGone(false);
+      setSessionForbidden(false);
       setSyncedFrom(0);
       lastSessionId.current = null;
       lastRevision.current = 0;
@@ -214,6 +231,7 @@ export function useSessionMessages(
     isLoadingHistory,
     historyError,
     sessionGone,
+    sessionForbidden,
     syncedFrom,
   };
 }

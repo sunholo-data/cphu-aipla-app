@@ -11,6 +11,7 @@ import { ChatMarkdown } from "@/components/chat/ChatMarkdown";
 import { fetchWithTeacherAuth } from "@/lib/apiClient";
 
 import { FloatingCopilot } from "./FloatingCopilot";
+import { useCopilotAccount } from "./useCopilotAccount";
 import { ProposalCard } from "./ProposalCard";
 import { type TeacherCopilotConfig } from "./types";
 import { useCopilotLabels } from "./useCopilotLabels";
@@ -25,17 +26,33 @@ export const UI_LANGUAGE_TAG = /^\[ui_language=(?:da|en)\] /;
 
 const STORAGE_PREFIX = "teacherCopilot:";
 
+/** Where a co-pilot scope's threadId is remembered. PER ACCOUNT: the backend
+ *  session belongs to the user who started it, so a key shared by everyone who
+ *  signs in to this browser hands account B account A's thread — every turn is
+ *  then refused ("Session … does not belong to user"). That broke the build
+ *  helper in a live demo on 2026-11-19, after an account switch in August. */
+export function copilotStorageKey(uid: string, scope: string): string {
+  return `${STORAGE_PREFIX}${uid}:${scope}`;
+}
+
 /** Read the persisted threadId for a co-pilot scope, or mint + persist a fresh
  *  one. SSR-safe (returns "" when there's no window; the panel only mounts the
- *  AG-UI provider client-side after the skill slug resolves). */
-function readOrMintThreadId(storageKey: string): string {
+ *  AG-UI provider client-side after the skill slug resolves).
+ *
+ *  `legacyKey` is the pre-2026-11-19 key, shared by every account. Its thread
+ *  is adopted once (most browsers only ever had one teacher) and the old key
+ *  removed; if it was another account's, the server refuses its history with a
+ *  403 and the chat starts fresh (`onThreadForbidden`). */
+function readOrMintThreadId(storageKey: string, legacyKey?: string): string {
   if (typeof window === "undefined") return "";
   try {
     const stored = window.localStorage.getItem(storageKey);
     if (stored) return stored;
-    const fresh = crypto.randomUUID();
-    window.localStorage.setItem(storageKey, fresh);
-    return fresh;
+    const legacy = legacyKey ? window.localStorage.getItem(legacyKey) : null;
+    const id = legacy || crypto.randomUUID();
+    window.localStorage.setItem(storageKey, id);
+    if (legacyKey) window.localStorage.removeItem(legacyKey);
+    return id;
   } catch {
     return crypto.randomUUID();
   }
@@ -53,12 +70,30 @@ function readOrMintThreadId(storageKey: string): string {
  * Design: docs/design/aipla/v1.1.0-feedback/teacher-coworking-copilot.md.
  */
 export function TeacherCopilot<P>(config: TeacherCopilotConfig<P>) {
-  const storageKey = `${STORAGE_PREFIX}${config.persistKey ?? config.skillName}`;
+  const scope = config.persistKey ?? config.skillName;
+  // The remembered thread is the SIGNED-IN account's (see copilotStorageKey).
+  const uid = useCopilotAccount();
+  const storageKey = uid ? copilotStorageKey(uid, scope) : null;
+  const legacyKey = `${STORAGE_PREFIX}${scope}`;
   // Mint/restore a stable threadId so the conversation survives leaving the page
   // and coming back (the backend session is keyed on it; useSessionMessages
-  // reloads the prior turns). Stable from mount → no URL-writeback rebuild.
-  const [threadId, setThreadId] = useState<string>(() =>
-    readOrMintThreadId(storageKey),
+  // reloads the prior turns). Stable per account → no URL-writeback rebuild.
+  // Held with the key it was read under, so an account that resolves late or
+  // switches re-reads its own thread instead of keeping the previous one's.
+  const [thread, setThread] = useState<{ key: string | null; id: string }>(() => ({
+    key: storageKey,
+    id: storageKey ? readOrMintThreadId(storageKey, legacyKey) : "",
+  }));
+  if (thread.key !== storageKey) {
+    setThread({
+      key: storageKey,
+      id: storageKey ? readOrMintThreadId(storageKey, legacyKey) : "",
+    });
+  }
+  const threadId = thread.key === storageKey ? thread.id : "";
+  const setThreadId = useCallback(
+    (id: string) => setThread({ key: storageKey, id }),
+    [storageKey],
   );
   // CONCEPT-2 M3 — a question asked from the surface (a button on the page,
   // via `useCopilotEntry().ask`). Held here because the chat that can send it
@@ -71,12 +106,12 @@ export function TeacherCopilot<P>(config: TeacherCopilotConfig<P>) {
   const newChat = useCallback(() => {
     const fresh = crypto.randomUUID();
     try {
-      window.localStorage.setItem(storageKey, fresh);
+      if (storageKey) window.localStorage.setItem(storageKey, fresh);
     } catch {
       /* private mode / no storage — still resets in-memory below */
     }
     setThreadId(fresh);
-  }, [storageKey]);
+  }, [storageKey, setThreadId]);
 
   // A surface asked to reopen a conversation (the sim workshop's "carry on
   // with this sim"). Keyed on `seq` so asking for the same thread again counts.
@@ -84,14 +119,14 @@ export function TeacherCopilot<P>(config: TeacherCopilotConfig<P>) {
   const resumeSeq = config.resume?.seq;
   const focusSeq = config.resume?.focus ? resumeSeq : undefined;
   useEffect(() => {
-    if (!resumeId) return;
+    if (!resumeId || !storageKey) return;
     try {
       window.localStorage.setItem(storageKey, resumeId);
     } catch {
       /* no storage — still switches in memory */
     }
     setThreadId(resumeId);
-  }, [resumeId, resumeSeq, storageKey]);
+  }, [resumeId, resumeSeq, storageKey, setThreadId]);
 
   const { onThreadChange } = config;
   useEffect(() => {
@@ -112,6 +147,7 @@ export function TeacherCopilot<P>(config: TeacherCopilotConfig<P>) {
           pendingAsk={pendingAsk}
           onAskSent={() => setPendingAsk(null)}
           onBusyChange={setBusy}
+          onThreadForbidden={newChat}
         />
       </DockedCopilot>
     );
@@ -132,6 +168,7 @@ export function TeacherCopilot<P>(config: TeacherCopilotConfig<P>) {
         threadId={threadId}
         pendingAsk={pendingAsk}
         onAskSent={() => setPendingAsk(null)}
+        onThreadForbidden={newChat}
       />
     </FloatingCopilot>
   );
@@ -242,12 +279,14 @@ function CopilotResolver<P>({
   pendingAsk,
   onAskSent,
   onBusyChange,
+  onThreadForbidden,
 }: {
   config: TeacherCopilotConfig<P>;
   threadId: string;
   pendingAsk?: string | null;
   onAskSent?: () => void;
   onBusyChange?: (busy: boolean) => void;
+  onThreadForbidden?: () => void;
 }) {
   const { skillId, resolveError } = useSkillSlugResolver(config.skillName);
   const labels = useCopilotLabels(config.labels);
@@ -266,7 +305,9 @@ function CopilotResolver<P>({
       </div>
     );
   }
-  if (!skillId) {
+  // No thread until the signed-in account is known: a provider mounted on ""
+  // would start a session the account's own thread then replaces.
+  if (!skillId || !threadId) {
     return (
       <p
         data-testid="copilot-loading"
@@ -290,6 +331,7 @@ function CopilotResolver<P>({
         onAskSent={onAskSent}
         onBusyChange={onBusyChange}
         onReload={reload}
+        onThreadForbidden={onThreadForbidden}
       />
     </AGUIProvider>
   );
@@ -415,6 +457,7 @@ function CopilotChat<P>({
   onAskSent,
   onBusyChange,
   onReload,
+  onThreadForbidden,
 }: {
   config: TeacherCopilotConfig<P>;
   threadId: string;
@@ -422,6 +465,7 @@ function CopilotChat<P>({
   onAskSent?: () => void;
   onBusyChange?: (busy: boolean) => void;
   onReload?: () => void;
+  onThreadForbidden?: () => void;
 }) {
   const labels = useCopilotLabels(config.labels);
   const t = useT("TeacherCopilot");
@@ -443,7 +487,14 @@ function CopilotChat<P>({
   // Prior turns for a resumed thread (empty for a fresh one — a 404 lands as
   // sessionGone, not an error). Prepend before the live turns; ids never clash
   // (history ids are `hist-*`, live ids are AG-UI message ids).
-  const { initialMessages } = useSessionMessages(threadId || null);
+  const { initialMessages, sessionForbidden } = useSessionMessages(
+    threadId || null,
+  );
+  // The remembered thread belongs to another account (403): every turn on it
+  // would be refused, so start a fresh chat rather than a dead panel.
+  useEffect(() => {
+    if (sessionForbidden) onThreadForbidden?.();
+  }, [sessionForbidden, onThreadForbidden]);
   const messages = initialMessages.length
     ? [...initialMessages, ...liveMessages]
     : liveMessages;

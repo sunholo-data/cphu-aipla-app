@@ -56,8 +56,18 @@ vi.mock("@/lib/apiClient", () => ({
   fetchWithTeacherAuth: (...args: unknown[]) => fetchWithTeacherAuth(...args),
 }));
 
-let sessionMessages: { initialMessages: unknown[] } = { initialMessages: [] };
-vi.mock("@/hooks/useSessionMessages", () => ({ useSessionMessages: () => sessionMessages }));
+let sessionMessages: { initialMessages: unknown[]; sessionForbidden?: boolean } = { initialMessages: [] };
+const sessionMessagesCalls: Array<string | null> = [];
+vi.mock("@/hooks/useSessionMessages", () => ({
+  useSessionMessages: (sid: string | null) => {
+    sessionMessagesCalls.push(sid);
+    return sessionMessages;
+  },
+}));
+
+// The signed-in teacher. The remembered thread is keyed per account.
+let account: string | null = "u-a";
+vi.mock("../useCopilotAccount", () => ({ useCopilotAccount: () => account }));
 
 type TestProposal = { kind: "make"; label: string; value: string };
 
@@ -92,6 +102,8 @@ beforeEach(() => {
   resolver = { skillId: "uuid-1", resolveError: null };
   hook = { ...defaultHook, toolCalls: [] };
   sessionMessages = { initialMessages: [] };
+  sessionMessagesCalls.length = 0;
+  account = "u-a";
   memStore.clear();
   vi.stubGlobal("localStorage", fakeStorage);
 });
@@ -246,7 +258,7 @@ describe("TeacherCopilot (shared shell)", () => {
 
   it("persists a threadId on mount (for cross-visit resume)", () => {
     render(<TeacherCopilot {...config()} />);
-    expect(window.localStorage.getItem("teacherCopilot:manage-class")).toBeTruthy();
+    expect(window.localStorage.getItem("teacherCopilot:u-a:manage-class")).toBeTruthy();
   });
 
   it("never shows the language tag in the teacher's own bubble (1.1.108)", () => {
@@ -278,12 +290,63 @@ describe("TeacherCopilot (shared shell)", () => {
 
   it("New chat resets the persisted thread to a fresh id", () => {
     render(<TeacherCopilot {...config()} />);
-    const before = window.localStorage.getItem("teacherCopilot:manage-class");
+    const before = window.localStorage.getItem("teacherCopilot:u-a:manage-class");
     expect(before).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /new chat/i }));
-    const after = window.localStorage.getItem("teacherCopilot:manage-class");
+    const after = window.localStorage.getItem("teacherCopilot:u-a:manage-class");
     expect(after).toBeTruthy();
     expect(after).not.toBe(before);
+  });
+
+  // 2026-11-19: the build helper failed in a live demo. The browser remembered a
+  // thread started by the presenter's OTHER account in August; the server
+  // refused every turn on it ("Session … does not belong to user").
+  it("remembers a separate thread per signed-in account", () => {
+    const { unmount } = render(<TeacherCopilot {...config()} />);
+    const a = window.localStorage.getItem("teacherCopilot:u-a:manage-class");
+    unmount();
+    account = "u-b";
+    render(<TeacherCopilot {...config()} />);
+    const b = window.localStorage.getItem("teacherCopilot:u-b:manage-class");
+    expect(a).toBeTruthy();
+    expect(b).toBeTruthy();
+    expect(b).not.toBe(a);
+    expect(sessionMessagesCalls.at(-1)).toBe(b);
+  });
+
+  it("switches to the new account's own thread when the account changes on the page", () => {
+    const { rerender } = render(<TeacherCopilot {...config()} />);
+    const a = window.localStorage.getItem("teacherCopilot:u-a:manage-class");
+    expect(sessionMessagesCalls.at(-1)).toBe(a);
+    account = "u-b";
+    rerender(<TeacherCopilot {...config()} />);
+    const b = window.localStorage.getItem("teacherCopilot:u-b:manage-class");
+    expect(b).not.toBe(a);
+    expect(sessionMessagesCalls.at(-1)).toBe(b);
+  });
+
+  it("waits for the signed-in account before opening any thread", () => {
+    account = null;
+    render(<TeacherCopilot {...config()} />);
+    expect(screen.getByTestId("copilot-loading")).toBeInTheDocument();
+    expect(sessionMessagesCalls.filter(Boolean)).toHaveLength(0);
+  });
+
+  it("adopts a thread remembered under the old shared key once, then drops that key", () => {
+    memStore.set("teacherCopilot:manage-class", "t-legacy");
+    render(<TeacherCopilot {...config()} />);
+    expect(window.localStorage.getItem("teacherCopilot:u-a:manage-class")).toBe("t-legacy");
+    expect(window.localStorage.getItem("teacherCopilot:manage-class")).toBeNull();
+  });
+
+  it("starts a fresh chat when the server refuses the remembered thread (403)", () => {
+    memStore.set("teacherCopilot:u-a:manage-class", "t-someone-elses");
+    sessionMessages = { initialMessages: [], sessionForbidden: true };
+    render(<TeacherCopilot {...config()} />);
+    const now = window.localStorage.getItem("teacherCopilot:u-a:manage-class");
+    expect(now).toBeTruthy();
+    expect(now).not.toBe("t-someone-elses");
+    expect(sessionMessagesCalls.at(-1)).toBe(now);
   });
 
   it("skips empty-content message bubbles (AG-UI tool-call turns)", () => {
@@ -351,7 +414,7 @@ describe("TeacherCopilot on a phone, and after a dropped connection", () => {
       <TeacherCopilot {...config()} docked persistKey="k" resume={{ threadId: "t-new", seq: 2, focus: true }} />,
     );
     expect(panel.className).toContain("fixed inset-0");
-    expect(localStorage.getItem("teacherCopilot:k")).toBe("t-new");
+    expect(localStorage.getItem("teacherCopilot:u-a:k")).toBe("t-new");
     await waitFor(() => expect(document.activeElement).toBe(within(panel).getByRole("textbox")));
   });
 
