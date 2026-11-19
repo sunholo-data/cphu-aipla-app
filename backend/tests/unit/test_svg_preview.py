@@ -337,3 +337,18 @@ def test_only_an_agent_holding_the_drawing_tools_is_guarded():
     drawer_reply = _final("done")
     asyncio.run(_agent(["render_svg_preview"]).after_model_callback(ctx, drawer_reply))
     assert drawer_reply.content.parts[0].text == f"```svg\n{GOOD}\n```"
+
+
+def test_attach_never_writes_the_image_into_the_stored_session_event():
+    """ADK copies a request's parts shallowly: function_response is SHARED with the
+    stored session event. Assigning fr.parts put every preview into the history,
+    re-sent on every later call while the session stayed cached (2026-11-19)."""
+    from google.adk.flows.llm_flows.context._contents import _copy_content_for_request
+
+    stored = _request_after_tool_call()
+    req = SimpleNamespace(
+        contents=[_copy_content_for_request(c, strip_client_function_call_ids=False) for c in stored.contents]
+    )
+    assert asyncio.run(attach_svg_preview(SimpleNamespace(state=_parked_state()), req)) is True
+    assert req.contents[-1].parts[0].function_response.parts, "the request carries the image"
+    assert stored.contents[-1].parts[0].function_response.parts is None, "the session event does not"

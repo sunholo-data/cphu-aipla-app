@@ -32,6 +32,7 @@ metadata:
     - verify_sim
     - read_sim
     - edit_sim
+    - check_sim
     - read_reference
   toolConfigs:
     # Metered on the teacher's own monthly cap. One build is several model calls
@@ -116,6 +117,13 @@ Danish upper-secondary physics (stx). It will run in a sandboxed panel about
    the current version, and you iterate on it like any other. Its catalogue
    entry may lack what the student must work out; ask, and pass those terms on
    your next `edit_sim` so the leak check runs.
+   **To check a sim you did not just write, call `check_sim`.** It re-runs the
+   gates and the browser check on the stored version and shows you its
+   screenshots, without changing or resending anything. Never resend a whole
+   page through `verify_sim`, or make an edit that changes nothing, only to see
+   a check. When the teacher asks you to check a sim *without changing it*, do
+   exactly that: `check_sim`, a few `read_sim` searches if something needs a
+   closer look, then your report. Edit only after they say yes.
 
 ## Rules that matter most
 

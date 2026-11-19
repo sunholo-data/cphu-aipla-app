@@ -199,6 +199,9 @@ TOOL_REGISTRY: dict[str, Callable[[dict], FunctionTool]] = {
     # text, then change only what needs changing (re-checked, stored as a version).
     "read_sim": lambda _config: FunctionTool(_sim_author.read_sim),
     "edit_sim": lambda _config: FunctionTool(_sim_author.edit_sim),
+    # ...and a re-check of the stored draft that resends nothing and stores nothing
+    # (an imported sim: before this, the model re-checked it with a no-op edit).
+    "check_sim": lambda _config: FunctionTool(_sim_author.check_sim),
 }
 
 # Tools handled entirely outside this registry (no ValueError for these)

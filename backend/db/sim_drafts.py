@@ -105,6 +105,7 @@ def add_usage(
     tokens_thinking: int,
     cost_usd: float,
     session_id: str | None = None,
+    tokens_cached: int = 0,
 ) -> None:
     """Add one model call's usage to the draft's running total (a rough guide for
     the teacher). Creates the draft record on its first call, before any version
@@ -119,6 +120,10 @@ def add_usage(
         usage["tokensIn"] = int(usage.get("tokensIn") or 0) + int(tokens_in)
         usage["tokensOut"] = int(usage.get("tokensOut") or 0) + int(tokens_out)
         usage["tokensThinking"] = int(usage.get("tokensThinking") or 0) + int(tokens_thinking)
+        # Of tokensIn, how many the model served from a cache (implicit or ADK's
+        # explicit one). Recorded, not yet priced: costUsd stays the full input
+        # rate, the same figure the spend gate uses.
+        usage["tokensCached"] = int(usage.get("tokensCached") or 0) + int(tokens_cached)
         usage["costUsd"] = round(float(usage.get("costUsd") or 0.0) + float(cost_usd), 6)
         usage["calls"] = int(usage.get("calls") or 0) + 1
         fields: dict[str, Any] = {"usage": usage, "updatedAt": now}

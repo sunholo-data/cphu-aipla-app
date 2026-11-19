@@ -90,7 +90,7 @@ from adk.proactive_telemetry import tag_proactive_span_from_callback_context
 from adk.progress_context import compose_progress_context
 from adk.resilient_llm import ResilientLlm
 from adk.shared_conversation import build_shared_conversation_block
-from adk.sim_author import attach_sim_screenshots, record_sim_usage
+from adk.sim_author import attach_sim_screenshots, prune_stale_sim_reads, record_sim_usage
 from adk.sim_control_tools import build_sim_control_tools, resolve_sim_control_level
 from adk.svg_preview import attach_svg_preview, make_final_svg_guard
 from adk.teacher_focus import build_ilo_precedence_block, inject_teacher_focus, resolve_active_config
@@ -824,6 +824,9 @@ def create_agent(
         await attach_svg_preview(callback_context, llm_request)
         # sim-author: the same, for verify_sim's screenshots of a sim draft (adk/sim_author.py).
         await attach_sim_screenshots(callback_context, llm_request)
+        # sim-author: shorten read_sim results of versions since replaced (and
+        # repeat guide reads), before the budget gate projects this prompt's cost.
+        await prune_stale_sim_reads(callback_context, llm_request)
         # 1.1.7 images need no injector: they arrive as native AG-UI
         # ImageInputContent parts that ag_ui_adk turns into ADK Parts in the
         # user event, so they're already in llm_request.contents (and replayed

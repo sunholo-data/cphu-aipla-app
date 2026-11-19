@@ -400,6 +400,7 @@ function stageText(
 const STEP_KEYS = {
   read_sim: "step_readSim",
   verify_sim: "step_verifySim",
+  check_sim: "step_verifySim",
   edit_sim: "step_editSim",
   read_reference: "step_readReference",
 } as const;

@@ -385,7 +385,16 @@ async def attach_svg_preview(callback_context: Any, llm_request: Any) -> bool:
     for part in reversed(contents[-1].parts or []):
         fr = getattr(part, "function_response", None)
         if fr is not None and fr.name in PREVIEW_TOOLS:
-            fr.parts = [types.FunctionResponsePart.from_bytes(data=base64.b64decode(encoded), mime_type="image/png")]
+            # A COPY on this request's part: ADK shares function_response with the
+            # stored session event, so assigning fr.parts would write the image into
+            # the history and re-send it on every later call (found 2026-11-19).
+            part.function_response = fr.model_copy(
+                update={
+                    "parts": [
+                        types.FunctionResponsePart.from_bytes(data=base64.b64decode(encoded), mime_type="image/png")
+                    ]
+                }
+            )
             return True
     logger.warning("svg preview parked but no preview-tool function response in the request; dropped")
     return False

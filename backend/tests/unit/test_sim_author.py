@@ -252,12 +252,15 @@ async def test_a_teacher_without_the_feature_is_refused_by_every_tool(monkeypatc
 # ---- usage: what a simulation has cost so far ----------------------------------------
 
 
-def _llm_response(tokens_in: int, out: int, thoughts: int, partial: bool = False) -> SimpleNamespace:
+def _llm_response(tokens_in: int, out: int, thoughts: int, partial: bool = False, cached: int = 0) -> SimpleNamespace:
     return SimpleNamespace(
         partial=partial,
         model_version="gemini-3.8-flash",
         usage_metadata=SimpleNamespace(
-            prompt_token_count=tokens_in, candidates_token_count=out, thoughts_token_count=thoughts
+            prompt_token_count=tokens_in,
+            candidates_token_count=out,
+            thoughts_token_count=thoughts,
+            cached_content_token_count=cached,
         ),
     )
 
@@ -274,7 +277,137 @@ async def test_usage_accumulates_on_the_draft_and_skips_partial_chunks():
 
 
 @pytest.mark.asyncio
+async def test_usage_records_the_cached_part_of_the_prompt(caplog):
+    c = ctx()
+    with caplog.at_level("INFO", logger="adk.sim_author"):
+        await sim_author.record_sim_usage(c, _llm_response(50_000, 1_000, 2_000, cached=40_000))
+        await sim_author.record_sim_usage(c, _llm_response(52_000, 1_000, 2_000))  # no cache hit
+    usage = sim_drafts.get_draft("sess-1", "teacher-1")["usage"]
+    assert usage["tokensIn"] == 102_000 and usage["tokensCached"] == 40_000
+    assert any("in=50000 cached=40000" in r.getMessage() for r in caplog.records)
+
+
+@pytest.mark.asyncio
 async def test_usage_never_writes_into_another_teachers_draft():
     await sim_author.verify_sim(GOOD_HTML, GOOD_YAML, tool_context=ctx())
     await sim_author.record_sim_usage(ctx(uid="teacher-2"), _llm_response(1_000, 100, 0))
     assert "usage" not in sim_drafts.get_draft("sess-1", "teacher-1")
+
+
+# ---- the request is the model's view; the session is the record ----------------------
+
+
+def _as_request(*contents):
+    """The request ADK would build from these stored contents: shallow copies whose
+    function_response objects are SHARED with the stored ones (as in ADK 2.x)."""
+    from google.adk.flows.llm_flows.context._contents import _copy_content_for_request
+
+    return SimpleNamespace(
+        contents=[_copy_content_for_request(c, strip_client_function_call_ids=False) for c in contents]
+    )
+
+
+def _response(name: str, response: dict):
+    from google.genai import types
+
+    return types.Content(
+        role="user", parts=[types.Part(function_response=types.FunctionResponse(name=name, response=response))]
+    )
+
+
+@pytest.mark.asyncio
+async def test_screenshots_never_land_in_the_stored_session_event():
+    c = ctx()
+    await sim_author.verify_sim(GOOD_HTML, GOOD_YAML, tool_context=c)
+    stored = _response("verify_sim", {"level": 3, "version": 1})
+    req = _as_request(stored)
+    assert await sim_author.attach_sim_screenshots(c, req) is True
+    assert len(req.contents[-1].parts[0].function_response.parts) == 2
+    assert stored.parts[0].function_response.parts is None, "re-sent on every later call if it did"
+
+
+@pytest.mark.asyncio
+async def test_prune_shortens_reads_of_replaced_versions_and_keeps_the_current_ones():
+    old = _response("read_sim", {"ok": True, "version": 1, "file": "index.html", "lines": "10: a\n11: b\n12: c"})
+    edit = _response("edit_sim", {"ok": True, "version": 2, "level": 3})
+    cur = _response("read_sim", {"ok": True, "version": 2, "file": "index.html", "lines": "10: a2"})
+    req = _as_request(old, edit, cur)
+    assert await sim_author.prune_stale_sim_reads(ctx(), req) == 1
+    pruned = req.contents[0].parts[0].function_response.response
+    assert "lines" not in pruned and "lines 10-12" in pruned["pruned"] and "version 2" in pruned["pruned"]
+    assert req.contents[2].parts[0].function_response.response["lines"] == "10: a2"
+    # the session keeps everything: only this request was shortened
+    assert old.parts[0].function_response.response["lines"].startswith("10: a")
+
+
+@pytest.mark.asyncio
+async def test_prune_is_stable_until_a_new_version_appears():
+    """Same input, same output: a context cache keyed on the prefix stays valid."""
+    contents = [
+        _response("read_sim", {"ok": True, "version": 1, "file": "index.html", "lines": "1: x"}),
+        _response("verify_sim", {"version": 2, "level": 3}),
+    ]
+    a, b = _as_request(*contents), _as_request(*contents)
+    await sim_author.prune_stale_sim_reads(ctx(), a)
+    await sim_author.prune_stale_sim_reads(ctx(), b)
+    assert a.contents[0].parts[0].function_response.response == b.contents[0].parts[0].function_response.response
+    # and pruning an already-pruned request changes nothing
+    assert await sim_author.prune_stale_sim_reads(ctx(), a) == 0
+
+
+@pytest.mark.asyncio
+async def test_prune_keeps_only_the_last_read_of_the_same_guide():
+    guide = {"result": "AUTHORING RULES …" + "x" * 500}
+    req = _as_request(_response("read_reference", guide), _response("read_reference", dict(guide)))
+    assert await sim_author.prune_stale_sim_reads(ctx(), req) == 1
+    assert "pruned" in req.contents[0].parts[0].function_response.response
+    assert req.contents[1].parts[0].function_response.response == guide
+
+
+@pytest.mark.asyncio
+async def test_prune_leaves_a_conversation_with_one_version_alone():
+    req = _as_request(
+        _response("read_sim", {"ok": True, "version": 1, "file": "index.html", "lines": "1: x"}),
+        _response("read_sim", {"ok": True, "version": 1, "file": "index.html", "lines": "2: y"}),
+    )
+    assert await sim_author.prune_stale_sim_reads(ctx(), req) == 0
+
+
+@pytest.mark.asyncio
+async def test_read_sim_can_read_an_earlier_version_and_says_it_is_not_current():
+    await sim_author.verify_sim(GOOD_HTML, GOOD_YAML, tool_context=ctx(invocation="a"))
+    await sim_author.edit_sim(
+        [{"find": 'intro: "Et pendul."', "replace": 'intro: "Et matematisk pendul."'}], tool_context=ctx(invocation="b")
+    )
+    v1 = await sim_author.read_sim(search="intro:", version=1, tool_context=ctx(invocation="c"))
+    assert v1["version"] == 1 and 'intro: "Et pendul."' in v1["lines"] and "current one is 2" in v1["note"]
+    now = await sim_author.read_sim(search="intro:", tool_context=ctx(invocation="d"))
+    assert now["version"] == 2 and "note" not in now
+    missing = await sim_author.read_sim(version=7, tool_context=ctx(invocation="e"))
+    assert missing["ok"] is False and "1 to 2" in missing["refused"]
+
+
+@pytest.mark.asyncio
+async def test_check_sim_rechecks_the_stored_draft_without_storing_or_resending():
+    """An imported sim: the model used to re-check it with a no-op edit_sim, leaving
+    the teacher a version identical to the last (prod, 2026-11-19)."""
+    from google.genai import types
+
+    await sim_author.verify_sim(GOOD_HTML, GOOD_YAML, tool_context=ctx(invocation="a"))
+    c = ctx(invocation="b")
+    r = await sim_author.check_sim(tool_context=c)
+    assert r["version"] == 1 and r["stored"] is False and r["level"] == 3
+    assert sim_drafts.get_draft("sess-1", "teacher-1")["latestVersion"] == 1, "no new version"
+    req = SimpleNamespace(contents=[_response("check_sim", r)])
+    assert await sim_author.attach_sim_screenshots(c, req) is True
+    assert isinstance(req.contents[0].parts[0].function_response.parts[0], types.FunctionResponsePart)
+
+
+@pytest.mark.asyncio
+async def test_check_sim_counts_against_the_per_turn_cap_and_needs_a_draft():
+    assert (await sim_author.check_sim(tool_context=ctx()))["ok"] is False  # nothing stored yet
+    await sim_author.verify_sim(GOOD_HTML, GOOD_YAML, tool_context=ctx(invocation="a"))
+    c = ctx(invocation="b")
+    for _ in range(sim_author.MAX_CHECKS_PER_TURN):
+        assert "refused" not in await sim_author.check_sim(tool_context=c)
+    assert "limit" in (await sim_author.check_sim(tool_context=c))["refused"]

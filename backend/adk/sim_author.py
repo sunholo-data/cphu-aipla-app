@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 TOOL_NAME = "verify_sim"
 #: The tools whose function response carries the parked screenshots.
-SCREENSHOT_TOOLS = frozenset({"verify_sim", "edit_sim", "describe_sim"})
+SCREENSHOT_TOOLS = frozenset({"verify_sim", "edit_sim", "check_sim", "describe_sim"})
 SHOTS_KEY = "temp:sim_verify_pngs"
 ATTEMPTS_KEY = "temp:sim_verify_attempts"
 PROGRESS_KEY = "temp:sim_progress_seq"
@@ -247,6 +247,55 @@ async def _check_and_store(
     return result
 
 
+async def check_sim(hidden_terms: list[str] | None = None, tool_context: Any = None) -> dict:
+    """Check the CURRENT stored draft again, without changing or resending it.
+
+    Use this to look at a draft you did not just write: one the teacher imported,
+    or one from an earlier conversation. It runs the same gates and browser check
+    as ``verify_sim`` on the stored files and attaches the screenshots, but stores
+    no new version. Never resend the whole page through ``verify_sim``, or make an
+    edit that changes nothing, just to see a check: both are slow, and a no-op
+    edit leaves the teacher a version identical to the last.
+
+    Args:
+        hidden_terms: What the student must work out and must NOT see, as for
+            ``verify_sim``.
+
+    Returns:
+        The same verdict as ``verify_sim``, for the ``version`` that is current.
+    """
+    if (refusal := _not_enabled(tool_context) or _spend_check(tool_context)) is not None:
+        return refusal
+    files, why = await _current_files(tool_context)
+    if files is None:
+        return {"ok": False, "refused": why}
+    version = files["version"]
+    _progress(tool_context, "simChecking", f"Checking version {version} in the browser…", version=version)
+    with tempfile.TemporaryDirectory(prefix="simcheck-") as tmp:
+        verdict = await verify_draft(
+            files["index.html"],
+            files["catalogue.yaml"] or None,
+            hidden_terms=_clean_terms(hidden_terms),
+            browser=browser_from_env(),
+            out_dir=Path(tmp),
+        )
+        shots = {k: base64.b64encode(p.read_bytes()).decode("ascii") for k, p in verdict.screenshots.items()}
+    model_shots = [shots[k] for k in MODEL_SHOTS if k in shots]
+    park_screenshots(tool_context, model_shots)
+    result = verdict.for_model()
+    result.update(draft_id=_draft_id(tool_context), version=version, stored=False)
+    if not model_shots:
+        result["note"] = "No screenshots: the browser check did not run, so nothing above level 1 is known."
+    _progress(
+        tool_context,
+        "simChecked",
+        f"Version {version}: level {max(verdict.level, 0)} of 3. Looking at the screenshots…",
+        version=version,
+        level=max(verdict.level, 0),
+    )
+    return result
+
+
 async def verify_sim(
     index_html: str, catalogue_yaml: str, hidden_terms: list[str] | None = None, tool_context: Any = None
 ) -> dict:
@@ -280,8 +329,9 @@ async def verify_sim(
     return await _check_and_store(index_html, catalogue_yaml, hidden_terms, tool_context)
 
 
-async def _current_files(tool_context: Any) -> tuple[dict | None, str | None]:
-    """The latest stored version's files for this conversation, or (None, why not)."""
+async def _current_files(tool_context: Any, version: int = 0) -> tuple[dict | None, str | None]:
+    """The latest stored version's files for this conversation (or an earlier
+    ``version``), or (None, why not). ``latest`` is always the newest number."""
     owner = caller_uid_or_none(tool_context)
     draft_id = _draft_id(tool_context)
     if owner is None or draft_id is None:
@@ -289,13 +339,17 @@ async def _current_files(tool_context: Any) -> tuple[dict | None, str | None]:
     from db.sim_drafts import get_draft, get_version
 
     draft = await asyncio.to_thread(get_draft, draft_id, owner)
-    n = int((draft or {}).get("latestVersion") or 0)
-    if not n:
+    latest = int((draft or {}).get("latestVersion") or 0)
+    if not latest:
         return None, "There is no draft yet in this conversation: write the first one with verify_sim."
+    n = int(version or 0) or latest
+    if not 1 <= n <= latest:
+        return None, f"There is no version {n}: the versions are 1 to {latest}."
     doc = await asyncio.to_thread(get_version, draft_id, n, owner)
     if not doc:
-        return None, "The latest version could not be read."
-    return {"index.html": doc.get("html") or "", "catalogue.yaml": doc.get("yaml") or "", "version": n}, None
+        return None, f"Version {n} could not be read."
+    files = {"index.html": doc.get("html") or "", "catalogue.yaml": doc.get("yaml") or "", "version": n}
+    return files | {"latest": latest}, None
 
 
 async def read_sim(
@@ -303,6 +357,7 @@ async def read_sim(
     start_line: int = 1,
     end_line: int = 200,
     search: str | list[str] | None = None,
+    version: int = 0,
     tool_context: Any = None,
 ) -> dict:
     """Read the CURRENT stored draft, with line numbers, before you edit it.
@@ -320,13 +375,18 @@ async def read_sim(
         end_line: Last line to show (at most 400 lines per call).
         search: Instead of a range, show every line containing this text, or any
             of these texts (case-insensitive), with two lines of context.
+        version: An EARLIER stored version to read, e.g. when the teacher wants
+            back what version 2 had. 0 (the default) is the current one. Edits
+            always apply to the current version.
 
     Returns:
-        ``version``, ``total_lines`` and ``lines`` as "number: text".
+        ``version``, ``total_lines`` and ``lines`` as "number: text". Reads of a
+        version that has since been replaced are shortened to a note in later
+        calls: read again for the current text rather than relying on them.
     """
     if (refusal := _not_enabled(tool_context)) is not None:
         return refusal
-    files, why = await _current_files(tool_context)
+    files, why = await _current_files(tool_context, version)
     if files is None:
         return {"ok": False, "refused": why}
     if file not in ("index.html", "catalogue.yaml"):
@@ -344,7 +404,12 @@ async def read_sim(
         a = max(1, int(start_line))
         b = min(len(lines), int(end_line), a + 399)
         shown = [f"{i}: {lines[i - 1]}" for i in range(a, b + 1)]
-    return {"ok": True, "version": files["version"], "file": file, "total_lines": len(lines), "lines": "\n".join(shown)}
+    out = {"ok": True, "version": files["version"], "file": file, "total_lines": len(lines), "lines": "\n".join(shown)}
+    if files["version"] != files["latest"]:
+        out["note"] = (
+            f"This is version {files['version']}; the current one is {files['latest']}, and edits apply to it."
+        )
+    return out
 
 
 async def edit_sim(
@@ -442,6 +507,10 @@ async def record_sim_usage(callback_context: Any, llm_response: Any) -> None:
     Priced with the same function the spend gate uses. Thinking tokens are billed
     as output and counted here. Partial streamed chunks are skipped, so a call is
     counted once. Fail-open: a rough guide must never break a turn.
+
+    Also logs one ``sim usage:`` line per call, with how much of the prompt came
+    from a cache: until 2026-11-19 nothing recorded it, so whether Gemini's
+    caching was helping a long build could not be told (see ADK_CONTEXT_CACHE).
     """
     try:
         if getattr(llm_response, "partial", False):
@@ -452,8 +521,18 @@ async def record_sim_usage(callback_context: Any, llm_response: Any) -> None:
         tokens_in = int(getattr(usage, "prompt_token_count", 0) or 0)
         tokens_out = int(getattr(usage, "candidates_token_count", 0) or 0)
         tokens_thinking = int(getattr(usage, "thoughts_token_count", 0) or 0)
+        tokens_cached = int(getattr(usage, "cached_content_token_count", 0) or 0)
         if not (tokens_in or tokens_out or tokens_thinking):
             return
+        logger.info(
+            "sim usage: session=%s in=%d cached=%d out=%d thinking=%d model=%s",
+            _session_id(callback_context),
+            tokens_in,
+            tokens_cached,
+            tokens_out,
+            tokens_thinking,
+            getattr(llm_response, "model_version", None),
+        )
         owner = caller_uid_or_none(callback_context)
         draft_id = _draft_id(callback_context)
         if owner is None or draft_id is None:
@@ -471,6 +550,7 @@ async def record_sim_usage(callback_context: Any, llm_response: Any) -> None:
             tokens_in=tokens_in,
             tokens_out=tokens_out,
             tokens_thinking=tokens_thinking,
+            tokens_cached=tokens_cached,
             cost_usd=cost,
             session_id=_session_id(callback_context),
         )
@@ -505,9 +585,112 @@ async def attach_sim_screenshots(callback_context: Any, llm_request: Any) -> boo
     for part in reversed(contents[-1].parts or []):
         fr = getattr(part, "function_response", None)
         if fr is not None and fr.name in SCREENSHOT_TOOLS:
-            fr.parts = [
-                types.FunctionResponsePart.from_bytes(data=base64.b64decode(s), mime_type="image/png") for s in shots
-            ]
+            # A COPY on this request's part: ADK shares function_response with the
+            # stored session event, so assigning fr.parts wrote every check's
+            # screenshots into the history, re-sent on every later call while the
+            # session stayed cached (found 2026-11-19).
+            part.function_response = fr.model_copy(
+                update={
+                    "parts": [
+                        types.FunctionResponsePart.from_bytes(data=base64.b64decode(s), mime_type="image/png")
+                        for s in shots
+                    ]
+                }
+            )
             return True
     logger.warning("sim screenshots parked but no verify_sim response in the request; dropped")
     return False
+
+
+#: A function response's version, by tool: read_sim reports what it read,
+#: verify_sim and edit_sim what they stored.
+_VERSIONED_TOOLS = frozenset({"read_sim", "verify_sim", "edit_sim", "check_sim"})
+_LINE_NO = re.compile(r"^(\d+): ", re.M)
+
+
+def _stub_for_read(resp: dict, latest: int) -> dict:
+    """What an out-of-date read_sim result is shortened to: where it was, not what."""
+    nums = [int(n) for n in _LINE_NO.findall(str(resp.get("lines") or ""))]
+    where = f"lines {min(nums)}-{max(nums)} of " if nums else ""
+    return {
+        "ok": True,
+        "version": resp.get("version"),
+        "file": resp.get("file"),
+        "pruned": (
+            f"Read {where}{resp.get('file')} version {resp.get('version')}, since replaced by version {latest}. "
+            "Its text is left out to keep the conversation small: call read_sim again for the current text."
+        ),
+    }
+
+
+async def prune_stale_sim_reads(callback_context: Any, llm_request: Any) -> int:
+    """Shorten tool results the model no longer needs, before each model call.
+
+    A sim build re-sends its whole history on every call. On 2026-11-19 one
+    conversation made 39 calls, about 50k input tokens each, mostly ``read_sim``
+    slices of a 200 KB sim, several of versions already replaced: copies the
+    model must also reason AROUND, since they contradict the current file.
+
+    - a ``read_sim`` result of a version older than the newest one in the request
+      becomes a one-line note (where it read, not what);
+    - a ``read_reference`` guide read more than once is kept only the last time.
+
+    Only function RESPONSES are touched, never the model's own function calls
+    (Gemini 3 signs those), and only in this request: the stored session keeps
+    everything, and ``read_sim(version=N)`` can still read any version. The
+    result depends only on the request, so it is stable from call to call until
+    a new version appears (which keeps a context cache valid meanwhile).
+    Returns how many results were shortened. Fail-open.
+    """
+    import os
+
+    if os.environ.get("SIM_PRUNE_STALE_READS", "1").strip() == "0":  # ops off-switch
+        return 0
+    try:
+        contents = getattr(llm_request, "contents", None) or []
+        # Parts, not their function_response: the request's parts are its own
+        # shallow copies, but function_response is SHARED with the stored session
+        # event. Replacing part.function_response is safe; editing it is not.
+        parts = [
+            part
+            for content in contents
+            for part in (content.parts or [])
+            if getattr(part, "function_response", None) is not None
+        ]
+
+        def resp_of(part: Any) -> dict | None:
+            r = part.function_response.response
+            return r if isinstance(r, dict) else None
+
+        versions = [
+            int(r["version"])
+            for part in parts
+            if part.function_response.name in _VERSIONED_TOOLS
+            and (r := resp_of(part)) is not None
+            and isinstance(r.get("version"), int)
+        ]
+        latest = max(versions, default=0)
+        last_guide: dict[str, int] = {}
+        for i, part in enumerate(parts):
+            if part.function_response.name == "read_reference" and (r := resp_of(part)) is not None:
+                last_guide[str(r.get("result", r))[:200]] = i
+        pruned = 0
+        for i, part in enumerate(parts):
+            fr = part.function_response
+            resp = resp_of(part)
+            if resp is None or resp.get("pruned"):
+                continue
+            stub = None
+            if fr.name == "read_sim" and isinstance(resp.get("version"), int) and resp["version"] < latest:
+                stub = _stub_for_read(resp, latest)
+            elif fr.name == "read_reference" and last_guide.get(str(resp.get("result", resp))[:200]) != i:
+                stub = {"pruned": "The same guide is read again later in this conversation."}
+            if stub is not None:
+                part.function_response = fr.model_copy(update={"response": stub})
+                pruned += 1
+        if pruned:
+            logger.info("sim prune: %d stale result(s) shortened, newest version %d", pruned, latest)
+        return pruned
+    except Exception:
+        logger.debug("sim prune failed; request left as it was", exc_info=True)
+        return 0
