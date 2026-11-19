@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bohr practice solutions</title>
+<style>
+  :root { --ink:#1b1f24; --muted:#5a6370; --line:#d9dee5; --soft:#f4f6f9; --accent:#1f5fbf; --note:#fff7e0; --noteline:#e9c766; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:#fff; color:var(--ink); font: 16px/1.6 "Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif; }
+  main { max-width: 820px; margin: 0 auto; padding: 32px 20px 64px; }
+  h1 { font-size: 1.7rem; margin: 0 0 4px; line-height:1.25; }
+  .sub { color: var(--muted); margin: 0 0 24px; }
+  h2 { font-size: 1.3rem; margin: 40px 0 8px; padding-top: 16px; border-top: 2px solid var(--line); }
+  h3 { font-size: 1.02rem; margin: 22px 0 6px; }
+  .task { background: var(--soft); border-left: 4px solid var(--accent); padding: 12px 16px; margin: 10px 0 14px; }
+  .task p { margin: 0 0 6px; }
+  .task ol { margin: 4px 0 0; padding-left: 22px; }
+  .note { background: var(--note); border-left: 4px solid var(--noteline); padding: 10px 16px; margin: 14px 0; }
+  .ans { font-weight: 600; }
+  math[display="block"] { margin: 10px 0; overflow-x: auto; overflow-y: hidden; }
+  math { font-size: 1.08em; }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0 14px; font-variant-numeric: tabular-nums; }
+  th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+  th { background: var(--soft); }
+  .data { display:grid; grid-template-columns: 1fr 1fr; gap: 0 24px; }
+  @media (max-width: 600px) { .data { grid-template-columns: 1fr; } }
+  ul.tight li { margin: 2px 0; }
+  .src { font-size: .92rem; color: var(--muted); }
+  @media print { main { padding: 0; } h2 { break-before: auto; } .task, table { break-inside: avoid; } }
+</style>
+</head>
+<body>
+<main>
+<h1>Bohr's atomic model: Part 3 practice, worked solutions</h1>
+<p class="sub">For teachers only. The tutor has the same solutions and is told to guide students with questions rather than give answers. Do not share this file with students.</p>
+
+<h2>Data used in every task</h2>
+<p>These are the same values students see on the data card in the sim.</p>
+<div class="data">
+<div>
+<math display="block"><msub><mi>E</mi><mi>n</mi></msub><mo>=</mo><mo>−</mo><mfrac><mrow><mn>13.6</mn><mtext>&nbsp;eV</mtext></mrow><msup><mi>n</mi><mn>2</mn></msup></mfrac></math>
+<math display="block"><msub><mi>r</mi><mi>n</mi></msub><mo>=</mo><msup><mi>n</mi><mn>2</mn></msup><mo>⁢</mo><msub><mi>r</mi><mn>1</mn></msub><mo>,</mo><mspace width="1em"/><msub><mi>r</mi><mn>1</mn></msub><mo>=</mo><mn>0.0529</mn><mtext>&nbsp;nm</mtext></math>
+<math display="block"><mfrac><mn>1</mn><mi>λ</mi></mfrac><mo>=</mo><mi>R</mi><mrow><mo>(</mo><mfrac><mn>1</mn><msubsup><mi>n</mi><mtext>low</mtext><mn>2</mn></msubsup></mfrac><mo>−</mo><mfrac><mn>1</mn><msubsup><mi>n</mi><mtext>high</mtext><mn>2</mn></msubsup></mfrac><mo>)</mo></mrow></math>
+</div>
+<div>
+<math display="block"><mi>R</mi><mo>=</mo><mn>1.097</mn><mo>×</mo><msup><mn>10</mn><mn>7</mn></msup><mtext>&nbsp;m</mtext><msup><mrow></mrow><mrow><mo>−</mo><mn>1</mn></mrow></msup></math>
+<math display="block"><msub><mi>E</mi><mtext>photon</mtext></msub><mo>=</mo><mfrac><mrow><mi>h</mi><mi>c</mi></mrow><mi>λ</mi></mfrac><mo>,</mo><mspace width="1em"/><mi>h</mi><mi>c</mi><mo>=</mo><mn>1240</mn><mtext>&nbsp;eV·nm</mtext></math>
+<math display="block"><mn>1</mn><mtext>&nbsp;eV</mtext><mo>=</mo><mn>1.602</mn><mo>×</mo><msup><mn>10</mn><mrow><mo>−</mo><mn>19</mn></mrow></msup><mtext>&nbsp;J</mtext></math>
+</div>
+</div>
+<p>Visible light runs from about 380 nm (violet) to 750 nm (red). Shorter is ultraviolet (UV); longer is infrared (IR).</p>
+
+<!-- ============ TASK 1 ============ -->
+<h2>Task 1. Where does Bohr's model fall short?</h2>
+<div class="task">
+<p>Bohr's model from 1913 was a huge success: it explained hydrogen's spectrum, and Bohr won the Nobel Prize in 1922. But it is not the model physicists use today.</p>
+<ol type="a">
+<li>Which model is used today? Talk about it, ask your teacher, or find out later.</li>
+<li>Name 2–3 things that Bohr's model cannot explain, or gets wrong.</li>
+</ol>
+</div>
+
+<h3>a) The model used today</h3>
+<p>Quantum mechanics, developed by Heisenberg and Schrödinger in 1925–26. The electron does not move in a definite circular orbit. Instead it has a probability cloud (an <em>orbital</em>) that tells where it is likely to be found. The energy levels are still there, and they have the same values as in Bohr's model for hydrogen.</p>
+<p>Students do not need to know this from memory. It is fine if they ask the teacher or look it up.</p>
+
+<h3>b) What Bohr's model cannot explain (any 2–3 are a full answer)</h3>
+<ul class="tight">
+<li><strong>Atoms with more than one electron.</strong> It works for hydrogen (and ions with one electron, like He⁺), but fails already for helium.</li>
+<li><strong>Chemical bonds and molecules.</strong> It cannot explain how atoms bind together.</li>
+<li><strong>Why only these orbits are allowed.</strong> Bohr simply postulated it; the model gives no reason.</li>
+<li><strong>It contradicts classical physics.</strong> A charge moving in a circle should radiate light, lose energy and spiral into the nucleus. Bohr just declared that this does not happen.</li>
+<li><strong>Sharp orbits are wrong.</strong> The uncertainty principle says the electron cannot have both an exact position and an exact path.</li>
+<li><strong>Details of the spectrum.</strong> It cannot explain why some lines are brighter than others, why lines split in a magnetic field (the Zeeman effect), or the fine structure (lines that are really two close lines).</li>
+</ul>
+<div class="note"><strong>What survived:</strong> stationary states (fixed energy levels) and quantum jumps with a photon of energy equal to the level difference. Those ideas are exactly what Parts 1 and 2 of the sim are built on.</div>
+
+<!-- ============ TASK 2 ============ -->
+<h2>Task 2. All the ways down</h2>
+<div class="task">
+<p>An electron is in orbit 4 of a hydrogen atom. It can get down to orbit 1 in several ways, and it may stop in any orbit on the way.</p>
+<ol type="a">
+<li>How many different photons (different wavelengths) can come out in total?</li>
+<li>Calculate the wavelength of each one. Which of them can we see?</li>
+</ol>
+</div>
+
+<h3>a) Count the photons</h3>
+<p><strong>Step 1.</strong> List the possible paths from 4 to 1:</p>
+<ul class="tight">
+<li>4 → 1</li>
+<li>4 → 2 → 1</li>
+<li>4 → 3 → 1</li>
+<li>4 → 3 → 2 → 1</li>
+</ul>
+<p><strong>Step 2.</strong> Each single jump gives one photon. Collect all the different jumps that appear in the paths: 4→3, 4→2, 4→1, 3→2, 3→1, 2→1. That is every pair of the four levels:</p>
+<math display="block"><mfrac><mrow><mn>4</mn><mo>×</mo><mn>3</mn></mrow><mn>2</mn></mfrac><mo>=</mo><mn>6</mn></math>
+<p class="ans">Answer: 6 different photons.</p>
+<div class="note"><strong>Common mistake:</strong> answering 4 (the number of paths) instead of 6 (the number of different jumps). Another is to forget the 4 → 3 jump.</div>
+
+<h3>b) Calculate each wavelength</h3>
+<p><strong>Method.</strong> Use the Rydberg formula with the lower level as <math><msub><mi>n</mi><mtext>low</mtext></msub></math>. Worked example for 4 → 2:</p>
+<math display="block"><mfrac><mn>1</mn><mi>λ</mi></mfrac><mo>=</mo><mn>1.097</mn><mo>×</mo><msup><mn>10</mn><mn>7</mn></msup><mtext>&nbsp;m</mtext><msup><mrow></mrow><mrow><mo>−</mo><mn>1</mn></mrow></msup><mo>×</mo><mrow><mo>(</mo><mfrac><mn>1</mn><msup><mn>2</mn><mn>2</mn></msup></mfrac><mo>−</mo><mfrac><mn>1</mn><msup><mn>4</mn><mn>2</mn></msup></mfrac><mo>)</mo></mrow><mo>=</mo><mn>1.097</mn><mo>×</mo><msup><mn>10</mn><mn>7</mn></msup><mo>×</mo><mn>0.1875</mn><mo>=</mo><mn>2.057</mn><mo>×</mo><msup><mn>10</mn><mn>6</mn></msup><mtext>&nbsp;m</mtext><msup><mrow></mrow><mrow><mo>−</mo><mn>1</mn></mrow></msup></math>
+<math display="block"><mi>λ</mi><mo>=</mo><mfrac><mn>1</mn><mrow><mn>2.057</mn><mo>×</mo><msup><mn>10</mn><mn>6</mn></msup><mtext>&nbsp;m</mtext><msup><mrow></mrow><mrow><mo>−</mo><mn>1</mn></mrow></msup></mrow></mfrac><mo>=</mo><mn>4.862</mn><mo>×</mo><msup><mn>10</mn><mrow><mo>−</mo><mn>7</mn></mrow></msup><mtext>&nbsp;m</mtext><mo>=</mo><mn>486</mn><mtext>&nbsp;nm</mtext></math>
+<p><strong>Alternative method</strong> (same result): photon energy = difference of level energies, then <math><mi>λ</mi><mo>=</mo><mi>h</mi><mi>c</mi><mo>/</mo><mi>E</mi></math>. For 4 → 2:</p>
+<math display="block"><mi>E</mi><mo>=</mo><msub><mi>E</mi><mn>4</mn></msub><mo>−</mo><msub><mi>E</mi><mn>2</mn></msub><mo>=</mo><mo>(</mo><mo>−</mo><mn>0.85</mn><mo>)</mo><mo>−</mo><mo>(</mo><mo>−</mo><mn>3.40</mn><mo>)</mo><mo>=</mo><mn>2.55</mn><mtext>&nbsp;eV</mtext><mo>,</mo><mspace width="1em"/><mi>λ</mi><mo>=</mo><mfrac><mrow><mn>1240</mn><mtext>&nbsp;eV·nm</mtext></mrow><mrow><mn>2.55</mn><mtext>&nbsp;eV</mtext></mrow></mfrac><mo>=</mo><mn>486</mn><mtext>&nbsp;nm</mtext></math>
+<p>All six jumps, done the same way:</p>
+<table>
+<thead><tr><th>Jump</th><th><math><mfrac><mn>1</mn><msubsup><mi>n</mi><mtext>low</mtext><mn>2</mn></msubsup></mfrac><mo>−</mo><mfrac><mn>1</mn><msubsup><mi>n</mi><mtext>high</mtext><mn>2</mn></msubsup></mfrac></math></th><th>Photon energy</th><th>Wavelength</th><th>Type of light</th></tr></thead>
+<tbody>
+<tr><td>4 → 3</td><td>1/9 − 1/16 = 0.0486</td><td>0.66 eV</td><td>1875 nm</td><td>IR</td></tr>
+<tr><td>4 → 2</td><td>1/4 − 1/16 = 0.1875</td><td>2.55 eV</td><td>486 nm</td><td><strong>visible, blue-green</strong></td></tr>
+<tr><td>4 → 1</td><td>1 − 1/16 = 0.9375</td><td>12.75 eV</td><td>97.2 nm</td><td>UV</td></tr>
+<tr><td>3 → 2</td><td>1/4 − 1/9 = 0.1389</td><td>1.89 eV</td><td>656 nm</td><td><strong>visible, red</strong></td></tr>
+<tr><td>3 → 1</td><td>1 − 1/9 = 0.8889</td><td>12.09 eV</td><td>102.6 nm</td><td>UV</td></tr>
+<tr><td>2 → 1</td><td>1 − 1/4 = 0.75</td><td>10.20 eV</td><td>121.5 nm</td><td>UV</td></tr>
+</tbody>
+</table>
+<p class="ans">Answer: only 486 nm (blue-green) and 656 nm (red) are visible. The jumps to orbit 1 give UV, and 4 → 3 gives IR.</p>
+<div class="note">Answers that differ in the last digit (for example 97.3 nm or 121.6 nm) come from rounding in the energy method and are correct.</div>
+
+<!-- ============ TASK 3 ============ -->
+<h2>Task 3. The electron that is almost free</h2>
+<div class="task">
+<p>In one particular excited state, it takes only 0.85 eV to pull the electron completely free of the hydrogen atom.</p>
+<ol type="a">
+<li>Which orbit is the electron in?</li>
+<li>How far is it from the proton, in nm and in r₁?</li>
+<li>What is the longest wavelength that light can have and still free the electron? What kind of light is it?</li>
+</ol>
+</div>
+
+<h3>a) Which orbit?</h3>
+<p><strong>Step 1.</strong> A free electron has energy 0. To free it from level <math><mi>n</mi></math> you must add exactly <math><mo>−</mo><msub><mi>E</mi><mi>n</mi></msub></math>, so</p>
+<math display="block"><mfrac><mrow><mn>13.6</mn><mtext>&nbsp;eV</mtext></mrow><msup><mi>n</mi><mn>2</mn></msup></mfrac><mo>=</mo><mn>0.85</mn><mtext>&nbsp;eV</mtext></math>
+<p><strong>Step 2.</strong> Solve for <math><mi>n</mi></math>:</p>
+<math display="block"><msup><mi>n</mi><mn>2</mn></msup><mo>=</mo><mfrac><mn>13.6</mn><mn>0.85</mn></mfrac><mo>=</mo><mn>16</mn><mspace width="1em"/><mo>⇒</mo><mspace width="1em"/><mi>n</mi><mo>=</mo><mn>4</mn></math>
+<p class="ans">Answer: orbit 4.</p>
+
+<h3>b) Distance from the proton</h3>
+<math display="block"><msub><mi>r</mi><mn>4</mn></msub><mo>=</mo><msup><mn>4</mn><mn>2</mn></msup><mo>⁢</mo><msub><mi>r</mi><mn>1</mn></msub><mo>=</mo><mn>16</mn><mo>⁢</mo><msub><mi>r</mi><mn>1</mn></msub><mo>=</mo><mn>16</mn><mo>×</mo><mn>0.0529</mn><mtext>&nbsp;nm</mtext><mo>=</mo><mn>0.846</mn><mtext>&nbsp;nm</mtext></math>
+<p class="ans">Answer: 16 r₁ ≈ 0.85 nm, sixteen times farther out than in the ground state.</p>
+
+<h3>c) Longest wavelength that still frees it</h3>
+<p><strong>Step 1.</strong> Longer wavelength means less energy per photon. The longest wavelength that works is the one whose photon has <em>exactly</em> 0.85 eV.</p>
+<p><strong>Step 2.</strong></p>
+<math display="block"><mi>λ</mi><mo>=</mo><mfrac><mrow><mi>h</mi><mi>c</mi></mrow><mi>E</mi></mfrac><mo>=</mo><mfrac><mrow><mn>1240</mn><mtext>&nbsp;eV·nm</mtext></mrow><mrow><mn>0.85</mn><mtext>&nbsp;eV</mtext></mrow></mfrac><mo>=</mo><mn>1459</mn><mtext>&nbsp;nm</mtext></math>
+<p>With the Rydberg formula and <math><msub><mi>n</mi><mtext>high</mtext></msub><mo>=</mo><mi>∞</mi></math> (free electron):</p>
+<math display="block"><mfrac><mn>1</mn><mi>λ</mi></mfrac><mo>=</mo><mi>R</mi><mrow><mo>(</mo><mfrac><mn>1</mn><msup><mn>4</mn><mn>2</mn></msup></mfrac><mo>−</mo><mn>0</mn><mo>)</mo></mrow><mspace width="1em"/><mo>⇒</mo><mspace width="1em"/><mi>λ</mi><mo>=</mo><mfrac><mn>16</mn><mi>R</mi></mfrac><mo>=</mo><mn>1458</mn><mtext>&nbsp;nm</mtext></math>
+<p class="ans">Answer: about 1460 nm, which is infrared. Any longer wavelength has too little energy per photon, however bright the light is.</p>
+<div class="note"><strong>Common mistake:</strong> thinking brighter light of a longer wavelength will do. Brightness means more photons, not more energy per photon.</div>
+
+<!-- ============ TASK 4 ============ -->
+<h2>Task 4. Where do the series end?</h2>
+<div class="task">
+<p>All jumps that end in orbit 2 are called the Balmer series. All jumps that end in orbit 1 are called the Lyman series.</p>
+<ol type="a">
+<li>Find the shortest wavelength in the Balmer series. Can we see it?</li>
+<li>Find the longest wavelength in the Lyman series.</li>
+<li>Do the two series overlap? Explain your answer.</li>
+</ol>
+</div>
+
+<h3>a) Shortest Balmer wavelength</h3>
+<p><strong>Step 1.</strong> Shortest wavelength = largest energy = the biggest jump down to 2, which starts from very far out (<math><mi>n</mi><mo>→</mo><mi>∞</mi></math>, so <math><mn>1</mn><mo>/</mo><msup><mi>n</mi><mn>2</mn></msup><mo>→</mo><mn>0</mn></math>).</p>
+<p><strong>Step 2.</strong></p>
+<math display="block"><mfrac><mn>1</mn><mi>λ</mi></mfrac><mo>=</mo><mi>R</mi><mrow><mo>(</mo><mfrac><mn>1</mn><msup><mn>2</mn><mn>2</mn></msup></mfrac><mo>−</mo><mn>0</mn><mo>)</mo></mrow><mo>=</mo><mfrac><mi>R</mi><mn>4</mn></mfrac><mspace width="1em"/><mo>⇒</mo><mspace width="1em"/><mi>λ</mi><mo>=</mo><mfrac><mn>4</mn><mrow><mn>1.097</mn><mo>×</mo><msup><mn>10</mn><mn>7</mn></msup><mtext>&nbsp;m</mtext><msup><mrow></mrow><mrow><mo>−</mo><mn>1</mn></mrow></msup></mrow></mfrac><mo>=</mo><mn>364.6</mn><mtext>&nbsp;nm</mtext></math>
+<p class="ans">Answer: 364.6 nm. That is just below 380 nm, so it is UV and we cannot see it.</p>
+
+<h3>b) Longest Lyman wavelength</h3>
+<p><strong>Step 1.</strong> Longest wavelength = smallest energy = the smallest jump down to 1, which is 2 → 1.</p>
+<p><strong>Step 2.</strong></p>
+<math display="block"><mfrac><mn>1</mn><mi>λ</mi></mfrac><mo>=</mo><mi>R</mi><mrow><mo>(</mo><mfrac><mn>1</mn><msup><mn>1</mn><mn>2</mn></msup></mfrac><mo>−</mo><mfrac><mn>1</mn><msup><mn>2</mn><mn>2</mn></msup></mfrac><mo>)</mo></mrow><mo>=</mo><mfrac><mrow><mn>3</mn><mi>R</mi></mrow><mn>4</mn></mfrac><mspace width="1em"/><mo>⇒</mo><mspace width="1em"/><mi>λ</mi><mo>=</mo><mfrac><mn>4</mn><mrow><mn>3</mn><mo>×</mo><mn>1.097</mn><mo>×</mo><msup><mn>10</mn><mn>7</mn></msup><mtext>&nbsp;m</mtext><msup><mrow></mrow><mrow><mo>−</mo><mn>1</mn></mrow></msup></mrow></mfrac><mo>=</mo><mn>121.5</mn><mtext>&nbsp;nm</mtext></math>
+<p class="ans">Answer: 121.5 nm (UV).</p>
+
+<h3>c) Do they overlap?</h3>
+<p><strong>Step 1.</strong> Find both ends of each series. The Lyman series' shortest wavelength (∞ → 1) is <math><mi>λ</mi><mo>=</mo><mn>1</mn><mo>/</mo><mi>R</mi><mo>=</mo><mn>91.2</mn><mtext>&nbsp;nm</mtext></math>; the Balmer series' longest (3 → 2) is 656.3 nm.</p>
+<table>
+<thead><tr><th>Series</th><th>Shortest</th><th>Longest</th></tr></thead>
+<tbody>
+<tr><td>Lyman (ends in 1)</td><td>91.2 nm</td><td>121.5 nm</td></tr>
+<tr><td>Balmer (ends in 2)</td><td>364.6 nm</td><td>656.3 nm</td></tr>
+</tbody>
+</table>
+<p><strong>Step 2.</strong> Compare: the longest Lyman line (121.5 nm) is far shorter than the shortest Balmer line (364.6 nm).</p>
+<p class="ans">Answer: no, they do not overlap. Every jump down to orbit 1 releases at least 10.2 eV (the 2 → 1 gap), while every jump down to orbit 2 releases at most 3.4 eV. The big energy gap between levels 1 and 2 separates the two series.</p>
+
+<h2>Sources</h2>
+<ul class="src">
+<li>OpenStax, <em>College Physics 2e</em>, chapter 30 "Atomic Physics", sections 30.3 (Bohr's theory of the hydrogen atom) and 30.9 (limits of the Bohr model). openstax.org, CC BY 4.0.</li>
+<li>Typical Danish stx physics materials on Bohr's model and hydrogen's spectrum (the Orbit textbook series and Lectio worksheets), used for task style and level.</li>
+<li>Helge Kragh, article on the centenary of Bohr's atomic model, <em>Aktuel Naturvidenskab</em> (2013), for the history and the model's limits.</li>
+</ul>
+</main>
+</body>
+</html>
