@@ -144,7 +144,13 @@
     "stage_simChecked": "Version {version}: niveau {level} af 3. Ser på skærmbillederne…",
     "stage_simEditing": "Retter {count} sted(er)…",
     "stillWorking": "Arbejder stadig. Forbindelsen blev afbrudt (det sker, når en telefons skærm låser), men arbejdet fortsætter, og samtalen opdateres, når det er færdigt.",
-    "resendHint": "Din besked blev ikke sendt, fordi den forrige stadig kører. Den står i feltet igen: send den, når samtalen er opdateret."
+    "resendHint": "Din besked blev ikke sendt, fordi den forrige stadig kører. Den står i feltet igen: send den, når samtalen er opdateret.",
+    "step_readSim": "Læste simuleringen",
+    "step_verifySim": "Tjekkede den i browseren",
+    "step_editSim": "Rettede simuleringen",
+    "step_readReference": "Læste en vejledning",
+    "longWait": "En stor simulering kan tage et par minutter pr. trin. Du kan skifte vindue eller forlade siden: arbejdet fortsætter, og samtalen henter det, når du kommer tilbage.",
+    "resumedWorking": "Arbejder stadig på din seneste forespørgsel. Samtalen opdateres, når den er færdig."
   },
   "DefaultsCard": {
     "flagAuthoringCopilot": "Hjælp til at bygge (AI-hjælper i aktivitetsbyggeren)",

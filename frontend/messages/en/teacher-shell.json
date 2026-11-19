@@ -144,7 +144,13 @@
     "stage_simChecked": "Version {version}: level {level} of 3. Looking at the screenshots…",
     "stage_simEditing": "Applying {count} edit(s)…",
     "stillWorking": "Still working. The connection dropped (a phone does this when its screen locks), but the work carries on, and this chat updates when it is done.",
-    "resendHint": "Your message was not sent because the last request is still running. It is back in the box: send it when the chat has updated."
+    "resendHint": "Your message was not sent because the last request is still running. It is back in the box: send it when the chat has updated.",
+    "step_readSim": "Read the sim",
+    "step_verifySim": "Checked it in the browser",
+    "step_editSim": "Edited the sim",
+    "step_readReference": "Read an authoring guide",
+    "longWait": "A big sim can take a few minutes a step. You can switch window or leave this page: the work carries on, and this chat picks it up when you come back.",
+    "resumedWorking": "Still working on your last request. This chat updates when it is done."
   },
   "DefaultsCard": {
     "flagAuthoringCopilot": "Activity co-pilot (AI helper in the activity builder)",

@@ -185,7 +185,16 @@ function SimWorkshop() {
         text: t("importDone", { version: done.version, level: done.level }),
       });
       await load();
-      setResume((prev) => ({ threadId: done.draftId, seq: (prev?.seq ?? 0) + 1 }));
+      // The assistant checks every import straight away, before the teacher
+      // relies on it (2026-11-19: an outside sim imported clean and only the
+      // assistant's review found it needed fitting to the workspace). It is
+      // told not to change anything yet, which keeps the first turn short.
+      setResume((prev) => ({
+        threadId: done.draftId,
+        seq: (prev?.seq ?? 0) + 1,
+        focus: true,
+        ask: t("importCheckAsk"),
+      }));
     } catch (e) {
       setImportNote({
         text: t("importFailed", {

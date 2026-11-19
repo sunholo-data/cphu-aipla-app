@@ -26,6 +26,10 @@ export const UI_LANGUAGE_TAG = /^\[ui_language=(?:da|en)\] /;
 
 const STORAGE_PREFIX = "teacherCopilot:";
 
+/** A question to send as a turn on the teacher's behalf. With `threadId`, only
+ *  once the chat is on that conversation (a resume switches threads first). */
+type PendingAsk = { text: string; threadId?: string };
+
 /** Where a co-pilot scope's threadId is remembered. PER ACCOUNT: the backend
  *  session belongs to the user who started it, so a key shared by everyone who
  *  signs in to this browser hands account B account A's thread — every turn is
@@ -99,7 +103,8 @@ export function TeacherCopilot<P>(config: TeacherCopilotConfig<P>) {
   // via `useCopilotEntry().ask`). Held here because the chat that can send it
   // lives several layers down, inside the AG-UI provider. Cleared by the chat
   // when it goes out, so the same ask cannot fire twice.
-  const [pendingAsk, setPendingAsk] = useState<string | null>(null);
+  const [pendingAsk, setPendingAsk] = useState<PendingAsk | null>(null);
+  const askFromPanel = useCallback((text: string) => setPendingAsk({ text }), []);
   // Whether a turn is running, for the docked panel's phone launcher.
   const [busy, setBusy] = useState(false);
 
@@ -117,6 +122,7 @@ export function TeacherCopilot<P>(config: TeacherCopilotConfig<P>) {
   // with this sim"). Keyed on `seq` so asking for the same thread again counts.
   const resumeId = config.resume?.threadId;
   const resumeSeq = config.resume?.seq;
+  const resumeAsk = config.resume?.ask;
   const focusSeq = config.resume?.focus ? resumeSeq : undefined;
   useEffect(() => {
     if (!resumeId || !storageKey) return;
@@ -126,6 +132,9 @@ export function TeacherCopilot<P>(config: TeacherCopilotConfig<P>) {
       /* no storage — still switches in memory */
     }
     setThreadId(resumeId);
+    if (resumeAsk) setPendingAsk({ text: resumeAsk, threadId: resumeId });
+    // `resumeAsk` belongs to the request `resumeSeq` names; it must not re-fire alone.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resumeId, resumeSeq, storageKey, setThreadId]);
 
   const { onThreadChange } = config;
@@ -159,7 +168,7 @@ export function TeacherCopilot<P>(config: TeacherCopilotConfig<P>) {
       minimizeLabel={config.minimizeLabel}
       onClose={config.onClose}
       align={config.align}
-      onAsk={setPendingAsk}
+      onAsk={askFromPanel}
       nudge={config.nudge}
       nudgeKind={config.skillName}
     >
@@ -283,7 +292,7 @@ function CopilotResolver<P>({
 }: {
   config: TeacherCopilotConfig<P>;
   threadId: string;
-  pendingAsk?: string | null;
+  pendingAsk?: PendingAsk | null;
   onAskSent?: () => void;
   onBusyChange?: (busy: boolean) => void;
   onThreadForbidden?: () => void;
@@ -386,6 +395,18 @@ function stageText(
   return key ? t(key, stage.params) : stage.label;
 }
 
+/** Tools whose calls are listed as this turn's steps, by message key. Others
+ *  (proposal tools render as cards) are left out rather than shown by name. */
+const STEP_KEYS = {
+  read_sim: "step_readSim",
+  verify_sim: "step_verifySim",
+  edit_sim: "step_editSim",
+  read_reference: "step_readReference",
+} as const;
+
+/** After this long on one turn, say that long is normal and leaving is safe. */
+const LONG_WAIT_S = 60;
+
 /** How long the page must have been hidden mid-turn before the stream is
  *  presumed dead: iOS suspends a backgrounded tab and its fetch with it. */
 const HIDDEN_DROP_MS = 10_000;
@@ -461,7 +482,7 @@ function CopilotChat<P>({
 }: {
   config: TeacherCopilotConfig<P>;
   threadId: string;
-  pendingAsk?: string | null;
+  pendingAsk?: PendingAsk | null;
   onAskSent?: () => void;
   onBusyChange?: (busy: boolean) => void;
   onReload?: () => void;
@@ -480,6 +501,7 @@ function CopilotChat<P>({
     stop,
     turnRefused,
     clearTurnRefused,
+    sessionId: agentThreadId,
   } = useSkillAgent();
   const elapsed = useElapsedSeconds(isLoading);
   const localeMode = useLocaleMode();
@@ -510,14 +532,24 @@ function CopilotChat<P>({
     onBusyChange?.(isLoading);
   }, [isLoading, onBusyChange]);
 
-  // A phone drops the stream when its screen locks or the browser goes to the
-  // background; the turn carries on on the server. Rather than "Connection
-  // lost. Try again." (which would start a second build), wait for the run to
-  // finish and reload the conversation, which then holds the whole turn.
-  const [watching, setWatching] = useState(false);
+  // Waiting on the server's own record of the run (protocols/detached_runs.py:
+  // a teacher's turn finishes without its client), then reloading the
+  // conversation, which then holds the whole turn:
+  // - "dropped" — the stream broke (a phone locks its screen; a network error).
+  //   Says so, instead of "Connection lost. Try again.", which would start a
+  //   second build.
+  // - "quiet"   — the tab was hidden a while mid-turn. On a phone the fetch may
+  //   be suspended for good; on a laptop it is fine. So keep LISTENING (its
+  //   thoughts and steps stay on screen) and only fall back to the reload if
+  //   the server finishes and the stream never says so. Until 2026-11-19 this
+  //   stopped the stream outright: a teacher who looked at another window for
+  //   10 s lost every sign of progress for the rest of a 12-minute build.
+  // - "resumed" — the panel opened on a conversation whose run is still going
+  //   (the teacher left the page, or reloaded it). Without this it looked idle.
+  const [watch, setWatch] = useState<"dropped" | "quiet" | "resumed" | null>(null);
   const [resendHint, setResendHint] = useState(false);
   useEffect(() => {
-    if (error?.kind === "network") setWatching(true);
+    if (error?.kind === "network") setWatch("dropped");
   }, [error]);
   const loadingRef = useRef(isLoading);
   loadingRef.current = isLoading;
@@ -530,15 +562,39 @@ function CopilotChat<P>({
       }
       const away = hiddenAt === null ? 0 : Date.now() - hiddenAt;
       hiddenAt = null;
-      // The suspended fetch may never settle by itself: let it go.
       if (away >= HIDDEN_DROP_MS && loadingRef.current) {
-        setWatching(true);
-        stop();
+        setWatch((w) => w ?? "quiet");
       }
     };
     document.addEventListener("visibilitychange", onVisibility);
     return () => document.removeEventListener("visibilitychange", onVisibility);
-  }, [stop]);
+  }, []);
+  // The stream finished by itself: it was alive all along.
+  useEffect(() => {
+    if (!isLoading && watch === "quiet") setWatch(null);
+  }, [isLoading, watch]);
+  // Opened on a conversation mid-run? Asked once per thread, and only believed
+  // if this panel has not started a turn of its own meanwhile.
+  useEffect(() => {
+    if (!threadId) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await fetchWithTeacherAuth(
+          `/api/proxy/api/skill-runs/${encodeURIComponent(threadId)}`,
+        );
+        const body = res.ok ? ((await res.json()) as { running?: boolean }) : {};
+        if (!cancelled && body.running && !loadingRef.current) {
+          setWatch((w) => w ?? "resumed");
+        }
+      } catch {
+        /* unknown: the chat simply looks idle, as before */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [threadId]);
   // A send refused because the last turn is still running (HTTP 409): put the
   // text back in the box and wait with the teacher.
   useEffect(() => {
@@ -550,22 +606,48 @@ function CopilotChat<P>({
       ),
     );
     setResendHint(true);
-    setWatching(true);
+    setWatch((w) => (w === "resumed" ? w : "dropped"));
   }, [turnRefused, clearTurnRefused, config.stripPrefix]);
-  useWaitForRun(threadId, watching, onReload);
+  const onRunDone = useCallback(() => {
+    // The server is done but this stream never said so: it is dead.
+    if (loadingRef.current) stop();
+    onReload?.();
+  }, [stop, onReload]);
+  useWaitForRun(threadId, watch !== null, onRunDone);
 
   // Send a surface-asked question as a turn, once. Cleared BEFORE the await so
   // a re-render mid-flight cannot send it twice; a question that arrives while
   // the copilot is mid-turn waits for the next render rather than being
-  // dropped, because `isLoading` is in the dependency list.
+  // dropped, because `isLoading` is in the dependency list. One aimed at a
+  // thread waits until the agent is on it (a resume swaps the agent first).
   useEffect(() => {
     if (!pendingAsk || isLoading) return;
+    if (pendingAsk.threadId && pendingAsk.threadId !== agentThreadId) return;
     onAskSent?.();
-    void sendMessage(`${langTag}${config.scopePrefix ?? ""}${pendingAsk}`);
+    void sendMessage(`${langTag}${config.scopePrefix ?? ""}${pendingAsk.text}`);
     // `sendMessage` identity is not stable across renders; the guard above is
     // what makes this fire once, not the dependency list.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingAsk, isLoading]);
+  }, [pendingAsk, isLoading, agentThreadId]);
+
+  // This turn's steps, so a long build shows what it has done rather than one
+  // "Thinking…" for minutes. Tool calls from earlier turns are kept by the hook
+  // (their cards must survive), so the turn's own are those new since it began.
+  const [turnBase, setTurnBase] = useState<Set<string> | null>(null);
+  useEffect(() => {
+    setTurnBase(isLoading ? new Set(toolCalls.map((tc) => tc.id)) : null);
+    // Only on the turn starting/ending; the set is a snapshot at that moment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading]);
+  const steps = turnBase
+    ? toolCalls
+        .filter((tc) => !turnBase.has(tc.id) && tc.name in STEP_KEYS)
+        .map((tc) => ({
+          id: tc.id,
+          done: tc.status !== "running",
+          text: t(STEP_KEYS[tc.name as keyof typeof STEP_KEYS]),
+        }))
+    : [];
 
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -587,7 +669,7 @@ function CopilotChat<P>({
   const surfaceStrip = config.stripPrefix ?? ((c: string) => c);
   const strip = (c: string) => surfaceStrip(c.replace(UI_LANGUAGE_TAG, ""));
   const scroller = useStickToBottom(
-    `${visibleMessages.length}:${visibleMessages[visibleMessages.length - 1]?.content.length ?? 0}:${proposals.length}:${isLoading}:${thinkingContent?.length ?? 0}:${watching}`,
+    `${visibleMessages.length}:${visibleMessages[visibleMessages.length - 1]?.content.length ?? 0}:${proposals.length}:${isLoading}:${thinkingContent?.length ?? 0}:${watch}:${steps.length}`,
   );
 
   return (
@@ -643,6 +725,21 @@ function CopilotChat<P>({
           : null}
         {isLoading ? (
           <div className="flex flex-col gap-1">
+            {steps.length ? (
+              <ol
+                data-testid="copilot-steps"
+                className="flex flex-col gap-0.5 text-xs text-muted-foreground"
+              >
+                {steps.map((st) => (
+                  <li key={st.id} className="flex items-center gap-1.5">
+                    <span aria-hidden="true" className="w-3 text-center">
+                      {st.done ? "✓" : "…"}
+                    </span>
+                    {st.text}
+                  </li>
+                ))}
+              </ol>
+            ) : null}
             <p
               data-testid="copilot-progress"
               className="text-xs text-muted-foreground"
@@ -665,17 +762,24 @@ function CopilotChat<P>({
                 {thinkingContent.slice(-400)}
               </p>
             ) : null}
+            {elapsed >= LONG_WAIT_S ? (
+              <p data-testid="copilot-long-wait" className="text-xs text-muted-foreground">
+                {t("longWait")}
+              </p>
+            ) : null}
           </div>
         ) : null}
       </div>
 
-      {watching ? (
+      {watch === "dropped" || watch === "resumed" ? (
         <div
           role="status"
           data-testid="copilot-still-working"
           className="mx-3 mb-1 flex flex-col gap-1 rounded border border-border bg-muted/60 p-2 text-xs text-muted-foreground"
         >
-          <span className="animate-pulse">{t("stillWorking")}</span>
+          <span className="animate-pulse">
+            {t(watch === "resumed" ? "resumedWorking" : "stillWorking")}
+          </span>
           {resendHint ? <span>{t("resendHint")}</span> : null}
         </div>
       ) : error ? (

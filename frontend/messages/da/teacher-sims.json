@@ -38,14 +38,15 @@
     "newChatPlaceholder": "Du er ved at starte en ny simulering. Beskriv den i assistenten: den vises her, når assistenten har tjekket første version. Vil du hellere arbejde videre med en tidligere simulering, så vælg den ovenfor, og dens samtale åbner igen.",
     "importSim": "Importér en simulering",
     "importing": "Importerer og tjekker simuleringen (omkring et minut)…",
-    "importDone": "Importeret som en ny kladde: version {version}, niveau {level} af 3. Åbn den for at arbejde videre med assistenten.",
+    "importDone": "Importeret som en ny kladde: version {version}, niveau {level} af 3. Assistenten tjekker den nu.",
     "importFailed": "Kunne ikke importere: {reason}",
     "importNoHtml": "Vælg simuleringens .html-fil (og dens .yaml-katalogpost, hvis den kom som to filer).",
     "importHelp": "En portabel fil, en download fra værkstedet (.html og dens .yaml) eller de to filer, en anden chat har lavet ud fra byggevejledningen.",
     "downloadPortable": "Download portabel fil",
     "portableHelp": "Én .html-fil med det hele: den åbner i enhver browser, kan importeres her igen og kører som MCP App i andre chats.",
     "newSim": "Ny simulering",
-    "newSimHelp": "Start en ny simulering i en ny samtale med assistenten"
+    "newSimHelp": "Start en ny simulering i en ny samtale med assistenten",
+    "importCheckAsk": "Jeg har lige importeret denne simulering, som er lavet uden for AIPLA. Tjek den, før jeg bruger den med elever: kør browsertjekket, og fortæl mig kort, hvad der virker, og hvad en elev kan falde over (plads i arbejdsfladen, scrolling, hvad tutoren får at se). Ret ikke noget endnu: fortæl mig, hvad du vil rette, og spørg først."
   },
   "SimPublish": {
     "heading": "Udgiv",

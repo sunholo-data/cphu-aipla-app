@@ -117,8 +117,10 @@ export interface TeacherCopilotConfig<P> {
    *  request for the same thread count (back to it after a "New chat").
    *  `focus` also brings the chat forward and puts the cursor in it (the docked
    *  panel is a closed sheet on a phone): for a page button that starts
-   *  something the teacher must now describe, e.g. "New simulation". */
-  resume?: { threadId: string; seq: number; focus?: boolean } | null;
+   *  something the teacher must now describe, e.g. "New simulation".
+   *  `ask` is sent as the first turn ON THAT THREAD once the chat has switched
+   *  to it: a sim just imported is checked by the assistant straight away. */
+  resume?: { threadId: string; seq: number; focus?: boolean; ask?: string } | null;
   /** Told the conversation shown whenever it changes (mount, New chat, resume),
    *  so the surface can tell which of its items the chat belongs to. */
   onThreadChange?: (threadId: string) => void;

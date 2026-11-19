@@ -38,14 +38,15 @@
     "newChatPlaceholder": "You are starting a new simulation. Describe it in the assistant: it appears here once the assistant has checked its first version. To carry on with an earlier sim instead, pick it above and its chat reopens.",
     "importSim": "Import a sim",
     "importing": "Importing and checking the sim (about a minute)…",
-    "importDone": "Imported as a new draft: version {version}, level {level} of 3. Open it to carry on with the assistant.",
+    "importDone": "Imported as a new draft: version {version}, level {level} of 3. The assistant is checking it now.",
     "importFailed": "Could not import: {reason}",
     "importNoHtml": "Choose the sim's .html file (and its .yaml catalogue entry, if it came as two files).",
     "importHelp": "A portable file, a workshop download (the .html and its .yaml), or the two files another chat made from the authoring prompt.",
     "downloadPortable": "Download portable file",
     "portableHelp": "One .html file with everything in it: it opens in any browser, imports back in here, and runs as an MCP App in other chats.",
     "newSim": "New simulation",
-    "newSimHelp": "Start a new simulation in a fresh chat with the assistant"
+    "newSimHelp": "Start a new simulation in a fresh chat with the assistant",
+    "importCheckAsk": "I have just imported this sim, made outside AIPLA. Check it before I use it with students: run the browser check, then tell me briefly what works and anything a student would trip over (fit in the workspace, scrolling, what reaches the tutor). Do not change anything yet: tell me what you would fix and ask first."
   },
   "SimPublish": {
     "heading": "Publish",

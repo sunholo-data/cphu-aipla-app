@@ -349,6 +349,38 @@ describe("TeacherCopilot (shared shell)", () => {
     expect(sessionMessagesCalls.at(-1)).toBe(now);
   });
 
+  it("lists this turn's steps, not the tools of earlier turns", () => {
+    const earlier = { id: "old", name: "read_sim", status: "success" } as ToolCallState;
+    hook = { ...defaultHook, isLoading: false, toolCalls: [earlier] } as unknown as UseSkillAgentReturn;
+    const { rerender } = render(<TeacherCopilot {...config()} />);
+    hook = { ...defaultHook, isLoading: true, toolCalls: [earlier] } as unknown as UseSkillAgentReturn;
+    rerender(<TeacherCopilot {...config()} />);
+    hook = {
+      ...defaultHook,
+      isLoading: true,
+      toolCalls: [
+        earlier,
+        { id: "a", name: "read_sim", status: "success" },
+        { id: "b", name: "verify_sim", status: "running" },
+        { id: "c", name: "make", status: "success" },
+      ],
+    } as unknown as UseSkillAgentReturn;
+    rerender(<TeacherCopilot {...config()} />);
+    const items = within(screen.getByTestId("copilot-steps")).getAllByRole("listitem");
+    expect(items.map((li) => li.textContent)).toEqual(["✓Read the sim", "…Checked it in the browser"]);
+  });
+
+  it("a resume with an ask sends it only once the agent is on that thread", () => {
+    hook = { ...defaultHook, sessionId: "old-thread" } as unknown as UseSkillAgentReturn;
+    const { rerender } = render(<TeacherCopilot {...config()} docked />);
+    rerender(<TeacherCopilot {...config()} docked resume={{ threadId: "draft-1", seq: 1, ask: "Check this import" }} />);
+    expect(sendMessage).not.toHaveBeenCalled();
+    hook = { ...defaultHook, sessionId: "draft-1" } as unknown as UseSkillAgentReturn;
+    rerender(<TeacherCopilot {...config()} docked resume={{ threadId: "draft-1", seq: 1, ask: "Check this import" }} />);
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage.mock.calls[0][0]).toMatch(/Check this import$/);
+  });
+
   it("skips empty-content message bubbles (AG-UI tool-call turns)", () => {
     // A tool-call-only assistant turn arrives with empty content; the proposal
     // card stands in for it, so it must NOT render as an empty bubble.
@@ -425,9 +457,7 @@ describe("TeacherCopilot on a phone, and after a dropped connection", () => {
   });
 
   it("a lost connection waits for the server's run instead of asking to try again", async () => {
-    fetchWithTeacherAuth
-      .mockResolvedValueOnce({ ok: true, json: async () => ({ running: true }) })
-      .mockResolvedValue({ ok: true, json: async () => ({ running: false }) });
+    fetchWithTeacherAuth.mockResolvedValue({ ok: true, json: async () => ({ running: true }) });
     hook = {
       ...defaultHook,
       error: { kind: "network", code: "connectionLost", message: "Connection lost. Try again.", retryable: true },
@@ -435,8 +465,44 @@ describe("TeacherCopilot on a phone, and after a dropped connection", () => {
     render(<TeacherCopilot {...config()} persistKey="k" />);
     expect(await screen.findByTestId("copilot-still-working")).toBeInTheDocument();
     expect(screen.queryByText("Connection lost. Try again.")).not.toBeInTheDocument();
-    await waitFor(() => expect(fetchWithTeacherAuth).toHaveBeenCalledTimes(1));
-    expect(fetchWithTeacherAuth.mock.calls[0][0]).toMatch(/^\/api\/proxy\/api\/skill-runs\//);
+    await waitFor(() => expect(fetchWithTeacherAuth).toHaveBeenCalled());
+    for (const [url] of fetchWithTeacherAuth.mock.calls) expect(url).toMatch(/^\/api\/proxy\/api\/skill-runs\//);
+  });
+
+  // 2026-11-19: a teacher looked at another window for 10 s during a 12-minute
+  // sim build; the panel stopped listening and showed no thoughts or steps for
+  // the rest of it, then let them send a message the server refused.
+  it("a hidden tab mid-turn keeps listening: no stop, no banner, progress stays", async () => {
+    fetchWithTeacherAuth.mockResolvedValue({ ok: true, json: async () => ({ running: true }) });
+    const stop = vi.fn();
+    hook = { ...defaultHook, isLoading: true, thinkingContent: "Checking the layout", stop } as unknown as UseSkillAgentReturn;
+    const now = vi.spyOn(Date, "now");
+    now.mockReturnValue(1_000);
+    render(<TeacherCopilot {...config()} />);
+    const vis = vi.spyOn(document, "visibilityState", "get");
+    vis.mockReturnValue("hidden");
+    act(() => void document.dispatchEvent(new Event("visibilitychange")));
+    now.mockReturnValue(1_000 + 60_000);
+    vis.mockReturnValue("visible");
+    act(() => void document.dispatchEvent(new Event("visibilitychange")));
+    expect(stop).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("copilot-still-working")).not.toBeInTheDocument();
+    expect(screen.getByTestId("copilot-thinking")).toHaveTextContent("Checking the layout");
+    vis.mockRestore();
+    now.mockRestore();
+  });
+
+  it("opened on a conversation whose run is still going, says so instead of looking idle", async () => {
+    fetchWithTeacherAuth.mockResolvedValue({ ok: true, json: async () => ({ running: true }) });
+    render(<TeacherCopilot {...config()} />);
+    expect(await screen.findByTestId("copilot-still-working")).toHaveTextContent(/last request/);
+  });
+
+  it("does not claim a run in progress when the server says none is", async () => {
+    fetchWithTeacherAuth.mockResolvedValue({ ok: true, json: async () => ({ running: false }) });
+    render(<TeacherCopilot {...config()} />);
+    await waitFor(() => expect(fetchWithTeacherAuth).toHaveBeenCalled());
+    expect(screen.queryByTestId("copilot-still-working")).not.toBeInTheDocument();
   });
 
   it("a send refused while the last turn runs goes back in the box", async () => {
