@@ -43,6 +43,14 @@
 #     as a client library through ADK's LiteLlm wrapper (adk/agent.py) and
 #     never run the proxy. Added 2026-10-05; revisit when aiplatform lifts
 #     the cap (`uv lock -P 'litellm>=1.88.6' --dry-run`).
+#   GHSA-g5ff-637f-6q2m (litellm) — arbitrary local file read by a proxy
+#     `internal_user_viewer` via `vertex_ai_credentials`. Proxy-only, like
+#     PYSEC-2026-4066: reachability none. Fixed in 1.95.0. Added 2026-11-23.
+#   ⚠️ 2026-11-23: the cap IS lifted — `uv lock -P 'litellm>=1.95.0' --dry-run`
+#     now resolves 1.96.2, which fixes both litellm entries. Not taken in the
+#     demo week: an 11-minor jump in the client behind every non-Gemini model
+#     call (llm.generate's OpenAI-compatible route, ADK's LiteLlm), for two
+#     proxy-only bugs. Take it next, run `make ucloud-smoke`, drop both ignores.
 #
 set -euo pipefail
 
@@ -114,6 +122,7 @@ audit_python() {
        --ignore-vuln CVE-2026-54282 \
        --ignore-vuln CVE-2026-54283 \
        --ignore-vuln PYSEC-2026-4066 \
+       --ignore-vuln GHSA-g5ff-637f-6q2m \
        ${backport_flags[@]+"${backport_flags[@]}"} \
        --vulnerability-service osv || exit "$?"); then
     echo "${C_GREEN}PASS${C_RESET} $label"

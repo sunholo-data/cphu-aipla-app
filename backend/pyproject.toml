@@ -70,16 +70,24 @@ dev = [
 # CVE-2026-114603: ADK 2.12 still caps OTel at 1.42.1. Override the API
 # and SDK together; preserve their matching instrumentation/exporter constraints.
 # Validated with the backend suite, live opening evals and telemetry smoke tests.
-# Remove when ADK permits >=1.45.1. See docs/ops/dependency-upgrades.md.
-override-dependencies = ["opentelemetry-api==1.45.1", "opentelemetry-sdk==1.45.1"]
+# 1.45.2 (2026-11-23): CVE-2026-126360, quadratic-time traceparent parsing — a
+# DoS reachable from any request that carries a traceparent header.
+# Remove when ADK permits >=1.45.2. See docs/ops/dependency-upgrades.md.
+override-dependencies = ["opentelemetry-api==1.45.2", "opentelemetry-sdk==1.45.2"]
 # Security floors for transitive runtime dependencies; keep fresh resolutions patched.
 constraint-dependencies = [
     "aiohttp>=3.14.4",
+    "authlib>=1.9.1",
     "certifi>=2026.10.23",
+    "dnspython>=2.9.2",
     "fsspec>=2026.6.0",
     "filelock>=4.2.1",
+    "joserfc>=1.7.6",
     "mako>=1.4.2",
+    "msgpack>=1.2.3",
     "multidict>=6.9.1",
+    "oauthlib>=4.0.1",
+    "pyasn1>=0.6.5",
 ]
 
 [project.optional-dependencies]
