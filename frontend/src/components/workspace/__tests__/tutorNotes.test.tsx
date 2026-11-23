@@ -189,7 +189,10 @@ describe("Gem som noter — the writing element is mounted", () => {
 
     expect(box.value).toBe("Min egen tekst.");
     expect(calls().puts).toHaveLength(0);
-    expect(calls().pushes).toHaveLength(0);
+    // No push CARRYING THE NOTES — not "no push at all": the workspace's own
+    // debounced mount-time state push can land after the mockClear above on a
+    // loaded CI box, and failed the dev gate once that way (2026-11-23).
+    expect(calls().pushes.filter((c) => JSON.stringify(body(c)).includes("Energien"))).toHaveLength(0);
     expect(dispatch).not.toHaveBeenCalled();
     expect(screen.getByRole("status")).toHaveTextContent("ikke plads");
   });
