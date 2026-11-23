@@ -122,8 +122,27 @@ async def verify_draft(
         return DraftVerdict(level, static, None, reasons)
     artefact_id = sim_gates.conformance.artefact_name(sim_gates._text.strip_bridge(index_html)) or "draft"
     result = await browser.check(index_html, artefact_id, out_dir)
+    if result is not None and result.get("incomplete"):
+        # verify_sim.mjs wrote what it had before a step threw. Partial checks are
+        # not a verdict: grading them would fail a sim on the steps never reached.
+        stop = result["incomplete"]
+        if hasattr(browser, "last_error"):
+            browser.last_error = f"stopped during {stop.get('step')}: {stop.get('error')}"
+        result = None
     if result is None:
-        reasons.append("L2: the browser check could not run")
+        # Say what stopped it, and what that does and does not mean. A bare "could
+        # not run" let the authoring model tell a teacher the server was "out of
+        # resources" (2026-11-20), when the checker had timed out on a page that
+        # passed on the next identical run.
+        why = getattr(browser, "last_error", "") or ""
+        reasons.append(
+            "L2: the browser check could not run"
+            + (f" ({why})" if why else "")
+            + ". Nothing about the sim was judged, so this is not a fault found in it: the checker "
+            "usually just ran out of time. Submit the same version again. If it stops at the same "
+            "step every time, that step may also be slow in a student's browser — look for work "
+            "done on every animation frame that does not need to be."
+        )
         return DraftVerdict(level, static, None, reasons)
     shots = {k: Path(v) for k, v in (result.get("screenshots") or {}).items() if Path(v).is_file()}
 
@@ -187,6 +206,8 @@ class LocalBrowserCheck:
         self.repo_root = repo_root
         self.timeout_s = timeout_s
         self.last_output = ""
+        #: Why the last check returned None (for the verdict).
+        self.last_error = ""
         self.verify = repo_root / ".claude" / "skills" / "mcp-app-artefact" / "scripts" / "verify_sim.mjs"
         self.stamper = repo_root / "scripts" / "build-artefact-bridge.mjs"
         self.bridge = repo_root / "infrastructure" / "mcp-sandbox" / "bridge" / "aipla-mcp-bridge.js"
@@ -224,7 +245,9 @@ class LocalBrowserCheck:
                 # check stop at level 1, and the script's own "Could not run:
                 # Playwright is not installed" went to /dev/null.
                 logger.warning("local browser check produced no result: %s", self.last_output or "(no output)")
+                self.last_error = self.last_output[-300:]
                 return None
+            self.last_error = ""
             return json.loads(json_path.read_text())
 
     async def _run(self, *cmd: str) -> int | None:
@@ -257,6 +280,8 @@ class ServiceBrowserCheck:
     def __init__(self, url: str, timeout_s: float = 170.0) -> None:
         self.url = url.rstrip("/")
         self.timeout_s = timeout_s
+        #: Why the last check returned None, in the service's words (for the verdict).
+        self.last_error = ""
 
     def _token(self) -> str:
         import google.auth.transport.requests
@@ -271,6 +296,7 @@ class ServiceBrowserCheck:
         import httpx
 
         log = logging.getLogger(__name__)
+        self.last_error = ""
         try:
             token = await asyncio.to_thread(self._token)
             async with httpx.AsyncClient(timeout=self.timeout_s) as client:
@@ -281,9 +307,17 @@ class ServiceBrowserCheck:
                 )
         except Exception as exc:  # unreachable service = could not run, never a pass
             log.warning("sim-verify call failed: %s", type(exc).__name__)
+            self.last_error = f"the check service did not answer ({type(exc).__name__})"
             return None
         if resp.status_code != 200:
-            log.warning("sim-verify returned %s", resp.status_code)
+            # The service says why in `error` (422: the run did not finish). It was
+            # dropped here, so the log, the teacher and the model all saw only a code.
+            try:
+                detail = str(resp.json().get("error") or "")[:300]
+            except ValueError:
+                detail = ""
+            log.warning("sim-verify returned %s: %s", resp.status_code, detail or "(no detail)")
+            self.last_error = detail or f"the check service answered {resp.status_code}"
             return None
         body = resp.json()
         result = body.get("result") or {}

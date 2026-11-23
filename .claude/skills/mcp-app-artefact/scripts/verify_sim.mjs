@@ -25,6 +25,8 @@
  *   ... [--json <file>]   also write every verdict, the events and the screenshot
  *                         paths as JSON, for a program to read (the sim benchmark,
  *                         the in-app authoring agent's verify tool, the service)
+ *   ... [--gl]            force the software GPU (SwiftShader); otherwise it is on
+ *                         only for a page that mentions WebGL or a 3D/shader library
  *
  * The artefact is served over HTTP, not file://, with the CSP it really runs
  * under in the app (sandbox.html's, from serve.ts buildCspHeader({})) and with
@@ -161,8 +163,18 @@ if (!chromium) {
 }
 
 // WebGL sims (three.js) need a GPU; headless Chromium only offers the software
-// one when asked.
-const GL_ARGS = ["--enable-unsafe-swiftshader", "--use-angle=swiftshader", "--ignore-gpu-blocklist"];
+// one when asked. ONLY when asked: SwiftShader also takes over plain 2D canvas
+// raster, and a 2D sim that redraws every frame then costs ~50x the CPU (a
+// li-ion battery draft, 2026-11-23: 139 s of CPU with it, 3 s without, same
+// verdict). On the 2-vCPU sim-verify service that made the same page pass in
+// 100 s or die at ~70 s on a 30 s Playwright timeout, so a teacher was told
+// "could not run" for a sim with nothing wrong in it. Detection is deliberately
+// over-broad — any mention of WebGL or a vendored 3D/shader library keeps the
+// GPU — because a missed WebGL sim would fail, and a false match only costs time.
+// `--gl` forces it.
+const needsWebGL =
+  flag("--gl") || /webgl|\/vendor\/(three|anatomy-kit)\//i.test(readFileSync(artefactFile, "utf8"));
+const GL_ARGS = needsWebGL ? ["--enable-unsafe-swiftshader", "--use-angle=swiftshader", "--ignore-gpu-blocklist"] : [];
 
 let browser;
 try {
@@ -243,7 +255,28 @@ await new Promise((r) => server.listen(0, "127.0.0.1", r));
 const url = `http://127.0.0.1:${server.address().port}/artefact/index.html`;
 let failures = 0;
 // Everything the text output says, as data. Written with --json.
-const result = { artefact: artefactId, file: artefactFile, checks: [], selfTest: null, pageErrors: [], screenshots: {}, events: [] };
+const result = { artefact: artefactId, file: artefactFile, gl: needsWebGL, checks: [], selfTest: null, pageErrors: [], screenshots: {}, events: [] };
+
+// A step that throws (a Playwright action past its 30 s default, a crashed
+// page) used to end the process with no JSON at all, and every caller could
+// only say "could not run" — the authoring model then invented a reason
+// ("the server is out of resources"). Now the result is still written, with
+// the step it stopped at. Exit 2 = could not run: an unfinished check is never
+// a pass, and `incomplete` tells every caller not to read it as one.
+let step = "self-test";
+const stopped = (err) => {
+  const msg = String(err?.message ?? err).split("\n")[0].slice(0, 300);
+  console.error(`Could not finish: stopped during ${step}: ${msg}`);
+  if (jsonOut) {
+    result.failures = failures;
+    result.incomplete = { step, error: msg };
+    try { writeFileSync(jsonOut, JSON.stringify(result, null, 1)); } catch { /* nothing left to report with */ }
+  }
+  process.exit(2);
+};
+process.on("uncaughtException", stopped);
+process.on("unhandledRejection", stopped);
+
 const fail = (msg) => { failures++; result.checks.push({ ok: false, msg }); console.log(`  FAIL  ${msg}`); };
 const pass = (msg) => { result.checks.push({ ok: true, msg }); console.log(`  OK    ${msg}`); };
 
@@ -273,6 +306,7 @@ console.log(`\nVerifying ${artefactId}\n  ${artefactFile}\n`);
 
 // ------------------------------------------------------------- 2. viewports
 for (const width of [390, 700, 1024]) {
+  step = `the ${width}px screenshot`;
   const page = await browser.newPage({ viewport: { width, height: 900 } });
   await page.goto(url);
   await page.waitForTimeout(300);
@@ -295,6 +329,7 @@ console.log(`  ...    screenshots in ${outDir}`);
 // the start control, and diff two frames of the main drawing 1.7 s apart. A sim
 // with no start control is reported, not failed: some are driven by dragging.
 if (drive) {
+  step = "the motion check (pressing start)";
   const page = await browser.newPage({ viewport: { width: 700, height: 900 } });
   await page.goto(url);
   await page.waitForTimeout(400);
@@ -346,6 +381,7 @@ if (drive) {
 // ---------------------------------------------------------------- 3. drive
 if (drive) {
   console.log("\n  Driving the sim (generic sweep)\n");
+  step = "the click-through (pressing every button)";
   const page = await browser.newPage({ viewport: { width: 700, height: 900 } });
   // The bridge posts to `parent`; at top level that is this window, so a plain
   // listener sees exactly what the host sandbox proxy would receive.

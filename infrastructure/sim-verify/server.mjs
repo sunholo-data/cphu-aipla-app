@@ -28,7 +28,7 @@ const SHOTS = ["390", "700", "driven"];
 const run = (cmd, args, cwd) =>
   new Promise((resolve) => {
     execFile(cmd, args, { cwd, timeout: TIMEOUT_MS, maxBuffer: 4 * 1024 * 1024 }, (err, stdout, stderr) =>
-      resolve({ code: err ? (err.code ?? 1) : 0, stdout, stderr }),
+      resolve({ code: err ? (err.code ?? 1) : 0, killed: Boolean(err?.killed), stdout, stderr }),
     );
   });
 
@@ -45,17 +45,30 @@ async function verify(html, id) {
     if (stamp.code !== 0) return { ok: false, error: "could not stamp the bridge: " + stamp.stderr.slice(0, 300) };
     const out = join(root, "out");
     const json = join(root, "result.json");
-    await run(
+    const started = Date.now();
+    const proc = await run(
       "node",
       [join(APP, ".claude/skills/mcp-app-artefact/scripts/verify_sim.mjs"), id, "--path", join(art, "index.html"), "--drive", "--out", out, "--json", json],
       APP,
     );
+    const seconds = Math.round((Date.now() - started) / 1000);
     let result;
     try {
       result = JSON.parse(await readFile(json, "utf8"));
     } catch {
-      return { ok: false, error: "the browser check did not produce a result (timeout or crash)" };
+      result = null;
     }
+    // One line per run: how long, and where an unfinished run stopped. Never the
+    // draft itself, and never the page's output — only the checker's own words.
+    const why = result?.incomplete
+      ? `stopped during ${result.incomplete.step}: ${result.incomplete.error}`
+      : result
+        ? null
+        : proc.killed
+          ? `killed after ${TIMEOUT_MS / 1000} s`
+          : `no result (exit ${proc.code}): ${proc.stderr.trim().split("\n").slice(-1)[0]?.slice(0, 200) ?? ""}`;
+    console.log(JSON.stringify({ verify: id, seconds, gl: result?.gl ?? null, ok: !why, why }));
+    if (why) return { ok: false, error: `the browser check did not finish after ${seconds} s (${why})` };
     const screenshots = {};
     for (const k of SHOTS) {
       const p = result.screenshots?.[k];
