@@ -175,3 +175,63 @@ async def test_the_service_check_keeps_the_422_detail(tmp_path, monkeypatch):
 
     assert await check.check("<html></html>", "demo-sim", tmp_path) is None
     assert check.last_error == detail
+
+
+# ── every checker busy (2026-11-23) ───────────────────────────────────────────
+# The service runs one check per instance, at most three. A 4th check at the
+# same moment was turned away by Cloud Run in 0 s (a non-JSON 500), and the
+# teacher saw "could not run". It now waits and retries, then says "busy".
+
+
+def _service(monkeypatch, responses: list):
+    import httpx
+
+    from sim_authoring.verify import ServiceBrowserCheck
+
+    sent = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        sent.append(request)
+        return responses[min(len(sent) - 1, len(responses) - 1)]
+
+    real_client = httpx.AsyncClient
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: real_client(transport=httpx.MockTransport(handler), **kw))
+    check = ServiceBrowserCheck("https://sim-verify.example")
+    check.busy_waits_s = (0.0, 0.0, 0.0)
+    monkeypatch.setattr(check, "_token", lambda: "t")
+    return check, sent
+
+
+BUSY = __import__("httpx").Response(500, text="<html>Service Unavailable</html>")
+GOOD = __import__("httpx").Response(200, json={"ok": True, "result": browser_result(), "screenshots": {}})
+
+
+@pytest.mark.asyncio
+async def test_a_busy_checker_is_retried_until_one_is_free(tmp_path, monkeypatch):
+    check, sent = _service(monkeypatch, [BUSY, BUSY, GOOD])
+    result = await check.check("<html></html>", "demo-sim", tmp_path)
+    assert result is not None and result["selfTest"] == "pass"
+    assert len(sent) == 3
+
+
+@pytest.mark.asyncio
+async def test_a_checker_still_busy_says_busy_not_broken(tmp_path, monkeypatch):
+    check, sent = _service(monkeypatch, [BUSY])
+    assert await check.check("<html></html>", "demo-sim", tmp_path) is None
+    assert len(sent) == 4  # the first try and three retries
+    assert "busy" in check.last_error
+    lvl, reasons = await level(tmp_path, browser=StoppedBrowser(None, last_error=check.last_error))
+    assert lvl == 1 and "busy" in reasons[0] and "wait a minute" in reasons[0]
+    assert "ran out of time" not in reasons[0]
+
+
+@pytest.mark.asyncio
+async def test_the_services_own_500_is_not_mistaken_for_busy(tmp_path, monkeypatch):
+    # The service answers JSON with `ok` even when it crashes: that is a real
+    # error to report, not a reason to resend the same page three more times.
+    import httpx
+
+    check, sent = _service(monkeypatch, [httpx.Response(500, json={"ok": False, "error": "TypeError: x"})])
+    assert await check.check("<html></html>", "demo-sim", tmp_path) is None
+    assert len(sent) == 1
+    assert check.last_error == "TypeError: x"

@@ -135,14 +135,16 @@ async def verify_draft(
         # resources" (2026-11-20), when the checker had timed out on a page that
         # passed on the next identical run.
         why = getattr(browser, "last_error", "") or ""
-        reasons.append(
-            "L2: the browser check could not run"
-            + (f" ({why})" if why else "")
-            + ". Nothing about the sim was judged, so this is not a fault found in it: the checker "
-            "usually just ran out of time. Submit the same version again. If it stops at the same "
-            "step every time, that step may also be slow in a student's browser — look for work "
-            "done on every animation frame that does not need to be."
-        )
+        if "busy" in why:
+            advice = "Nothing about the sim was judged. Tell the teacher to wait a minute, then check the same version again."
+        else:
+            advice = (
+                "Nothing about the sim was judged, so this is not a fault found in it: the checker "
+                "usually just ran out of time. Submit the same version again. If it stops at the same "
+                "step every time, that step may also be slow in a student's browser — look for work "
+                "done on every animation frame that does not need to be."
+            )
+        reasons.append("L2: the browser check could not run" + (f" ({why})" if why else "") + ". " + advice)
         return DraftVerdict(level, static, None, reasons)
     shots = {k: Path(v) for k, v in (result.get("screenshots") or {}).items() if Path(v).is_file()}
 
@@ -282,6 +284,10 @@ class ServiceBrowserCheck:
         self.timeout_s = timeout_s
         #: Why the last check returned None, in the service's words (for the verdict).
         self.last_error = ""
+        #: Pauses between attempts when Cloud Run turns a check away because every
+        #: instance is busy (the service runs one check per instance, three
+        #: instances). 30 s in all: one other check usually finishes inside it.
+        self.busy_waits_s: tuple[float, ...] = (5.0, 10.0, 15.0)
 
     def _token(self) -> str:
         import google.auth.transport.requests
@@ -300,14 +306,25 @@ class ServiceBrowserCheck:
         try:
             token = await asyncio.to_thread(self._token)
             async with httpx.AsyncClient(timeout=self.timeout_s) as client:
-                resp = await client.post(
-                    f"{self.url}/verify",
-                    json={"index_html": index_html, "artefact_id": artefact_id},
-                    headers={"Authorization": f"Bearer {token}"},
-                )
+                for attempt, wait_s in enumerate((*self.busy_waits_s, None)):
+                    resp = await client.post(
+                        f"{self.url}/verify",
+                        json={"index_html": index_html, "artefact_id": artefact_id},
+                        headers={"Authorization": f"Bearer {token}"},
+                    )
+                    if not _turned_away(resp) or wait_s is None:
+                        break
+                    log.info(
+                        "sim-verify busy (%s, attempt %d); retrying in %.0f s", resp.status_code, attempt + 1, wait_s
+                    )
+                    await asyncio.sleep(wait_s)
         except Exception as exc:  # unreachable service = could not run, never a pass
             log.warning("sim-verify call failed: %s", type(exc).__name__)
             self.last_error = f"the check service did not answer ({type(exc).__name__})"
+            return None
+        if _turned_away(resp):
+            log.warning("sim-verify still busy after %d attempts (%s)", len(self.busy_waits_s) + 1, resp.status_code)
+            self.last_error = "the checker is busy with other people's sims right now. Wait a minute, then check again"
             return None
         if resp.status_code != 200:
             # The service says why in `error` (422: the run did not finish). It was
@@ -330,6 +347,21 @@ class ServiceBrowserCheck:
                 paths[name] = str(p)
         result["screenshots"] = paths
         return result
+
+
+def _turned_away(resp) -> bool:
+    """Cloud Run refused the request before it reached the service (every instance busy).
+
+    The service itself always answers JSON with an ``ok`` field, even its own 500,
+    so a 429/500/503 WITHOUT one came from the platform: no instance was free
+    (seen 2026-11-23 as an instant 500 when a 4th check arrived at max-instances 3).
+    """
+    if resp.status_code not in (429, 500, 503):
+        return False
+    try:
+        return "ok" not in resp.json()
+    except ValueError:
+        return True
 
 
 def browser_from_env() -> BrowserCheck | None:
