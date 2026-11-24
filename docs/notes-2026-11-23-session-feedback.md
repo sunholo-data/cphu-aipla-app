@@ -26,7 +26,7 @@ Nothing has been designed or fixed yet. The follow-up actions at the end are
 
 | # | Short answer | Bug, gap, or new feature? |
 |---|---|---|
-| 1 | **Confirmed.** Closing a sim removes it from the page. When it opens again, it starts from scratch. The platform has no way to give a sim its earlier state back. | **Bug** that students will hit. Quick fix possible per sim; proper fix is in the platform |
+| 1 | **Confirmed.** Closing a sim removes it from the page. When it opens again, it starts from scratch. *(Corrected 2026-11-24:)* a restore path exists on the server but is **never connected to the sim**. | **Bug** that students will hit. Quick fix possible per sim; proper fix is in the platform → [1.1.160](design/aipla/v2.1.0-extension/sim-state-survives-close.md) |
 | 2 | **Chat only.** The teacher's *active / quiet / stuck* label comes from the last **chat turn**. A group working in the table, writing box or sim without chatting shows as *quiet*, and after 6 min may be flagged *stuck*. | **Wrong signal.** The data to fix it already exists |
 | 3 | **Only afterwards.** The recording is transcribed while it runs, and the session summary reads the transcript. The live tutor never sees it. | **Designed, not built**: [group-talk-to-tutor.md](design/aipla/v2.1.0-extension/group-talk-to-tutor.md) (PROPOSED 2026-09-21, ~2d, waiting for JB's data-use OK) |
 | 4 | The tutor already speaks first in three cases: greeting the group, after a **sim event** and after a **checklist step**. It never speaks because of silence, a table entry or what the group says out loud. | **New feature.** Needs a design and a research decision first. Depends on 2 and 3 |
@@ -55,6 +55,17 @@ computer, so stored text would pass to the next student. It allows
 (`.claude/skills/mcp-app-artefact/resources/authoring-prompt.md:141-143`). That
 fixes closing and reopening **in the same tab**. It does not help after the tab
 is closed, on another groupmate's device, or in the next lesson.
+
+> **Correction, 2026-11-24.** The first version of this note said the platform
+> "has no way to give a sim its earlier state back". That is too strong. A
+> restore was **built at both ends and never joined**.
+> `POST /api/sessions/{id}/restore` returns the saved sim state on re-join, and
+> the chat page stores it in `restoredWorkbenchState`
+> (`app/chat/[...path]/page.tsx:815`), but **nothing reads that variable**, and
+> no sim listens for the `aipla:restore` message it was meant to become. The
+> bridge also has an `AIPLA_BRIDGE.initialState()` hook that returns saved state
+> on ChatGPT and `null` in AIPLA. See
+> [1.1.160](design/aipla/v2.1.0-extension/sim-state-survives-close.md).
 
 **The proper fix belongs to the platform.** The pieces already exist:
 
@@ -162,6 +173,21 @@ working. Interjecting on the discussion needs the tutor to hear it (point 3).
 
 ## Follow-up actions for the roadmap
 
+**Design docs written 2026-11-24** (registered in
+[v1.1.0-feedback/SEQUENCE.md](design/aipla/v1.1.0-feedback/SEQUENCE.md) under
+*Classroom session, 2026-11-23*):
+
+| Doc | Covers actions |
+|---|---|
+| [1.1.160 sim-state-survives-close](design/aipla/v2.1.0-extension/sim-state-survives-close.md) | 1, 2, 3 |
+| [1.1.161 live-status-counts-workbench-work](design/aipla/v2.1.0-extension/live-status-counts-workbench-work.md) | 4 |
+| [group-talk-to-tutor](design/aipla/v2.1.0-extension/group-talk-to-tutor.md), addendum M0a | 5, 6 |
+| [1.1.162 tutor-interjects](design/aipla/v2.1.0-extension/tutor-interjects.md) | 7. Also depends on [1.1.154](design/aipla/v1.1.0-feedback/tutor-pacing-and-reactivity.md) M1 (*never interrupt a draft*), an open design from 22 October that this note originally missed |
+
+Each doc has an **M0** of read-only prod log queries for the 23 November
+session. They have **not been run yet**: the gcloud account in use could not
+read `aipla-prod-2026`.
+
 Mapped to the
 [extension plan](design/aipla/v2.1.0-extension/plan-2026-09-to-2027-04.md)
 workstreams. Estimates are rough and **not yet sized against a design doc**.
@@ -170,7 +196,7 @@ workstreams. Estimates are rough and **not yet sized against a design doc**.
 |---|---|---|---|---|---|
 | 1 | **Find out which sim** lost its text, and on what device / browser | — | — | M | Probably `sekant-intro`. If it was a teacher's own sim, item 3 matters more |
 | 2 | **Quick fix:** `sekant-intro` keeps its text fields in `sessionStorage` | C (residue) | ~0.25d | M / AD | Fixes close and reopen in the same tab only. Good pairing task for AD |
-| 3 | **Platform fix: restore sim state on reopen.** When the sim opens, the platform sends it the last saved `state`, through the existing host→sim channel. Sims opt in. Add "text the student typed goes in `state`" to the authoring prompt and the `mcp-app-artefact` skill, and check it in the import path | C → design doc | ~1.5–2d | M | Covers new tabs, other devices and the next lesson. Teachers' imported sims get it only if they follow the bridge. A cheaper stopgap is to **hide the iframe instead of unmounting it**, but that is same-tab only and keeps the sim running in the background |
+| 3 | **Platform fix: restore sim state on reopen.** When the sim opens, the platform gives it the last saved `state` through the bridge's existing `initialState()`, and connects the dropped `restoredWorkbenchState`. Sims opt in. Add "text the student typed goes in `state`" to the authoring prompt and the `mcp-app-artefact` skill, and check it in the import path | C → design doc | ~1.5–2d | M | Covers new tabs, other devices and the next lesson. Teachers' imported sims get it only if they follow the bridge. A cheaper stopgap is to **hide the iframe instead of unmounting it**, but that is same-tab only and keeps the sim running in the background |
 | 4 | **Active/inactive counts workbench work.** "Last activity" = latest of chat, workbench writes and sim events. Show *where* the group is working, and separate "page open" from "doing something" | C (residue) | ~1–1.5d | M / AD | Fix it **before** anything uses *stuck* as a trigger (item 7). Group-level only. A test with a group that only uses the table must show *active* |
 | 5 | **Tell the tutor a recording is running**, without the transcript | D (tutors) | ~0.5d | M | No new data reaches the model, so it may not need the data-use OK. **Confirm with JB** |
 | 6 | **Decide on [group-talk-to-tutor](design/aipla/v2.1.0-extension/group-talk-to-tutor.md)** M0–M2 with JB / AR: is the Accountable Talk arm wanted in 2026/27? If yes, get the data-use OK and build it | D (tutors) | ~2d | JB / AR decide, M builds | Without it, the Accountable Talk tutor is gated on a recording it can't hear |

@@ -103,6 +103,44 @@ said?"* — which the tutor can only approximate (*"someone in your group said
 (voiceprints). Record it as the known limit of M0, and let AR/JB say whether
 the approximation is acceptable for an arm before anyone sizes it.
 
+## Revisited 2026-11-23 — the question came from a classroom
+
+The session of 2026-11-23 asked the question this doc answers, from the
+classroom side: *"when we are audio recording a group does the tutor be aware of
+this during the conversation or just afterwards in the summary?"*
+([notes-2026-11-23-session-feedback.md](../../../notes-2026-11-23-session-feedback.md),
+point 3). The answer on `dev` is still **only afterwards**:
+`reports/session_summary.py:157` reads the transcript, and nothing under
+`backend/adk/` reads recordings.
+
+It also adds a smaller step that does not need the transcript.
+
+### M0a — the tutor knows a recording is running (~0.5d, proposed)
+
+Tell the tutor **that** the group is being recorded, not **what** was said, so
+it can stop behaving as if the room were silent. For example: *"I can't hear your
+discussion. Tell me what you agreed on."* That is better than repeating a
+question the group has just settled out loud.
+
+- **Signal.** A segment for the caller's group landed within the last ~2
+  minutes. Segments are ~50 s (`recording_routes.py`), so this is "recording
+  now" without a new client flag. The browser's recording state is the
+  alternative, but it is a claim from the client where the server already has
+  the fact.
+- **Prompt.** One fixed sentence, only while the signal holds. This **does
+  change the prompt for any framework** while a class records, which the
+  passthrough guarantee in the tutors handover has to allow explicitly.
+  Recording state is a fact about the class, not a teaching approach. Record
+  that reasoning in the handover when it ships.
+- **Consent.** No transcript reaches the model, only a boolean, so M1's
+  data-use question may not apply. **Confirm with JB** rather than assume.
+- **Tests.** Recording on → the sentence is present. Recording off, or the last
+  segment older than the window → the prompt is byte-identical to today.
+
+M0a is independent of the decision below. It is useful even if the group-talk
+arm is not wanted, and [1.1.162 tutor-interjects](tutor-interjects.md) builds
+on M0 if it is.
+
 ## What this does NOT change
 
 - The recorder, its storage, retention and deletion path — untouched.
