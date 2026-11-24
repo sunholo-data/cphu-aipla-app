@@ -183,7 +183,14 @@ Verify deployed, as a teacher sees it:
 
 ```bash
 make smoke-sim ENV=dev ID=<id>    # sandbox HTML + /vendor libs + teacher catalogue + no tutorBlock leak
+make smoke-sim-reopen ENV=dev     # as a STUDENT, in real Chromium: type, close the sim, reopen, still there?
 ```
+
+`smoke-sim-reopen` defaults to `sekant-intro`'s function field. For a sim with
+its own text field, pass `SIM=<id> FIELD='<css selector>'`. The host keeps a
+closed sim alive (1.1.160 M1), so any sim passes this without code of its own.
+Surviving a **new tab** or another device is a different matter: that needs the
+sim to restore from `AIPLA_BRIDGE.initialState()` (1.1.160 M2–M5, not built yet).
 
 It signs in as the test teacher (`test-teacher@example.dk`, on all three envs;
 `scripts/mint-test-teacher-token.sh`). The catalogue is teacher-only, so an

@@ -334,7 +334,14 @@ failing, which looks exactly like a failed promotion. Fixed 2026-08-04.
 ```bash
 ./scripts/smoke-deployed.sh prod all   # also runs inside the promote build
 make deploy-status                     # confirm test and prod are level
+make smoke-sim-reopen ENV=prod         # if the release touched the student workspace or a sim frame
 ```
+
+`smoke-sim-reopen` is the one check here that drives a **real browser** as a
+student. It exists because a sim lost students' typed work on close and reopen
+(2026-11-23, fixed in v0.1.113), and nothing short of a browser can see an
+iframe reload. Run it on test before promoting and on prod after; v0.1.113 went
+out that way.
 
 **Your local checkout is irrelevant** — you do not need to check out the tag.
 `promote-env.sh` runs `gcloud builds triggers run aipla-prod-promote

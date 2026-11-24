@@ -902,6 +902,16 @@ smoke-sim:
 smoke-student-view:
 	@scripts/smoke-student-view.sh $(or $(ENV),dev)
 
+# Does what a student TYPED into a sim survive closing and reopening it, on a
+# deployed env, in a real (headless) Chromium? 1.1.160 M1 — the 23 Nov 2026 bug.
+# Test teacher makes a throwaway activity with the sim, a joined group types,
+# closes, reopens, reads back; the activity is deleted. One tutor greeting per run.
+#   make smoke-sim-reopen ENV=prod
+#   make smoke-sim-reopen ENV=dev SIM=<built-in id> FIELD='<css selector>'
+.PHONY: smoke-sim-reopen
+smoke-sim-reopen:
+	@SIM="$(SIM)" FIELD="$(FIELD)" scripts/smoke-sim-reopen.sh $(or $(ENV),dev)
+
 sim-build-check:
 	@node scripts/build-artefact-bridge.mjs --check
 	@node scripts/build-anatomy-kit-vendor.mjs --check

@@ -147,6 +147,10 @@ What shipped (`StudentWorkspace.tsx`, `workspaceLayout.tsx`):
   for free.
 - Tests: `StudentWorkspace.test.tsx` *keeps what the student typed in the sim
   across a close and reopen* fails on the old component and passes on the new.
+  **In a real browser on a deployed env: `make smoke-sim-reopen ENV=<env>`**
+  (`scripts/smoke-sim-reopen.sh`). It printed `survived:false`, 2 iframe loads
+  on test before the release and `survived:true`, 0 loads on dev, test and prod
+  after. M4 should extend it with a new-tab variant.
   There are also tests for flush registration, for not carrying a frame over
   to a different sim, and for re-applying focus on reopen.
 
