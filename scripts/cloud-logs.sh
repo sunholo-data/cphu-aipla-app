@@ -8,6 +8,7 @@
 #   ./scripts/cloud-logs.sh tail frontend        # frontend ui only
 #   ./scripts/cloud-logs.sh tail sandbox         # mcp-sandbox service
 #   ./scripts/cloud-logs.sh errors               # last 50 errors across all services
+#   (for a sorted "is it healthy?" report use `make log-health ENV=prod` instead)
 #   ./scripts/cloud-logs.sh session <id>         # everything tagged with this session_id
 #   ./scripts/cloud-logs.sh trace <session_id>   # open Cloud Trace UI filtered to this session
 #   ./scripts/cloud-logs.sh build                # the most recent Cloud Build (tail or last status)
@@ -22,15 +23,13 @@ set -uo pipefail
 # ─── Env resolution ─────────────────────────────────────────────────────────
 ENV="${AIPLA_ENV:-dev}"
 case "$ENV" in
-    dev)
-        PROJECT="${AIPLA_PROJECT:-aipla-dev-2026}"
+    dev|test|prod)
+        # All three envs exist (test since 2026-07-27, prod since 2026-07-28);
+        # this used to refuse test/prod as "not cut yet".
+        PROJECT="${AIPLA_PROJECT:-aipla-${ENV}-2026}"
         REGION="europe-north1"
         FRONTEND="aipla-v01-frontend"
         SANDBOX="aipla-v01-sandbox"
-        ;;
-    test|prod)
-        echo "ERROR: env=$ENV not cut yet; only dev exists. Set AIPLA_PROJECT explicitly." >&2
-        exit 2
         ;;
     *)
         PROJECT="${AIPLA_PROJECT:?Set AIPLA_PROJECT for env=$ENV}"

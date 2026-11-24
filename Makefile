@@ -312,6 +312,18 @@ cloud-errors:
 	@chmod +x scripts/cloud-logs.sh
 	@scripts/cloud-logs.sh errors
 
+# Is a deployed env healthy? Sorts the last HOURS of warnings/errors into
+# problems / look-at / recovered / known / noise, plus browser errors and sim
+# checks. Read-only. Exit 1 on problems, 2 if the logs could not be read.
+#   make log-health ENV=prod [HOURS=24]
+.PHONY: log-health test-log-health
+log-health:
+	@test -n "$(ENV)" || { echo "ENV is required: make log-health ENV=prod [HOURS=24]"; exit 1; }
+	@python3 scripts/log_health.py $(ENV) --hours $(or $(HOURS),24)
+
+test-log-health:
+	@python3 -m unittest discover -s scripts/tests -p 'test_log_health.py'
+
 # Show recent Cloud Build runs + tail the most recent log.
 cloud-build:
 	@chmod +x scripts/cloud-logs.sh

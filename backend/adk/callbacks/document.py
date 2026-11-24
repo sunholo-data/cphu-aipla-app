@@ -80,10 +80,14 @@ def make_document_loader() -> Any:
         document_ids: list[str] = list(state.get("document_ids") or [])
         loaded_raw: list[str] = list(state.get(_STATE_DOCS_LOADED) or [])
 
-        # WARNING level (not INFO) so this single forensic line surfaces in
-        # .dev-logs/backend.log without re-configuring Python's root logger.
-        # See docs/design/v6.1.0/multi-doc-context-fix.md (1.22) — D1.
-        logger.warning(
+        # The forensic line from docs/design/v6.1.0/multi-doc-context-fix.md
+        # (1.22) — D1. It was WARNING so it would surface before the root logger
+        # was lowered to INFO (fast_api_app.py); since then INFO reaches Cloud
+        # Logging, and as a WARNING it was ~250 lines a day on prod, nearly all
+        # "document_ids=[] prior loaded=[]" — a turn with no documents, which is
+        # nothing to see. INFO when there are documents; DEBUG when there are none.
+        logger.log(
+            logging.INFO if (document_ids or loaded_raw) else logging.DEBUG,
             "doc loader: turn start — document_ids=%s prior loaded=%s",
             document_ids,
             loaded_raw,

@@ -11,6 +11,32 @@ import logging
 import os
 
 
+class _DropMessage(logging.Filter):
+    """Drop log records whose message contains a fixed phrase; keep the rest."""
+
+    def __init__(self, phrase: str) -> None:
+        super().__init__()
+        self.phrase = phrase
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return self.phrase not in record.getMessage()
+
+
+# One WARNING per model call with tools, ~280 a day on prod: the Gemini SDK
+# reporting that automatic function calling is off because ADK hands it function
+# DECLARATIONS. ADK runs the tools itself, so AFC being off is exactly what we
+# want. Filtered by phrase, not by silencing ``google_genai.models``, so every
+# other warning that logger raises still reaches Cloud Logging.
+_AFC_NOTICE = "not compatible with automatic function calling (AFC)"
+
+
+def quiet_known_sdk_noise() -> None:
+    """Install filters for SDK log lines that describe intended behaviour. Idempotent."""
+    sdk = logging.getLogger("google_genai.models")
+    if not any(isinstance(f, _DropMessage) and f.phrase == _AFC_NOTICE for f in sdk.filters):
+        sdk.addFilter(_DropMessage(_AFC_NOTICE))
+
+
 def setup_telemetry() -> str | None:
     """Configure OpenTelemetry and GenAI telemetry with GCS upload."""
 
@@ -23,6 +49,8 @@ def setup_telemetry() -> str | None:
         "opentelemetry.sdk.metrics.export",
     ):
         logging.getLogger(noisy).setLevel(logging.CRITICAL)
+
+    quiet_known_sdk_noise()
 
     # Sprint 2.14 — register TenantAttributeSpanProcessor on whichever
     # TracerProvider is active. ADK + the GenAI auto-instrumentation
