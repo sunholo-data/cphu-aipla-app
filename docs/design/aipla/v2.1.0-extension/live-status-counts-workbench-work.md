@@ -79,12 +79,39 @@ never content.
 
 ## Milestones
 
-### M0 — evidence (~0.25d, M runs the queries)
+### M0 — evidence (**done 2026-11-24**)
 
-Read-only, prod, 2026-11-23: for each group, list chat turns next to
-progress-route and `iframe-context` request times. Count the minutes that group
-would have shown as *quiet* or *stuck* while it was writing to the workbench.
-That number goes in the release note.
+Prod, class `f2b1419f2e54`, 23 November, the 5 student groups (the teacher's
+preview groups and an all-day test group excluded). For every minute with at
+least one workbench event, how long since that group's last student turn:
+
+| | Minutes |
+|---|---|
+| Minutes with workbench activity | **129** |
+| …in which the chat-only rule showed *quiet* (≥5 min since a turn) | **21** |
+| …in which it showed *stuck* (≥2 turns, 6–30 min since a turn) | **16** |
+
+About **one working minute in six was mislabelled**, and every one of them was
+a group working in a sim (all workbench events that day were `bohr-spektrum` or
+`li-ion-batteri` pushes). The numbers are approximate: minute buckets, and
+student turns rather than the index's `last_message_at`, which also moves on
+tutor turns, a few seconds later.
+
+```sql
+WITH chat AS (SELECT group_id, ts FROM chat_logs.chat_turns
+              WHERE DATE(ts) = '2026-11-23' AND class_id = 'f2b1419f2e54' AND role = 'student'),
+wb AS (SELECT DISTINCT group_id, TIMESTAMP_TRUNC(ts, MINUTE) AS m FROM chat_logs.workbench_events
+       WHERE DATE(ts) = '2026-11-23' AND class_id = 'f2b1419f2e54'),
+j AS (SELECT wb.group_id, wb.m,
+        (SELECT MAX(c.ts) FROM chat c WHERE c.group_id = wb.group_id
+           AND c.ts <= TIMESTAMP_ADD(wb.m, INTERVAL 59 SECOND)) AS last_chat,
+        (SELECT COUNT(*) FROM chat c WHERE c.group_id = wb.group_id AND c.ts <= wb.m) AS prior_turns
+      FROM wb)
+SELECT group_id, COUNT(*) AS minutes_working,
+  COUNTIF(last_chat IS NULL OR TIMESTAMP_DIFF(m, last_chat, SECOND) >= 300) AS shown_quiet,
+  COUNTIF(prior_turns >= 2 AND TIMESTAMP_DIFF(m, last_chat, SECOND) BETWEEN 360 AND 1800) AS shown_stuck
+FROM j GROUP BY 1
+```
 
 ### M1 — the stamp (~0.5d)
 

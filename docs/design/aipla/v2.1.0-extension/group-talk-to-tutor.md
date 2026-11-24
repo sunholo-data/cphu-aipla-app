@@ -113,7 +113,17 @@ point 3). The answer on `dev` is still **only afterwards**:
 `reports/session_summary.py:157` reads the transcript, and nothing under
 `backend/adk/` reads recordings.
 
-It also adds a smaller step that does not need the transcript.
+**What the prod logs show for that lesson** (class `f2b1419f2e54`, read
+2026-11-24): the class ran the **Accountable Talk** tutor, the one approach
+this doc exists for. **3 of its 5 groups recorded**: 279 segments, about 3.5
+hours of audio, all transcribed and none heard by the tutor. One group had
+**two devices recording at once** for about 44 minutes (two `seq=0` runs that
+overlap), which is the problem
+[group-recording-coordination](../v1.1.0-feedback/group-recording-coordination.md)
+(Planned, P1, ~1d) exists to prevent. That duplicate also matters here: M0
+would inject the same talk twice.
+
+The lesson also adds a smaller step that does not need the transcript.
 
 ### M0a — the tutor knows a recording is running (~0.5d, proposed)
 

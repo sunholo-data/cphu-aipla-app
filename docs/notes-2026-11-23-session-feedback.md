@@ -31,6 +31,23 @@ Nothing has been designed or fixed yet. The follow-up actions at the end are
 | 3 | **Only afterwards.** The recording is transcribed while it runs, and the session summary reads the transcript. The live tutor never sees it. | **Designed, not built**: [group-talk-to-tutor.md](design/aipla/v2.1.0-extension/group-talk-to-tutor.md) (PROPOSED 2026-09-21, ~2d, waiting for JB's data-use OK) |
 | 4 | The tutor already speaks first in three cases: greeting the group, after a **sim event** and after a **checklist step**. It never speaks because of silence, a table entry or what the group says out loud. | **New feature.** Needs a design and a research decision first. Depends on 2 and 3 |
 
+## What the prod logs show (added 2026-11-24)
+
+Read-only queries on `aipla-prod-2026` (BigQuery `chat_logs.chat_turns` /
+`chat_logs.workbench_events`, Cloud Logging for `aipla-v01-frontend`). **The
+lesson:** class `f2b1419f2e54`, 13:53–14:51 local time, 5 student groups plus
+the teacher's preview groups, the **Accountable Talk** tutor, two **teacher-built**
+sims: `bohr-spektrum` (all groups, 404 state pushes) and `li-ion-batteri` (2
+groups, 101). 84 student turns, 84 tutor turns. No student text or group code is
+quoted here.
+
+| # | Evidence |
+|---|---|
+| 1 | **It was `bohr-spektrum`, not `sekant-intro`.** It has a free-text *prediction* field, and the typed text **is** in the state it pushes. In **3 of the 5 student groups** (plus a teacher preview), the prediction went from filled (33–178 characters) to empty mid-lesson. At each of those moments the sim was back on its first tab with its power counter reset to 0, after a ~5 min gap: **a fresh load, i.e. close and reopen**, not the student deleting text. The server held the text the whole time |
+| 2 | The 5 student groups had **129 minutes with workbench activity**. In **21** of them the chat-only rule would have shown the group as *quiet*, and in **16** as *stuck*, while the group was working in the sim. About one working minute in six was mislabelled. (Approximate: minute buckets, student turns only) |
+| 3 | **3 of 5 groups recorded**: 279 segments, about 3.5 hours of audio. The tutor heard none of it, **with the Accountable Talk tutor assigned**, the one approach that needs it. One group had **two devices recording at once** for ~44 min (two `seq=0` runs), which is the problem [group-recording-coordination](design/aipla/v1.1.0-feedback/group-recording-coordination.md) (Planned, P1) exists for |
+| 4 | **84 proactive-event checks, 0 proactive turns.** The only unprompted turns were 8 greetings. The tutor did not react to a single one of the 505 sim pushes. This matches [1.1.154](design/aipla/v1.1.0-feedback/tutor-pacing-and-reactivity.md) F4: teacher-built activities run `concept-dialogue`, which does not opt in to sim-reactive turns, so the gate answers *skill opted out*. (The skill id is a prod Firestore id, and that it is `concept-dialogue` is inferred from F4 and the greeting, not read.) **So "the tutor could be more active" describes a tutor that was switched off for sims, not one that was too restrained** |
+
 ## 1. Sim text disappears on close and reopen
 
 **What happens.** When a student opens a sim, it fills the workspace. Closing it
@@ -184,9 +201,21 @@ working. Interjecting on the discussion needs the tutor to hear it (point 3).
 | [group-talk-to-tutor](design/aipla/v2.1.0-extension/group-talk-to-tutor.md), addendum M0a | 5, 6 |
 | [1.1.162 tutor-interjects](design/aipla/v2.1.0-extension/tutor-interjects.md) | 7. Also depends on [1.1.154](design/aipla/v1.1.0-feedback/tutor-pacing-and-reactivity.md) M1 (*never interrupt a draft*), an open design from 22 October that this note originally missed |
 
-Each doc has an **M0** of read-only prod log queries for the 23 November
-session. They have **not been run yet**: the gcloud account in use could not
-read `aipla-prod-2026`.
+Each doc's **M0** (read-only prod queries) **was run on 2026-11-24**. See
+[What the prod logs show](#what-the-prod-logs-show-added-2026-11-24). Two things
+it changed:
+
+- **Sims:** the sim was teacher-built, and teacher sims have their bridge
+  stamped **at publish**. A bridge-side restore therefore reaches `bohr-spektrum`
+  only after its author edits it and republishes it. 1.1.160's first milestone
+  is now **keep the sim mounted while it is closed**, which covers every sim
+  with no author action.
+- **Interjection:** the cheapest "more active" is already designed. 1.1.154's
+  open question 1 asks whether `concept-dialogue` opts in to sim-reactive turns
+  for `completion` and `measurement_commit`. That is a decision for M and JB
+  plus about half a day, and it comes before anything in 1.1.162.
+
+Item 1 is answered: it was `bohr-spektrum`. Items 2 and 7 change as above.
 
 Mapped to the
 [extension plan](design/aipla/v2.1.0-extension/plan-2026-09-to-2027-04.md)
@@ -202,7 +231,11 @@ workstreams. Estimates are rough and **not yet sized against a design doc**.
 | 6 | **Decide on [group-talk-to-tutor](design/aipla/v2.1.0-extension/group-talk-to-tutor.md)** M0–M2 with JB / AR: is the Accountable Talk arm wanted in 2026/27? If yes, get the data-use OK and build it | D (tutors) | ~2d | JB / AR decide, M builds | Without it, the Accountable Talk tutor is gated on a recording it can't hear |
 | 7 | **Design doc: "the tutor interjects"** — interjecting as a per-approach setting in the framework YAML. Triggers: corrected *stuck* (item 4), the recorded discussion (item 6), workbench entries. Every interjection logged with its trigger, so the tutor study can measure it. Revisit why the idle check-in was retired | D (tutors) | design ~0.5d, build TBD | M + AR / JB | **Research question first:** is interjection a variable in the tutor comparison, or a product default? Must keep the passthrough guarantee in the tutors handover |
 
-**Suggested order:** 1 → 2 (this week, small) → 4 → 3 → decide 6 → 5/6 → 7.
+**Suggested order (revised after the logs):** keep sims mounted (1.1.160 M1)
+→ decide 1.1.154's open question 1 with JB, and if yes, switch on sim-reactive
+turns for teacher activities → 4 → restore across tabs (1.1.160 M2–M4) →
+group-talk M0a and group-recording-coordination → decide 6 → 7. *(The first
+version of this order was 1 → 2 → 4 → 3 → decide 6 → 5/6 → 7.)*
 Items 2–4 are bugs or wrong signals on surfaces in use now. Items 5–7 are tutor
 work and belong in the D allocation, next to the tutor comparison from 19
 November.
@@ -213,7 +246,7 @@ has to move. Raise this at the next planning check with AD.
 
 ## Open questions
 
-- Which sim, and which device / browser? (item 1)
+- ~~Which sim?~~ `bohr-spektrum`, teacher-built (from the logs). Device and browser are still unknown, and probably don't matter: the cause is the unmount, not the browser.
 - Was the question in point 2 about the **teacher's** live view (assumed here),
   or about whether the **tutor** knows the group is working in the workbench? The
   tutor half is mostly covered already: workbench state reaches the tutor's

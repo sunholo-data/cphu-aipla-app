@@ -79,17 +79,32 @@ doc does not start.**
 
 ## Milestones
 
-### M0 — evidence (~0.25d, M runs the queries)
+### M0 — evidence (**done 2026-11-24**), and what it changes
 
-Read-only, prod, 2026-11-23:
+Prod, class `f2b1419f2e54`, 23 November, 13:53–14:51 local time:
 
-- How many proactive turns fired, by trigger (the user message is the sentinel
-  `[event_reactive:<kind>]`), and how many the gate **refused**, by reason
-  (`cooldown active`, cap, allowlist). If most refusals are cooldown, the
-  tutor was already trying to be more active and the knob is too tight.
-- How long after the last student message each proactive turn landed, and
-  whether a student message followed within ~10 s (the *trying to answer*
-  signature from 22 October).
+- **84** `POST …/proactive-event-check` calls, all 200, and **0** proactive
+  turns. The student-side messages were 76 typed turns and 8
+  `[session_start]` greetings, with no `[event_reactive:*]` sentinel at all.
+- The tutor said nothing unprompted about **505** sim pushes
+  (`bohr-spektrum` 404, `li-ion-batteri` 101).
+- This matches [1.1.154](../v1.1.0-feedback/tutor-pacing-and-reactivity.md)
+  F4: teacher-built activities run `concept-dialogue`, which opts in to
+  `proactiveGreet` but not `proactiveEventReactive`, so gate 2 answers *skill
+  opted out*. (Inferred: the skill's prod Firestore id was not resolved to a
+  name. Refusal reasons are not logged, which is worth fixing in M5.)
+
+**What this changes.** On 23 November the tutor was not too restrained. It
+was **switched off for the sims**. The first step towards "more active" is not
+this doc. It is 1.1.154's **open question 1**: should `concept-dialogue` opt in
+to sim-reactive turns for `completion` and `measurement_commit`? That is a
+decision for M and JB plus about half a day (1.1.154 M4). It should be decided
+and tried in a lesson **before** M1–M5 here are sized, because it may be most
+of what the teachers meant.
+
+Still to measure once reactive turns are on: how long after the last student
+message each proactive turn lands, and whether a student message follows
+within ~10 s (the *trying to answer* signature from 22 October).
 
 ### Decision with AR/JB (~0.25d)
 
