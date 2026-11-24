@@ -6,9 +6,32 @@ import { WorkspaceLayoutContext } from "../workspaceLayout";
 
 // Stub the heavy children — this test covers the launch/takeover logic, not the
 // sim iframe / element renderers / document fetches.
-vi.mock("../GenericArtefactFrame", () => ({
-  GenericArtefactFrame: () => <div data-testid="sim-frame" />,
-}));
+// The frame stub holds uncontrolled DOM state — the stand-in for whatever the
+// student typed inside the sim's iframe. It survives only if the frame is not
+// remounted. It also registers a flush like the real frame does.
+vi.mock("../GenericArtefactFrame", async () => {
+  const { useEffect } = await import("react");
+  return {
+    GenericArtefactFrame: ({
+      artefact,
+      onRegisterFlush,
+    }: {
+      artefact: { id: string };
+      onRegisterFlush?: (f: (() => Promise<void>) | null) => void;
+    }) => {
+      useEffect(() => {
+        if (!onRegisterFlush) return;
+        onRegisterFlush(() => Promise.resolve());
+        return () => onRegisterFlush(null);
+      }, [onRegisterFlush]);
+      return (
+        <div data-testid="sim-frame" data-sim-id={artefact.id}>
+          <input aria-label="prediction" defaultValue="" />
+        </div>
+      );
+    },
+  };
+});
 vi.mock("../elementRenderers", () => ({
   WorkspaceElements: (props: Record<string, unknown>) => (
     <div
@@ -66,8 +89,68 @@ describe("StudentWorkspace — sim launch/takeover", () => {
     expect(screen.queryByTestId("workspace-elements")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: /luk boldkast/i }));
-    expect(screen.queryByTestId("sim-frame")).not.toBeInTheDocument();
+    // 1.1.160 M1: closed means HIDDEN, not unmounted.
+    expect(screen.getByTestId("sim-frame")).not.toBeVisible();
     expect(screen.getByTestId("workspace-elements")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /luk boldkast/i })).not.toBeInTheDocument();
+  });
+
+  // 23 Nov 2026, bohr-spektrum: three groups lost a written prediction when they
+  // closed the sim and opened it again. The frame was unmounted on close.
+  it("keeps what the student typed in the sim across a close and reopen (1.1.160 M1)", () => {
+    renderWS();
+    fireEvent.click(screen.getByRole("button", { name: /åbn boldkast/i }));
+    fireEvent.change(screen.getByLabelText("prediction"), {
+      target: { value: "Vi tror at det er alle lysets farver" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: /luk boldkast/i }));
+    fireEvent.click(screen.getByRole("button", { name: /åbn boldkast/i }));
+
+    expect(screen.getAllByTestId("sim-frame")).toHaveLength(1);
+    expect(screen.getByLabelText("prediction")).toHaveValue("Vi tror at det er alle lysets farver");
+    expect(screen.getByTestId("sim-frame")).toBeVisible();
+  });
+
+  it("registers the chat flush only while the sim is shown", () => {
+    const onRegister = vi.fn();
+    renderWS({ onRegisterArtefactFlush: onRegister });
+    expect(onRegister).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /åbn boldkast/i }));
+    expect(onRegister).toHaveBeenLastCalledWith(expect.any(Function));
+
+    fireEvent.click(screen.getByRole("button", { name: /luk boldkast/i }));
+    expect(onRegister).toHaveBeenLastCalledWith(null);
+
+    fireEvent.click(screen.getByRole("button", { name: /åbn boldkast/i }));
+    expect(onRegister).toHaveBeenLastCalledWith(expect.any(Function));
+  });
+
+  it("does not carry a kept-alive sim over to a different sim", () => {
+    const { rerender } = renderWS();
+    fireEvent.click(screen.getByRole("button", { name: /åbn boldkast/i }));
+    fireEvent.click(screen.getByRole("button", { name: /luk boldkast/i }));
+
+    const other = { id: "bohr-spektrum", displayName: "Bohr", artefactPath: "bohr/v1" };
+    rerender(
+      <StudentWorkspace
+        skillId="s"
+        sandboxOrigin="https://sandbox.example"
+        artefact={other}
+        checklist={[]}
+        conceptMap={[]}
+        table={[]}
+        chart={[]}
+        calculator={[]}
+        note={[]}
+        writing={[]}
+        solution={[]}
+        document={[]}
+        materials={[]}
+      />,
+    );
+    // The old frame is gone, and the new sim is not loaded until it is opened.
+    expect(screen.queryByTestId("sim-frame")).not.toBeInTheDocument();
   });
 
   it("renders no launcher when the environment has no sandbox origin", () => {
@@ -222,6 +305,13 @@ describe("StudentWorkspace — sim focus mode (1.1.140 M1)", () => {
     fireEvent.click(screen.getByRole("button", { name: /luk boldkast/i }));
     expect(ratio()).toBe("0.6");
     expect(store.get("aipla.simFocus:act-1")).toBe("1"); // closing is not opting out
+
+    // The sim is kept alive while closed (1.1.160 M1), so reopening is a
+    // visibility change, not a mount: focus must still be re-applied.
+    openSim();
+    expect(ratio()).toBe("1");
+    fireEvent.click(screen.getByRole("button", { name: /luk boldkast/i }));
+    expect(ratio()).toBe("0.6");
   });
 
   it("does not re-hide the chat after the student brought it back another way", () => {

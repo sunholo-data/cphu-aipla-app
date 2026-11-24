@@ -60,8 +60,12 @@ export interface SimFocusMode {
  *
  * `storageKey` is the activity — the preference is per activity, in
  * localStorage, because it is about the sim's layout rather than this tab.
+ *
+ * `active` is whether the sim is SHOWN. A closed sim stays mounted, hidden, so
+ * its state survives a close and reopen (1.1.160 M1). "Open" and "closed" are
+ * therefore this flag, not mount and unmount.
  */
-export function useSimFocusMode(storageKey: string): SimFocusMode {
+export function useSimFocusMode(storageKey: string, active = true): SimFocusMode {
   const layout = useWorkspaceLayout();
   const ratio = layout?.ratio ?? null;
   const setRatio = layout?.setRatio;
@@ -76,6 +80,7 @@ export function useSimFocusMode(storageKey: string): SimFocusMode {
 
   // On open: re-apply a remembered focus. On close: hand the chat back.
   useEffect(() => {
+    if (!active) return;
     const { ratio: r, setRatio: set } = latest.current;
     if (set && r !== null && readFocusPref(storageKey)) {
       if (r < RATIO_MAX) {
@@ -89,7 +94,7 @@ export function useSimFocusMode(storageKey: string): SimFocusMode {
       if (enteredRef.current && setNow && now === RATIO_MAX) setNow(restoreRef.current);
       enteredRef.current = false;
     };
-  }, [storageKey]);
+  }, [storageKey, active]);
 
   // The student brought the chat back another way ("Show chat" tab, divider):
   // focus has ended, and the next open should not re-hide it.

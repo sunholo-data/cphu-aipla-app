@@ -104,24 +104,43 @@ export function StudentWorkspace({
   onRegisterArtefactFlush,
 }: StudentWorkspaceProps) {
   const [simOpen, setSimOpen] = useState(false);
+  // 1.1.160 M1 — the sim that has been opened in this workspace. Once opened it
+  // stays MOUNTED, hidden while closed, so a close and reopen gives the student
+  // back exactly what they left: the text they typed, the tab they were on.
+  // Unmounting it threw all of that away (23 Nov 2026: three groups lost a
+  // written prediction in a teacher-built sim). Keyed by sim id, so a different
+  // sim never inherits this one's frame.
+  const [mountedSimId, setMountedSimId] = useState<string | null>(null);
   const hasSim = !!(artefact && sandboxOrigin);
+  const showSim = hasSim && simOpen && !!artefact;
+  const openSim = () => {
+    if (artefact) setMountedSimId(artefact.id);
+    setSimOpen(true);
+  };
 
-  // Launched: the sim takes over the workspace (the element tools + documents
-  // are hidden until the student closes it). Element scratch state survives the
-  // unmount via sessionStorage, so closing returns the workbench intact.
-  if (hasSim && simOpen && artefact) {
-    return (
+  // Always rendered FIRST, so its position in the tree is the same whether the
+  // sim is shown or not; a moved element would be remounted, which is the bug.
+  const simLayer =
+    hasSim && artefact && mountedSimId === artefact.id ? (
       <OpenSim
+        key={artefact.id}
+        visible={showSim}
         artefact={artefact}
         sandboxOrigin={sandboxOrigin}
         sessionId={sessionId}
         activityId={activityId}
         focusKey={activityId ?? skillId}
         onClose={() => setSimOpen(false)}
-        onRegisterArtefactFlush={onRegisterArtefactFlush}
+        // The chat flushes a sim's pending state before each message — only
+        // while it is shown. A closed sim has nothing the student just did.
+        onRegisterArtefactFlush={showSim ? onRegisterArtefactFlush : undefined}
       />
-    );
-  }
+    ) : null;
+
+  // Launched: the sim takes over the workspace (the element tools + documents
+  // are hidden until the student closes it). Element scratch state survives the
+  // unmount via sessionStorage, so closing returns the workbench intact.
+  if (showSim) return <>{simLayer}</>;
 
   // 1.1.45 M1 — activity-driven surfaces: tabs ONLY when BOTH the element tools
   // and documents have content; a single surface renders directly (no tab layer).
@@ -181,7 +200,8 @@ export function StudentWorkspace({
 
   return (
     <>
-      {hasSim && artefact ? <SimLauncher artefact={artefact} onOpen={() => setSimOpen(true)} /> : null}
+      {simLayer}
+      {hasSim && artefact ? <SimLauncher artefact={artefact} onOpen={openSim} /> : null}
       {hasElements && hasDocuments ? (
         <WorkbenchTabs work={elementsSurface} documents={documentsSurface} docCount={docCount} />
       ) : (
@@ -195,6 +215,8 @@ export function StudentWorkspace({
 }
 
 interface OpenSimProps {
+  /** Shown (open) or hidden (closed but kept alive — 1.1.160 M1). */
+  visible: boolean;
   artefact: ActivityArtefact;
   sandboxOrigin: string;
   sessionId: string | null;
@@ -205,10 +227,12 @@ interface OpenSimProps {
   onRegisterArtefactFlush?: (flush: (() => Promise<void>) | null) => void;
 }
 
-/** The launched sim: header + frame. Its own component so focus mode (1.1.140
- *  M1) lives exactly as long as the sim is open — it is applied on open and the
- *  chat is handed back on close. */
+/** The launched sim: header + frame. It stays mounted after the first open and
+ *  is HIDDEN on close (1.1.160 M1), so the iframe — and everything the student
+ *  typed in it — survives. Focus mode (1.1.140 M1) follows `visible`: applied on
+ *  open, the chat handed back on close. */
 function OpenSim({
+  visible,
   artefact,
   sandboxOrigin,
   sessionId,
@@ -220,22 +244,34 @@ function OpenSim({
   const t = useT("StudentWorkspace");
   // The toggle is named for the chat it shows or hides, and pressed while the
   // chat is shown. Reuses the "Show chat" string the reveal tab already has.
-  const focus = useSimFocusMode(focusKey);
+  const focus = useSimFocusMode(focusKey, visible);
   // Callback ref → state so SimFrameHeader gets the real wrapper element once it
   // mounts (a plain ref is still null on first render).
   const [simWrap, setSimWrap] = useState<HTMLDivElement | null>(null);
+  // Unmounting used to end fullscreen for free. Hiding does not: a hidden
+  // fullscreen element would leave the student on a blank screen.
+  const close = () => {
+    const fs = typeof document !== "undefined" ? document.fullscreenElement : null;
+    if (fs && simWrap?.contains(fs)) void document.exitFullscreen?.().catch(() => {});
+    onClose();
+  };
   return (
     <div
       ref={setSimWrap}
-      data-sim-focused={focus.focused ? "" : undefined}
-      className="flex min-h-0 flex-col bg-background"
+      data-sim-focused={visible && focus.focused ? "" : undefined}
+      data-sim-hidden={visible ? undefined : ""}
+      // `hidden` (display:none) keeps the iframe's document alive; `inert`
+      // keeps its controls out of the tab order and the accessibility tree.
+      className={visible ? "flex min-h-0 flex-col bg-background" : "hidden"}
+      hidden={!visible}
+      inert={!visible}
     >
       <SimFrameHeader
         title={artefact.displayName}
         closeAriaLabel={t("closeSimLabel", { name: artefact.displayName })}
         closeLabel={t("close")}
         fullscreenAriaLabel={t("fullscreen")}
-        onClose={onClose}
+        onClose={close}
         fullscreenTarget={simWrap}
         focus={
           focus.available
