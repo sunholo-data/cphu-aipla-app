@@ -111,6 +111,7 @@ _TEXT_RULES: list[tuple[str, str, re.Pattern[str]]] = [
         re.compile(r"Server Reference ID did not match|Failed to find Server Action"),
     ),
     (RECOVERED, "model stalled before its first token; retried", re.compile(r"MODEL_SILENT_STALL \(attempt")),
+    (RECOVERED, "model rate-limited before its first token; retried", re.compile(r"MODEL_RATE_LIMITED \(attempt")),
     (RECOVERED, "model failed; fell over to the fallback model", re.compile(r"failed \(\w+, \d+ attempt\(s\)\) — falling over")),
     (RECOVERED, "teaching-goal lint timed out; the activity saved without lint hints", re.compile(r"goal-lint: degraded")),
     (

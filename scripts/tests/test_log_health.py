@@ -62,6 +62,8 @@ class KnownNoiseIsLabelled(unittest.TestCase):
         self.assertEqual(lh.classify(text("Error: Internal: NoFallbackError\n at n", "ERROR"))[0], lh.NOISE)
         stall = "WARNING:adk.resilient_llm:model gemini-3-flash-lite: MODEL_SILENT_STALL (attempt 1) before first token"
         self.assertEqual(lh.classify(text(stall))[0], lh.RECOVERED)
+        limited = "WARNING:adk.resilient_llm:model gemini-3.8-flash: MODEL_RATE_LIMITED (attempt 1) before first token"
+        self.assertEqual(lh.classify(text(limited))[0], lh.RECOVERED)
 
     def test_uvicorn_access_lines(self) -> None:
         ok = 'INFO:     1.2.3.4:5 - "POST /api/client-errors HTTP/1.1" 204 No Content'
