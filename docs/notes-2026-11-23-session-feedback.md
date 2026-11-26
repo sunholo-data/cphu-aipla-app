@@ -21,6 +21,13 @@ Nothing has been designed or fixed yet. The follow-up actions at the end are
    conversation, or just afterwards in the summary?
 4. We are contemplating that the tutor could be more active and interject as
    needed.
+5. *(Added 2026-11-26.)* A student wanted to use voice input (talk to type),
+   but the group's audio recording was on, and it would not let them.
+6. *(Added 2026-11-26.)* Teachers like the live view. Can it show more of the
+   students' work, for example a synopsis of what a group did in the last few
+   minutes?
+7. *(Added 2026-11-26.)* The chat history seemed forgotten: a student corrected
+   a wrong answer, but the tutor kept going back to the old error.
 
 ## The answers in one page
 
@@ -230,6 +237,9 @@ workstreams. Estimates are rough and **not yet sized against a design doc**.
 | 5 | **Tell the tutor a recording is running**, without the transcript | D (tutors) | ~0.5d | M | No new data reaches the model, so it may not need the data-use OK. **Confirm with JB** |
 | 6 | **Decide on [group-talk-to-tutor](design/aipla/v2.1.0-extension/group-talk-to-tutor.md)** M0–M2 with JB / AR: is the Accountable Talk arm wanted in 2026/27? If yes, get the data-use OK and build it | D (tutors) | ~2d | JB / AR decide, M builds | Without it, the Accountable Talk tutor is gated on a recording it can't hear |
 | 7 | **Design doc: "the tutor interjects"** — interjecting as a per-approach setting in the framework YAML. Triggers: corrected *stuck* (item 4), the recorded discussion (item 6), workbench entries. Every interjection logged with its trigger, so the tutor study can measure it. Revisit why the idle check-in was retired | D (tutors) | design ~0.5d, build TBD | M + AR / JB | **Research question first:** is interjection a variable in the tutor comparison, or a product default? Must keep the passthrough guarantee in the tutors handover |
+| 8 | **Talk to type while the lesson records** *(point 5, built 2026-11-26)*. The mic button was disabled on purpose during a recording, so only one microphone stream is ever open: on iPads and iPhones a second one silences the first, which would have cut the recording. Now dictation reads the audio the recording already captures, and Record waits while dictation holds the mic on its own | C (residue) | ~0.25d | M | No second mic, and the lesson recording is unchanged. The dictated words are also in the recording, as they were said aloud. Unit-tested. Not yet checked in a real browser with a recording class |
+| 9 | **Live view: a synopsis per group for the last 5/10/20 min** *(point 6)*. Row opens in place on the class page: a counted line (words written per sheet, sim runs, questions, feedback requests), no model, plus a 3–4 sentence synopsis on demand | C | ~3d | M / AD | [1.1.163 live-group-synopsis](design/aipla/v2.1.0-extension/live-group-synopsis.md). Audio transcript left out until JB's view. Good pairing task for AD (M1/M3) |
+| 10 | **The tutor keeps track of what it raised and what is fixed** *(point 7)*. Found on prod: `green-beetle-49`, 2026-11-25. It said "protoner" was still there 17 min after the fix, and that a typo was still there in the very message that fixed it. Nothing was forgotten (prompt at 2 % of the window). The prompt held 15 drafts of the same sheet, and the current text only as a JSON dump with nothing saying it wins. Fix: collapse superseded drafts, give the current text every turn, plus a small open-points list the tutor ticks off | D (tutors) | ~2d | M | [1.1.164 tutor-tracks-what-is-settled](design/aipla/v2.1.0-extension/tutor-tracks-what-is-settled.md). **M1 + M2 built 2026-11-26** (older drafts collapsed in the request; current text ranked as the current version). M3 open points and the M4 eval still to do |
 
 **Suggested order (revised after the logs):** keep sims mounted (1.1.160 M1)
 → decide 1.1.154's open question 1 with JB, and if yes, switch on sim-reactive
