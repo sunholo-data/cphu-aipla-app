@@ -507,5 +507,25 @@
     "help_concise": "Terse and directive — “just try this”. No follow-up questions.",
     "help_rigorous": "Exam-level expectations; does not soften or over-scaffold.",
     "help_warm": "Encouraging, more scaffolding — for lower-confidence students."
+  },
+  "GroupRecent": {
+    "show": "Show what {code} has been doing",
+    "hide": "Hide what {code} has been doing",
+    "heading": "The last",
+    "minutes": "{n} min",
+    "windowLabel": "Time window",
+    "loading": "Loading…",
+    "error": "Couldn't load the group's recent activity. Try again shortly.",
+    "empty": "Nothing in the last {n} minutes.",
+    "questions": "{n, plural, one {# question} other {# questions}}",
+    "feedback": "{n, plural, one {asked for feedback once} other {asked for feedback # times}}",
+    "tutorReplies": "{n, plural, one {# tutor reply} other {# tutor replies}}",
+    "wrote": "wrote {n} words in “{title}”",
+    "edited": "edited “{title}” ({before} → {now} words)",
+    "sim": "{n, plural, one {# change} other {# changes}} in {name}",
+    "table": "{n, plural, one {# table edit} other {# table edits}}",
+    "documents": "opened {n, plural, one {# document} other {# documents}}",
+    "untitledSheet": "the writing sheet",
+    "source": "Counted from the chat and the workbench, no AI. Refreshes every 2 minutes."
   }
 }

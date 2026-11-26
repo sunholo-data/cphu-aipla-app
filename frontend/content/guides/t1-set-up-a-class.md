@@ -7,7 +7,7 @@ order: "1"
 lang: "en"
 status: "Current"
 owner: "AIPLA project team"
-reviewed: "2026-11-11"
+reviewed: "2026-11-26"
 reviewBy: "2027-01-05"
 ---
 ::: callout-note
@@ -91,6 +91,14 @@ conversation** archives the group's current conversation (it is kept for the
 report) so the group starts afresh next time. If a code leaks, choose **Revoke
 the code…**. The code stops working at once and can never be reissued; the
 group's work is kept. Mint a new code for the group with **New group**.
+
+During a lesson, select a group's **code** to see what it has done in the last
+5, 10 or 20 minutes: words written on each writing sheet, changes in the
+simulation, questions, feedback requests and documents opened. It opens under
+the row, one group at a time, so the raised hands stay in view. It is counted
+from the chat and the workbench, with no AI, and it refreshes every two
+minutes. Select the code again to close it, for example before you put the page
+on the projector.
 
 ::: callout-tip
 Group codes are how you separate one class — or one lab group — from another in

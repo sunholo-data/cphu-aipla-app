@@ -64,6 +64,7 @@ import { useUrlTab } from "@/hooks/useUrlTab";
 import { handleExportSessions } from "./_exportHelpers";
 import { ClassAnalyticsCopilot } from "./_ClassAnalyticsCopilot";
 import { LiveSummary, RaisedHands, useLiveClass } from "./_LiveClassView";
+import { GroupRecent } from "./_GroupRecent";
 import { GroupsTable } from "./_GroupsTable";
 import { MenuButton } from "./_MenuButton";
 import { CLASS_TABS, type ClassTab, pickDefaultClassTab } from "./_classTabs";
@@ -468,6 +469,7 @@ export default function TeacherClassDetailPage() {
         onCopyCode={handleCopyCode}
         onReset={(code) => void handleResetSession(code)}
         onRevoke={(code) => void handleRevokeCode(code)}
+        renderRecent={(code) => <GroupRecent classId={theClass.classId} code={code} />}
       />
     </>
   );

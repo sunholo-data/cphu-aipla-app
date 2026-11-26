@@ -507,5 +507,25 @@
     "help_concise": "Kort og direkte — “prøv lige det her”. Ingen opfølgende spørgsmål.",
     "help_rigorous": "Forventninger på eksamensniveau; blødgør ikke og stilladserer ikke for meget.",
     "help_warm": "Opmuntrende og med mere stilladsering — til elever med mindre selvtillid."
+  },
+  "GroupRecent": {
+    "show": "Vis hvad {code} har lavet for nylig",
+    "hide": "Skjul hvad {code} har lavet",
+    "heading": "De seneste",
+    "minutes": "{n} min",
+    "windowLabel": "Tidsrum",
+    "loading": "Henter…",
+    "error": "Kunne ikke hente gruppens seneste aktivitet. Prøv igen om lidt.",
+    "empty": "Intet de seneste {n} minutter.",
+    "questions": "{n, plural, one {# spørgsmål} other {# spørgsmål}}",
+    "feedback": "{n, plural, one {bad om feedback én gang} other {bad om feedback # gange}}",
+    "tutorReplies": "{n, plural, one {# svar fra tutoren} other {# svar fra tutoren}}",
+    "wrote": "skrev {n} ord i «{title}»",
+    "edited": "rettede i «{title}» ({before} → {now} ord)",
+    "sim": "{n, plural, one {# ændring} other {# ændringer}} i {name}",
+    "table": "{n, plural, one {# ændring i tabellen} other {# ændringer i tabellen}}",
+    "documents": "åbnede {n, plural, one {# dokument} other {# dokumenter}}",
+    "untitledSheet": "skrivefeltet",
+    "source": "Talt fra chatten og arbejdsområdet, uden AI. Opdateres hvert 2. minut."
   }
 }

@@ -1,9 +1,9 @@
 # The live view says what each group has been doing in the last few minutes
 
-**Status**: **PROPOSED** 2026-11-26 — **1.1.163**
+**Status**: **M0 + M1 + M3 IMPLEMENTED 2026-11-26** (the counted line, no AI; on `dev`, not yet released). M2 synopsis, M4 class summary open — **1.1.163**
 **Priority**: **P1**. Teachers like the live view and ask for the next step: *what is this group actually doing?* Today the answer is one word (*active / quiet / stuck*), and getting more means leaving the class page for the group report
 **Estimated**: **~3d** (M0 window query ~0.5d · M1 the "what they did" line, no model ~0.75d · M2 the one-paragraph synopsis ~0.75d · M3 the row opens in place ~0.5d · M4 the class summary is built from the synopses ~0.25d · M5 tests ~0.25d)
-**Scope**: Backend: a new `analytics/group_window.py` (one BigQuery read per group and window), a new `analytics/group_synopsis.py` (the model call, cached), one route `GET /api/classes/{id}/groups/{code}/synopsis?minutes=` in `protocols/classes_routes.py`, `config/models.yaml` (a `live_synopsis` purpose). Frontend: `app/teacher/classes/[id]/_GroupsTable.tsx` (a row that opens), `_LiveClassView.tsx` (the class summary reads the synopses), `frontend/messages/{da,en}/` (copy). No new collection
+**Scope**: Backend: a new `analytics/group_window.py` (one BigQuery read per group and window), a new `analytics/group_synopsis.py` (the model call, cached), one route `GET /api/classes/{id}/groups/{code}/recent?minutes=` in `protocols/classes_routes.py`, `config/models.yaml` (a `live_synopsis` purpose). Frontend: `app/teacher/classes/[id]/_GroupsTable.tsx` (a row that opens), `_LiveClassView.tsx` (the class summary reads the synopses), `frontend/messages/{da,en}/` (copy). No new collection
 **Dependencies**: [1.1.31 teacher-analytics-framework](../v1.1.0-feedback/teacher-analytics-framework.md) (**shipped**, the live poll and the env-gated class summary) · [live-group-drilldown](../v1.1.0-feedback/live-group-drilldown.md) (**shipped**, the per-group report this links to) · [1.1.161 live-status-counts-workbench-work](live-status-counts-workbench-work.md) (**proposed**: the `lastWorkAt` stamp tells this doc which groups changed; it works without it, less cheaply) · [1.1.155 sim ledger](../v1.1.0-feedback/sim-context-and-class-report.md) (**shipped**, readings in words) · [1.1.164 tutor-tracks-what-is-settled](tutor-tracks-what-is-settled.md) (**proposed**: its open points are one line of the synopsis, optional) · [1.1.99 live-class-work-wall](../v1.1.0-feedback/live-class-work-wall.md) (M1 shipped; this is the text form of its unbuilt M0)
 **Source**: classroom feedback relayed 2026-11-26: *"the teachers really like the live view, but can we expand its functionality a bit so we see the student work a bit more, perhaps a synopsis of what the student has been doing last x minutes."*
 
@@ -158,6 +158,42 @@ debounce and gate are unchanged.
 - **Shown on a projected screen?** The panel is collapsed by default and opens
   one group at a time. That is the protection, and the guide should say so.
 
+## What was built (2026-11-26)
+
+- **M0** `backend/analytics/group_window.py`: `read_group_window` (two
+  parameterised queries on the raw sink tables `aipla_chat_turn` /
+  `aipla_workbench_event`) and a pure `build_window`. It counts:
+  - questions vs *Ask for feedback* requests, using the same template match as
+    1.1.164 M1 (bracketed platform turns such as `[session_start]` are left out);
+  - tutor turns and their tools;
+  - words per sheet (the last snapshot before the window vs the last inside it,
+    looking back up to 6 h);
+  - changes per sim, data-table edits and documents opened.
+
+  The tutor's own `control_sim` moves and `record_assessment` are excluded.
+- **M1** `GET /api/classes/{id}/groups/{code}/recent?minutes=5|10|20` (named
+  *recent*, since it carries no synopsis yet). Owner or researcher; a code
+  from another class is 404; any other window is 422. A BigQuery failure is a
+  **503, never an empty window**. `synopsis` is always null until M2.
+- **M3** `_GroupRecent.tsx` and `_GroupsTable.tsx`:
+  - the code cell is a toggle (`aria-expanded`), one row open at a time;
+  - the window choice is remembered in this browser;
+  - there are empty, loading and could-not-load states, and a 2-minute refresh
+    while open;
+  - DA/EN copy is in the `GroupRecent` namespace.
+
+  The table still imports no API client: the page passes the panel in as
+  `renderRecent(code)`, and `_ClassListSheet.test.tsx` now asserts that opening
+  a row sends the code and never a name.
+- **Guide:** T1 *Set up a class* (EN + DA) gained one paragraph. The guide
+  corpus is seeded by hand per env (`make seed-guide-corpus`), so the in-product
+  help reads the old text until that is re-run.
+- **Checked on prod, read-only.** `green-beetle-49`, 2026-11-25 09:40–09:50
+  gives 3 questions, 5 feedback requests, 8 tutor replies, 3 documents, and
+  *Undervejs* 42 → 85 words. That matches the chat log line by line. "No sim
+  changes" was checked too: the sim's pushes stop at 09:39 and resume at 09:51.
+- **Not yet seen in a real browser** on a deployed env with a live lesson.
+
 ## Milestones
 
 **M0 — the window query (~0.5d).** `analytics/group_window.py`: for
@@ -174,7 +210,7 @@ against the logs above.
 
 **M1 — the counted line (~0.75d).** Render `GroupWindow` as the one-line
 summary in DA and EN (i18n keys, not inline). Route
-`GET /api/classes/{id}/groups/{code}/synopsis?minutes=5|10|20` returns
+`GET /api/classes/{id}/groups/{code}/recent?minutes=5|10|20` returns
 `{counted, synopsis: null, window, generatedAt}`. Owner/researcher guard via
 `_load_readable`; the code must be one of the class's codes.
 

@@ -7,7 +7,7 @@ order: "1"
 lang: "da"
 status: "Current"
 owner: "AIPLA project team"
-reviewed: "2026-11-11"
+reviewed: "2026-11-26"
 reviewBy: "2027-01-05"
 ---
 ::: callout-note
@@ -95,6 +95,14 @@ gruppen starter forfra næste gang. Hvis en kode slipper ud, vælger du
 **Tilbagekald koden…**. Koden holder straks op med at virke og kan aldrig
 udstedes igen; gruppens arbejde bevares. Udsted en ny kode til gruppen med
 **Ny gruppe**.
+
+Under lektionen kan du vælge en gruppes **kode** for at se, hvad den har lavet
+de seneste 5, 10 eller 20 minutter: ord skrevet i hvert skrivefelt, ændringer i
+simuleringen, spørgsmål, anmodninger om feedback og åbnede dokumenter. Det åbner
+under rækken, én gruppe ad gangen, så rakte hænder stadig er synlige. Det er
+talt fra chatten og arbejdsområdet, uden AI, og opdateres hvert andet minut.
+Vælg koden igen for at lukke det, for eksempel før du viser siden på
+projektoren.
 
 ::: callout-tip
 Gruppekoder er måden, hvorpå du adskiller én klasse — eller én laboratoriegruppe

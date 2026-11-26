@@ -863,6 +863,98 @@ async def get_class_live(
     )
 
 
+class GroupSheetChange(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    title: str
+    words_before: int = Field(alias="wordsBefore")
+    words_now: int = Field(alias="wordsNow")
+
+
+class GroupSimChange(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+    id: str
+    name: str
+    changes: int
+
+
+class GroupWindowResponse(BaseModel):
+    """What one group did in the last N minutes, counted (1.1.163 M1).
+
+    ``synopsis`` is the written paragraph of M2 and stays null until that ships;
+    the counted fields never depend on it.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+    group_id: str = Field(alias="groupId")
+    minutes: int
+    since: str
+    until: str
+    questions: int
+    feedback_requests: int = Field(alias="feedbackRequests")
+    tutor_turns: int = Field(alias="tutorTurns")
+    tools: dict[str, int]
+    sheets: list[GroupSheetChange]
+    sims: list[GroupSimChange]
+    documents_opened: int = Field(alias="documentsOpened")
+    table_edits: int = Field(alias="tableEdits")
+    last_activity_at: str | None = Field(default=None, alias="lastActivityAt")
+    empty: bool
+    synopsis: str | None = None
+
+
+#: The window choices the live view offers (1.1.163). Past 20 minutes the
+#: teacher wants the report, which covers the whole session.
+GROUP_WINDOW_MINUTES = (5, 10, 20)
+
+
+@router.get("/{class_id}/groups/{group_code}/recent", response_model=GroupWindowResponse)
+async def get_group_recent(
+    class_id: str = Path(...),
+    group_code: str = Path(...),
+    minutes: int = Query(10),
+    user: User = Depends(get_current_user),  # noqa: B008
+) -> GroupWindowResponse:
+    """What one group did in the last ``minutes`` (5, 10 or 20), counted.
+
+    The live view's expanding row (1.1.163). Owner or researcher, like ``/live``.
+    The code must be a live code of THIS class: the route takes a code, never a
+    name, and a code from another class is refused as not found. Reads BigQuery
+    off the event loop (1.1.131). A failed read is a 503, never an empty
+    window: "nothing happened" and "could not read" are different answers.
+    """
+    _assert_teacher(user)
+    if minutes not in GROUP_WINDOW_MINUTES:
+        raise HTTPException(status_code=422, detail=f"minutes must be one of {list(GROUP_WINDOW_MINUTES)}")
+    cls = _load_readable(class_id, user)
+    _tag_span(class_id, user.uid)
+    if group_code not in cls.active_group_codes:
+        raise HTTPException(status_code=404, detail="group not found")
+
+    from analytics.group_window import read_group_window
+
+    try:
+        win = await asyncio.to_thread(read_group_window, group_code, minutes)
+    except Exception as exc:
+        log.warning("group recent: window read failed for %s (%s)", group_code, type(exc).__name__)
+        raise HTTPException(status_code=503, detail="could not read the group's recent activity") from exc
+    return GroupWindowResponse(
+        groupId=group_code,
+        minutes=minutes,
+        since=win.since.isoformat(),
+        until=win.until.isoformat(),
+        questions=win.questions,
+        feedbackRequests=win.feedback_requests,
+        tutorTurns=win.tutor_turns,
+        tools=win.tools,
+        sheets=[GroupSheetChange(title=c.title, wordsBefore=c.words_before, wordsNow=c.words_now) for c in win.sheets],
+        sims=[GroupSimChange(id=c.server, name=c.name, changes=c.changes) for c in win.sims],
+        documentsOpened=win.documents_opened,
+        tableEdits=win.table_edits,
+        lastActivityAt=win.last_activity_at.isoformat() if win.last_activity_at else None,
+        empty=win.empty,
+    )
+
+
 @router.post("/{class_id}/signals/{group_id}/ack", status_code=204)
 async def ack_class_signal(
     class_id: str = Path(...),

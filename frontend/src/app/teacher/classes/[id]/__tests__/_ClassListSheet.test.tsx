@@ -162,6 +162,32 @@ describe("GroupsTable names — stay on this device (ADR-001)", () => {
     expect(fetchWithTeacherAuth).not.toHaveBeenCalled();
   });
 
+  it("opening a group's recent activity (1.1.163) sends its code, never its names", async () => {
+    const { GroupRecent } = await import("@/app/teacher/classes/[id]/_GroupRecent");
+    const renderRecent = vi.fn((code: string) => <GroupRecent classId={CLASS_ID} code={code} />);
+    render(table(undefined, { renderRecent }));
+    fireEvent.change(screen.getByLabelText("Names for still-violin-61"), { target: { value: NAME } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Show what still-violin-61 has been doing" }));
+    await waitFor(() => expect(fetchWithTeacherAuth).toHaveBeenCalled());
+    expect(renderRecent.mock.calls.every(([code]) => code === "still-violin-61")).toBe(true);
+    expect(String((fetchWithTeacherAuth.mock.calls[0] as unknown[])[0])).toContain("/groups/still-violin-61/recent");
+    expect(everythingSent()).not.toContain("Kierkegaard");
+
+    // One row open at a time: opening the next closes the first.
+    fireEvent.click(screen.getByRole("button", { name: "Show what bright-fox-12 has been doing" }));
+    expect(screen.queryByTestId("group-recent-still-violin-61")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Hide what bright-fox-12 has been doing" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+  });
+
+  it("rows do not open when the page supplies no recent-activity panel", () => {
+    render(table());
+    expect(screen.queryByRole("button", { name: /has been doing/ })).not.toBeInTheDocument();
+  });
+
   it("names survive a remount (a reload)", async () => {
     const { unmount } = render(table());
     fireEvent.change(screen.getByLabelText("Names for bright-fox-12"), { target: { value: "Anna, Bo" } });

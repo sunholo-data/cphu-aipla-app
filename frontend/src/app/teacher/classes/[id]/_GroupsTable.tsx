@@ -22,9 +22,9 @@
  * reaches a request or a callback.
  */
 
-import { useRef, type ReactNode } from "react";
+import { Fragment, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { FileSpreadsheet, Plus } from "lucide-react";
+import { ChevronRight, FileSpreadsheet, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { RowMenu } from "@/components/ui/row-menu";
@@ -95,6 +95,11 @@ export interface GroupsTableProps {
   onCopyCode: (code: string) => void;
   onReset: (code: string) => void;
   onRevoke: (code: string) => void;
+  /** What a group did in the last few minutes (1.1.163), rendered under its
+   *  row when the teacher opens it. Handed a CODE only: this file holds the
+   *  teacher's names and imports no API client, so the page supplies the
+   *  panel and the panel does the fetching. Absent: rows do not open. */
+  renderRecent?: (code: string) => ReactNode;
 }
 
 export function GroupsTable({
@@ -115,9 +120,13 @@ export function GroupsTable({
   onCopyCode,
   onReset,
   onRevoke,
+  renderRecent,
 }: GroupsTableProps) {
   const t = useT("ClassDetailPage");
   const tList = useT("ClassListSheet");
+  const tRecent = useT("GroupRecent");
+  // One row open at a time, so the page does not become a wall of text.
+  const [openCode, setOpenCode] = useState<string | null>(null);
   const tLive = useT("LiveClassView");
   const list = useClassList({ classId, className, codes: liveCodes, retainedCodes: retiredCodes, joinOrigin });
   const fileRef = useRef<HTMLInputElement>(null);
@@ -194,10 +203,31 @@ export function GroupsTable({
                   const lastAt = lg?.lastActivityAt || latest?.lastMessageAt || "";
                   const messages = lg ? lg.turns : latest ? latest.turnCount : null;
                   const doing = lg?.activityTitle || latest?.title || "";
+                  const open = renderRecent !== undefined && openCode === code;
+                  const toggleLabel = open ? tRecent("hide", { code }) : tRecent("show", { code });
                   return (
-                    <tr key={code} data-testid={`group-row-${code}`}>
+                    <Fragment key={code}>
+                    <tr data-testid={`group-row-${code}`}>
                       <td className="px-3 py-2 align-top">
-                        <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{code}</code>
+                        {renderRecent ? (
+                          <button
+                            type="button"
+                            onClick={() => setOpenCode(open ? null : code)}
+                            aria-expanded={open}
+                            aria-controls={`group-recent-row-${code}`}
+                            aria-label={toggleLabel}
+                            title={toggleLabel}
+                            className="inline-flex items-center gap-1 rounded hover:bg-muted"
+                          >
+                            <ChevronRight
+                              className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", open && "rotate-90")}
+                              aria-hidden="true"
+                            />
+                            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{code}</code>
+                          </button>
+                        ) : (
+                          <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{code}</code>
+                        )}
                       </td>
                       <td className="min-w-[12rem] px-3 py-1.5 align-top">
                         <input
@@ -262,6 +292,14 @@ export function GroupsTable({
                         </div>
                       </td>
                     </tr>
+                    {open ? (
+                      <tr id={`group-recent-row-${code}`} className="bg-muted/30">
+                        <td colSpan={6} className="px-3 py-2 pl-9">
+                          {renderRecent(code)}
+                        </td>
+                      </tr>
+                    ) : null}
+                    </Fragment>
                   );
                 })}
               </tbody>

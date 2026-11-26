@@ -162,6 +162,19 @@ def test_post_classes_rejects_real_group_token(client):
     assert resp.status_code == 403, resp.text
 
 
+def test_group_recent_activity_rejects_real_group_token(client):
+    """1.1.163 — a group's last minutes are for its teacher, never for students.
+
+    A real student token, through the real dispatcher, is refused by the role
+    gate before the class or BigQuery is touched (403, like ``POST /classes``).
+    """
+    token = _mint_real_group_token()
+    with patch("analytics.group_window.read_group_window") as read:
+        resp = client.get("/api/classes/any-class/groups/any-code/recent", headers=_auth_headers(token))
+    assert resp.status_code == 403, resp.text
+    read.assert_not_called()
+
+
 def test_post_activities_rejects_real_group_token(client):
     """A real student token is REJECTED at ``POST /api/activities`` (403)."""
     token = _mint_real_group_token()

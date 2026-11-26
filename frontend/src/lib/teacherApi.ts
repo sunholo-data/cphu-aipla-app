@@ -1490,6 +1490,37 @@ export async function listClassLive(classId: string): Promise<LiveClass> {
   return (await resp.json()) as LiveClass;
 }
 
+/** What one group did in the last few minutes, counted (1.1.163 M1). No AI:
+ *  `synopsis` stays null until M2 ships. A 503 means the window could not be
+ *  read, which is never the same answer as an empty window. */
+export interface GroupRecent {
+  groupId: string;
+  minutes: number;
+  since: string;
+  until: string;
+  questions: number;
+  feedbackRequests: number;
+  tutorTurns: number;
+  tools: Record<string, number>;
+  sheets: { title: string; wordsBefore: number; wordsNow: number }[];
+  sims: { id: string; name: string; changes: number }[];
+  documentsOpened: number;
+  tableEdits: number;
+  lastActivityAt: string | null;
+  empty: boolean;
+  synopsis: string | null;
+}
+
+export const GROUP_RECENT_MINUTES = [5, 10, 20] as const;
+
+export async function getGroupRecent(classId: string, code: string, minutes: number): Promise<GroupRecent> {
+  const resp = await fetchWithAuth(
+    `/api/proxy/api/classes/${encodeURIComponent(classId)}/groups/${encodeURIComponent(code)}/recent?minutes=${minutes}`,
+  );
+  if (!resp.ok) throw new Error(`group recent fetch failed (${resp.status})`);
+  return (await resp.json()) as GroupRecent;
+}
+
 /** Acknowledge (clear) a group's raised hand. */
 export async function ackClassSignal(classId: string, groupId: string): Promise<void> {
   const resp = await fetchWithAuth(
