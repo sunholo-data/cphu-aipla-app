@@ -561,8 +561,15 @@ describe("teacherApi — live dashboard", () => {
     const payload = { calls: [], groups: [], summary: null, generatedAt: "t" };
     mockResp(payload);
     const r = await api.listClassLive("c1");
-    expect(lastUrl()).toBe("/api/proxy/api/classes/c1/live");
+    // The class summary is written in the teacher's language; Danish by default.
+    expect(lastUrl()).toBe("/api/proxy/api/classes/c1/live?lang=da");
     expect(r).toEqual(payload);
+  });
+
+  it("listClassLive: asks for the summary in the teacher's own language (1.1.163 M4)", async () => {
+    mockResp({ calls: [], groups: [], summary: null, generatedAt: "t" });
+    await api.listClassLive("c1", "en");
+    expect(lastUrl()).toBe("/api/proxy/api/classes/c1/live?lang=en");
   });
 
   it("listClassLive: throws on !ok", async () => {

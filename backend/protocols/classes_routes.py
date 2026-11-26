@@ -813,6 +813,7 @@ async def list_class_signals(
 @router.get("/{class_id}/live", response_model=LiveClassResponse)
 async def get_class_live(
     class_id: str = Path(...),
+    lang: str = Query("da"),
     user: User = Depends(get_current_user),  # noqa: B008
 ) -> LiveClassResponse:
     """The live teacher dashboard payload (1.1.31 M0, un-gated).
@@ -853,7 +854,9 @@ async def get_class_live(
     ]
     # Placeholder-framework roll-up (env-gated; cached/debounced). Failure or
     # disabled → None, and the deterministic layer above still renders.
-    summary_obj = await resolve_live_summary(class_id, signals)
+    # The teacher's own DA | EN choice, sent by the page (1.1.163 M4); anything
+    # else falls back to Danish inside resolve_live_summary.
+    summary_obj = await resolve_live_summary(class_id, signals, lang=lang)
     summary = (
         {
             "text": summary_obj.text,

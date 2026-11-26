@@ -1,6 +1,6 @@
 # The live view says what each group has been doing in the last few minutes
 
-**Status**: **M0 + M1 + M3 IMPLEMENTED 2026-11-26** (the counted line, no AI; on `dev`, not yet released). M2 synopsis, M4 class summary open — **1.1.163**
+**Status**: **M0 + M1 + M3 released to test in v0.1.114; M4 IMPLEMENTED 2026-11-26** (on `dev`). M2 (per-group written synopsis) open — **1.1.163**
 **Priority**: **P1**. Teachers like the live view and ask for the next step: *what is this group actually doing?* Today the answer is one word (*active / quiet / stuck*), and getting more means leaving the class page for the group report
 **Estimated**: **~3d** (M0 window query ~0.5d · M1 the "what they did" line, no model ~0.75d · M2 the one-paragraph synopsis ~0.75d · M3 the row opens in place ~0.5d · M4 the class summary is built from the synopses ~0.25d · M5 tests ~0.25d)
 **Scope**: Backend: a new `analytics/group_window.py` (one BigQuery read per group and window), a new `analytics/group_synopsis.py` (the model call, cached), one route `GET /api/classes/{id}/groups/{code}/recent?minutes=` in `protocols/classes_routes.py`, `config/models.yaml` (a `live_synopsis` purpose). Frontend: `app/teacher/classes/[id]/_GroupsTable.tsx` (a row that opens), `_LiveClassView.tsx` (the class summary reads the synopses), `frontend/messages/{da,en}/` (copy). No new collection
@@ -192,7 +192,31 @@ debounce and gate are unchanged.
   gives 3 questions, 5 feedback requests, 8 tutor replies, 3 documents, and
   *Undervejs* 42 → 85 words. That matches the chat log line by line. "No sim
   changes" was checked too: the sim's pushes stop at 09:39 and resume at 09:51.
-- **Not yet seen in a real browser** on a deployed env with a live lesson.
+- **Seen in a real browser on deployed dev** (2026-11-26):
+  - the test teacher opened the Lesson tab and clicked a group's code;
+  - the chip read *Aktiv · i chatten*, and the panel read *1 ændring i
+    Hældningslab — hældning i et punkt · 1 svar fra tutoren*;
+  - the 20-min switch refetched, with no page errors.
+
+  It also showed the code wrapping beside the chevron, which is fixed in
+  `cfbe637f`.
+- **M4, the class summary reads the work (2026-11-26).** Done before M2,
+  because the class summary is ON in test and prod. On dev it had just called
+  an active group *"stuck working on an 'unknown activity'"*, in English on a
+  Danish page, from counts alone. Now, when it regenerates (at most once per
+  5 min per class and language), it reads each live group's counted last 10
+  minutes (`read_group_window`, up to 12 groups, off the loop; a failed read is
+  *not available*, never *nothing*). It also gets where each group works and
+  whether its page is open (1.1.161). The rules: it writes in the teacher's DA
+  | EN choice (`/live?lang=`), says *stuck* only when the signal does, never
+  names an activity it was not given, and never talks about the data itself.
+  Sim names now resolve for teacher-built sims too (`load_artefact`).
+
+  Tried on prod windows from 2026-11-25: *"spicy-crab-48 og tidy-horse-92 …
+  arbejder i simulationen 'Lithium-ion-batteri og nedbrydning' samt skriver i
+  'Undervejs (Del 2-5)'"*. It still uses the placeholder framework's English
+  ICAP labels ("Constructive engagement") inside Danish text; that changes
+  with AR's R1 framework, not here.
 
 ## Milestones
 

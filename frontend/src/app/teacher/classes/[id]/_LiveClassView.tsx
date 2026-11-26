@@ -44,7 +44,7 @@ export interface LiveClassState {
   ack: (groupId: string) => Promise<void>;
 }
 
-export function useLiveClass(classId: string, pollMs = 10_000): LiveClassState {
+export function useLiveClass(classId: string, pollMs = 10_000, lang: "da" | "en" = "da"): LiveClassState {
   const t = useT("LiveClassView");
   const [data, setData] = useState<LiveClass | null>(null);
   const [error, setError] = useState(false);
@@ -52,12 +52,12 @@ export function useLiveClass(classId: string, pollMs = 10_000): LiveClassState {
 
   const refresh = useCallback(async () => {
     try {
-      setData(await listClassLive(classId));
+      setData(await listClassLive(classId, lang));
       setError(false);
     } catch {
       setError(true);
     }
-  }, [classId]);
+  }, [classId, lang]);
 
   useEffect(() => {
     if (!classId) return;

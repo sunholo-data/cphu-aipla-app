@@ -112,7 +112,7 @@ export default function TeacherClassDetailPage() {
   const [showPicker, setShowPicker] = useState(false);
   const [busyActivity, setBusyActivity] = useState<string | null>(null);
 
-  const live = useLiveClass(id);
+  const live = useLiveClass(id, undefined, timeLocale);
 
   const refresh = useCallback(async () => {
     setLoadError(null);

@@ -1489,8 +1489,9 @@ export type LiveClass = {
 };
 
 /** Live dashboard payload: incoming raised hands + deterministic per-group signals. */
-export async function listClassLive(classId: string): Promise<LiveClass> {
-  const resp = await fetchWithAuth(`/api/proxy/api/classes/${encodeURIComponent(classId)}/live`);
+export async function listClassLive(classId: string, lang: "da" | "en" = "da"): Promise<LiveClass> {
+  // `lang` is the teacher's own DA | EN choice: the class summary is written in it.
+  const resp = await fetchWithAuth(`/api/proxy/api/classes/${encodeURIComponent(classId)}/live?lang=${lang}`);
   if (!resp.ok) throw new Error(`live fetch failed (${resp.status})`);
   return (await resp.json()) as LiveClass;
 }

@@ -106,10 +106,12 @@ def _writing_docs(value: Any) -> dict[str, tuple[str, int]]:
 
 
 def _sim_name(server: str) -> str:
+    """The sim's display name, built-in or teacher-built (most lesson sims are
+    teacher-built now). One catalogue read; windows are read on demand only."""
     try:
-        from artefacts.loader import builtin_artefact
+        from artefacts.loader import load_artefact
 
-        meta = builtin_artefact(server)
+        meta = load_artefact(server)
         if meta is not None and meta.display_name:
             return meta.display_name
     except Exception:
