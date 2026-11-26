@@ -32,6 +32,17 @@ const HOST_CONTEXT_CHANGED_NOTIFICATION =
 // push will ever come) — keeping send latency negligible in that common case.
 const FLUSH_MAX_WAIT_MS = 150;
 
+/** Same-kind pushes closer together than this are merged into the latest one.
+ *
+ *  Every push is a session event in Agent Engine, and prod's quota is 100
+ *  appends per minute for the WHOLE project. On 2026-11-25 one student dragging
+ *  the Li-ion sim's cycle slider sent 146 pushes in two minutes. For a minute
+ *  every group's pushes failed (HTTP 500), and four chat turns never reached the
+ *  tutor's history. 343 of that lesson's 951 sim pushes came within 1.5 s of the
+ *  one before. The latest state always goes: a burst becomes one push at its
+ *  end, a different kind of event goes at once, and so does a chat flush. */
+export const PUSH_COALESCE_MS = 1500;
+
 /** The resolved artefact the student-facing `/active` endpoint returns (the
  *  public catalogue view — never the `tutorBlock`). Mirrors `ArtefactMeta.public()`. */
 export interface ActivityArtefact {
@@ -210,9 +221,52 @@ export function GenericArtefactFrame({
     return () => onRegisterFlush(null);
   }, [onRegisterFlush]);
 
+  // Coalescing state (see PUSH_COALESCE_MS). Refs: none of this renders.
+  const lastSentAtRef = useRef(0);
+  const lastSentKindRef = useRef<string | null>(null);
+  const pendingRef = useRef<Record<string, unknown> | null>(null);
+  const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const sendPending = () => {
+    if (pendingTimerRef.current) clearTimeout(pendingTimerRef.current);
+    pendingTimerRef.current = null;
+    const pending = pendingRef.current;
+    pendingRef.current = null;
+    if (pending) send(pending);
+  };
+  // A push still waiting when the sim closes goes out, rather than being lost.
+  const sendPendingRef = useRef(sendPending);
+  sendPendingRef.current = sendPending;
+  useEffect(() => () => sendPendingRef.current(), []);
+
   const handleStructuredContent = (sc: Record<string, unknown>) => {
     const kind = typeof sc.kind === "string" ? sc.kind : "";
     if (!kind || isNoise(kind)) return;
+    const pendingKind = pendingRef.current ? String(pendingRef.current.kind) : null;
+    // A different kind of event is its own moment: send what was waiting first.
+    if (pendingKind !== null && pendingKind !== kind) sendPending();
+    const since = Date.now() - lastSentAtRef.current;
+    const sameKindAsLast = kind === lastSentKindRef.current;
+    if (flushAwaitRef.current || !sameKindAsLast || since >= PUSH_COALESCE_MS) {
+      // The chat page is about to ask the tutor: never hold its state back.
+      if (pendingRef.current) {
+        if (pendingTimerRef.current) clearTimeout(pendingTimerRef.current);
+        pendingTimerRef.current = null;
+        pendingRef.current = null;
+      }
+      send(sc);
+      return;
+    }
+    pendingRef.current = sc; // the newest replaces the older one of the same kind
+    if (!pendingTimerRef.current) {
+      pendingTimerRef.current = setTimeout(sendPending, PUSH_COALESCE_MS - since);
+    }
+  };
+
+  const send = (sc: Record<string, unknown>) => {
+    const kind = typeof sc.kind === "string" ? sc.kind : "";
+    lastSentAtRef.current = Date.now();
+    lastSentKindRef.current = kind;
     const label = cardLabel(sc);
     // Pass the label through so the backend persists it on the iframe-context
     // state_delta — the chat transcript re-renders the same card on reload.

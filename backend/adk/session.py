@@ -16,6 +16,7 @@ import asyncio
 import contextlib
 import logging
 import os
+import random
 from collections.abc import Iterator
 from contextvars import ContextVar
 from typing import Any
@@ -364,6 +365,40 @@ def _is_deterministic_anon_uid(uid: str) -> bool:
     return uid.startswith("anon-") and uid.count("-") == 1
 
 
+#: Backoff before each retry of an Agent Engine write that hit the quota.
+#: Prod's quota is 100 session-event appends per minute per region, shared by
+#: every class. On 2026-11-25 one student dragging a sim slider sent 146 pushes
+#: in two minutes; for ~1 min every push and 4 chat-turn writes failed with 429,
+#: and a chat event that never reaches Agent Engine is missing from the tutor's
+#: history on the next turn. Waiting ~15 s in all turns a lost write into a late
+#: one. ADK applies an event to the session only once the remote append
+#: SUCCEEDS (vertex_ai_session_service.append_event), so a retry never
+#: duplicates it.
+APPEND_RETRY_DELAYS_S: tuple[float, ...] = (1.0, 2.0, 4.0, 8.0)
+
+
+def _is_quota_error(exc: BaseException) -> bool:
+    code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
+    return code == 429 or "RESOURCE_EXHAUSTED" in str(exc)
+
+
+async def _append_with_retry(inner: Any, *, session: Session, event: Event) -> Event:
+    """``inner.append_event``, retried with jittered backoff on a quota (429) error only."""
+    delays = APPEND_RETRY_DELAYS_S
+    for attempt in range(len(delays) + 1):
+        try:
+            return await inner.append_event(session=session, event=event)
+        except Exception as exc:
+            if attempt == len(delays) or not _is_quota_error(exc):
+                raise
+            wait = delays[attempt] * (0.75 + random.random() / 2)
+            logger.warning(
+                "session: Agent Engine append quota hit; retry %d/%d in %.1fs", attempt + 1, len(delays), wait
+            )
+            await asyncio.sleep(wait)
+    raise AssertionError("unreachable")  # pragma: no cover
+
+
 #: Per-request memo of ``get_session`` reads — see ``session_read_memo``.
 _read_memo: ContextVar[dict[tuple[str, str, str], Session] | None] = ContextVar("session_read_memo", default=None)
 
@@ -553,7 +588,7 @@ class _LegacyAnonOwnerSessionService(BaseSessionService):
         """
         pending = _pending_writes.get()
         if pending is None or getattr(event, "partial", False):
-            return await self._inner.append_event(session=session, event=event)
+            return await _append_with_retry(self._inner, session=session, event=event)
 
         applied = await BaseSessionService.append_event(self, session=session, event=event)
         # The inner service repeats the in-memory half before it writes; give it
@@ -566,7 +601,7 @@ class _LegacyAnonOwnerSessionService(BaseSessionService):
                 # Order, not success: a failed earlier write is logged by the
                 # drain; this one must still go out.
                 await asyncio.gather(previous, return_exceptions=True)
-            return await self._inner.append_event(session=shadow, event=event)
+            return await _append_with_retry(self._inner, session=shadow, event=event)
 
         pending.append(asyncio.create_task(_write_in_order(), name=f"session-write:{session.id}:{event.author}"))
         return applied

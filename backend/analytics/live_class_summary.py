@@ -201,7 +201,9 @@ async def resolve_live_summary(
         windows = await _read_windows(signals)
         text = await _call_model(build_prompt(signals, framework, windows, lang))
     except Exception as exc:
-        log.warning("live summary: generation failed for %s (%s)", class_id, type(exc).__name__)
+        # The message, not only the type: on 2026-11-26 two failures logged just
+        # "(ClientError)", which cannot tell a quota from a bad request.
+        log.warning("live summary: generation failed for %s (%s: %s)", class_id, type(exc).__name__, str(exc)[:300])
         return cached[2] if cached else None
 
     if not text:

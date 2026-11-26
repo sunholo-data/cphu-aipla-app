@@ -1,6 +1,6 @@
 import { act, render, waitFor } from "@testing-library/react";
 import { useEffect } from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   ProactiveSimProvider,
@@ -46,6 +46,7 @@ import {
 } from "@/lib/simCommandBus";
 import {
   GenericArtefactFrame,
+  PUSH_COALESCE_MS,
   type ActivityArtefact,
 } from "../GenericArtefactFrame";
 
@@ -479,6 +480,58 @@ describe("GenericArtefactFrame", () => {
 
 // 1.1.133 M1 — tutor → sim. The chat card publishes a `control_sim` call on the
 // bus; the frame sends it to the sim as `<id>.cmd-<command>` over the bridge.
+describe("GenericArtefactFrame — coalescing a burst of pushes (2026-11-25 quota)", () => {
+  // One student dragging a slider sent 146 pushes in two minutes and took prod
+  // past Agent Engine's 100 appends/min. The latest state must still arrive.
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.mocked(fetchWithAuth).mockClear();
+    vi.mocked(fetchWithAuth).mockImplementation(() => Promise.resolve(new Response(null, { status: 204 })));
+    frameSpy.mockClear();
+  });
+  afterEach(() => vi.useRealTimers());
+
+  const sent = () =>
+    vi
+      .mocked(fetchWithAuth)
+      .mock.calls.filter(([u]) => String(u).includes("/iframe-context"))
+      .map(([, o]) => JSON.parse((o as RequestInit).body as string).structuredContent);
+
+  it("a slider drag becomes the first push plus one with the final value", async () => {
+    render(<GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={ARTEFACT} sessionId="s1" />);
+    for (let i = 0; i <= 10; i++) {
+      onUpdate()({ kind: "boldkast.state-change", state: { theta: i * 5 } });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(100);
+      });
+    }
+    expect(sent().map((c) => c.state.theta)).toEqual([0]);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(PUSH_COALESCE_MS);
+    });
+    expect(sent().map((c) => c.state.theta)).toEqual([0, 50]); // the latest, not a middle step
+  });
+
+  it("a different kind of event goes at once, after what was waiting", async () => {
+    render(<GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={ARTEFACT} sessionId="s1" />);
+    onUpdate()({ kind: "boldkast.state-change", state: { theta: 10 } });
+    onUpdate()({ kind: "boldkast.state-change", state: { theta: 20 } }); // held
+    onUpdate()({ kind: "boldkast.run", state: { theta: 20 } });
+    expect(sent().map((c) => c.lastEvent)).toEqual(["boldkast.state-change", "boldkast.state-change", "boldkast.run"]);
+    expect(sent()[1].state.theta).toBe(20);
+  });
+
+  it("a push still waiting when the sim closes is sent, not lost", () => {
+    const { unmount } = render(
+      <GenericArtefactFrame sandboxOrigin="https://sandbox" artefact={ARTEFACT} sessionId="s1" />,
+    );
+    onUpdate()({ kind: "boldkast.state-change", state: { theta: 10 } });
+    onUpdate()({ kind: "boldkast.state-change", state: { theta: 33 } });
+    unmount();
+    expect(sent().map((c) => c.state.theta)).toEqual([10, 33]);
+  });
+});
+
 describe("GenericArtefactFrame — tutor commands", () => {
   const SOL: ActivityArtefact = {
     id: "sol-jord-maane",

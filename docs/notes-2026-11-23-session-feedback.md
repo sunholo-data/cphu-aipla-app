@@ -70,6 +70,33 @@ sessions in Agent Engine.
 | 6 | The teacher had the **live view open for the whole lesson** (90 distinct minutes, 08:13–10:19 UTC) and opened **one** group report (`huge-robin-49`). They watched the one-word statuses and almost never drilled in, which is what point 6 asks to change. On 26 November the live view was open 166 min, and one group's report was kept open |
 | 7 | **Every one of the 9 sessions compacted, 1–5 times each** (21 compactions in ~80 min). Workbench pushes outnumbered chat events in all of them (64–353 pushes per session), and that drove the turn-count trigger ([1.1.164](design/aipla/v2.1.0-extension/tutor-tracks-what-is-settled.md) M0). A text search finds exactly **two** tutor replies asking about a point already fixed, both `green-beetle-49` (10:00 protons, 10:11 typo), and one student pushback (*"der står ikke protoner noget sted"*). Other effects of a summary replacing the history would not show in a text search. On 26 November, with few pushes, one session compacted once |
 
+### Found in the same logs, not in the feedback (2026-11-26)
+
+**The lesson hit Agent Engine's write quota, and chat turns were lost.** Prod's
+quota is **100 session-event appends per minute** for the whole project.
+- **The burst.** At 10:04 on 25 November one student (`ivory-valley-81`)
+  dragged the Li-ion sim's cycle slider and sent **146 pushes in two minutes**;
+  the lesson normally ran 20–60 a minute.
+- **What failed.** For about a minute every group's workbench push returned
+  HTTP 500 (53 of them, `429 RESOURCE_EXHAUSTED`), and **4 chat-turn writes
+  failed**. A chat event that never reaches Agent Engine is missing from the
+  tutor's history on the next turn.
+- **How common.** 343 of the lesson's 951 sim pushes came within 1.5 s of the
+  previous one. The writing sheet already throttles itself (1 of 623).
+
+Fixed on 2026-11-26:
+1. The sim frame merges same-kind pushes closer than 1.5 s into the latest one
+   (`GenericArtefactFrame`, `PUSH_COALESCE_MS`). A different event, or a
+   chat flush, still goes at once, and the latest state is never dropped.
+2. A session write that hits the quota is retried with backoff (1, 2, 4, 8 s)
+   instead of failing (`adk/session.py`, `_append_with_retry`). ADK applies
+   an event only after the remote append succeeds, so a retry cannot duplicate
+   it.
+
+**Still open, and a decision for M:** ask Google to raise the quota. At 100 a
+minute, a larger class or two classes at once can reach it without any
+burst.
+
 ## 1. Sim text disappears on close and reopen
 
 **What happens.** When a student opens a sim, it fills the workspace. Closing it

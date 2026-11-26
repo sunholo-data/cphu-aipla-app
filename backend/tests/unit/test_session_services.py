@@ -702,3 +702,81 @@ class TestStudentMessageWriteDoesNotBlockTheTurn:
             pass
         assert inner.finished == ["user"]
         assert session_mod._pending_writes.get() is None
+
+
+class TestAgentEngineQuotaRetry:
+    """2026-11-25, prod: one student dragging a sim slider sent 146 pushes in
+    two minutes and took the project past Agent Engine's 100 appends/min. For a
+    minute every push 500'd and four chat-turn writes were lost — a chat event
+    that never reaches Agent Engine is missing from the tutor's history on the
+    next turn. A quota error is now retried with backoff; anything else is not."""
+
+    @staticmethod
+    def _build(fail_times: int, exc: Exception | None = None):
+        from google.adk.sessions import Session
+
+        from adk.session import _LegacyAnonOwnerSessionService
+
+        class QuotaError(Exception):
+            code = 429
+
+        class Inner:
+            def __init__(self):
+                self.calls = 0
+
+            async def get_session(self, *, app_name, user_id, session_id, config=None):
+                return Session(app_name=app_name, user_id=user_id, id=session_id)
+
+            async def append_event(self, session, event):
+                self.calls += 1
+                if self.calls <= fail_times:
+                    raise exc or QuotaError(
+                        "429 RESOURCE_EXHAUSTED. Quota exceeded for 'Session Event Append Requests'"
+                    )
+                # Vertex applies the event only once the remote append succeeds.
+                session.events.append(event)
+                return event
+
+        inner = Inner()
+        return _LegacyAnonOwnerSessionService(inner), inner
+
+    @pytest.fixture(autouse=True)
+    def _no_sleep(self, monkeypatch):
+        from adk import session as session_mod
+
+        monkeypatch.setattr(session_mod, "APPEND_RETRY_DELAYS_S", (0.0, 0.0, 0.0, 0.0))
+
+    @pytest.mark.asyncio
+    async def test_a_quota_error_is_retried_until_the_write_lands(self):
+        svc, inner = self._build(fail_times=3)
+        session = await svc.get_session(app_name="app", user_id="anon-x", session_id="s1")
+        await svc.append_event(session, TestStudentMessageWriteDoesNotBlockTheTurn._event("user"))
+        assert inner.calls == 4
+        assert len(session.events) == 1  # landed once, not duplicated
+
+    @pytest.mark.asyncio
+    async def test_a_background_chat_write_survives_the_quota(self):
+        from adk.session import drain_pending_session_writes, session_read_memo
+
+        svc, inner = self._build(fail_times=2)
+        with session_read_memo():
+            session = await svc.get_session(app_name="app", user_id="anon-x", session_id="s1")
+            await svc.append_event(session, TestStudentMessageWriteDoesNotBlockTheTurn._event("model"))
+            await drain_pending_session_writes()
+        assert inner.calls == 3
+
+    @pytest.mark.asyncio
+    async def test_it_gives_up_after_the_last_retry(self):
+        svc, inner = self._build(fail_times=99)
+        session = await svc.get_session(app_name="app", user_id="anon-x", session_id="s1")
+        with pytest.raises(Exception, match="RESOURCE_EXHAUSTED"):
+            await svc.append_event(session, TestStudentMessageWriteDoesNotBlockTheTurn._event("user"))
+        assert inner.calls == 5  # the first try plus four retries
+
+    @pytest.mark.asyncio
+    async def test_other_errors_are_not_retried(self):
+        svc, inner = self._build(fail_times=1, exc=RuntimeError("bad request"))
+        session = await svc.get_session(app_name="app", user_id="anon-x", session_id="s1")
+        with pytest.raises(RuntimeError):
+            await svc.append_event(session, TestStudentMessageWriteDoesNotBlockTheTurn._event("user"))
+        assert inner.calls == 1
