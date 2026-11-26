@@ -94,20 +94,20 @@ describe("LessonRecordingPanel", () => {
     expect(screen.queryByText("hej fra gruppen")).not.toBeInTheDocument();
   });
 
-  it("record -> stop posts the segment to /recording and reports recording state", async () => {
+  it("record -> stop posts the segment to /recording and hands the running recorder up (then null)", async () => {
     fetchMyTranscript.mockResolvedValue({ groupId: "g1", segments: [], text: "" });
     fetchMock.mockResolvedValue({ ok: true, json: async () => ({}) });
-    const onRecordingChange = vi.fn();
-    render(<LessonRecordingPanel {...base} onRecordingChange={onRecordingChange} />);
+    const onRecorderChange = vi.fn();
+    render(<LessonRecordingPanel {...base} onRecorderChange={onRecorderChange} />);
 
     fireEvent.click(screen.getByLabelText("Record this class"));
     expect(await screen.findByText(/Recording this class…/i)).toBeInTheDocument();
-    await waitFor(() => expect(onRecordingChange).toHaveBeenCalledWith(true));
+    await waitFor(() => expect(onRecorderChange).toHaveBeenCalledWith(expect.objectContaining({ start: expect.any(Function) })));
 
     fireEvent.click(screen.getByText("Stop recording"));
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(fetchMock.mock.calls[0][0]).toContain("/api/voice/recording");
-    await waitFor(() => expect(onRecordingChange).toHaveBeenCalledWith(false));
+    await waitFor(() => expect(onRecorderChange).toHaveBeenLastCalledWith(null));
   });
 
 });

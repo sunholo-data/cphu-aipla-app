@@ -162,6 +162,45 @@ describe("SegmentedRecorder", () => {
     expect(segs.every((s) => s.type === "audio/wav")).toBe(true);
   });
 
+  it("tap() dictates from the lesson's own stream: no second mic, lesson segments intact", async () => {
+    vi.useFakeTimers();
+    const segs: Blob[] = [];
+    const { opts, getUserMedia } = deps();
+    const seg = new SegmentedRecorder((r) => segs.push(r.blob), 60_000, opts);
+    expect(seg.tap()).toBeNull(); // nothing to tap before the lesson records
+    await seg.start();
+
+    lastNode!.emit(160); // before dictation — lesson only
+    const dict = seg.tap()!;
+    lastNode!.emit(320); // during dictation — both
+    const r = await dict.stop();
+    lastNode!.emit(160); // after dictation — lesson only
+    await seg.stop();
+
+    expect(getUserMedia).toHaveBeenCalledTimes(1);
+    // the dictation holds exactly the audio spoken while it ran
+    expect(r.mimeType).toBe("audio/wav");
+    expect(r.blob.size).toBe(44 + 320 * 2);
+    expect(new DataView(await r.blob.arrayBuffer()).getUint32(24, true)).toBe(48000);
+    // the lesson kept every chunk, including the dictated one
+    expect(segs).toHaveLength(1);
+    expect(segs[0].size).toBe(44 + (160 + 320 + 160) * 2);
+    expect(seg.recording).toBe(false);
+  });
+
+  it("a tap still returns its audio if the lesson stops first", async () => {
+    vi.useFakeTimers();
+    const { opts } = deps();
+    const seg = new SegmentedRecorder(() => {}, 60_000, opts);
+    await seg.start();
+    const dict = seg.tap()!;
+    lastNode!.emit(200);
+    await seg.stop();
+    expect(dict.getLevel()).toBe(0);
+    const r = await dict.stop();
+    expect(r.blob.size).toBe(44 + 200 * 2);
+  });
+
   it("cancel() stops without emitting a flush segment", async () => {
     vi.useFakeTimers();
     const segs: number[] = [];

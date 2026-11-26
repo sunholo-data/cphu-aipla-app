@@ -18,9 +18,9 @@ interface Props {
   lang: string;
   /** chat is mid-turn — don't start new capture. */
   disabled?: boolean;
-  /** report recording on/off so the parent can block dictation while we hold
-   * the mic (one getUserMedia stream at a time). */
-  onRecordingChange?: (recording: boolean) => void;
+  /** the running recorder (or null once stopped), so the composer's
+   * talk-to-type can tap its audio instead of opening a second mic stream. */
+  onRecorderChange?: (recorder: SegmentedRecorder | null) => void;
   /** soft status line (errors / "saved"). */
   onNotice?: (msg: string | null) => void;
 }
@@ -38,7 +38,7 @@ interface Props {
  * of whether STT produces text, so an empty transcript just means "not
  * transcribed yet" (or STT disabled).
  */
-export function LessonRecordingPanel({ lang, disabled, onRecordingChange, onNotice }: Props) {
+export function LessonRecordingPanel({ lang, disabled, onRecorderChange, onNotice }: Props) {
   const t = useT("LessonRecordingPanel");
   const segRef = useRef<SegmentedRecorder | null>(null);
   // True between a Record press and start() settling — see `start` below.
@@ -112,13 +112,13 @@ export function LessonRecordingPanel({ lang, disabled, onRecordingChange, onNoti
       // recorder that never ran and `start` would refuse forever after.
       segRef.current = recorder;
       setRecording(true);
-      onRecordingChange?.(true);
+      onRecorderChange?.(recorder);
     } catch {
       onNotice?.(t("micUnavailable"));
     } finally {
       startingRef.current = false;
     }
-  }, [onNotice, onRecordingChange, uploadSegment, t]);
+  }, [onNotice, onRecorderChange, uploadSegment, t]);
 
   const stop = useCallback(async () => {
     setBusy(true);
@@ -127,7 +127,7 @@ export function LessonRecordingPanel({ lang, disabled, onRecordingChange, onNoti
       await segRef.current?.stop();
       segRef.current = null;
       setRecording(false);
-      onRecordingChange?.(false);
+      onRecorderChange?.(null);
       onNotice?.(t("saved"));
       void load();
     } catch {
@@ -135,7 +135,7 @@ export function LessonRecordingPanel({ lang, disabled, onRecordingChange, onNoti
     } finally {
       setBusy(false);
     }
-  }, [load, onNotice, onRecordingChange, t]);
+  }, [load, onNotice, onRecorderChange, t]);
 
   if (!isAudioCaptureSupported()) return null;
 

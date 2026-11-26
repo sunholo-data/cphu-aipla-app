@@ -6,7 +6,7 @@ import { Loader2, Mic, Square } from "lucide-react";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { fetchWithAuth } from "@/lib/apiClient";
-import { AudioRecorder, isAudioCaptureSupported } from "@/lib/audioCapture";
+import { AudioRecorder, isAudioCaptureSupported, type DictationCapture, type SegmentedRecorder } from "@/lib/audioCapture";
 import { RecordingLevelMeter } from "./RecordingLevelMeter";
 
 type Mode = "idle" | "dictating";
@@ -17,9 +17,14 @@ interface Props {
   lang: string;
   /** caps.voiceInput AND a real STT provider — talk-to-type. */
   voiceInputEnabled: boolean;
-  /** chat is mid-turn (or a lesson recording holds the mic) — don't start
-   * dictation. */
+  /** chat is mid-turn — don't start dictation. */
   disabled?: boolean;
+  /** A lesson recording that is running. Dictation then reads ITS audio
+   * instead of opening a second mic stream (2026-11-23 feedback). */
+  lessonRecorder?: SegmentedRecorder | null;
+  /** Dictation started / ended on its OWN mic stream, so the parent can hold
+   * off a lesson recording until it ends (one getUserMedia at a time). */
+  onOwnMicChange?: (live: boolean) => void;
   /** dictation transcript -> fills the composer input. */
   onTranscript: (text: string) => void;
   /** soft status line (errors / "saved"). */
@@ -29,39 +34,54 @@ interface Props {
 /**
  * The composer mic (VOICE-IN-REC M3). Talk-to-type only: dictation -> STT ->
  * composer input. "Record this class" lives with its transcript in
- * `LessonRecordingPanel` — keeping the two mic uses in separate surfaces means
- * the parent can ensure only one getUserMedia stream is live at a time (it
- * disables this control while a lesson recording is running). Renders nothing
- * when voice input is off or the device can't capture audio.
+ * `LessonRecordingPanel`. Only one getUserMedia stream is ever live: while a
+ * lesson records, dictation taps the recording's audio (`lessonRecorder.tap()`)
+ * instead of opening its own — until 2026-11-23 it was simply disabled, and a
+ * group recording its talk could not talk to type. Renders nothing when voice
+ * input is off or the device can't capture audio.
  */
 export function VoiceComposerControls({
   skillId,
   lang,
   voiceInputEnabled,
   disabled,
+  lessonRecorder,
+  onOwnMicChange,
   onTranscript,
   onNotice,
 }: Props) {
   const t = useT("VoiceComposerControls");
-  const dictRef = useRef<AudioRecorder | null>(null);
+  const dictRef = useRef<DictationCapture | null>(null);
   const [mode, setMode] = useState<Mode>("idle");
   const [busy, setBusy] = useState(false);
 
   const begin = useCallback(async () => {
     onNotice?.(null);
     try {
-      dictRef.current ??= new AudioRecorder();
-      await dictRef.current.start();
+      const shared = lessonRecorder?.recording ? lessonRecorder.tap() : null;
+      if (shared) {
+        dictRef.current = shared;
+      } else {
+        const own = new AudioRecorder();
+        await own.start();
+        dictRef.current = own;
+        onOwnMicChange?.(true);
+      }
       setMode("dictating");
     } catch {
       onNotice?.(t("micUnavailable"));
     }
-  }, [onNotice, t]);
+  }, [lessonRecorder, onNotice, onOwnMicChange, t]);
 
   const finishDictation = useCallback(async () => {
+    const capture = dictRef.current;
+    if (!capture) return;
     setBusy(true);
     try {
-      const { blob, durationMs } = await (dictRef.current ??= new AudioRecorder()).stop();
+      const own = capture instanceof AudioRecorder;
+      const { blob, durationMs } = await capture.stop();
+      dictRef.current = null;
+      if (own) onOwnMicChange?.(false);
       setMode("idle");
       const fd = new FormData();
       fd.append("audio", blob, "dictation.wav");
@@ -78,7 +98,7 @@ export function VoiceComposerControls({
     } finally {
       setBusy(false);
     }
-  }, [lang, skillId, onTranscript, onNotice, t]);
+  }, [lang, skillId, onOwnMicChange, onTranscript, onNotice, t]);
 
   const supported = isAudioCaptureSupported();
   const showDictate = voiceInputEnabled && supported;

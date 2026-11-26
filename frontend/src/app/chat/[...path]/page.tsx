@@ -14,6 +14,7 @@ import { VoiceComposerControls } from "@/components/chat/VoiceComposerControls";
 import { SymbolStrip, SymbolStripToggle, useSymbolStrip } from "@/components/chat/SymbolStrip";
 import { insertAtCaret, restoreCaret } from "@/lib/insertAtCaret";
 import { LessonRecordingPanel } from "@/components/chat/LessonRecordingPanel";
+import type { SegmentedRecorder } from "@/lib/audioCapture";
 import { useVoiceConfig } from "@/hooks/useVoiceConfig";
 import type { DocTabData } from "@/components/doc-browser/DocTab";
 import { DocListView } from "@/components/doc-browser/DocListView";
@@ -727,9 +728,12 @@ function ChatShell({
       ? tStage(stage.key as MessageKey<"StageProgress">, stage.params)
       : stageLabel;
   const [voiceNotice, setVoiceNotice] = useState<string | null>(null);
-  // A lesson recording holds the mic — block dictation so only one
-  // getUserMedia stream is ever live at a time.
-  const [lessonRecording, setLessonRecording] = useState(false);
+  // Only one getUserMedia stream is ever live. While a lesson records, talk-to-
+  // type taps the recording's audio (it used to be disabled — a group that was
+  // recording could not dictate, 2026-11-23 feedback). While dictation holds
+  // its own mic, Record waits for it to finish.
+  const [lessonRecorder, setLessonRecorder] = useState<SegmentedRecorder | null>(null);
+  const [dictationOwnMic, setDictationOwnMic] = useState(false);
   // resize-workspace sprint — chat <-> workspace split ratio.
   // Keyed by skillSlug so KineBot remembers a different width than
   // LED Planck (per-skill defaults in the hook).
@@ -1538,8 +1542,8 @@ function ChatShell({
               <div className="mb-2">
                 <LessonRecordingPanel
                   lang={composerVoice.tts.language ?? "da"}
-                  disabled={inputDisabled}
-                  onRecordingChange={setLessonRecording}
+                  disabled={inputDisabled || dictationOwnMic}
+                  onRecorderChange={setLessonRecorder}
                   onNotice={setVoiceNotice}
                 />
               </div>
@@ -1645,7 +1649,9 @@ function ChatShell({
                 skillId={skillId}
                 lang={composerVoice.tts.language ?? "da"}
                 voiceInputEnabled={composerVoice.capabilities.voiceInput && composerVoice.stt.provider !== "disabled"}
-                disabled={inputDisabled || lessonRecording}
+                disabled={inputDisabled}
+                lessonRecorder={lessonRecorder}
+                onOwnMicChange={setDictationOwnMic}
                 onTranscript={(t) => setDraft((d) => (d.trim() ? `${d} ${t}` : t))}
                 onNotice={setVoiceNotice}
               />

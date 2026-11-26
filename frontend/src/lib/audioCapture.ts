@@ -115,6 +115,8 @@ class PcmCaptureSession {
   private _analyser: AnalyserNode | null = null;
   private _levelBuf: Uint8Array<ArrayBuffer> | null = null;
   private _chunks: ArrayBuffer[] = [];
+  // Extra listeners on the same PCM (a dictation taken while a lesson records).
+  private _taps = new Set<ArrayBuffer[]>();
   // The AudioContext's native rate, captured at start() and written into the
   // WAV header so the backend (and STT) know the true rate.
   private _rate = CAPTURE_RATE;
@@ -152,7 +154,10 @@ class PcmCaptureSession {
     // No processorOptions — the worklet captures at the context's native rate.
     const node = new AudioWorkletNode(ctx, "pcm-capture");
     node.port.onmessage = (e: MessageEvent) => {
-      if (e.data?.type === "pcm-chunk") this._chunks.push(e.data.pcmData as ArrayBuffer);
+      if (e.data?.type !== "pcm-chunk") return;
+      const chunk = e.data.pcmData as ArrayBuffer;
+      this._chunks.push(chunk);
+      this._taps.forEach((tap) => tap.push(chunk));
     };
     source.connect(node);
     this._node = node;
@@ -163,6 +168,22 @@ class PcmCaptureSession {
     const chunks = this._chunks;
     this._chunks = [];
     return encodeWav(chunks, this._rate);
+  }
+
+  get rate(): number {
+    return this._rate;
+  }
+
+  /** Start copying every PCM chunk from now on into a second buffer, without
+   *  touching the main one. The caller ends it with `closeTap`. */
+  openTap(): ArrayBuffer[] {
+    const tap: ArrayBuffer[] = [];
+    this._taps.add(tap);
+    return tap;
+  }
+
+  closeTap(tap: ArrayBuffer[]): void {
+    this._taps.delete(tap);
   }
 
   /** Live RMS input level 0..1 for a recording VFX. 0 when idle. */
@@ -197,14 +218,25 @@ class PcmCaptureSession {
     this._stream = null;
     this._ctx = null;
     this._chunks = [];
+    this._taps.clear();
   }
+}
+
+/**
+ * A dictation in progress — either on its own mic (`AudioRecorder`) or riding
+ * on a lesson recording that already holds the mic (`SegmentedRecorder.tap`).
+ */
+export interface DictationCapture {
+  getLevel(): number;
+  stop(): Promise<RecordingResult>;
+  cancel(): void;
 }
 
 /**
  * One-shot recorder (dictation): `start()` then `stop()` -> a single WAV blob.
  * Releases the mic on stop/cancel.
  */
-export class AudioRecorder {
+export class AudioRecorder implements DictationCapture {
   private _session: PcmCaptureSession | null = null;
   private _startedAt = 0;
   private readonly _deps: RecorderDeps;
@@ -318,6 +350,42 @@ export class SegmentedRecorder {
       this._timer = null;
     }
     this._flush(true);
+  }
+
+  /**
+   * Dictate while the lesson records (2026-11-23 feedback): copy the SAME PCM
+   * from now until `stop()` into its own WAV, so talk-to-type works without a
+   * second getUserMedia stream. On iOS Safari a second capture of the same
+   * device mutes the first, which would silently cut the lesson recording; one
+   * stream with two readers cannot. The lesson's own segments are unaffected,
+   * and the dictated words are in the recording too, as they were said aloud.
+   *
+   * If the lesson recording stops mid-dictation, `stop()` still returns what
+   * was captured up to then. Returns null when not recording.
+   */
+  tap(): DictationCapture | null {
+    const session = this._session;
+    if (!session) return null;
+    const chunks = session.openTap();
+    const rate = session.rate;
+    const startedAt = this._now();
+    let open = true;
+    const end = () => {
+      if (open) session.closeTap(chunks);
+      open = false;
+    };
+    return {
+      getLevel: () => (open ? session.level() : 0),
+      stop: async () => {
+        end();
+        return {
+          blob: encodeWav(chunks, rate),
+          mimeType: "audio/wav",
+          durationMs: Math.max(0, this._now() - startedAt),
+        };
+      },
+      cancel: end,
+    };
   }
 
   cancel(): void {
