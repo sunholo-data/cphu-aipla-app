@@ -47,7 +47,7 @@ export const CLIENT_ERROR_ENDPOINT = "/api/proxy/api/client-errors";
  * not an error: it is the page an automatic stale-deploy reload landed on,
  * saying it rendered (1.1.138 M0).
  */
-export type ClientErrorKind = "render" | "window.onerror" | "unhandledrejection" | "recovered";
+export type ClientErrorKind = "render" | "window.onerror" | "unhandledrejection" | "recovered" | "busy";
 
 /** Who was looking at it. Three-valued; identifies nobody. */
 export type ClientErrorRole = "teacher" | "student" | "anon";

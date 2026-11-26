@@ -252,6 +252,12 @@ app: FastAPI = get_fast_api_app(
     allow_origins=allow_origins,
     otel_to_cloud=_otel_to_cloud,
 )
+# 2026-11-26 — a Google quota error that survives the retries is a 503 the
+# student's page explains ("busy, wait a moment"), not a bare 500.
+from observability.busy import install_busy_handler  # noqa: E402
+
+install_busy_handler(app)
+
 app.title = "Aitana Platform"
 app.description = "Skills-based AI platform with Google ADK orchestration"
 app.version = "6.0.0"

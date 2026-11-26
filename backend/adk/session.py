@@ -378,8 +378,9 @@ APPEND_RETRY_DELAYS_S: tuple[float, ...] = (1.0, 2.0, 4.0, 8.0)
 
 
 def _is_quota_error(exc: BaseException) -> bool:
-    code = getattr(exc, "code", None) or getattr(exc, "status_code", None)
-    return code == 429 or "RESOURCE_EXHAUSTED" in str(exc)
+    from observability.busy import is_quota_error
+
+    return is_quota_error(exc)
 
 
 async def _append_with_retry(inner: Any, *, session: Session, event: Event) -> Event:

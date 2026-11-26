@@ -1,3 +1,4 @@
+import { onBusy } from "@/lib/busySignal";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -750,6 +751,34 @@ describe("useSkillAgent — error classification", () => {
     await waitFor(() => expect(result.current.error).not.toBeNull());
     expect(result.current.error?.message).toContain("Can't reach the server");
     expect(result.current.error?.retryable).toBe(true);
+  });
+
+  it("2026-11-26: a 503 or 429 is 'busy — wait a moment', and raises the busy notice", async () => {
+    const seen: number[] = [];
+    const off = onBusy((at) => seen.push(at));
+    fake.runAgent.mockRejectedValue(new Error("HTTP 503: Service Unavailable"));
+    const { result } = renderHook(() => useSkillAgent());
+    await act(async () => {
+      await result.current.sendMessage("test");
+    });
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    expect(result.current.error?.code).toBe("busy");
+    expect(result.current.error?.retryable).toBe(true);
+    expect(seen).toHaveLength(1);
+    off();
+  });
+
+  it("2026-11-26: a run that fails on the model's quota (MODEL_RATE_LIMITED) is 'busy'", async () => {
+    fake.runAgent.mockImplementation(async () => {
+      fake.emitRunFailed({ message: "scrubbed", code: "MODEL_RATE_LIMITED" });
+      return { newMessages: [] };
+    });
+    const { result } = renderHook(() => useSkillAgent());
+    await act(async () => {
+      await result.current.sendMessage("test");
+    });
+    await waitFor(() => expect(result.current.error).not.toBeNull());
+    expect(result.current.error?.code).toBe("busy");
   });
 
   it("sets kind=network on non-HTTP error", async () => {

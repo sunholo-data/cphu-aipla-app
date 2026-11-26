@@ -6,6 +6,7 @@
 
 "use client";
 
+import { reportBusy } from "@/lib/busySignal";
 import type { Message } from "@ag-ui/client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { isProactiveSentinel } from "@/lib/proactiveSentinels";
@@ -68,6 +69,7 @@ export type StreamErrorCode =
   | "requestFailed"
   | "connectionLost"
   | "agentError"
+  | "busy"
   | "budget";
 
 /** A STAGE_PROGRESS event: the backend's English label plus, since 1.1.108, a
@@ -275,6 +277,12 @@ function classifyError(err: unknown): StreamError {
       return { kind: "http", code: "notFound", status, message: "Skill not found", retryable: false, rawMessage: msg };
     if (status === 502)
       return { kind: "http", code: "unreachable", status, message: "Can't reach the server. Try again.", retryable: true, rawMessage: msg };
+    // 2026-11-26 — a quota or an overloaded service: "wait a moment", with the
+    // time to report (lib/busySignal.ts), not "something went wrong".
+    if (status === 429 || status === 503) {
+      reportBusy("chat");
+      return { kind: "http", code: "busy", status, message: "AIPLA is busy right now. Wait a moment and try again.", retryable: true, rawMessage: msg };
+    }
     if (status >= 500)
       return { kind: "http", code: "serverError", status, message: "Something went wrong on our end. Try again.", retryable: true, rawMessage: msg };
     return { kind: "http", code: "requestFailed", status, message: "Request failed. Try again.", retryable: true, rawMessage: msg };
@@ -307,6 +315,15 @@ function classifyRunError(event: unknown): StreamError {
       retryAfterSeconds,
       reason: typeof rawReason === "string" ? rawReason : undefined,
     };
+  }
+  // The backend scrubs provider text from RUN_ERROR (1.1.142), so the typed
+  // code is what says "quota" (adk/model_errors.py CODE_RATE_LIMITED); the text
+  // match only catches an unscrubbed path.
+  const runCode =
+    event && typeof event === "object" && "code" in event ? String((event as { code: unknown }).code) : "";
+  if (runCode === "MODEL_RATE_LIMITED" || /RESOURCE_EXHAUSTED|\b429\b|quota/i.test(msg)) {
+    reportBusy("chat");
+    return { kind: "run_error", code: "busy", message: "AIPLA is busy right now. Wait a moment and try again.", retryable: true, rawMessage: msg };
   }
   return { kind: "run_error", code: "agentError", message: "The agent encountered an error. Try again.", retryable: true, rawMessage: msg };
 }

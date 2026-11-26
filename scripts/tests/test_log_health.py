@@ -65,6 +65,14 @@ class KnownNoiseIsLabelled(unittest.TestCase):
         limited = "WARNING:adk.resilient_llm:model gemini-3.8-flash: MODEL_RATE_LIMITED (attempt 1) before first token"
         self.assertEqual(lh.classify(text(limited))[0], lh.RECOVERED)
 
+    def test_agent_engine_quota(self) -> None:
+        """2026-11-26: a retried write is RECOVERED; one a student was told to wait
+        for is a PROBLEM (the quota, 100 appends/min, is too small)."""
+        retried = "WARNING:adk.session:session: Agent Engine append quota hit; retry 1/4 in 1.1s"
+        self.assertEqual(lh.classify(text(retried))[0], lh.RECOVERED)
+        told = "WARNING:observability.busy:busy: Google quota exhausted on POST /api/sessions/x/iframe-context (429)"
+        self.assertEqual(lh.classify(text(told))[0], lh.PROBLEM)
+
     def test_uvicorn_access_lines(self) -> None:
         ok = 'INFO:     1.2.3.4:5 - "POST /api/client-errors HTTP/1.1" 204 No Content'
         bad = 'INFO:     1.2.3.4:5 - "GET /api/classes HTTP/1.1" 503 Service Unavailable'

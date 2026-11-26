@@ -29,7 +29,11 @@
     "error_agentError": "The tutor ran into an error. Try again.",
     "turnRefused": "Someone in your group reached the tutor just before you. Your message is saved and will be sent as soon as the tutor has answered them.",
     "sessionResolving": "Opening your group's conversation…",
-    "sessionFailed": "Couldn't open your group's conversation."
+    "sessionFailed": "Couldn't open your group's conversation.",
+    "error_busy": "AIPLA is busy right now. Wait a moment and try again.",
+    "busyTitle": "AIPLA is busy right now",
+    "busyBody": "Some of what you did may not have reached the tutor. Wait a moment, then carry on. If it happens again, tell your teacher and mention the time: {time}.",
+    "busyDismiss": "Close"
   },
   "StageProgress": {
     "thinking": "Thinking…",

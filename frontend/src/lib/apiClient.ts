@@ -23,6 +23,7 @@
  */
 
 import { isAnonymousGroupAuthMode } from "@/lib/anonymousGroupAuth";
+import { noteBusyResponse } from "@/lib/busySignal";
 import { getIdToken, getTeacherIdToken } from "@/lib/firebase";
 import { refreshGroupSession } from "@/lib/groupTokenClient";
 
@@ -35,7 +36,9 @@ function sendWithToken(
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
-  return fetch(input, { ...init, headers, cache: "no-store" });
+  // A 503 the backend marks as "busy" (a Google quota) raises the student's
+  // "wait a moment" notice — see lib/busySignal.ts.
+  return fetch(input, { ...init, headers, cache: "no-store" }).then(noteBusyResponse);
 }
 
 export async function fetchWithAuth(

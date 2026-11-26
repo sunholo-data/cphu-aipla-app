@@ -110,6 +110,12 @@ _TEXT_RULES: list[tuple[str, str, re.Pattern[str]]] = [
         "server action posted by a bot or a tab open across a deploy",
         re.compile(r"Server Reference ID did not match|Failed to find Server Action"),
     ),
+    # 2026-11-26 — Google's per-minute quota (Agent Engine: 100 session-event
+    # appends/min for the project). A retry that worked is RECOVERED; one that
+    # did not was shown to a student as "AIPLA is busy, wait a moment", so it is
+    # a PROBLEM even though the app handled it: the quota is too small.
+    (RECOVERED, "Agent Engine write hit the quota; retried", re.compile(r"Agent Engine append quota hit; retry")),
+    (PROBLEM, "Google quota exhausted; the student was told to wait (raise the quota?)", re.compile(r"busy: Google quota exhausted")),
     (RECOVERED, "model stalled before its first token; retried", re.compile(r"MODEL_SILENT_STALL \(attempt")),
     (RECOVERED, "model rate-limited before its first token; retried", re.compile(r"MODEL_RATE_LIMITED \(attempt")),
     (RECOVERED, "model failed; fell over to the fallback model", re.compile(r"failed \(\w+, \d+ attempt\(s\)\) — falling over")),

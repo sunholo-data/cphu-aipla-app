@@ -14,6 +14,7 @@ import { VoiceComposerControls } from "@/components/chat/VoiceComposerControls";
 import { SymbolStrip, SymbolStripToggle, useSymbolStrip } from "@/components/chat/SymbolStrip";
 import { insertAtCaret, restoreCaret } from "@/lib/insertAtCaret";
 import { LessonRecordingPanel } from "@/components/chat/LessonRecordingPanel";
+import { BusyNotice } from "@/components/chat/BusyNotice";
 import type { SegmentedRecorder } from "@/lib/audioCapture";
 import { useVoiceConfig } from "@/hooks/useVoiceConfig";
 import type { DocTabData } from "@/components/doc-browser/DocTab";
@@ -1548,6 +1549,10 @@ function ChatShell({
                 />
               </div>
             )}
+            {/* 2026-11-26 — a busy (quota) answer anywhere on this page: wait a
+                moment, and the time to tell the teacher. Hidden while the
+                chat's own error banner already says busy. */}
+            <BusyNotice locale={locale} hidden={error?.code === "busy"} />
             {voiceNotice && (
               <p className="mb-2 text-xs text-muted-foreground">{voiceNotice}</p>
             )}

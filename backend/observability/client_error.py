@@ -57,7 +57,9 @@ MAX_URL_CHARS = 300
 #: What produced the report. A closed enum — never free text. ``recovered`` is
 #: not an error: it is the page an automatic stale-deploy reload landed on,
 #: saying it rendered (1.1.138 M0).
-KINDS = ("render", "window.onerror", "unhandledrejection", "recovered")
+#: ``busy`` (2026-11-26): the student was shown "AIPLA is busy, wait a moment"
+#: after a Google quota answer (frontend/src/lib/busySignal.ts).
+KINDS = ("render", "window.onerror", "unhandledrejection", "recovered", "busy")
 
 #: A build id is an opaque build stamp (``b20260929101500-k3x9``, a SHA, a tag).
 #: Anything else is dropped rather than logged: this field arrives on an
