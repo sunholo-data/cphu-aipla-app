@@ -55,6 +55,21 @@ quoted here.
 | 3 | **3 of 5 groups recorded**: 279 segments, about 3.5 hours of audio. The tutor heard none of it, **with the Accountable Talk tutor assigned**, the one approach that needs it. One group had **two devices recording at once** for ~44 min (two `seq=0` runs), which is the problem [group-recording-coordination](design/aipla/v1.1.0-feedback/group-recording-coordination.md) (Planned, P1) exists for |
 | 4 | **84 proactive-event checks, 0 proactive turns.** The only unprompted turns were 8 greetings. The tutor did not react to a single one of the 505 sim pushes. This matches [1.1.154](design/aipla/v1.1.0-feedback/tutor-pacing-and-reactivity.md) F4: teacher-built activities run `concept-dialogue`, which does not opt in to sim-reactive turns, so the gate answers *skill opted out*. (The skill id is a prod Firestore id, and that it is `concept-dialogue` is inferred from F4 and the greeting, not read.) **So "the tutor could be more active" describes a tutor that was switched off for sims, not one that was too restrained** |
 
+## Points 5–7: what the prod logs show (added 2026-11-26)
+
+Points 5–7 were relayed on 26 November. They come from the lesson on
+**25 November**: class `6f46cd3c2233`, *Lithium-ion-batteriet Fysik B*, 9
+student groups, 09:12–10:30 UTC. The conference session on 26 November (class
+`ba0afab2d067`, 11 groups) is checked alongside it. Everything below was read
+read-only from BigQuery, Cloud Logging, Firestore `recordings` and the ADK
+sessions in Agent Engine.
+
+| # | Evidence |
+|---|---|
+| 5 | **All 9 groups recorded nearly the whole lesson** (52–71 min of real audio each, 741 segments). Talk-to-type was therefore disabled for every group, all lesson: **0** dictation calls on 25 or 26 November. One group (`ivory-valley-81`) had **two devices recording at once** for the whole lesson: 129 min of audio over 65 min, 74 repeated segment numbers. That is the second lesson running with this ([group-recording-coordination](design/aipla/v1.1.0-feedback/group-recording-coordination.md), still unbuilt). A stored `durationMs` can be far longer than its audio. `spicy-crab-48`'s last segment says 246 min, but it holds 0.6 MB (~19 s): the clock ran while the laptop slept. **Nothing was recorded after the lesson** beyond seconds, but the duration field over-reports, so researchers should use `sizeBytes` |
+| 6 | The teacher had the **live view open for the whole lesson** (90 distinct minutes, 08:13–10:19 UTC) and opened **one** group report (`huge-robin-49`). They watched the one-word statuses and almost never drilled in, which is what point 6 asks to change. On 26 November the live view was open 166 min, and one group's report was kept open |
+| 7 | **Every one of the 9 sessions compacted, 1–5 times each** (21 compactions in ~80 min). Workbench pushes outnumbered chat events in all of them (64–353 pushes per session), and that drove the turn-count trigger ([1.1.164](design/aipla/v2.1.0-extension/tutor-tracks-what-is-settled.md) M0). A text search finds exactly **two** tutor replies asking about a point already fixed, both `green-beetle-49` (10:00 protons, 10:11 typo), and one student pushback (*"der står ikke protoner noget sted"*). Other effects of a summary replacing the history would not show in a text search. On 26 November, with few pushes, one session compacted once |
+
 ## 1. Sim text disappears on close and reopen
 
 **What happens.** When a student opens a sim, it fills the workspace. Closing it
