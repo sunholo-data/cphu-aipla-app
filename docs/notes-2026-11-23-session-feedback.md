@@ -93,9 +93,15 @@ Fixed on 2026-11-26:
    an event only after the remote append succeeds, so a retry cannot duplicate
    it.
 
-**Still open, and a decision for M:** ask Google to raise the quota. At 100 a
-minute, a larger class or two classes at once can reach it without any
-burst.
+**Quota increase requested 2026-11-26** (prod, `europe-west1`, contact
+m@sunholo.com):
+- `SessionEventAppendRequestsPerMinutePerProjectPerRegion` 100 → 600
+  (preference `aipla-session-event-appends-600`);
+- `SessionWriteRequestsPerMinutePerProjectPerRegion` 100 → 300
+  (`aipla-session-writes-300`).
+
+Check the decision with `gcloud alpha quotas preferences describe <id>
+--project=aipla-prod-2026`: `grantedValue` moves when Google approves.
 
 ## 1. Sim text disappears on close and reopen
 
