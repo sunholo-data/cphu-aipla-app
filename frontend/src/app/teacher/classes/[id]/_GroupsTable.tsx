@@ -232,7 +232,7 @@ export function GroupsTable({
                               className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", open && "rotate-90")}
                               aria-hidden="true"
                             />
-                            <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{code}</code>
+                            <code className="whitespace-nowrap rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{code}</code>
                           </button>
                         ) : (
                           <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs">{code}</code>
