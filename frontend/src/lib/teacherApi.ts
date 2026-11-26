@@ -1467,6 +1467,11 @@ export type LiveGroup = {
   stuck: boolean;
   activityTitle: string;
   skillId: string;
+  /** 1.1.161 — where the latest activity was: "chat", "table", "writing",
+   *  "checklist", "concept_map", "sim" or "document". */
+  lastWorkKind?: string;
+  /** A tab of this group is open now; null when the backend could not tell. */
+  pageOpen?: boolean | null;
 };
 
 /** The rolling class summary (1.1.31 M1, placeholder framework). Null until wired. */

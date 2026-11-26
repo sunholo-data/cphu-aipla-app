@@ -97,4 +97,8 @@ async def save_table(
         # Teacher preview has no group. 403 rather than inventing one.
         raise HTTPException(status_code=403, detail="table data is recorded per student group")
 
-    return record_cells(user.group_id, activity_id, body.cells)
+    state = record_cells(user.group_id, activity_id, body.cells)
+    from db.group_work import touch_work
+
+    touch_work(user.group_id, "table")  # 1.1.161: the live label counts this as work
+    return state

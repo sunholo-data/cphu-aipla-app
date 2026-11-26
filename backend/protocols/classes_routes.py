@@ -766,6 +766,10 @@ class LiveGroupRow(BaseModel):
     stuck: bool
     activity_title: str = Field(default="", alias="activityTitle")
     skill_id: str = Field(default="", alias="skillId")
+    #: 1.1.161 — where the latest activity was ("chat", "table", "sim", …) and
+    #: whether a tab of the group is open (None: could not be read).
+    last_work_kind: str = Field(default="chat", alias="lastWorkKind")
+    page_open: bool | None = Field(default=None, alias="pageOpen")
 
 
 class LiveClassResponse(BaseModel):
@@ -829,7 +833,9 @@ async def get_class_live(
     from analytics.live_class_summary import resolve_live_summary
 
     # LIVE view: only codes that still work (1.1.146).
-    signals = compute_group_signals(cls.active_group_codes)
+    # Off the event loop (1.1.131): one index query plus one work-stamp read per
+    # group (1.1.161), polled every 10 s by every open class page.
+    signals = await asyncio.to_thread(compute_group_signals, cls.active_group_codes)
     groups = [
         LiveGroupRow(
             groupId=g.group_code,
@@ -840,6 +846,8 @@ async def get_class_live(
             stuck=g.stuck,
             activityTitle=g.activity_title,
             skillId=g.skill_id,
+            lastWorkKind=g.last_work_kind,
+            pageOpen=g.page_open,
         )
         for g in signals
     ]

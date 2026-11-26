@@ -440,7 +440,7 @@
     "statusActive": "Active",
     "statusHand": "Hand raised",
     "statusQuiet": "Quiet for {n} min",
-    "statusQuietStuck": "Was working but has not written for {n} min. The group may be stuck.",
+    "statusQuietStuck": "Was working, then nothing in the chat or the workbench for {n} min. The group may be stuck.",
     "statusNotStarted": "Not started",
     "statusUnknown": "Unknown",
     "copyJoinLinkAria": "Copy join link for {code}",
@@ -477,7 +477,16 @@
     "deleteConfirmBody": "This revokes the class and its {n, plural, one {# group code} other {# group codes}} — students can no longer join, and its assigned activities & session reports become inaccessible. This can’t be undone here.",
     "deleteConfirmLabel": "Delete class",
     "deleteFailed": "Could not delete the class: {error}",
-    "deleted": "“{name}” deleted"
+    "deleted": "“{name}” deleted",
+    "statusActiveWhere": "Active · {where}",
+    "statusPageOpen": "Page open · nothing for {n} min",
+    "whereChat": "in the chat",
+    "whereTable": "in the table",
+    "whereWriting": "writing",
+    "whereChecklist": "on the checklist",
+    "whereConceptMap": "on the concept map",
+    "whereSim": "in the simulation",
+    "whereDocument": "reading"
   },
   "LiveClassView": {
     "secondsAgo": "{n}s ago",

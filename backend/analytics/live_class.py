@@ -12,6 +12,14 @@ session (where the group is *right now*). Group-level only (ADR-001): no
 per-student data, no content, just counts + timing.
 
 Design doc: docs/design/aipla/v1.1.0-feedback/teacher-analytics-framework.md
+
+**1.1.161 — work counts, not only chat.** "Last activity" is the later of the
+last chat turn and the last work stamp (``db/group_work.py``: table, writing,
+checklist, sim, document), and ``last_work_kind`` says where. *Stuck* now also
+needs the group's page to be open (``page_open``, from the pulse poll): a group
+that closed the laptop is quiet, not stuck. If the work stamps cannot be read,
+the label falls back to the chat-only rule and ``page_open`` is None. It never
+pretends to know (docs/design/aipla/v2.1.0-extension/live-status-counts-workbench-work.md).
 """
 
 from __future__ import annotations
@@ -28,6 +36,7 @@ LIVE_WINDOW_S = 5400  # 90 min — a group quiet longer than this is a PAST sess
 # not "live now". It drops off the live view (and the live summary) so yesterday's
 # sessions don't show up as stale "idle"/"stuck" rows; the full history is still in
 # the per-group report.
+PAGE_OPEN_WINDOW_S = 60  # a tab heartbeats ~2.5 s; the stamp is throttled to 20 s
 
 
 @dataclass
@@ -40,6 +49,10 @@ class LiveGroupSignal:
     stuck: bool
     activity_title: str
     skill_id: str
+    #: Where the latest activity was: "chat", or a work kind ("table", "sim", …).
+    last_work_kind: str = "chat"
+    #: A tab of this group is open now. None when the stamps could not be read.
+    page_open: bool | None = None
 
 
 def compute_group_signals(
@@ -62,6 +75,16 @@ def compute_group_signals(
 
     now = now or datetime.now(UTC)
     sessions = list_sessions_for_group_codes(list(group_codes), page_size=200)
+    works: dict[str, dict] | None
+    try:
+        from db.group_work import read_work
+
+        works = read_work(list(group_codes))
+    except Exception:
+        import logging
+
+        logging.getLogger(__name__).warning("live signals: work stamps unreadable; chat-only labels", exc_info=True)
+        works = None
 
     # Most-recent session per group code = where the group is right now.
     newest: dict[str, object] = {}
@@ -78,13 +101,23 @@ def compute_group_signals(
         last = s.last_message_at  # type: ignore[attr-defined]
         if last.tzinfo is None:
             last = last.replace(tzinfo=UTC)
+        work = (works or {}).get(code) or {}
+        work_at = work.get("last_work_at")
+        kind = "chat"
+        if work_at is not None and work_at > last:
+            last, kind = work_at, work.get("last_work_kind") or "chat"
+        seen = work.get("last_seen_at")
+        page_open = None if works is None else (seen is not None and (now - seen).total_seconds() < PAGE_OPEN_WINDOW_S)
         idle = max(0, int((now - last).total_seconds()))
         if idle > LIVE_WINDOW_S:
             continue  # stale/past session — historical, not live; excluded
         status = "active" if idle < ACTIVE_WINDOW_S else "idle"
+        worked = s.turn_count >= STUCK_MIN_TURNS or work_at is not None  # type: ignore[attr-defined]
         stuck = (
-            s.turn_count >= STUCK_MIN_TURNS  # type: ignore[attr-defined]
+            worked
             and STUCK_MIN_IDLE_S <= idle <= STUCK_MAX_IDLE_S
+            # A closed laptop is quiet, not stuck. Unreadable stamps: chat-only rule.
+            and page_open is not False
         )
         out.append(
             LiveGroupSignal(
@@ -96,6 +129,8 @@ def compute_group_signals(
                 stuck=stuck,
                 activity_title=getattr(s, "title", None) or "",
                 skill_id=getattr(s, "skill_id", "") or "",
+                last_work_kind=kind,
+                page_open=page_open,
             )
         )
 

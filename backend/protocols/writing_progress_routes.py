@@ -81,4 +81,7 @@ async def save_writing(
         raise HTTPException(status_code=403, detail="written work is recorded per student group")
 
     entry = record_doc(user.group_id, activity_id, body.element_id, text=body.text)
+    from db.group_work import touch_work
+
+    touch_work(user.group_id, "writing")  # 1.1.161: the live label counts this as work
     return {"elementId": body.element_id, **entry}

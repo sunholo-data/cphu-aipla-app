@@ -420,6 +420,14 @@ async def post_iframe_context(
     # Prefer the real display code from the JWT (user.group_id) — the synthetic
     # uid strips hyphens, so deriving from owner_uid would key by the wrong code.
     group_id = user.group_id or group_code_from_owner_uid(idx.owner_uid)
+    if user.group_id:
+        # 1.1.161 — the live label counts a sim run, a table or a sheet pushed
+        # to the tutor as work. Students only: a teacher preview is not a group.
+        from db.group_work import kind_for_server, touch_work
+
+        kind = kind_for_server(body.server_id)
+        if kind:
+            touch_work(user.group_id, kind)
     if group_id:
         sc = body.structured_content or {}
         field = (sc.get("changed") if isinstance(sc, dict) else None) or body.tool_name

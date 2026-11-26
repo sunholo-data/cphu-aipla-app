@@ -440,7 +440,7 @@
     "statusActive": "Aktiv",
     "statusHand": "Rakt hånd",
     "statusQuiet": "Stille i {n} min",
-    "statusQuietStuck": "Har arbejdet, men har ikke skrevet i {n} min. Måske er gruppen gået i stå.",
+    "statusQuietStuck": "Har arbejdet, men intet er sket i chatten eller arbejdsområdet i {n} min. Måske er gruppen gået i stå.",
     "statusNotStarted": "Ikke startet",
     "statusUnknown": "Ukendt",
     "copyJoinLinkAria": "Kopiér link til {code}",
@@ -477,7 +477,16 @@
     "deleteConfirmBody": "Det tilbagekalder klassen og dens {n, plural, one {# gruppekode} other {# gruppekoder}} — eleverne kan ikke længere tilslutte sig, og klassens aktiviteter og sessionsrapporter bliver utilgængelige. Det kan ikke fortrydes her.",
     "deleteConfirmLabel": "Slet klasse",
     "deleteFailed": "Klassen kunne ikke slettes: {error}",
-    "deleted": "“{name}” er slettet"
+    "deleted": "“{name}” er slettet",
+    "statusActiveWhere": "Aktiv · {where}",
+    "statusPageOpen": "Siden er åben · intet i {n} min",
+    "whereChat": "i chatten",
+    "whereTable": "i tabellen",
+    "whereWriting": "skriver",
+    "whereChecklist": "i tjeklisten",
+    "whereConceptMap": "i begrebskortet",
+    "whereSim": "i simuleringen",
+    "whereDocument": "læser"
   },
   "LiveClassView": {
     "secondsAgo": "for {n} sek. siden",

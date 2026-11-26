@@ -637,6 +637,11 @@ async def group_pulse_endpoint(
 
     p = read_group_pulse(user.group_id, activity_id=activityId)
     active_devices = touch_presence(user.group_id, device, activity_id=activityId) if device else 0
+    # 1.1.161 — "this group's page is open" for the teacher's live label.
+    # Throttled to one write per group per 20 s; never raises.
+    from db.group_work import touch_seen
+
+    touch_seen(user.group_id)
     return GroupPulseResponse(
         revision=int(p["revision"]),
         turnInFlight=bool(p["in_flight"]),

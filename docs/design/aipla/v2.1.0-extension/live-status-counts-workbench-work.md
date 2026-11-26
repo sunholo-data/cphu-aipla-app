@@ -1,6 +1,6 @@
 # The teacher's live status counts work in the workbench, not only chat
 
-**Status**: **PROPOSED** 2026-11-24 — **1.1.161**
+**Status**: **M1–M4 IMPLEMENTED 2026-11-26** (on `dev`, not yet released) — **1.1.161**
 **Priority**: **P1**. Today the label is wrong in the direction that costs the most: it can send the teacher to the group that is working hardest. It is also the trigger [1.1.162](tutor-interjects.md) would build on, so it has to be right first
 **Estimated**: **~1.5d** (M0 evidence ~0.25d · M1 one "last work" stamp ~0.5d · M2 signals read it ~0.25d · M3 teacher copy ~0.25d · M4 tests ~0.25d)
 **Scope**: Backend: `db/group_sessions.py` (one stamp beside lock, pulse and presence), the four `protocols/*_progress_routes.py` writers plus `iframe_context_routes.py` (stamp on write), `analytics/live_class.py` (read it), `protocols/classes_routes.py:828` (unchanged call). Frontend: `app/teacher/classes/[id]/_GroupsTable.tsx` (status chip), `frontend/messages/{da,en}/` (copy). No new collection
@@ -76,6 +76,52 @@ never content.
 
 *Stuck* now needs the page to be open. A group that closed the laptop is
 *quiet*, not stuck.
+
+## What was built (2026-11-26)
+
+**One deviation from the decision above.** The stamp lives on a new per-GROUP
+doc, `group_work/{code}`, not on the per-(group, activity) `group_sessions`
+doc:
+- The live view shows one row per group, so the reader needs one doc per row
+  and never has to work out which activity is current.
+- Every writer knows the group from the student's token, but not every writer
+  knows the activity.
+- The group-level id in `group_sessions` is already the legacy session pointer,
+  and writing work stamps into it would have mixed two meanings in one doc.
+- The collection is backend-only (the Admin SDK); no Firestore rule change is
+  needed, since clients are denied by default.
+
+What was built:
+
+- **M1** `backend/db/group_work.py`: `touch_work(code, kind)` and
+  `touch_seen(code)`, both throttled to one write per group per field per 20 s
+  in-process, and neither ever raises.
+  - **Writers:** table save, writing save, checklist tick, and the iframe-context
+    push (sim / table / writing / document, via `kind_for_server`; `progress` is
+    the tutor's and is skipped).
+  - **Page open:** the pulse poll (~2.5 s while a student tab is visible) calls
+    `touch_seen`.
+  - **Concept map:** the only write route is the teacher's, so there is no
+    student stamp for it yet.
+- **M2** `compute_group_signals`:
+  - `last = max(last chat turn, lastWorkAt)` also decides the 90-min live window;
+  - `last_work_kind` says where;
+  - `page_open` is a tab seen in the last 60 s;
+  - *stuck* needs `page_open is not False`, and work alone (no chat) counts as
+    having worked;
+  - if the stamps cannot be read, `page_open` is None and the chat-only rule
+    applies.
+
+  The `/live` route now runs it off the event loop (it is polled every 10 s).
+- **M3** status chip: *Active · in the table / in the simulation / writing / …*,
+  *Page open · nothing for N min*, and the *stuck* tooltip now says *nothing in
+  the chat or the workbench*. DA and EN.
+- **M4** tests:
+  - `test_live_class.py` (the table-only group that read *stuck* before);
+  - `test_group_work.py`;
+  - a real-token save through the real dispatcher stamps the work
+    (`test_dual_auth_rejection.py`);
+  - `/live` and `/recent` off the loop (`test_blocking_queries_off_the_loop.py`).
 
 ## Milestones
 

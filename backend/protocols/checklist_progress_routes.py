@@ -82,4 +82,7 @@ async def tick_checklist_item(
         done=body.done,
         by="student",
     )
+    from db.group_work import touch_work
+
+    touch_work(user.group_id, "checklist")  # 1.1.161: the live label counts this as work
     return {"itemStates": states}

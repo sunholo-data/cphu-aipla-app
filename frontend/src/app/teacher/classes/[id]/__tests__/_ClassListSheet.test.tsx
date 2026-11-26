@@ -183,6 +183,19 @@ describe("GroupsTable names — stay on this device (ADR-001)", () => {
     );
   });
 
+  it("1.1.161: the status chip says where a group works, and when only its page is open", () => {
+    const live = {
+      calls: [],
+      groups: [
+        { groupId: "still-violin-61", status: "active", turns: 4, lastActivityAt: "", idleSeconds: 30, stuck: false, activityTitle: "", lastWorkKind: "sim" },
+        { groupId: "bright-fox-12", status: "idle", turns: 4, lastActivityAt: "", idleSeconds: 480, stuck: false, activityTitle: "", pageOpen: true },
+      ],
+    };
+    render(table(undefined, { live }));
+    expect(within(screen.getByTestId("group-row-still-violin-61")).getByText("Active · in the simulation")).toBeInTheDocument();
+    expect(within(screen.getByTestId("group-row-bright-fox-12")).getByText("Page open · nothing for 8 min")).toBeInTheDocument();
+  });
+
   it("rows do not open when the page supplies no recent-activity panel", () => {
     render(table());
     expect(screen.queryByRole("button", { name: /has been doing/ })).not.toBeInTheDocument();

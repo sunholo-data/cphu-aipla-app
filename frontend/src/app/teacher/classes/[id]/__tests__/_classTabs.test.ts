@@ -62,4 +62,18 @@ describe("groupStatus", () => {
     });
     expect(groupStatus("b-2", { calls: [], groups: [g()] })).toEqual({ kind: "not-started" });
   });
+
+  it("1.1.161: says where an active group is working, and whether a quiet group's page is open", () => {
+    expect(groupStatus("a-1", { calls: [], groups: [g({ lastWorkKind: "table" })] })).toEqual({
+      kind: "active",
+      where: "table",
+    });
+    expect(
+      groupStatus("a-1", { calls: [], groups: [g({ status: "idle", idleSeconds: 600, pageOpen: true })] }),
+    ).toEqual({ kind: "quiet", minutes: 10, stuck: false, pageOpen: true });
+    // Unknown (null) is not "closed": the chip falls back to the plain quiet label.
+    expect(
+      groupStatus("a-1", { calls: [], groups: [g({ status: "idle", idleSeconds: 600, pageOpen: null })] }),
+    ).toEqual({ kind: "quiet", minutes: 10, stuck: false });
+  });
 });

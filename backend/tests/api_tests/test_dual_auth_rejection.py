@@ -324,6 +324,33 @@ def test_student_table_save_accepts_a_real_group_token(client):
     assert read.json()["cells"]["t1::0::tid"] == "0,55"
 
 
+def test_real_student_saves_stamp_the_live_work_label(client):
+    """1.1.161 — a real student save, through the real dispatcher, stamps the
+    group's work so the teacher's live label counts it. A stamp that only the
+    unit tests see is the dropped-consumer shape this file exists to catch.
+    """
+    from db import group_work
+
+    group_work._reset_throttle_for_tests()
+    record = create_group(title="T3 class", skill_ids=["concept-dialogue"], creator_uid=TEACHER_UID)
+    token = join_group(record.group_id, client_ip="203.0.113.7").token
+    resp = client.put(
+        f"/api/activities/{ACTIVITY}/table",
+        json={"cells": {"t1::0::tid": "0,55"}},
+        headers=_auth_headers(token),
+    )
+    assert resp.status_code == 200, resp.text
+    assert group_work.read_work([record.group_id])[record.group_id]["last_work_kind"] == "table"
+
+    resp = client.put(
+        f"/api/activities/{ACTIVITY}/writing",
+        json={"elementId": "writing-1", "text": "Li+ ioner transporteres"},
+        headers=_auth_headers(token),
+    )
+    assert resp.status_code == 200, resp.text
+    assert group_work.read_work([record.group_id])[record.group_id]["last_work_kind"] == "writing"
+
+
 def test_two_group_members_do_not_clobber_each_other(client):
     """The reported defect, end to end: two devices, one group, one table.
 

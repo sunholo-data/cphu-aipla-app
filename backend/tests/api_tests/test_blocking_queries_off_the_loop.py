@@ -210,3 +210,64 @@ async def test_session_report_bq_does_not_block_the_loop(monkeypatch, caplog):
     assert slow_s >= SLOW_S
     assert fast_s < FAST_BUDGET_S, f"/ping waited {fast_s:.2f}s behind the session report's queries"
     assert "run_query on the event loop" not in caplog.text, caplog.text
+
+
+# ── 1.1.161 / 1.1.163 — the class page's live poll and a group's recent window ──
+# The live poll runs every 10 s on every open class page, and since 1.1.161 it
+# reads one work stamp per group; the recent window reads BigQuery.
+
+
+def _class_app_with_code() -> tuple[FastAPI, str]:
+    from datetime import UTC, datetime
+
+    from db.classes import create_class, mint_group_codes_under_class
+    from db.models.class_ import Class
+    from protocols.classes_routes import router as classes_router
+
+    now = datetime.now(UTC)
+    create_class(
+        Class(
+            classId="cls-loop",
+            ownerUid="teacher-t",
+            name="Fysik",
+            tagNamespace="class:teacher-t:cls-loop",
+            createdAt=now,
+            updatedAt=now,
+        )
+    )
+    code = mint_group_codes_under_class("cls-loop", count=1)[0]
+    app = _app()
+    app.include_router(classes_router)
+    return app, code
+
+
+async def test_class_live_poll_does_not_block_the_loop(monkeypatch):
+    monkeypatch.setenv("GROUP_AUTH_SIGNING_SECRET", "test-secret-32-chars-long-enough-x")
+    app, _code = _class_app_with_code()
+
+    def _blocking_signals(_codes):
+        time.sleep(SLOW_S)
+        return []
+
+    monkeypatch.setattr("analytics.live_class.compute_group_signals", _blocking_signals)
+    slow_s, fast_s = await _slow_and_fast(app, "/api/classes/cls-loop/live")
+    assert slow_s >= SLOW_S
+    assert fast_s < FAST_BUDGET_S, f"/ping waited {fast_s:.2f}s behind the live poll"
+
+
+async def test_group_recent_window_does_not_block_the_loop(monkeypatch):
+    monkeypatch.setenv("GROUP_AUTH_SIGNING_SECRET", "test-secret-32-chars-long-enough-x")
+    app, code = _class_app_with_code()
+    from datetime import UTC, datetime
+
+    from analytics.group_window import GroupWindow
+
+    def _blocking_window(group_code, minutes):
+        time.sleep(SLOW_S)
+        now = datetime.now(UTC)
+        return GroupWindow(group_code=group_code, since=now, until=now)
+
+    monkeypatch.setattr("analytics.group_window.read_group_window", _blocking_window)
+    slow_s, fast_s = await _slow_and_fast(app, f"/api/classes/cls-loop/groups/{code}/recent")
+    assert slow_s >= SLOW_S
+    assert fast_s < FAST_BUDGET_S, f"/ping waited {fast_s:.2f}s behind the recent window"

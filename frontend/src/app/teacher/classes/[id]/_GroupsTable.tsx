@@ -47,6 +47,8 @@ export interface GroupLiveSignals {
     idleSeconds: number;
     stuck: boolean;
     activityTitle: string;
+    lastWorkKind?: string;
+    pageOpen?: boolean | null;
   }>;
 }
 
@@ -59,8 +61,8 @@ export interface GroupLatest {
 
 export type GroupStatus =
   | { kind: "hand" }
-  | { kind: "active" }
-  | { kind: "quiet"; minutes: number; stuck: boolean }
+  | { kind: "active"; where?: string }
+  | { kind: "quiet"; minutes: number; stuck: boolean; pageOpen?: boolean }
   | { kind: "not-started" }
   | { kind: "unknown" };
 
@@ -72,8 +74,15 @@ export function groupStatus(code: string, live: GroupLiveSignals | null): GroupS
   if (live.calls.some((c) => c.groupId === code)) return { kind: "hand" };
   const g = live.groups.find((x) => x.groupId === code);
   if (!g) return { kind: "not-started" };
-  if (g.status === "active") return { kind: "active" };
-  return { kind: "quiet", minutes: Math.max(1, Math.round(g.idleSeconds / 60)), stuck: g.stuck };
+  // 1.1.161 — say WHERE a group is working, and tell an open page apart from a
+  // closed one. Both are absent from an older backend, which keeps the old chip.
+  if (g.status === "active") return { kind: "active", where: g.lastWorkKind };
+  return {
+    kind: "quiet",
+    minutes: Math.max(1, Math.round(g.idleSeconds / 60)),
+    stuck: g.stuck,
+    pageOpen: g.pageOpen ?? undefined,
+  };
 }
 
 export interface GroupsTableProps {
@@ -380,6 +389,17 @@ export function GroupsTable({
   );
 }
 
+/** The surface a group's latest activity was on (1.1.161), as copy keys. */
+const WHERE_KEYS: Record<string, "whereChat" | "whereTable" | "whereWriting" | "whereChecklist" | "whereConceptMap" | "whereSim" | "whereDocument"> = {
+  chat: "whereChat",
+  table: "whereTable",
+  writing: "whereWriting",
+  checklist: "whereChecklist",
+  concept_map: "whereConceptMap",
+  sim: "whereSim",
+  document: "whereDocument",
+};
+
 function StatusChip({ status }: { status: GroupStatus }) {
   const t = useT("ClassDetailPage");
   const base = "inline-flex w-fit items-center whitespace-nowrap rounded-full border px-2 py-0.5 text-xs font-medium";
@@ -390,8 +410,14 @@ function StatusChip({ status }: { status: GroupStatus }) {
           {t("statusHand")}
         </span>
       );
-    case "active":
-      return <span className={cn(base, "border-success/40 bg-success/10 text-foreground")}>{t("statusActive")}</span>;
+    case "active": {
+      const where = status.where ? WHERE_KEYS[status.where] : undefined;
+      return (
+        <span className={cn(base, "border-success/40 bg-success/10 text-foreground")}>
+          {where ? t("statusActiveWhere", { where: t(where) }) : t("statusActive")}
+        </span>
+      );
+    }
     case "quiet":
       return (
         <span
@@ -404,7 +430,7 @@ function StatusChip({ status }: { status: GroupStatus }) {
           title={status.stuck ? t("statusQuietStuck", { n: status.minutes }) : undefined}
           data-stuck={status.stuck || undefined}
         >
-          {t("statusQuiet", { n: status.minutes })}
+          {status.pageOpen ? t("statusPageOpen", { n: status.minutes }) : t("statusQuiet", { n: status.minutes })}
           {status.stuck ? <span className="sr-only">. {t("statusQuietStuck", { n: status.minutes })}</span> : null}
         </span>
       );
