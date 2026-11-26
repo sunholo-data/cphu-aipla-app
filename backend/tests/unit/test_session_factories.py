@@ -113,7 +113,7 @@ class TestGetCompactionConfig:
         cfg = session_mod.get_compaction_config("gemini-3.6-flash")
         assert cfg.token_threshold == 250_000
         assert cfg.event_retention_size == 60
-        assert cfg.compaction_interval == 40
+        assert cfg.compaction_interval == 500
 
     def test_gpt_5_4_gets_large_window_thresholds(self):
         # GPT-5.4 has a 1M context window — same tier as Gemini
@@ -124,7 +124,7 @@ class TestGetCompactionConfig:
         cfg = session_mod.get_compaction_config("claude-sonnet-4-6")
         assert cfg.token_threshold == 120_000
         assert cfg.event_retention_size == 40
-        assert cfg.compaction_interval == 20
+        assert cfg.compaction_interval == 400
 
     def test_gpt_5_1_gets_small_window_thresholds(self):
         cfg = session_mod.get_compaction_config("gpt-5.1-chat-latest")
@@ -135,6 +135,19 @@ class TestGetCompactionConfig:
         cfg = session_mod.get_compaction_config("unknown-future-model")
         assert cfg.token_threshold == 120_000
         assert cfg.event_retention_size == 40
+
+    def test_a_normal_lesson_never_compacts_by_count(self):
+        """1.1.164 M0 — the interval counts INVOCATIONS, and every workbench push
+        is one. A 60-min prod lesson (green-beetle-49, 2026-11-25) had ~220, 29-39
+        of every 46-53 being pushes, and at interval 40 it compacted four times;
+        each summary froze an open request and the tutor repeated it. A 90-min
+        lesson at that rate is ~330: the backstop must sit above it for every
+        family. (The token threshold still fires on real context pressure.)"""
+        lesson_90_min = 330
+        for model in ("gemini-3.5-flash-lite", "gpt-5.4", "claude-sonnet-4-6", "gpt-5.1-chat-latest", "unknown"):
+            cfg = session_mod.get_compaction_config(model)
+            assert cfg.compaction_interval >= lesson_90_min, model
+            assert cfg.token_threshold, model
 
     def test_both_triggers_are_always_armed(self):
         # A token_threshold without event_retention_size is rejected by ADK's

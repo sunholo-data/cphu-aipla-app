@@ -259,7 +259,7 @@ class TestSharedConfigIsNeverMutated:
         cfg = get_compaction_config("gemini-2.5-flash")
         assert cfg.token_threshold == 250_000
         assert cfg.event_retention_size == 60
-        assert cfg.compaction_interval == 40
+        assert cfg.compaction_interval == 500
 
 
 class TestAnnouncement:
@@ -427,3 +427,15 @@ class TestFailureDegradesRatherThanBreaks:
         cfg = session_mod.get_compaction_config("gemini-2.5-flash")
         assert cfg.summarizer is None
         assert cfg.token_threshold == 250_000
+
+
+def test_requests_are_recorded_as_events_never_as_outstanding():
+    """1.1.164 M0 — two prod summaries recorded "the student has not yet fixed X"
+    and "awaiting … fixing the typo", seconds before the group fixed it; the
+    tutor, reading the summary as its own turn, asked again."""
+    from adk.compaction_summarizer import FIDELITY_PROMPT_TEMPLATE
+
+    prompt = FIDELITY_PROMPT_TEMPLATE.format(conversation_history="…")
+    assert "CORRECTIONS AND REQUESTS ARE EVENTS, NOT STANDING FACTS" in prompt
+    assert "'has not yet'" in prompt and "'awaiting'" in prompt
+    assert "may already be settled" in prompt

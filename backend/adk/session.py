@@ -62,9 +62,16 @@ logger = logging.getLogger(__name__)
 #                          `_run_compaction_for_sliding_window` off
 #                          `app.events_compaction_config`. This is the trigger we
 #                          want doing the work.
-#   compaction_interval  — fires on a raw count of user turns, blind to their
+#   compaction_interval  — fires on a raw count of INVOCATIONS, blind to their
 #                          size. Checked post-invocation by the Runner
-#                          (runners.py:622).
+#                          (runners.py:622). ⚠️ An invocation is any distinct
+#                          event `invocation_id`, NOT a student turn
+#                          (apps/compaction.py `_run_compaction_for_sliding_window`
+#                          counts unique ids). Every workbench push
+#                          (`POST /sessions/{id}/iframe-context`) appends an
+#                          event with its own `iframe_context_<ms>` id, so a
+#                          group working in a sim or writing sheet drives this
+#                          counter far faster than it talks.
 #
 # Turn count is the wrong trigger on a 1M-token model: ten short clarifying
 # turns might be 8K tokens, and discarding them buys nothing while losing
@@ -75,6 +82,19 @@ logger = logging.getLogger(__name__)
 # Thresholds are ~25% of the usable window: early enough that one large turn
 # can't blow the context, late enough that a normal lesson never compacts.
 #
+# 1.1.164 M0 (2026-11-26) — the interval was 40 and a normal lesson compacted
+# FOUR times in an hour. Prod, green-beetle-49, 2026-11-25: 46-53 invocations
+# between compactions, 29-39 of them workbench pushes; the prompt never passed
+# ~20k tokens of the 250k threshold. Each summary froze an open request as
+# outstanding ("Student has not yet edited the text to remove the mention of
+# protons"; "awaiting … fixing the typo"), and the tutor went on asking for
+# fixes the group had already made. Replaying the real request: 7/10 replies
+# asked again with the summaries, 0/10 with the full history
+# (backend/scripts/replay_settled_points.py). So the interval is now a true
+# backstop, measured against that rate (~200 invocations per lesson hour): 500
+# for the 1M families, 400 for the smaller ones. The token threshold, and the
+# pre-request emergency path below, still guard the context window.
+#
 # `event_retention_size` is REQUIRED whenever `token_threshold` is set (ADK's
 # model validator rejects one without the other): when token compaction fires,
 # the last N *raw events* survive uncompacted. Events, NOT turns — one turn is
@@ -84,23 +104,23 @@ logger = logging.getLogger(__name__)
 _COMPACTION_CONFIGS = {
     # 1M context (Gemini 3.x, GPT-5.4)
     "gemini-": EventsCompactionConfig(
-        compaction_interval=40, overlap_size=5, token_threshold=250_000, event_retention_size=60
+        compaction_interval=500, overlap_size=5, token_threshold=250_000, event_retention_size=60
     ),
     "gpt-5.4": EventsCompactionConfig(
-        compaction_interval=40, overlap_size=5, token_threshold=250_000, event_retention_size=60
+        compaction_interval=500, overlap_size=5, token_threshold=250_000, event_retention_size=60
     ),
     # 200K-400K context (Claude, other GPT-5.x)
     "claude-": EventsCompactionConfig(
-        compaction_interval=20, overlap_size=4, token_threshold=120_000, event_retention_size=40
+        compaction_interval=400, overlap_size=4, token_threshold=120_000, event_retention_size=40
     ),
     "gpt-5": EventsCompactionConfig(
-        compaction_interval=20, overlap_size=4, token_threshold=120_000, event_retention_size=40
+        compaction_interval=400, overlap_size=4, token_threshold=120_000, event_retention_size=40
     ),
 }
 # Unknown model → assume the SMALLEST window. Compacting too eagerly degrades an
 # answer; overflowing the context fails the turn outright.
 _DEFAULT_COMPACTION = EventsCompactionConfig(
-    compaction_interval=20, overlap_size=4, token_threshold=120_000, event_retention_size=40
+    compaction_interval=400, overlap_size=4, token_threshold=120_000, event_retention_size=40
 )
 
 # Ops override for the token trigger, so a threshold can be tuned (or compaction

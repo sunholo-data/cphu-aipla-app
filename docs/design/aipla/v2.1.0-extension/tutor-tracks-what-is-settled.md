@@ -1,6 +1,6 @@
 # The tutor keeps track of what it raised and what has since been fixed
 
-**Status**: **M1 + M2 IMPLEMENTED 2026-11-26** (on `dev`, not yet released); M0, M3, M4 open — **1.1.164**
+**Status**: **M0 DONE: the main cause was compaction, and it is FIXED 2026-11-26.** M1 + M2 + M4 implemented (on `dev`, not yet released); M3 not needed for now — **1.1.164**
 **Priority**: **P1**. A tutor that keeps telling a group to fix what they have already fixed tells them it isn't reading. It happened twice in one 60-minute session on prod, and the second time the fix was in the very message the tutor replied to
 **Estimated**: **~2d** (M0 confirm the cause on prod ~0.25d · M1 superseded drafts collapsed ~0.5d · M2 the current text, every turn ~0.25d · M3 the tutor's open points ~0.75d · M4 tests and an eval case ~0.25d)
 **Scope**: Backend: `adk/agent.py` `_composed_before_model` (one more request rewrite, beside the image-turn grounding strip), `adk/element_state.py` (writing text, not only word counts), a new `adk/open_points.py` (two tools plus a render), `adk/compaction_summarizer.py` (the prompt says what to do with resolved points), `backend/tests/eval/` (one case built from this session). Frontend: none
@@ -32,7 +32,62 @@ The same session also shows the milder version. From 10:02 on, five tutor turns
 in a row open by praising the same GeoGebra graphs ("Det er nogle rigtig flotte
 grafer …"), uploaded at 09:35–09:58.
 
-## What it is not: forgotten history
+## ⚠️ M0 result (2026-11-26): the history WAS forgotten, by compaction
+
+**This replaces the analysis below, which got the main cause wrong.** The
+teacher's words, *"the chat history seemed to have been forgotten"*, were
+right.
+
+The stored session (prod Agent Engine, read-only, 346 events) holds **four
+compaction summaries**: 09:26:40, 09:42:13, 09:58:59 and 10:11:30. Each one
+replaced the turns before it in every later request, as one of the tutor's own
+turns. Two of them froze an open request as outstanding, seconds before the
+group settled it:
+
+| Summary | What it said | What happened next |
+|---|---|---|
+| 09:42:13 (covers to 09:42:07) | *"Status: Student has not yet edited the text to remove the mention of protons… Student needs to correct the formulation"* | 09:42:40, the group fixes it |
+| 10:11:30 (covers to 10:11:07) | *"Outstanding Note: the tutor… noted a minor typo (`1,1W 1,1W` repeated). Awaiting the student's confirmation on fixing the typo"* | 10:11:57, the group sends the fixed text, and the tutor asks again |
+
+**Why it compacted at all.** The prompt never passed ~20k tokens, far below
+the 250k threshold. The *turn-count backstop* (`compaction_interval=40`)
+fired. ADK counts distinct event `invocation_id`s, not student turns
+(`apps/compaction.py`), and every workbench push appends an event with its own
+`iframe_context_<ms>` id. Between compactions there were 46–53 invocations,
+**29–39 of them workbench pushes**. A group busy in the sim and the writing
+sheet drove the counter to 40 every ~15 minutes, in a lesson the design said
+would never compact.
+
+**Replay of the model** (`backend/scripts/replay_settled_points.py`; 10 samples
+per arm, `gemini-3.5-flash-lite`, the real skill text and CER approach). Probe:
+the 10:11:57 turn, where the typo is already fixed.
+
+| Request | Replies asking again to fix the typo |
+|---|---|
+| **As prod built it**, with the four summaries | **7 / 10** (the real failure, reproduced) |
+| The same summaries, plus M1 + M2 | **9 / 10** (M1 + M2 do not help while the summary says "awaiting") |
+| **No compaction**, plus M1 + M2 | **0 / 10** |
+
+The protons probe (10:00:35) did not reproduce in any arm (0/10 each), so
+its trigger remains partly unexplained; the 09:42 summary is the likely one.
+
+**The fix (2026-11-26):**
+1. `adk/session.py`: the interval backstop is now **500** for the 1M-context
+   families and **400** for the others, above the ~330 invocations of a 90-min
+   lesson at this rate. The 250k / 120k token thresholds and the pre-request
+   emergency path still guard the context window, so a genuinely long session
+   still compacts. `test_a_normal_lesson_never_compacts_by_count` pins it.
+2. `adk/compaction_summarizer.py`: when compaction does fire, requests are
+   recorded as events with the student's text *as it was then*, never as *"has
+   not yet / still needs to / awaiting"*, and the summary ends by saying
+   requests may already be settled.
+
+M1 and M2 stay: they cut the drafts the tutor reads, and they are cheap. M3
+(open points) is **not needed for now**. Its job was to stop a stale request
+outliving its fix, and with compaction no longer firing in a lesson, nothing
+freezes one. Revisit if a token-triggered compaction shows the same pattern.
+
+## What it is not: forgotten history *(first analysis, superseded by M0 above)*
 
 The words were *"the history seemed to have been forgotten"*. **It is the
 opposite.** The tutor's prompt grew steadily from 11 k to 20.6 k tokens (the
@@ -174,7 +229,7 @@ structure works on every model the study might use.
 
 ## Milestones
 
-**M0 — confirm on prod (~0.25d).** Read the ADK session for
+**M0 — confirm on prod (~0.25d). DONE 2026-11-26, see the M0 result above.** Read the ADK session for
 `green-beetle-49` / `…950f22` (the `aitana-adk-testing` skill's session
 endpoints, prod, read-only). Does it contain a compaction event, and what does
 its summary say about protons? Then re-run the BigQuery search that found this
@@ -206,7 +261,7 @@ empty sheet reads *(empty)*; an unexpected shape falls back to the raw dump.
 Tests: noted, then the text changes, then the render shows *looks fixed*;
 closed points stop rendering after 15 min; the cap of 8 holds.
 
-**M4 — eval (~0.25d).** One ADK eval case rebuilt from this session (the sheet
+**M4 — eval (~0.25d). DONE 2026-11-26** as `backend/scripts/replay_settled_points.py`. It reads the session from prod BigQuery and Agent Engine at run time, so no student text is committed, and it compares three arms. Results above. One ADK eval case rebuilt from this session (the sheet
 history, anonymised), asserting the 10:00 and 10:11 replies do **not** ask for
 the fixed point. Run it before M1 to show it fails, then after each milestone.
 Run it on `flash-lite` and on the analysis model, to see how much a stronger

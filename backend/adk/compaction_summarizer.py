@@ -83,6 +83,18 @@ FIDELITY_PROMPT_TEMPLATE = (
     "that keeps the facts over a short one that reads well — but length must "
     "come from FINDINGS, never from restating the environment.\n"
     "Attribute statements to the student or the tutor where it matters.\n\n"
+    # 1.1.164 M0 — a summary is read AFTER the turns it replaces, and later
+    # turns often settle what it left open. On prod 2026-11-25 two summaries
+    # recorded "the student has not yet fixed X" as outstanding, 27 s before the
+    # group fixed it, and the tutor kept asking for the fix.
+    "CORRECTIONS AND REQUESTS ARE EVENTS, NOT STANDING FACTS. When the tutor asked "
+    "the student to change something, record what was asked and when, and quote the "
+    "student's text as it was AT THAT TIME. Never write that the student 'has not yet' "
+    "done it, 'still needs to' do it, or that the tutor is 'awaiting' it: the "
+    "conversation continues after this summary, and the student's later messages and "
+    "the current workbench state decide whether it is done. End with one line: "
+    "'Requests above may already be settled — check the latest messages and the "
+    "current workbench state before repeating one.'\n\n"
     "Conversation to compact:\n\n{conversation_history}"
 )
 
