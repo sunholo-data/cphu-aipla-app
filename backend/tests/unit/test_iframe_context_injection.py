@@ -158,3 +158,43 @@ def test_last_tutor_reply_is_the_latest_tutor_text_not_a_tool_call():
 def test_no_tutor_reply_yet_is_none():
     assert last_tutor_reply_at(SimpleNamespace(events=[_ev("user", "hej", 1.0)])) is None
     assert last_tutor_reply_at(None) is None
+
+
+# ── 1.1.164 M2 — the writing sheets are the CURRENT version, said in words ──
+# On 2026-11-25 the tutor had the current text in this block (as raw JSON) and
+# still went by an older "Ask for feedback" draft quoted in the conversation.
+
+
+def _writing(docs):
+    return {"mcp_app_context.writing.state": {"structuredContent": {"docs": docs}, "_pushedAt": 1.0}}
+
+
+def test_writing_sheets_render_as_the_current_text_not_json():
+    out = render_instruction_with_iframe_context(
+        BASE,
+        _writing(
+            [
+                {"id": "w1", "title": "Undervejs (Del 2-5)", "text": "Li+ ioner transporteres", "words": 3},
+                {"id": "w2", "title": "", "text": "", "words": 0},
+            ]
+        ),
+    )
+    assert "say NOW" in out
+    assert "replaces every earlier draft" in out
+    assert "### «Undervejs (Del 2-5)» (3 words)\nLi+ ioner transporteres" in out
+    assert "### «Sheet 2» (0 words)\n(empty)" in out
+    assert '"docs"' not in out  # no raw JSON dump of the snapshot
+    assert "_pushedAt" not in out
+
+
+def test_writing_says_when_the_text_was_shortened():
+    out = render_instruction_with_iframe_context(
+        BASE, _writing([{"id": "w1", "title": "Essay", "text": "start … end", "words": 900, "truncated": True}])
+    )
+    assert "shortened" in out
+
+
+def test_unexpected_writing_shape_falls_back_to_the_raw_dump():
+    out = render_instruction_with_iframe_context(BASE, {"mcp_app_context.writing.state": {"text": "loose"}})
+    assert "say NOW" not in out
+    assert "loose" in out

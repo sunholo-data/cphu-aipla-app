@@ -92,6 +92,7 @@ from adk.resilient_llm import ResilientLlm
 from adk.shared_conversation import build_shared_conversation_block
 from adk.sim_author import attach_sim_screenshots, prune_stale_sim_reads, record_sim_usage
 from adk.sim_control_tools import build_sim_control_tools, resolve_sim_control_level
+from adk.superseded_drafts import collapse_superseded_drafts
 from adk.svg_preview import attach_svg_preview, make_final_svg_guard
 from adk.teacher_focus import build_ilo_precedence_block, inject_teacher_focus, resolve_active_config
 from adk.teaching_precedence import build_tutor_notes_block, inject_framework_preamble_with_precedence
@@ -827,6 +828,10 @@ def create_agent(
         # sim-author: shorten read_sim results of versions since replaced (and
         # repeat guide reads), before the budget gate projects this prompt's cost.
         await prune_stale_sim_reads(callback_context, llm_request)
+        # 1.1.164 M1 — only the newest "Ask for feedback" draft of each writing
+        # sheet stays whole; older drafts become one line. Fifteen drafts of one
+        # sheet made the tutor ask for a fix the group had already made.
+        collapse_superseded_drafts(llm_request)
         # 1.1.7 images need no injector: they arrive as native AG-UI
         # ImageInputContent parts that ag_ui_adk turns into ADK Parts in the
         # user event, so they're already in llm_request.contents (and replayed

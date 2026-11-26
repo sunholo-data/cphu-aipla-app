@@ -107,6 +107,49 @@ def _ledger_prose(suffix: str, state: dict[str, Any], since: float | None) -> st
         return None
 
 
+#: 1.1.164 M2 — the writing sheets, as the CURRENT version. They used to reach the
+#: prompt as a raw JSON dump under the generic "iframe context" framing, while the
+#: conversation above held every earlier "Ask for feedback" draft in full. Nothing
+#: said which one wins, and on 2026-11-25 the tutor went by an old draft.
+_WRITING_KEY = "writing.state"
+_WRITING_HEAD = (
+    "What the student's writing sheets say NOW. This is the current text: it "
+    "replaces every earlier draft quoted in the conversation. Before you say "
+    "something is still wrong or missing in a sheet, check it here. If it has "
+    "been fixed, say so instead of asking again."
+)
+
+
+def _writing_prose(value: Any) -> str | None:
+    """The pushed writing snapshot as prose, or None to fall back to the raw dump.
+
+    ``WritingSnapshot`` (frontend ``lib/writingSnapshot.ts``): ``{"docs": [{id,
+    title, text, words, chars, truncated}]}``, possibly wrapped in
+    ``structuredContent`` by the route. The text is already capped client-side
+    (``WRITING_PUSH_CHAR_CAP``); ``truncated`` is passed on so the tutor says so
+    rather than judging half a text.
+    """
+    if not isinstance(value, dict):
+        return None
+    snap = value.get("structuredContent") if isinstance(value.get("structuredContent"), dict) else value
+    docs = snap.get("docs")
+    if not isinstance(docs, list):
+        return None
+    sections = [_WRITING_HEAD]
+    for n, d in enumerate(docs, 1):
+        if not isinstance(d, dict):
+            return None
+        title = str(d.get("title") or "").strip() or f"Sheet {n}"
+        text = str(d.get("text") or "").strip()
+        words = d.get("words")
+        meta = f"{words} words" if isinstance(words, int) else ""
+        if d.get("truncated"):
+            meta += ", shortened: the opening and the end are shown, the middle is cut"
+        heading = f"### «{title}»" + (f" ({meta})" if meta else "")
+        sections.append(f"{heading}\n{text}" if text else f"{heading}\n(empty)")
+    return "\n\n".join(sections)
+
+
 def _format_block(items: list[tuple[str, Any]], state: dict[str, Any] | None = None, since: float | None = None) -> str:
     """Format the namespaced state entries into a readable block.
 
@@ -121,7 +164,7 @@ def _format_block(items: list[tuple[str, Any]], state: dict[str, Any] | None = N
     for key, value in sorted(items):
         # Strip the prefix so the key shown is `server.tool`
         suffix = key[len(_NAMESPACE_PREFIX) :]
-        prose = _ledger_prose(suffix, state or {}, since)
+        prose = _writing_prose(value) if suffix == _WRITING_KEY else _ledger_prose(suffix, state or {}, since)
         if prose is not None:
             lines.append(f"## {suffix}\n{prose}")
             continue
