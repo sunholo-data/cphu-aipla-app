@@ -1655,6 +1655,46 @@ so nothing to port. Recorded because the *shape* is worth knowing: a guard whose
 last statement is a test reports failure on its own success, and this one did it
 directly beneath a line promising it never blocks.
 
+## 52. `compaction_interval` counts workbench pushes, so a normal session compacts every ~15 minutes and the summaries freeze open requests
+
+**Where:** `backend/adk/session.py` (`_COMPACTION_CONFIGS`, `_DEFAULT_COMPACTION`),
+`backend/protocols/iframe_context_routes.py` (the event appended per push),
+`backend/adk/compaction_summarizer.py` (the prompt).
+
+**What happens.** ADK's sliding-window trigger counts distinct event
+`invocation_id`s (`google/adk/apps/compaction.py`,
+`_run_compaction_for_sliding_window`), not user turns. Every
+`POST /sessions/{id}/iframe-context` appends an event with its own
+`iframe_context_<ms>` id. So an app whose iframe pushes state as the user works
+drives the counter far faster than the conversation does. On AIPLA prod
+(2026-11-25) a 60-min session compacted four times at `compaction_interval=40`.
+There were 46–53 invocations between compactions, 29–39 of them pushes, while
+the prompt never passed ~20k of the 250k token threshold. The code comment's
+promise, that *"a normal lesson never compacts"*, was false from the day pushes
+existed.
+
+**Why it matters more than cost.** Each summary is read as the agent's own
+earlier turn. Two of them recorded an open request as outstanding (*"has not
+yet edited the text"*, *"awaiting … fixing the typo"*) seconds before the user
+settled it, and the agent kept asking. Replaying the real request: 7/10 replies
+repeated the settled request with the summaries, 0/10 with the full history.
+
+**Fixed here** (1.1.164, 2026-11-26):
+- The interval is 500 for the 1M families and 400 for the others. The token
+  threshold stays the primary trigger, and the emergency pre-request path is
+  unchanged.
+- `test_a_normal_lesson_never_compacts_by_count` pins it.
+- The summarizer prompt records requests as events, never as standing
+  "not yet / awaiting" facts.
+
+**Upstream:** the same values and the same per-push ids are in
+`platform-source` as of a local checkout from `f45ecb5b` (2026-09-30).
+Re-check against current `main` before porting. A deeper fix would make
+state-only events stop counting, for example by sharing one invocation id per
+user turn. A constant id is **not** safe: ADK orders invocations by first
+appearance, and a constant id would pull every compaction range back to the
+session start.
+
 ## Backlog (likely additions as v0.1 sprint continues)
 
 - M5 may surface IAM bindings the bootstrap script should add
