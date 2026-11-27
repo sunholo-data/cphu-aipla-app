@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from xml.sax.saxutils import escape as xml_escape
 
 from db.models.activity_config import ActivityConfig
+from handouts.sheet_template import INFO_TABLE_STYLE, reference_docx
 
 log = logging.getLogger(__name__)
 
@@ -180,21 +181,25 @@ def build_sheet(
     title = _inline(cfg.title) if cfg.title.strip() else c["untitled"]
     parts = [f"# {title}"]
 
-    if code:
-        group = f"**{c['group']}:** {code}"
-        if origin:
-            group += f" · **{c['join']}:** {origin}/group?code={code}"
-    else:
-        group = f"**{c['group']}:** \\_\\_\\_\\_\\_\\_\\_\\_\\_\\_\\_\\_"
-    parts.append(group)
-    parts.append(f"**{c['names']}:** " + "\\_" * 48)
+    # The group box: a two-column table the Word template styles (``AiplaInfo``).
+    # The names cell is left empty on purpose: names against codes live only in
+    # the teacher's browser (1.1.137), and this is built on the server.
+    rows = [(c["group"], f"**{code}**" if code else " ")]
+    if code and origin:
+        rows.append((c["join"], f"{origin}/group?code={code}"))
+    rows.append((c["names"], " "))
+    head, *rest = rows
+    box = [f"| **{head[0]}** | {head[1]} |", "|:--|:--|"]
+    box += [f"| **{label}** | {value} |" for label, value in rest]
+    parts.append("\n".join(box))
 
     if cfg.student_opening.strip():
         parts += [f"## {c['what']}", _block(cfg.student_opening)]
 
     if cfg.checklist:
         parts.append(f"## {c['steps']}")
-        parts.append("\n".join(f"- ☐ {_inline(item.label)}" for item in cfg.checklist))
+        # One paragraph per step, so paper shows a box to tick and no bullet beside it.
+        parts.append("\n\n".join(f"☐ {_inline(item.label)}" for item in cfg.checklist))
 
     ws = _workspace_lines(cfg, c, sim_title)
     if ws:
@@ -204,7 +209,8 @@ def build_sheet(
         parts.append(f"## {c['ask']}")
         parts.append("\n".join(f"- {_inline(p)}" for p in cfg.starter_prompts))
 
-    if origin:
+    if origin and not code:
+        # With a code, the box above already carries the join link.
         parts.append(f"*{c['footer']}: {origin}*")
     return "\n\n".join(parts) + "\n"
 
@@ -225,101 +231,6 @@ def build_sheets(
 
 
 # ── Word ─────────────────────────────────────────────────────────────────────
-
-_W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
-_KU_RED = "901A1E"
-
-
-def reference_docx() -> bytes:
-    """The Word template AILANG Parse styles the sheet after.
-
-    A4 with 2 cm margins, Arial, KU-red headings, a small footer, and
-    ``pageBreakBefore`` on Heading 1 so every group's sheet (one H1 each)
-    starts on its own page. Markdown has no page break Parse understands;
-    this is how one file holds one page per group.
-    """
-    content_types = (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
-        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
-        '<Default Extension="xml" ContentType="application/xml"/>'
-        '<Override PartName="/word/document.xml" '
-        'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'
-        '<Override PartName="/word/styles.xml" '
-        'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'
-        '<Override PartName="/word/footer1.xml" '
-        'ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/>'
-        "</Types>"
-    )
-    rels = (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-        '<Relationship Id="rId1" '
-        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" '
-        'Target="word/document.xml"/></Relationships>'
-    )
-    doc_rels = (
-        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
-        '<Relationship Id="rId1" '
-        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'
-        '<Relationship Id="rId2" '
-        'Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>'
-        "</Relationships>"
-    )
-    grey = '"808080"'
-    border = f'w:val="single" w:sz="4" w:color={grey}'
-    styles = (
-        f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles {_W}>'
-        '<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial" w:cs="Arial"/>'
-        '<w:sz w:val="22"/><w:lang w:val="da-DK"/></w:rPr></w:rPrDefault>'
-        '<w:pPrDefault><w:pPr><w:spacing w:after="80" w:line="264" w:lineRule="auto"/></w:pPr></w:pPrDefault>'
-        "</w:docDefaults>"
-        '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>'
-        '<w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/>'
-        '<w:basedOn w:val="Normal"/><w:next w:val="Normal"/>'
-        '<w:pPr><w:pageBreakBefore/><w:keepNext/><w:spacing w:before="0" w:after="120"/>'
-        '<w:outlineLvl w:val="0"/></w:pPr>'
-        f'<w:rPr><w:b/><w:color w:val="{_KU_RED}"/><w:sz w:val="36"/></w:rPr></w:style>'
-        '<w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/>'
-        '<w:basedOn w:val="Normal"/><w:next w:val="Normal"/>'
-        '<w:pPr><w:keepNext/><w:spacing w:before="240" w:after="60"/>'
-        f'<w:pBdr><w:bottom w:val="single" w:sz="4" w:space="1" w:color="{_KU_RED}"/></w:pBdr>'
-        '<w:outlineLvl w:val="1"/></w:pPr>'
-        f'<w:rPr><w:b/><w:color w:val="{_KU_RED}"/><w:sz w:val="26"/></w:rPr></w:style>'
-        '<w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/>'
-        '<w:basedOn w:val="Normal"/><w:pPr><w:spacing w:after="40"/><w:ind w:left="720"/></w:pPr></w:style>'
-        '<w:style w:type="table" w:styleId="TableGrid"><w:name w:val="Table Grid"/><w:tblPr><w:tblBorders>'
-        f"<w:top {border}/><w:left {border}/><w:bottom {border}/><w:right {border}/>"
-        f"<w:insideH {border}/><w:insideV {border}/></w:tblBorders></w:tblPr></w:style>"
-        '<w:style w:type="paragraph" w:styleId="Footer"><w:name w:val="footer"/><w:basedOn w:val="Normal"/>'
-        '<w:rPr><w:color w:val="666666"/><w:sz w:val="16"/></w:rPr></w:style>'
-        "</w:styles>"
-    )
-    footer = (
-        f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:ftr {_W}>'
-        '<w:p><w:pPr><w:pStyle w:val="Footer"/></w:pPr>'
-        '<w:r><w:t xml:space="preserve">AIPLA · Københavns Universitet</w:t></w:r></w:p></w:ftr>'
-    )
-    document = (
-        f'<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document {_W} '
-        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
-        "<w:body><w:p/><w:sectPr>"
-        '<w:footerReference w:type="default" r:id="rId2"/>'
-        '<w:pgSz w:w="11906" w:h="16838"/>'
-        '<w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134" '
-        'w:header="567" w:footer="567" w:gutter="0"/>'
-        "</w:sectPr></w:body></w:document>"
-    )
-    buf = io.BytesIO()
-    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr("[Content_Types].xml", content_types)
-        z.writestr("_rels/.rels", rels)
-        z.writestr("word/_rels/document.xml.rels", doc_rels)
-        z.writestr("word/styles.xml", styles)
-        z.writestr("word/footer1.xml", footer)
-        z.writestr("word/document.xml", document)
-    return buf.getvalue()
 
 
 def placeholder(index: int) -> str:
@@ -368,12 +279,12 @@ def to_docx(
     stand_ins = list(mapping) if codes else []
     sheets = build_sheets(cfg, codes=stand_ins, origin=origin, sim_title=sim_title)
     markdown = "\n".join(s.markdown for s in sheets)
-    raw = _convert(markdown)
+    raw = _convert(markdown, language=cfg.language)
     return substitute_codes(raw, mapping) if mapping else raw
 
 
-def _convert(markdown: str) -> bytes:
-    """Markdown → docx through AILANG Parse, styled by ``reference_docx()``."""
+def _convert(markdown: str, *, language: str = "da") -> bytes:
+    """Markdown → docx through AILANG Parse, styled by ``sheet_template``."""
     from tools.documents.ailang_parse import _get_client
 
     client = _get_client()
@@ -385,9 +296,9 @@ def _convert(markdown: str) -> bytes:
         with open(md_path, "w", encoding="utf-8") as f:
             f.write(markdown)
         with open(ref_path, "wb") as f:
-            f.write(reference_docx())
+            f.write(reference_docx(language))
         try:
-            result = client.convert_file(md_path, target="docx", reference_doc=ref_path)
+            result = client.convert_file(md_path, target="docx", reference_doc=ref_path, table_style=INFO_TABLE_STYLE)
         except Exception as exc:  # any Parse failure is "unavailable"
             log.warning("activity sheet: AILANG Parse convert failed: %s", exc)
             raise SheetUnavailable(str(exc)) from exc

@@ -190,6 +190,9 @@
     "loadFailed": "The sheet could not be loaded.",
     "retry": "Try again",
     "wordUnavailable": "The Word file cannot be made right now. Print still works.",
-    "wordFailed": "The Word file could not be downloaded. Try again."
+    "wordFailed": "The Word file could not be downloaded. Try again.",
+    "headerName": "Activity sheet",
+    "headerUniversity": "University of Copenhagen",
+    "sealAlt": "Seal of the University of Copenhagen"
   }
 }

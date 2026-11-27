@@ -135,7 +135,7 @@ def test_markdown_never_calls_parse():
     convert.assert_not_called()
 
 
-def _fake_docx(markdown: str) -> bytes:
+def _fake_docx(markdown: str, **_kw) -> bytes:
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
         z.writestr("word/document.xml", "<w:t>" + " ".join(re.findall(r"AIPLAGROUP\d+X", markdown)) + "</w:t>")

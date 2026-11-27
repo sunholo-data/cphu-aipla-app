@@ -122,7 +122,7 @@ export function ActivitySheetButton({ activityId }: { activityId: string }) {
 
           <div className="min-h-0 overflow-auto">
             {load.kind === "ready" ? (
-              <ActivitySheetView ref={sheetsRef} sheets={load.data.sheets} />
+              <ActivitySheetView ref={sheetsRef} sheets={load.data.sheets} language={load.data.language} />
             ) : load.kind === "error" ? (
               <div className="flex flex-col items-start gap-2 text-sm">
                 <p>{t("loadFailed")}</p>

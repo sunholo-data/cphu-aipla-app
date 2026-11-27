@@ -16,11 +16,11 @@ from handouts.activity_sheet import (
     build_sheet,
     build_sheets,
     placeholder,
-    reference_docx,
     safe_origin,
     substitute_codes,
     to_docx,
 )
+from handouts.sheet_template import INFO_TABLE_STYLE, reference_docx
 
 ORIGIN = "https://aipla.ku.dk"
 
@@ -91,10 +91,10 @@ def _full_cfg(**over) -> ActivityConfig:
 def test_sheet_carries_what_the_student_sees():
     md = build_sheet(_full_cfg(), code="brave-thicket-77", origin=ORIGIN, sim_title="Boldkast-sim")
     assert md.startswith("# Boldkast\n")
-    assert "**Gruppe:** brave-thicket-77" in md
-    assert "https://aipla.ku.dk/group?code=brave-thicket-77" in md
+    assert "| **Gruppe** | **brave-thicket-77** |" in md
+    assert "| **Log ind** | https://aipla.ku.dk/group?code=brave-thicket-77 |" in md
     assert "## Det skal I" in md and "kastevinklen" in md
-    assert "- ☐ Åbn simulationen" in md
+    assert "☐ Åbn simulationen\n\n☐ Mål ved 30°" in md
     assert "**Simulation:** Boldkast-sim" in md
     assert "Vinkel (°) · Længde (m)" in md
     assert "**Forklaring:** Forklar jeres resultat." in md
@@ -117,7 +117,7 @@ def test_teacher_only_fields_never_reach_the_sheet():
 
 def test_english_activity_gets_english_headings():
     md = build_sheet(_full_cfg(language="en"), code="c", origin=ORIGIN)
-    assert "**Group:** c" in md and "## Steps" in md and "## Ask the tutor" in md
+    assert "| **Group** | **c** |" in md and "## Steps" in md and "## Ask the tutor" in md
     assert "Gruppe" not in md
 
 
@@ -129,8 +129,10 @@ def test_empty_sections_are_left_out():
 def test_no_codes_gives_one_blank_sheet():
     sheets = build_sheets(_cfg(), codes=[], origin=ORIGIN)
     assert len(sheets) == 1 and sheets[0].code is None
-    assert "**Gruppe:** \\_" in sheets[0].markdown
+    assert "| **Gruppe** |   |" in sheets[0].markdown
     assert "group?code=" not in sheets[0].markdown
+    # Without a code there is no join link in the box, so the address is given below.
+    assert "*Arbejd i AIPLA: https://aipla.ku.dk*" in sheets[0].markdown
 
 
 def test_one_sheet_per_code_each_with_its_own_code():
@@ -141,7 +143,19 @@ def test_one_sheet_per_code_each_with_its_own_code():
 
 def test_names_line_is_blank_names_never_come_from_the_server():
     md = build_sheet(_cfg(), code="c", origin=ORIGIN)
-    assert "**Navne:** \\_\\_" in md
+    assert "| **Navne** |   |" in md
+
+
+def test_group_box_is_one_table_and_the_link_is_not_repeated():
+    md = build_sheet(_cfg(), code="c", origin=ORIGIN)
+    table = [line for line in md.splitlines() if line.startswith("|")]
+    assert table == [
+        "| **Gruppe** | **c** |",
+        "|:--|:--|",
+        "| **Log ind** | https://aipla.ku.dk/group?code=c |",
+        "| **Navne** |   |",
+    ]
+    assert md.count("https://aipla.ku.dk") == 1
 
 
 @pytest.mark.parametrize(
@@ -161,7 +175,7 @@ def test_origin_must_be_a_bare_origin(origin, expected):
 
 def test_bad_origin_drops_the_link_but_keeps_the_code():
     md = build_sheet(_cfg(), code="c-1", origin="https://evil.example/x")
-    assert "**Gruppe:** c-1" in md and "group?code" not in md and "evil" not in md
+    assert "| **Gruppe** | **c-1** |" in md and "group?code" not in md and "evil" not in md
 
 
 def test_teacher_text_cannot_start_a_heading_or_inject_markup():
@@ -177,7 +191,7 @@ def test_teacher_text_cannot_start_a_heading_or_inject_markup():
     assert headings[0] == "# Sneaky \\[link\\](http://x) \\*bold\\*"
     assert all(h.startswith("## ") and h[3:] in {"Det skal I", "Sådan gør I"} for h in headings[1:])
     assert "Not a heading" in md and "\\`code\\`" in md and "a\\_b" in md
-    assert "- ☐ step" in md
+    assert "☐ step" in md
 
 
 def test_long_note_is_shortened():
@@ -191,13 +205,31 @@ def test_long_note_is_shortened():
 
 
 def test_reference_template_is_a4_and_breaks_page_per_group():
-    z = zipfile.ZipFile(io.BytesIO(reference_docx()))
+    z = zipfile.ZipFile(io.BytesIO(reference_docx("da")))
     styles = z.read("word/styles.xml").decode()
     doc = z.read("word/document.xml").decode()
     h1 = styles.split('w:styleId="Heading1"')[1].split("</w:style>")[0]
     assert "<w:pageBreakBefore/>" in h1
     assert '<w:pgSz w:w="11906" w:h="16838"/>' in doc  # A4
     assert "901A1E" in styles  # KU red
+    assert f'w:styleId="{INFO_TABLE_STYLE}"' in styles
+
+
+def test_reference_template_header_carries_the_seal_and_the_sheet_name():
+    for lang, name in (("da", "AKTIVITETSARK"), ("en", "ACTIVITY SHEET")):
+        z = zipfile.ZipFile(io.BytesIO(reference_docx(lang)))
+        header = z.read("word/header1.xml").decode()
+        rels = z.read("word/_rels/header1.xml.rels").decode()
+        assert name in header and "AIPLA" in header
+        assert 'r:embed="rIdSeal"' in header and "media/ku-seal.png" in rels
+        assert z.read("word/media/ku-seal.png")[:4] == b"\x89PNG"
+        assert 'r:id="rIdHeader"' in z.read("word/document.xml").decode()
+        # Every part is well-formed XML.
+        import xml.dom.minidom
+
+        for part in z.namelist():
+            if part.endswith((".xml", ".rels")):
+                xml.dom.minidom.parseString(z.read(part))
 
 
 def _docx(document_xml: str) -> bytes:
@@ -231,7 +263,7 @@ def test_substitution_fails_closed_on_a_stray_placeholder():
 def test_parse_never_sees_a_join_code():
     sent: list[str] = []
 
-    def fake_convert(markdown: str) -> bytes:
+    def fake_convert(markdown: str, **_kw) -> bytes:
         sent.append(markdown)
         return _docx("<w:t>" + " ".join(p for p in (placeholder(0), placeholder(1)) if p in markdown) + "</w:t>")
 
@@ -261,14 +293,16 @@ def test_convert_sends_the_reference_template():
     client = MagicMock()
     seen = {}
 
-    def fake(md_path, *, target, reference_doc):
+    def fake(md_path, *, target, reference_doc, table_style):
         seen["target"] = target
+        seen["table_style"] = table_style
         with open(reference_doc, "rb") as f:
             seen["ref"] = f.read()
         return MagicMock(content=_docx("<w:t>x</w:t>"))
 
     client.convert_file.side_effect = fake
     with patch("tools.documents.ailang_parse._get_client", return_value=client):
-        out = sheet._convert("# x\n")
-    assert seen["target"] == "docx" and seen["ref"] == reference_docx()
+        out = sheet._convert("# x\n", language="en")
+    assert seen["target"] == "docx" and seen["ref"] == reference_docx("en")
+    assert seen["table_style"] == INFO_TABLE_STYLE
     assert out[:2] == b"PK"

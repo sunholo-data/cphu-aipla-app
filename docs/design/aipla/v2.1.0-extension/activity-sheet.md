@@ -30,11 +30,25 @@ board or in their own document.
    on the dev key: Danish text, tables, headings and lists come through.
 3. **It cannot express a page break in Markdown** (`\newpage`, raw HTML and
    raw OpenXML are all printed literally). A **reference template** solves it,
-   and three other problems with it: the template's Heading 1 carries
-   `pageBreakBefore`, so each group's sheet starts on a new page; the page is
-   **A4** (the default is US Letter); headings are KU red with a small
-   "AIPLA · Københavns Universitet" footer. The template is built in code
-   (`reference_docx()`), not committed as a binary, so it is diffable and testable.
+   and gives the sheet its look: `convert` carries the template's styles, page
+   setup, header, footer and the header's image into the generated file
+   (verified live 2026-11-27: the seal, header and footer all arrive, and
+   `table_style` binds the generated table to the template's style). The
+   template is built in code (`handouts/sheet_template.py`), not committed as
+   a binary, so every part of the look is diffable and tested:
+   - **A4**, 2 cm sides (the default is US Letter);
+   - a **header on every page**: the KU seal (`handouts/assets/ku-seal.png`,
+     160 px from the app's own `aipla-logo.png`), "AIPLA" in KU red with the
+     university under it, the sheet's name on the right, above a red rule;
+   - **Heading 1** is the title, 22 pt KU red, with `pageBreakBefore`, so one
+     file holds one page per group;
+   - **Heading 2** is a small-caps red section label over a hairline;
+   - **`AiplaInfo`**, the table style of the group box (group, join link,
+     names): a light KU-red tint, hairline rows, labels in red;
+   - a one-line grey **footer**.
+   The header names the sheet in the **activity's** language. The in-app view
+   and the browser print (`printSheets`) mirror the same design, so the three
+   versions read as one document.
 4. **The SDK upgrade is safe for uploads.** Production parses only with
    `output_format="blocks"`; 352 document tests pass on 0.14.0. A live check found
    that `markdown` output now arrives in `text` with `markdown` empty, on 0.5.4
@@ -50,12 +64,12 @@ One A4 page per group, in the activity's language (`activity.language`):
 | Section | From | Shown when |
 |---|---|---|
 | Title | `title` | always |
-| Group, join link, *Names: ____* | the class's live codes | per group; one blank sheet when there are none |
+| Group box: group, join link, names (blank) | the class's live codes | per group; one blank sheet when there are none |
 | *What you'll do* | `studentOpening` (teacher-written only) | non-empty |
-| *Steps* (☐ boxes) | `checklist[].label` | any |
+| *Steps*, one ☐ line each | `checklist[].label` | any |
 | *In the workspace* | sim `displayName`, table titles + columns (units), writing titles + prompts, notes (shortened to 600 chars), calculator title, solution / document prompts, concept-map title, materials the student may open | any |
 | *Ask the tutor* | `starterPrompts` | any |
-| Footer line | "Work in AIPLA: {origin}" | always |
+| "Work in AIPLA: {origin}" | the page's origin | only on a blank sheet (with a code, the box has the link) |
 
 The *Names* line is blank on purpose. Names against codes live only in the
 teacher's browser (1.1.137, ADR-001), and the sheet is built on the server, so it
@@ -108,7 +122,7 @@ event loop.
 ## Milestones
 
 - **M0** evidence (above).
-- **M1** `handouts/activity_sheet.py`: `build_sheets()` (pure), `reference_docx()`, `to_docx()` with placeholder substitution; SDK bump.
+- **M1** `handouts/activity_sheet.py`: `build_sheets()` (pure), `to_docx()` with placeholder substitution; `handouts/sheet_template.py`: the Word template; SDK bump.
 - **M2** teacher route + page + class-page action.
 - **M3** student route + header button + dialog.
 - **M4** tests: builder (sections, escaping, teacher-only fields absent, languages), docx (placeholders replaced, fail-closed, A4 + page break in the template), routes (auth: non-owner 404, activity not in class 409, student sees own code only, Parse down → 503, md works without Parse).

@@ -121,7 +121,7 @@ export default function ActivitySheetPage() {
         ) : (
           <>
             <p className="text-sm text-muted-foreground">{t("hint")}</p>
-            <ActivitySheetView ref={sheetsRef} sheets={load.data.sheets} />
+            <ActivitySheetView ref={sheetsRef} sheets={load.data.sheets} language={load.data.language} />
           </>
         )}
       </div>

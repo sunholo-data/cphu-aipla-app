@@ -190,6 +190,9 @@
     "loadFailed": "Arket kunne ikke hentes.",
     "retry": "Prøv igen",
     "wordUnavailable": "Word-filen kan ikke laves lige nu. Udskriv virker stadig.",
-    "wordFailed": "Word-filen kunne ikke hentes. Prøv igen."
+    "wordFailed": "Word-filen kunne ikke hentes. Prøv igen.",
+    "headerName": "Aktivitetsark",
+    "headerUniversity": "Københavns Universitet",
+    "sealAlt": "Københavns Universitets segl"
   }
 }
