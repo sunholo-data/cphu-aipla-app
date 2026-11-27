@@ -15,7 +15,8 @@ const PRINT_CSS = `
 * { box-sizing: border-box; }
 body { font-family: Arial, Helvetica, sans-serif; font-size: 10.5pt; line-height: 1.38; color: #1f1f1f; margin: 0; }
 [data-sheet] { break-after: page; }
-[data-sheet]:last-child { break-after: auto; }
+/* last-of-type, not last-child: the <footer> follows the last sheet. */
+[data-sheet]:last-of-type { break-after: auto; }
 [data-sheet-header] { display: flex; align-items: center; gap: 8pt; border-bottom: 1.5pt solid #901A1E;
   padding-bottom: 5pt; margin-bottom: 12pt; }
 [data-sheet-header] img { width: 42pt; height: 42pt; }
