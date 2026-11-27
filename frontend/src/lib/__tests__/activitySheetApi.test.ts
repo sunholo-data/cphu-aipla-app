@@ -50,8 +50,11 @@ describe("activitySheetApi", () => {
     await expect(downloadClassActivitySheetWord("c1", "act-1")).rejects.toBeInstanceOf(SheetWordUnavailableError);
     expect(fetchWithTeacherAuth.mock.calls[0][0]).toContain("format=docx");
 
-    fetchWithAuth.mockResolvedValue(new Response(new Blob(["PK"]), { status: 200 }));
-    await expect(downloadMyActivitySheetWord("act-1")).resolves.toBeInstanceOf(Blob);
+    // A string body, not a Blob: on Node 22 (CI) jsdom's Blob is not one the
+    // native Response can stream ("object.stream is not a function").
+    fetchWithAuth.mockResolvedValue(new Response("PK", { status: 200 }));
+    const blob = await downloadMyActivitySheetWord("act-1");
+    expect(await blob.text()).toBe("PK");
   });
 
   it("other failures are plain errors, not 'unavailable'", async () => {
