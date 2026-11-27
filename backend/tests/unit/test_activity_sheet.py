@@ -178,20 +178,40 @@ def test_bad_origin_drops_the_link_but_keeps_the_code():
     assert "| **Gruppe** | **c-1** |" in md and "group?code" not in md and "evil" not in md
 
 
-def test_teacher_text_cannot_start_a_heading_or_inject_markup():
+def test_teacher_text_cannot_start_a_heading_or_pull_in_an_image():
     cfg = _cfg(
-        title="# Sneaky [link](http://x) *bold*",
-        studentOpening="## Not a heading\n\nline with `code` and a_b",
+        title="# Sneaky ![pic](http://x/y.png) title",
+        studentOpening="## Not a heading\n\nline with ![img](http://x) and more",
         checklist=[{"id": "a", "label": "# step"}],
     )
     md = build_sheet(cfg, code="c", origin=ORIGIN)
-    lines = md.splitlines()
-    headings = [line for line in lines if line.startswith("#")]
+    headings = [line for line in md.splitlines() if line.startswith("#")]
     # Only the sheet's own title (H1) and section headings (H2).
-    assert headings[0] == "# Sneaky \\[link\\](http://x) \\*bold\\*"
+    assert headings[0] == "# Sneaky [pic](http://x/y.png) title"
     assert all(h.startswith("## ") and h[3:] in {"Det skal I", "Sådan gør I"} for h in headings[1:])
-    assert "Not a heading" in md and "\\`code\\`" in md and "a\\_b" in md
+    assert "Not a heading" in md and "![" not in md
     assert "☐ step" in md
+
+
+def test_teacher_inline_markdown_is_kept_as_the_workspace_shows_it():
+    """The first real activity checked (KineBot, test, 2026-11-27) printed
+    literal asterisks: its writing prompt uses bold labels, and the workspace
+    renders them as bold."""
+    cfg = _cfg(
+        writing=[
+            {
+                "id": "w",
+                "title": "Bevægelsesgrafer",
+                "prompt": "**Sted (s-t):** hældningen er farten.\n**Fart (v-t):** hældningen er accelerationen.",
+            }
+        ]
+    )
+    md = build_sheet(cfg, code="c", origin=ORIGIN)
+    assert (
+        "- **Bevægelsesgrafer:** **Sted (s-t):** hældningen er farten. **Fart (v-t):** hældningen er accelerationen."
+        in md
+    )
+    assert "\\*" not in md
 
 
 def test_long_note_is_shortened():

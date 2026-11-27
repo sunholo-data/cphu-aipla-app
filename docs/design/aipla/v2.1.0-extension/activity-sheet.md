@@ -75,9 +75,12 @@ The *Names* line is blank on purpose. Names against codes live only in the
 teacher's browser (1.1.137, ADR-001), and the sheet is built on the server, so it
 cannot carry them. The group writes its names by hand.
 
-Teacher text is escaped on the way in. A line starting with `#` would otherwise
-become a heading, which in the template starts a new page, and a `|` would break
-a table.
+Teacher text keeps its inline Markdown (bold labels, italics, code), because the
+workspace renders it as Markdown too. The first real activity checked (KineBot on
+test) printed literal `**` until this was changed. Only what would change the
+*page* is neutralised: whitespace collapses so no new block can start, leading
+`#` are dropped (a heading starts a new page in the Word template), and `![`
+becomes `[` so no image is pulled in.
 
 ### Join codes do not leave AIPLA
 

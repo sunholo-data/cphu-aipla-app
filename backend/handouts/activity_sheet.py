@@ -80,10 +80,11 @@ COPY: dict[str, dict[str, str]] = {
 }
 
 _ORIGIN_RE = re.compile(r"^https?://[A-Za-z0-9.-]+(:\d{1,5})?$")
-# Only the escapes AILANG Parse honours (checked live 2026-11-27): it prints
-# ``\#``, ``\|``, ``\<``, ``\.`` with the backslash showing. Raw HTML comes out
-# as literal text in Word, and react-markdown does not render it either.
-_MD_SPECIAL = re.compile(r"([\\`*_\[\]~])")
+# Teacher text keeps its inline Markdown (bold labels, italics, code): the
+# workspace renders it as Markdown too, and escaping it printed literal "**" on
+# the first real activity checked (2026-11-27). Only what changes the PAGE is
+# neutralised: a heading (in Word, a heading 1 starts a new page) and an image.
+_IMAGE = re.compile(r"!\[")
 _LEADING_HASHES = re.compile(r"^\s*#+\s*")
 _PLACEHOLDER_RE = re.compile(r"AIPLAGROUP\d{2,3}X")
 
@@ -107,14 +108,14 @@ def safe_origin(origin: str | None) -> str | None:
 
 
 def _inline(text: str) -> str:
-    """Teacher text as one line of literal Markdown.
+    """Teacher text as one line of Markdown that cannot change the page.
 
-    Leading ``#`` are dropped rather than escaped: a heading would start a new
-    page in the Word template, and Parse prints an escaped hash with its backslash.
+    Whitespace collapses (no new block can start), leading ``#`` are dropped (no
+    heading), and ``![`` becomes ``[`` (no image is fetched into the sheet).
     """
     flat = " ".join((text or "").split())
     flat = _LEADING_HASHES.sub("", flat)
-    return _MD_SPECIAL.sub(r"\\\1", flat)
+    return _IMAGE.sub("[", flat)
 
 
 def _block(text: str) -> str:
