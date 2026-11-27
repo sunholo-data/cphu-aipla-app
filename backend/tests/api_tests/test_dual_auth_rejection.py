@@ -50,6 +50,7 @@ from auth.group_id_auth import AnonymousGroupAuth, create_group, join_group
 from db import firestore as fs_module
 from protocols.activity_config_routes import router as activity_config_router
 from protocols.activity_routes import router as activity_router
+from protocols.activity_sheet_routes import router as activity_sheet_router
 from protocols.checklist_progress_routes import router as checklist_progress_router
 from protocols.classes_routes import router as classes_router
 from protocols.concept_progress_routes import router as concept_progress_router
@@ -86,6 +87,9 @@ def app() -> FastAPI:
     app = FastAPI()
     app.include_router(classes_router)
     app.include_router(activity_router)
+    # Before activity_config_router, as in fast_api_app (its 3-segment GET would
+    # otherwise swallow /active/{id}/sheet).
+    app.include_router(activity_sheet_router)
     app.include_router(activity_config_router)
     app.include_router(writing_progress_router)
     app.include_router(checklist_progress_router)
@@ -246,6 +250,48 @@ def test_activity_opening_reaches_a_bound_student_through_real_auth(client):
     assert body["opening"]["firstItem"] == {"kind": "simulation", "title": body["artefact"]["displayName"]}
     assert body["opening"]["steps"] == ["Measure the time"]
     assert "PRIVATE TEACHING INSTRUCTION" not in resp.text
+
+
+def test_activity_sheet_reaches_a_bound_student_with_only_its_own_code(client):
+    """1.1.165 — a student's sheet: its own code, nothing the tutor alone sees."""
+    from db.activities import save_activity
+    from db.classes import create_class, mint_group_codes_under_class
+    from db.models.activity import Activity
+    from db.models.class_ import Class
+
+    save_activity(
+        Activity(
+            activityId="act-sheet",
+            ownerUid=TEACHER_UID,
+            skillId="concept-dialogue",
+            title="Energy",
+            language="en",
+            teachingGoal="PRIVATE TEACHING INSTRUCTION",
+            tutorNotes="PRIVATE TUTOR NOTE",
+            checklist=[{"id": "s1", "label": "Measure the time"}],
+        )
+    )
+    cls = Class.create_for_teacher(owner_uid=TEACHER_UID, name="Sheet class")
+    cls.activity_ids = ["act-sheet"]
+    create_class(cls)
+    mine, other = mint_group_codes_under_class(cls.class_id, count=2)
+    token = join_group(mine, client_ip="203.0.113.9").token
+
+    resp = client.get(
+        "/api/activity-configs/active/act-sheet/sheet?origin=https://aipla.ku.dk", headers=_auth_headers(token)
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert [s["code"] for s in body["sheets"]] == [mine]
+    md = body["sheets"][0]["markdown"]
+    assert md.startswith("# Energy") and "Measure the time" in md
+    assert f"https://aipla.ku.dk/group?code={mine}" in md
+    assert other not in resp.text
+    assert "PRIVATE" not in resp.text
+
+    # The teacher's whole-class route refuses the same token at the role gate.
+    resp = client.get(f"/api/classes/{cls.class_id}/activities/act-sheet/sheet", headers=_auth_headers(token))
+    assert resp.status_code == 403, resp.text
 
 
 @pytest.mark.parametrize(

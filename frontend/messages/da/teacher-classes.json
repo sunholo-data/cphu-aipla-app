@@ -486,7 +486,9 @@
     "whereChecklist": "i tjeklisten",
     "whereConceptMap": "i begrebskortet",
     "whereSim": "i simuleringen",
-    "whereDocument": "læser"
+    "whereDocument": "læser",
+    "sheet": "Ark",
+    "sheetTitle": "Print et ark pr. gruppe til {title}"
   },
   "LiveClassView": {
     "secondsAgo": "for {n} sek. siden",
@@ -536,5 +538,18 @@
     "documents": "åbnede {n, plural, one {# dokument} other {# dokumenter}}",
     "untitledSheet": "skrivefeltet",
     "source": "Talt fra chatten og arbejdsområdet, uden AI. Opdateres hvert 2. minut."
+  },
+  "ActivitySheetPage": {
+    "breadcrumb": "Tilbage til klassen",
+    "title": "Aktivitetsark",
+    "subtitleGroups": "Et ark pr. gruppe, {n} i alt. Hver gruppe får sin egen kode og et felt til navne.",
+    "subtitleNoGroups": "Klassen har ingen koder endnu, så arket har et tomt felt til koden.",
+    "downloadWord": "Hent Word",
+    "downloading": "Henter…",
+    "print": "Udskriv",
+    "hint": "Sådan ser arkene ud. Word-filen kan rettes, før du printer; hver gruppe får sin egen side.",
+    "what": "Arkene",
+    "wordUnavailable": "Word-filen kan ikke laves lige nu. Udskriv virker stadig.",
+    "wordFailed": "Word-filen kunne ikke hentes. Prøv igen."
   }
 }

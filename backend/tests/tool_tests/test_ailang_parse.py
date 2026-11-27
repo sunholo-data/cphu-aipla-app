@@ -157,6 +157,15 @@ async def test_parse_gcs_file_markdown_mode():
     assert "Title" in (outcome.markdown or "")
 
 
+def test_markdown_mode_reads_text_when_markdown_is_empty():
+    """The API returns markdown in ``text`` and leaves ``markdown`` empty (2026-11-27)."""
+    import tools.documents.ailang_parse as ap
+
+    result = _make_parse_result(markdown="")
+    result.text = "# Title\n\nBody."
+    assert ap._extract_content(result, "markdown") == "# Title\n\nBody."
+
+
 @pytest.mark.asyncio
 async def test_parse_gcs_file_cache_hit():
     """Second call for same URL uses cache, no API call."""

@@ -486,7 +486,9 @@
     "whereChecklist": "on the checklist",
     "whereConceptMap": "on the concept map",
     "whereSim": "in the simulation",
-    "whereDocument": "reading"
+    "whereDocument": "reading",
+    "sheet": "Sheet",
+    "sheetTitle": "Print one sheet per group for {title}"
   },
   "LiveClassView": {
     "secondsAgo": "{n}s ago",
@@ -536,5 +538,18 @@
     "documents": "opened {n, plural, one {# document} other {# documents}}",
     "untitledSheet": "the writing sheet",
     "source": "Counted from the chat and the workbench, no AI. Refreshes every 2 minutes."
+  },
+  "ActivitySheetPage": {
+    "breadcrumb": "Back to the class",
+    "title": "Activity sheet",
+    "subtitleGroups": "One sheet per group, {n} in all. Each has its own code and a line for names.",
+    "subtitleNoGroups": "The class has no codes yet, so the sheet has a blank line for the code.",
+    "downloadWord": "Download Word",
+    "downloading": "Downloading…",
+    "print": "Print",
+    "hint": "This is how the sheets look. You can edit the Word file before printing; each group gets its own page.",
+    "what": "The sheets",
+    "wordUnavailable": "The Word file cannot be made right now. Print still works.",
+    "wordFailed": "The Word file could not be downloaded. Try again."
   }
 }

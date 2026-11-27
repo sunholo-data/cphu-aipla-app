@@ -324,6 +324,7 @@ from protocols.a2ui_surface_action_routes import router as a2ui_surface_action_r
 from protocols.activity_config_routes import router as activity_config_router  # noqa: E402
 from protocols.activity_image_routes import router as activity_image_router  # noqa: E402
 from protocols.activity_routes import router as activity_router  # noqa: E402
+from protocols.activity_sheet_routes import router as activity_sheet_router  # noqa: E402
 from protocols.analytics_routes import router as analytics_router  # noqa: E402
 from protocols.artefact_routes import public_router as public_sims_router  # noqa: E402
 from protocols.artefact_routes import router as artefact_router  # noqa: E402
@@ -393,6 +394,9 @@ app.include_router(iframe_context_router)
 app.include_router(session_bootstrap_router)
 app.include_router(session_restore_router)
 app.include_router(a2ui_surface_action_router)
+# Before activity_config_router: its GET /{teacher_uid}/{class_id}/{activity_id}
+# would otherwise swallow /active/{activity_id}/sheet (1.1.165).
+app.include_router(activity_sheet_router)
 app.include_router(activity_config_router)
 app.include_router(activity_router)
 app.include_router(activity_image_router)

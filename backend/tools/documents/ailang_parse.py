@@ -265,7 +265,9 @@ def _download_gcs_to_tempfile(gs_url: str) -> str | None:
 def _extract_content(result: ParseResult, output_format: str) -> str | list | None:
     """Extract content from ParseResult based on requested output format."""
     if output_format in ("markdown", "markdown+metadata"):
-        return result.markdown or None
+        # The API now returns markdown in ``text`` and leaves ``markdown`` empty
+        # (seen on SDK 0.5.4 and 0.14.0 alike, 2026-11-27).
+        return result.markdown or result.text or None
     if output_format == "blocks":
         if not result.blocks:
             return None
@@ -278,7 +280,7 @@ def _extract_content(result: ParseResult, output_format: str) -> str | list | No
                 d["rows"] = [{"cells": row} for row in d["rows"]]
             out.append(d)
         return out
-    return result.markdown or None
+    return result.markdown or result.text or None
 
 
 def _make_error_outcome(exc: Exception, output_format: str) -> ParseOutcome:

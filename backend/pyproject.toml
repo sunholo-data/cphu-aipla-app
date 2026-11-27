@@ -21,7 +21,7 @@ dependencies = [
     "firebase-admin>=6.0.0",
     "gcsfs>=2024.11.0",
     # AILANG Parse — deterministic document parsing
-    "ailang-parse==0.5.4",
+    "ailang-parse==0.14.0",
     # Public /mcp endpoint: includes session resource bounds (CVE-2026-59951).
     "mcp>=1.30.0,<2.0.0",
     # AG-UI protocol bridge (ADK -> AG-UI events over SSE)

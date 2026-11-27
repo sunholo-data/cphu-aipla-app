@@ -176,5 +176,20 @@
   },
   "elementRenderers": {
     "checklistHeading": "Fremgang"
+  },
+  "ActivitySheet": {
+    "button": "Ark",
+    "open": "Aktivitetsarket: opgaven, trinene og jeres kode",
+    "title": "Aktivitetsark",
+    "description": "Det samme ark, som jeres lærer kan printe til jer.",
+    "downloadWord": "Hent (Word)",
+    "downloading": "Henter…",
+    "print": "Udskriv",
+    "close": "Luk",
+    "loading": "Henter arket…",
+    "loadFailed": "Arket kunne ikke hentes.",
+    "retry": "Prøv igen",
+    "wordUnavailable": "Word-filen kan ikke laves lige nu. Udskriv virker stadig.",
+    "wordFailed": "Word-filen kunne ikke hentes. Prøv igen."
   }
 }

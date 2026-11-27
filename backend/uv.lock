@@ -191,7 +191,7 @@ requires-dist = [
     { name = "a2a-sdk", specifier = "<1.0.0" },
     { name = "a2ui-agent-sdk", specifier = "==0.2.2" },
     { name = "ag-ui-adk", specifier = ">=0.10.0,<0.11.0" },
-    { name = "ailang-parse", specifier = "==0.5.4" },
+    { name = "ailang-parse", specifier = "==0.14.0" },
     { name = "anthropic", specifier = ">=0.52.0" },
     { name = "asyncpg", specifier = ">=0.30.0,<1.0.0" },
     { name = "codespell", marker = "extra == 'lint'", specifier = ">=2.2.0,<3.0.0" },
@@ -243,14 +243,14 @@ dev = [
 
 [[package]]
 name = "ailang-parse"
-version = "0.5.4"
+version = "0.14.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "requests" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ac/b3/6354509945f4cdeec79b0c8e3c03ae825906366e6874b59f526f1f043fb0/ailang_parse-0.5.4.tar.gz", hash = "sha256:605b1e8957702b2f3d58ab6d57a1d3d48ad3edae1991a5ba93e26a1e91010e6b", size = 27010, upload-time = "2026-04-24T20:43:32.82Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/fc/48/e3f24def2fc0c4125011bfdcd8a2519622c7e83f598b00045f934b66f9e1/ailang_parse-0.14.0.tar.gz", hash = "sha256:f1951178356b39a66e79ea2bcbd622cede79b27a71e9dbfc8e47a112701386f6", size = 49569, upload-time = "2026-11-02T19:38:56.986Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/81/c8/bb5f4ec11196bb304eb88c686661529336bb8b03136866f90df2adffa71c/ailang_parse-0.5.4-py3-none-any.whl", hash = "sha256:b25ccec15ca59fbd0a56e8fee8cef39a198ae8d05e42de49bb0a55610dda62ef", size = 19677, upload-time = "2026-04-24T20:43:31.695Z" },
+    { url = "https://files.pythonhosted.org/packages/d5/86/dbe25f9419a79910b3542b4d538c81a82a3dec4a952dd498f0f79b36d4d2/ailang_parse-0.14.0-py3-none-any.whl", hash = "sha256:e513e54f1b2d666495a70e1e86835c8a06b9d1ddcae767556abb6640e77a69cd", size = 34003, upload-time = "2026-11-02T19:38:55.735Z" },
 ]
 
 [[package]]

@@ -24,7 +24,7 @@
 import Link from "next/link";
 import { notFound, useParams, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeft, BookOpen, Download, Plus } from "lucide-react";
+import { ArrowLeft, BookOpen, Download, Plus, Printer } from "lucide-react";
 
 import {
   type ActivityPayload,
@@ -712,6 +712,16 @@ export default function TeacherClassDetailPage() {
                       />
                     </div>
                     <div className="flex items-center gap-1">
+                      {/* 1.1.165 — one printable page per group, and the Word file. */}
+                      <Link
+                        href={`/teacher/classes/${encodeURIComponent(theClass.classId)}/sheet/${encodeURIComponent(activity.activityId)}`}
+                        title={t("sheetTitle", { title: displayTitle })}
+                        data-testid={`activity-sheet-link-${activity.activityId}`}
+                        className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-xs font-medium hover:bg-muted"
+                      >
+                        <Printer className="h-3.5 w-3.5" aria-hidden="true" />
+                        {t("sheet")}
+                      </Link>
                       <Link
                         href={editHref}
                         title={t("editTitle", { title: displayTitle })}

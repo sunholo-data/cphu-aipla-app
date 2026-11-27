@@ -176,5 +176,20 @@
   },
   "elementRenderers": {
     "checklistHeading": "Progress"
+  },
+  "ActivitySheet": {
+    "button": "Sheet",
+    "open": "The activity sheet: the task, the steps and your code",
+    "title": "Activity sheet",
+    "description": "The same sheet your teacher can print for you.",
+    "downloadWord": "Download (Word)",
+    "downloading": "Downloading…",
+    "print": "Print",
+    "close": "Close",
+    "loading": "Loading the sheet…",
+    "loadFailed": "The sheet could not be loaded.",
+    "retry": "Try again",
+    "wordUnavailable": "The Word file cannot be made right now. Print still works.",
+    "wordFailed": "The Word file could not be downloaded. Try again."
   }
 }

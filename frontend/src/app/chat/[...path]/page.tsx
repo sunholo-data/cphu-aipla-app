@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ActivitySheetButton } from "@/components/chat/ActivitySheetButton";
 import { AutoReadToggle } from "@/components/chat/AutoReadToggle";
 import { ChatMessageList } from "@/components/chat/ChatMessageList";
 import type { PersonaSummary } from "@/components/chat/MessageBubble";
@@ -1314,6 +1315,10 @@ function ChatShell({
         onCreateClick={() => router.push("/skills/new")}
         actions={
           <>
+            {/* 1.1.165 — the group's own activity sheet; once the activity resolved. */}
+            {isAnonymousGroupAuthMode() && activeTitle.trim() ? (
+              <ActivitySheetButton activityId={activityId} />
+            ) : null}
             <LanguageSwitch value={locale} />
             <AutoReadToggle />
           </>
