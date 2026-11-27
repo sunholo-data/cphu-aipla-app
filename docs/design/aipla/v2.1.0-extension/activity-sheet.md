@@ -1,6 +1,6 @@
 # A one-page activity sheet per group: print it, or open it in the app
 
-**Status**: **M0–M4 IMPLEMENTED 2026-11-27** (on `dev`, not yet released) — **1.1.165**
+**Status**: **SHIPPED v0.1.117 (test + prod, 2026-11-27)**, M0–M4 — **1.1.165**
 **Priority**: **P2**. Teachers asked for it, and it is cheap because every part already exists
 **Estimated**: **~1.5d** (M0 evidence ~0.1d · M1 sheet builder + Word conversion ~0.5d · M2 teacher routes and page ~0.5d · M3 student copy ~0.25d · M4 tests ~0.15d)
 **Scope**: Backend: new `handouts/activity_sheet.py` (pure builder, Word template, conversion), new `protocols/activity_sheet_routes.py` (teacher + student routes), `ailang-parse` 0.5.4 → 0.14.0. Frontend: `lib/activitySheetApi.ts`, a page at `app/teacher/classes/[id]/sheet/[activityId]`, an action on the class page's activity rows, a `Sheet` button in the student chat header, `components/activity-sheet/ActivitySheetView.tsx`, copy in `messages/{da,en}/`. No new collection, nothing stored
